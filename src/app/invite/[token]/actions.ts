@@ -21,6 +21,16 @@ export async function submitInviteTestAction(token: string, answers: Record<stri
     return { ok: false as const, error: "هذه الدعوة لم تعد متاحة" };
   }
 
+  // تحديث ذري شرطه status="open" يمنع إرسالين متزامنين لنفس الرمز من كليهما
+  // اجتياز الفحص أعلاه ثم إنشاء عضوين — الفائز الوحيد هو من ينجح بهذا التحديث
+  const claimed = await prisma.invite.updateMany({
+    where: { id: invite.id, status: "open" },
+    data: { status: "used" },
+  });
+  if (claimed.count === 0) {
+    return { ok: false as const, error: "هذه الدعوة لم تعد متاحة" };
+  }
+
   const member = await prisma.member.create({
     data: {
       fullName: invite.fullName,
@@ -29,8 +39,6 @@ export async function submitInviteTestAction(token: string, answers: Record<stri
       inviteId: invite.id,
     },
   });
-
-  await prisma.invite.update({ where: { id: invite.id }, data: { status: "used" } });
 
   const { score, passed } = await submitTestAttempt({ memberId: member.id, answers });
 

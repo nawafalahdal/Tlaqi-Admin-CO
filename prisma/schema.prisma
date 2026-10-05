@@ -244,3 +244,13 @@ model Ticket {
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 }
+
+/// يمنع هجمات التخمين وحشو بيانات الاعتماد — يتتبع محاولات الدخول الفاشلة لكل
+/// بريد إلكتروني، ويقفل الحساب مؤقتاً بعد عدد محاولات محدد
+model LoginAttempt {
+  id          String    @id @default(cuid())
+  identifier  String    @unique
+  failCount   Int       @default(0)
+  lockedUntil DateTime?
+  updatedAt   DateTime  @updatedAt
+}

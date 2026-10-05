@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { isLockedOut, recordFailedAttempt, clearFailedAttempts } from "@/lib/loginAttempts";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
@@ -17,11 +18,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const password = credentials?.password as string | undefined;
         if (!email || !password) return null;
 
+        // مقاومة التخمين وحشو بيانات الاعتماد: قفل مؤقت بعد محاولات فاشلة متتالية
+        if (await isLockedOut(email)) return null;
+
         const user = await prisma.user.findUnique({
           where: { email },
           include: { department: true },
         });
         if (user && (await bcrypt.compare(password, user.passwordHash))) {
+          await clearFailedAttempts(email);
           return {
             id: user.id,
             name: user.fullName,
@@ -43,6 +48,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           member.approvalStatus === "approved" &&
           (await bcrypt.compare(password, member.passwordHash))
         ) {
+          await clearFailedAttempts(email);
           return {
             id: member.id,
             name: member.fullName,
@@ -54,6 +60,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           };
         }
 
+        await recordFailedAttempt(email);
         return null;
       },
     }),
