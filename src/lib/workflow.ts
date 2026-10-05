@@ -144,7 +144,7 @@ export async function approveMember(memberId: string) {
     loginUrl: `${baseUrl()}/login`,
   });
 
-  return member;
+  return { member, tempPassword };
 }
 
 export async function rejectMember(memberId: string) {
@@ -222,4 +222,51 @@ export async function acknowledgeWarning(warningId: string, memberId: string) {
     where: { id: warningId },
     data: { acknowledgedAt: new Date() },
   });
+}
+
+/** يعيد تعيين كلمة مرور عضو (ويحدّث بريده اختيارياً) عند نسيانه أو أي إشكالية —
+ *  يولّد كلمة مرور مؤقتة جديدة، يجبر تغييرها عند الدخول التالي، ويرسلها بالبريد */
+export async function resetMemberCredentials(memberId: string, newEmail?: string) {
+  const tempPassword = generateTempPassword();
+  const passwordHash = await hashPassword(tempPassword);
+  const member = await prisma.member.update({
+    where: { id: memberId },
+    data: {
+      passwordHash,
+      mustChangePassword: true,
+      ...(newEmail ? { email: newEmail } : {}),
+    },
+  });
+
+  await sendCredentialsEmail({
+    to: member.email,
+    fullName: member.fullName,
+    tempPassword,
+    loginUrl: `${baseUrl()}/login`,
+  });
+
+  return { member, tempPassword };
+}
+
+/** نفس الفكرة لحساب إداري (قائد قسم / تنفيذي) */
+export async function resetUserCredentials(userId: string, newEmail?: string) {
+  const tempPassword = generateTempPassword();
+  const passwordHash = await hashPassword(tempPassword);
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      passwordHash,
+      mustChangePassword: true,
+      ...(newEmail ? { email: newEmail } : {}),
+    },
+  });
+
+  await sendCredentialsEmail({
+    to: user.email,
+    fullName: user.fullName,
+    tempPassword,
+    loginUrl: `${baseUrl()}/login`,
+  });
+
+  return { user, tempPassword };
 }

@@ -3,9 +3,12 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { themeFromColor, BRAND } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
-import { LogoutButton } from "@/components/LogoutButton";
+import { HeaderActions } from "@/components/HeaderActions";
 import { LogoLockup } from "@/components/Logo";
 import { WarningCard } from "./WarningCard";
+import { MyTicketCard } from "./MyTicketCard";
+import { RaiseTicketForm } from "./RaiseTicketForm";
+import { sweepTicketEscalation } from "@/lib/tickets";
 
 export default async function MemberPortalPage() {
   const session = await auth();
@@ -18,6 +21,8 @@ export default async function MemberPortalPage() {
   });
 
   const theme = themeFromColor(member.department?.colorHex ?? BRAND.temptress);
+
+  await sweepTicketEscalation();
 
   if (!member.isActive) {
     return (
@@ -36,10 +41,15 @@ export default async function MemberPortalPage() {
 
   const unacknowledged = member.warnings.filter((w) => !w.acknowledgedAt).length;
 
+  const [departments, tickets] = await Promise.all([
+    prisma.department.findMany({ orderBy: { name: "asc" } }),
+    prisma.ticket.findMany({ where: { memberId: member.id }, orderBy: { createdAt: "desc" } }),
+  ]);
+
   return (
     <div className="min-h-screen bg-[#FAF8F4]">
       <AppHeader theme={theme} roleName={member.department?.name ?? "عضو"} userName={member.fullName}>
-        <LogoutButton color={theme.text} />
+        <HeaderActions color={theme.text} />
       </AppHeader>
 
       <main className="mx-auto max-w-2xl px-5 py-8 flex flex-col gap-8">
@@ -68,6 +78,41 @@ export default async function MemberPortalPage() {
                     reason: w.reason,
                     createdAt: w.createdAt.toISOString(),
                     acknowledgedAt: w.acknowledgedAt ? w.acknowledgedAt.toISOString() : null,
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section>
+          <h2 className="mb-4 text-lg font-bold">رفع تذكرة جديدة</h2>
+          <p className="mb-4 -mt-3 text-xs text-black/40">
+            مثال: لم يصلك البانر الترحيبي، أو أي مشكلة تحتاج متابعة من قسم معيّن
+          </p>
+          <Card className="p-6">
+            <RaiseTicketForm departments={departments} theme={theme} />
+          </Card>
+        </section>
+
+        <section>
+          <h2 className="mb-4 text-lg font-bold">تذاكري {tickets.length > 0 && `(${tickets.length})`}</h2>
+          {tickets.length === 0 ? (
+            <Card className="p-8 text-center text-sm text-black/40">لا توجد تذاكر مرفوعة بعد</Card>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {tickets.map((t) => (
+                <MyTicketCard
+                  key={t.id}
+                  theme={theme}
+                  ticket={{
+                    id: t.id,
+                    subject: t.subject,
+                    description: t.description,
+                    status: t.status,
+                    stage: t.stage,
+                    stageDueAt: t.stageDueAt.toISOString(),
+                    resolutionNote: t.resolutionNote,
                   }}
                 />
               ))}

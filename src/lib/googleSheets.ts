@@ -14,13 +14,16 @@ function getClient() {
   return google.sheets({ version: "v4", auth });
 }
 
-/** يكتب صفاً جديداً في Google Sheet فور اعتماد العضو نهائياً — هذا هو السجل الرسمي */
-export async function appendApprovedMember(row: {
+/** يضيف صفاً واحداً للسجل الحي الموحّد (الاسم، البريد، القسم/الصفة، النوع،
+ *  التفاصيل، التاريخ) — هذا هو السجل الرسمي المحدّث أولاً بأول لكل الأحداث:
+ *  اعتماد عضو جديد، تنبيه، استبعاد... إلخ */
+export async function appendSheetRow(row: {
   fullName: string;
   email: string;
-  departmentName: string;
-  jobTitle?: string | null;
-  approvedAt: Date;
+  roleOrDepartment: string;
+  eventType: string;
+  details: string;
+  at: Date;
 }) {
   const sheets = getClient();
   if (!sheets) {
@@ -34,16 +37,17 @@ export async function appendApprovedMember(row: {
   try {
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID!,
-      range: "التسجيل!A:E",
+      range: "A:F",
       valueInputOption: "USER_ENTERED",
       requestBody: {
         values: [
           [
             row.fullName,
             row.email,
-            row.departmentName,
-            row.jobTitle ?? "",
-            row.approvedAt.toISOString(),
+            row.roleOrDepartment,
+            row.eventType,
+            row.details,
+            row.at.toISOString(),
           ],
         ],
       },
@@ -55,8 +59,23 @@ export async function appendApprovedMember(row: {
   }
 }
 
-/** يسجّل أي تحديث لاحق على عضو (تنبيه، استبعاد...) كصف في تبويب أحداث منفصل —
- *  يبقي سجل تلاقي الرسمي على Google Sheet محدّثاً أولاً بأول كما طلب الفاونڈر */
+export async function appendApprovedMember(row: {
+  fullName: string;
+  email: string;
+  departmentName: string;
+  jobTitle?: string | null;
+  approvedAt: Date;
+}) {
+  return appendSheetRow({
+    fullName: row.fullName,
+    email: row.email,
+    roleOrDepartment: row.departmentName,
+    eventType: "اعتماد نهائي",
+    details: row.jobTitle ?? "",
+    at: row.approvedAt,
+  });
+}
+
 export async function appendMemberEvent(row: {
   fullName: string;
   email: string;
@@ -64,27 +83,12 @@ export async function appendMemberEvent(row: {
   details: string;
   at: Date;
 }) {
-  const sheets = getClient();
-  if (!sheets) {
-    console.warn(
-      "[google-sheets:disabled] لم تُضبط بيانات اعتماد Google Sheets — تم تجاهل تسجيل الحدث.",
-      row
-    );
-    return { skipped: true };
-  }
-
-  try {
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID!,
-      range: "الأحداث!A:E",
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [[row.fullName, row.email, row.event, row.details, row.at.toISOString()]],
-      },
-    });
-    return { skipped: false };
-  } catch (err) {
-    console.error("فشلت الكتابة إلى Google Sheet:", err);
-    return { skipped: true, error: true };
-  }
+  return appendSheetRow({
+    fullName: row.fullName,
+    email: row.email,
+    roleOrDepartment: "",
+    eventType: row.event,
+    details: row.details,
+    at: row.at,
+  });
 }

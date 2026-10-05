@@ -7,6 +7,7 @@ import { Button, Card } from "@/components/ui";
 
 export function ApprovalRow({
   member,
+  onApproved,
 }: {
   member: {
     id: string;
@@ -16,9 +17,17 @@ export function ApprovalRow({
     departmentName: string;
     departmentColor: string;
   };
+  onApproved: (result: { email: string; tempPassword: string }) => void;
 }) {
   const [pending, startTransition] = useTransition();
   const theme = themeFromColor(member.departmentColor);
+
+  function handleApprove() {
+    startTransition(async () => {
+      const result = await approveMemberAction(member.id);
+      onApproved(result);
+    });
+  }
 
   return (
     <Card
@@ -56,11 +65,7 @@ export function ApprovalRow({
           >
             رفض
           </Button>
-          <Button
-            theme={theme}
-            disabled={pending}
-            onClick={() => startTransition(() => approveMemberAction(member.id))}
-          >
+          <Button theme={theme} disabled={pending} onClick={handleApprove}>
             اعتماد نهائي
           </Button>
         </div>

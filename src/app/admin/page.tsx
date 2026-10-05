@@ -2,12 +2,14 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { sweepOverdueRequests } from "@/lib/workflow";
+import { sweepTicketEscalation } from "@/lib/tickets";
+import { TicketCard } from "./tickets/TicketCard";
 import { themeFromColor, SUPER_ADMIN_THEME, BRAND } from "@/lib/brand";
 import { ROLE_LABELS } from "@/lib/testTracks";
 import { AppHeader, Card, StatusBadge } from "@/components/ui";
-import { LogoutButton } from "@/components/LogoutButton";
+import { HeaderActions } from "@/components/HeaderActions";
 import { ExecutiveInviteForm, DeptAdminInviteForm } from "./LeadershipInviteForms";
-import { ApprovalRow } from "./ApprovalRow";
+import { ApprovalQueue } from "./ApprovalQueue";
 import { formatDate } from "@/lib/format";
 import Link from "next/link";
 
@@ -30,8 +32,9 @@ export default async function AdminPage() {
   const isSuperAdmin = session.user.role === "super_admin";
 
   await sweepOverdueRequests();
+  await sweepTicketEscalation();
 
-  const [departments, leadershipQueue, memberQueue, requests, invites] = await Promise.all([
+  const [departments, leadershipQueue, memberQueue, requests, invites, escalatedTickets] = await Promise.all([
     prisma.department.findMany({ orderBy: { name: "asc" } }),
     prisma.member.findMany({
       where: {
@@ -61,6 +64,11 @@ export default async function AdminPage() {
       orderBy: { createdAt: "desc" },
       take: 10,
     }),
+    prisma.ticket.findMany({
+      where: { status: { in: ["open", "in_progress"] }, stage: "ceo_escalation" },
+      include: { member: true, targetDepartment: true },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
 
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
@@ -72,7 +80,7 @@ export default async function AdminPage() {
         roleName={isSuperAdmin ? "الفاونڈر — الإدارة العليا" : "الإدارة التنفيذية (CEO)"}
         userName={session.user.name ?? ""}
       >
-        <LogoutButton color={theme.text} />
+        <HeaderActions color={theme.text} />
       </AppHeader>
 
       <main className="mx-auto max-w-6xl px-5 py-8 flex flex-col gap-8">
@@ -99,27 +107,52 @@ export default async function AdminPage() {
         </section>
 
         <section>
+          <h2 className="mb-4 text-lg font-bold">تذاكر مصعّدة إلى الإدارة التنفيذية ({escalatedTickets.length})</h2>
+          <p className="mb-4 -mt-3 text-xs text-black/40">
+            تذاكر لم تُحل خلال 4 أيام عبر القسم المستهدف ثم قائد قسم العضو — تحتاج تدخلك الآن
+          </p>
+          {escalatedTickets.length === 0 ? (
+            <Card className="p-8 text-center text-sm text-black/40">لا توجد تذاكر متصعّدة حالياً</Card>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {escalatedTickets.map((t) => (
+                <TicketCard
+                  key={t.id}
+                  theme={theme}
+                  ticket={{
+                    id: t.id,
+                    subject: t.subject,
+                    description: t.description,
+                    status: t.status,
+                    stage: t.stage,
+                    stageDueAt: t.stageDueAt.toISOString(),
+                    resolutionNote: t.resolutionNote,
+                    memberName: t.member.fullName,
+                    targetDepartmentName: t.targetDepartment.name,
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section>
           <h2 className="mb-4 text-lg font-bold">بانتظار اعتماد القيادة</h2>
           {leadershipQueue.length === 0 ? (
             <Card className="p-8 text-center text-sm text-black/40">
               لا يوجد مرشحون لمناصب قيادية بانتظار الاعتماد حالياً
             </Card>
           ) : (
-            <div className="flex flex-col gap-3">
-              {leadershipQueue.map((m) => (
-                <ApprovalRow
-                  key={m.id}
-                  member={{
-                    id: m.id,
-                    fullName: m.fullName,
-                    email: m.email,
-                    testScore: m.testScore,
-                    departmentName: m.department?.name ?? ROLE_LABELS[m.invite.targetRole],
-                    departmentColor: m.department?.colorHex ?? BRAND.temptress,
-                  }}
-                />
-              ))}
-            </div>
+            <ApprovalQueue
+              members={leadershipQueue.map((m) => ({
+                id: m.id,
+                fullName: m.fullName,
+                email: m.email,
+                testScore: m.testScore,
+                departmentName: m.department?.name ?? ROLE_LABELS[m.invite.targetRole],
+                departmentColor: m.department?.colorHex ?? BRAND.temptress,
+              }))}
+            />
           )}
         </section>
 
@@ -131,21 +164,16 @@ export default async function AdminPage() {
           {memberQueue.length === 0 ? (
             <Card className="p-8 text-center text-sm text-black/40">لا يوجد أعضاء بانتظار الاعتماد</Card>
           ) : (
-            <div className="flex flex-col gap-3">
-              {memberQueue.map((m) => (
-                <ApprovalRow
-                  key={m.id}
-                  member={{
-                    id: m.id,
-                    fullName: m.fullName,
-                    email: m.email,
-                    testScore: m.testScore,
-                    departmentName: m.department?.name ?? "—",
-                    departmentColor: m.department?.colorHex ?? BRAND.temptress,
-                  }}
-                />
-              ))}
-            </div>
+            <ApprovalQueue
+              members={memberQueue.map((m) => ({
+                id: m.id,
+                fullName: m.fullName,
+                email: m.email,
+                testScore: m.testScore,
+                departmentName: m.department?.name ?? "—",
+                departmentColor: m.department?.colorHex ?? BRAND.temptress,
+              }))}
+            />
           )}
         </section>
 
@@ -229,6 +257,24 @@ export default async function AdminPage() {
                 )}
               </tbody>
             </table>
+          </Card>
+        </section>
+
+        <section>
+          <Card className="p-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold">إدارة الحسابات القيادية</h2>
+              <p className="text-xs text-black/40">
+                مشاكل الدخول: إعادة تعيين كلمة المرور أو تعديل البريد لأي حساب
+              </p>
+            </div>
+            <Link
+              href="/admin/accounts"
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold"
+              style={{ background: theme.surface, color: theme.accentDark }}
+            >
+              فتح
+            </Link>
           </Card>
         </section>
 

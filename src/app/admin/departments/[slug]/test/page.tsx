@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { themeFromColor } from "@/lib/brand";
 import { AppHeader } from "@/components/ui";
-import { LogoutButton } from "@/components/LogoutButton";
+import { HeaderActions } from "@/components/HeaderActions";
 import { TestEditor } from "../../../tests/TestEditor";
 import { toQuestionViewModel } from "@/lib/testTracks";
 
@@ -34,7 +34,7 @@ export default async function DepartmentTestPage({
   return (
     <div className="min-h-screen bg-[#FAF8F4]">
       <AppHeader theme={theme} roleName={`أدمن ${department.name}`} userName={session.user.name ?? ""}>
-        <LogoutButton color={theme.text} />
+        <HeaderActions color={theme.text} />
       </AppHeader>
       <main className="mx-auto max-w-3xl px-5 py-8">
         <h1 className="mb-1 text-xl font-bold">اختبار قبول أعضاء {department.name}</h1>

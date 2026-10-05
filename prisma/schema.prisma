@@ -57,6 +57,20 @@ enum TestTrackScope {
   executive
 }
 
+enum TicketStatus {
+  open
+  in_progress
+  resolved
+}
+
+/// مرحلة تصعيد التذكرة: القسم المستهدف أولاً (يومان) ← قائد قسم العضو نفسه
+/// (يومان إضافيان) ← الإدارة التنفيذية (نهائي)
+enum TicketStage {
+  department
+  lead_escalation
+  ceo_escalation
+}
+
 /// قسم داخلي — كل قسم له لون هوية خاص (hex) يُستخدم في تخصيص الواجهات
 model Department {
   id        String   @id @default(cuid())
@@ -70,6 +84,7 @@ model Department {
   members    Member[]
   requests   Request[]  @relation("TargetDepartmentRequests")
   testTracks TestTrack[]
+  tickets    Ticket[]   @relation("TicketTargetDepartment")
 }
 
 /// حساب إداري (قائد قسم / تنفيذي / الإدارة العليا) — يُنشأ إما مباشرة (بذرة النظام)
@@ -137,6 +152,7 @@ model Member {
   testAttempts TestAttempt[]
   requests     Request[]      @relation("LinkedMemberRequests")
   warnings     MemberWarning[]
+  tickets      Ticket[]
 }
 
 model TestAttempt {
@@ -199,4 +215,22 @@ model Request {
   note               String?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
+}
+
+/// تذكرة يرفعها عضو (مثال: لم يصله البانر الترحيبي). تصعيد تلقائي صارم إذا لم
+/// يُستجب خلال المهلة: القسم المستهدف (يومان) ← قائد قسم العضو (يومان) ← الإدارة التنفيذية
+model Ticket {
+  id                 String       @id @default(cuid())
+  subject            String
+  description        String
+  memberId           String
+  member             Member       @relation(fields: [memberId], references: [id])
+  targetDepartmentId String
+  targetDepartment   Department   @relation("TicketTargetDepartment", fields: [targetDepartmentId], references: [id])
+  status             TicketStatus @default(open)
+  stage              TicketStage  @default(department)
+  stageDueAt         DateTime
+  resolutionNote     String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
 }

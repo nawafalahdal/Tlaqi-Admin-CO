@@ -108,9 +108,10 @@ export async function approveMemberAction(memberId: string) {
   const session = await requireSession();
   const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
   if (!canManageDepartment(session, member.departmentId)) throw new Error("غير مصرح لك بهذا الإجراء");
-  await approveMember(memberId);
+  const { tempPassword } = await approveMember(memberId);
   revalidatePath("/admin");
   revalidatePath("/admin/departments");
+  return { tempPassword, email: member.email };
 }
 
 export async function rejectMemberAction(memberId: string) {

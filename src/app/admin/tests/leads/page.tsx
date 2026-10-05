@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader } from "@/components/ui";
-import { LogoutButton } from "@/components/LogoutButton";
+import { HeaderActions } from "@/components/HeaderActions";
 import { TestEditor } from "../TestEditor";
 import { toQuestionViewModel } from "@/lib/testTracks";
 
@@ -26,7 +26,7 @@ export default async function LeadsTestPage() {
         roleName={session.user.role === "super_admin" ? "الفاونڈر — الإدارة العليا" : "الإدارة التنفيذية (CEO)"}
         userName={session.user.name ?? ""}
       >
-        <LogoutButton color={theme.text} />
+        <HeaderActions color={theme.text} />
       </AppHeader>
       <main className="mx-auto max-w-3xl px-5 py-8">
         <h1 className="mb-1 text-xl font-bold">اختبار قادة الأقسام</h1>

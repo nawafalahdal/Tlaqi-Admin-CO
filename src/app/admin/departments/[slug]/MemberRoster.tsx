@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
-import { issueWarningAction } from "./actions";
+import { useActionState, useRef, useState, useTransition } from "react";
+import { issueWarningAction, resetMemberCredentialsAction } from "./actions";
 import { Card, Button } from "@/components/ui";
+import { CredentialsReveal } from "@/components/CredentialsReveal";
 import type { themeFromColor } from "@/lib/brand";
 
 type RosterMember = {
@@ -39,16 +40,37 @@ export function MemberRoster({
                 {m.email}
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <WarningBadge count={m.warningsCount} />
-              <Button theme={theme} variant="outline" onClick={() => setOpenFor(openFor === m.id ? null : m.id)}>
+              <Button
+                theme={theme}
+                variant="ghost"
+                onClick={() => setOpenFor(openFor === `reset-${m.id}` ? null : `reset-${m.id}`)}
+              >
+                مشكلة دخول؟
+              </Button>
+              <Button
+                theme={theme}
+                variant="outline"
+                onClick={() => setOpenFor(openFor === `warn-${m.id}` ? null : `warn-${m.id}`)}
+              >
                 إصدار تنبيه
               </Button>
             </div>
           </div>
-          {openFor === m.id && (
+          {openFor === `warn-${m.id}` && (
             <div className="mt-4 border-t border-black/5 pt-4">
               <WarningForm memberId={m.id} theme={theme} onDone={() => setOpenFor(null)} />
+            </div>
+          )}
+          {openFor === `reset-${m.id}` && (
+            <div className="mt-4 border-t border-black/5 pt-4">
+              <ResetCredentialsForm
+                memberId={m.id}
+                currentEmail={m.email}
+                theme={theme}
+                onDone={() => setOpenFor(null)}
+              />
             </div>
           )}
         </Card>
@@ -117,5 +139,74 @@ function WarningForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+function ResetCredentialsForm({
+  memberId,
+  currentEmail,
+  theme,
+  onDone,
+}: {
+  memberId: string;
+  currentEmail: string;
+  theme: ReturnType<typeof themeFromColor>;
+  onDone: () => void;
+}) {
+  const [email, setEmail] = useState(currentEmail);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState<{ email: string; tempPassword: string } | null>(null);
+
+  if (revealed) {
+    return (
+      <div className="flex flex-col gap-3">
+        <CredentialsReveal
+          email={revealed.email}
+          tempPassword={revealed.tempPassword}
+          theme={theme}
+          onClose={onDone}
+        />
+      </div>
+    );
+  }
+
+  function handleReset() {
+    setError(null);
+    startTransition(async () => {
+      const res = await resetMemberCredentialsAction(memberId, email);
+      if (res.error) {
+        setError(res.error);
+        return;
+      }
+      setRevealed({ email: res.email!, tempPassword: res.tempPassword! });
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <label className="flex flex-col gap-1.5 text-sm">
+        <span className="font-medium text-black/70">البريد الإلكتروني (عدّله إذا لزم)</span>
+        <input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          dir="ltr"
+          type="email"
+          className="rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
+        />
+      </label>
+      <p className="text-xs text-black/40">
+        سيولَّد رمز مرور مؤقت جديد ويُرسل للبريد أعلاه، ويُطلب من العضو تغييره فور الدخول.
+      </p>
+      {error && <p className="text-sm text-red-700">{error}</p>}
+      <div className="flex gap-2">
+        <Button theme={theme} disabled={pending} onClick={handleReset}>
+          {pending ? "جارِ التنفيذ..." : "إعادة تعيين كلمة المرور"}
+        </Button>
+        <Button theme={theme} variant="ghost" onClick={onDone}>
+          إلغاء
+        </Button>
+      </div>
+    </div>
   );
 }

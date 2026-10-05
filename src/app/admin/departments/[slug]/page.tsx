@@ -2,10 +2,12 @@ import { redirect, notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { sweepOverdueRequests } from "@/lib/workflow";
+import { sweepTicketEscalation } from "@/lib/tickets";
+import { TicketCard } from "../../tickets/TicketCard";
 import { themeFromColor } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
-import { LogoutButton } from "@/components/LogoutButton";
-import { ApprovalRow } from "../../ApprovalRow";
+import { HeaderActions } from "@/components/HeaderActions";
+import { ApprovalQueue } from "../../ApprovalQueue";
 import { NeedsMeetingRow } from "./NeedsMeetingRow";
 import { RequestCard } from "./RequestCard";
 import { MemberInviteForm } from "./MemberInviteForm";
@@ -37,8 +39,9 @@ export default async function DepartmentBoardPage({
   if (!department) notFound();
 
   await sweepOverdueRequests(department.id);
+  await sweepTicketEscalation();
 
-  const [approvalQueue, needsMeeting, requests, activeMembers] = await Promise.all([
+  const [approvalQueue, needsMeeting, requests, activeMembers, tickets] = await Promise.all([
     prisma.member.findMany({
       where: {
         departmentId: department.id,
@@ -72,6 +75,17 @@ export default async function DepartmentBoardPage({
       },
       orderBy: { fullName: "asc" },
     }),
+    prisma.ticket.findMany({
+      where: {
+        status: { in: ["open", "in_progress"] },
+        OR: [
+          { targetDepartmentId: department.id },
+          { stage: "lead_escalation", member: { departmentId: department.id } },
+        ],
+      },
+      include: { member: true, targetDepartment: true },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
 
   const theme = themeFromColor(department.colorHex);
@@ -79,7 +93,7 @@ export default async function DepartmentBoardPage({
   return (
     <div className="min-h-screen bg-[#FAF8F4]">
       <AppHeader theme={theme} roleName={`أدمن ${department.name}`} userName={session.user.name ?? ""}>
-        <LogoutButton color={theme.text} />
+        <HeaderActions color={theme.text} />
       </AppHeader>
 
       <main className="mx-auto max-w-6xl px-5 py-8 flex flex-col gap-10">
@@ -102,21 +116,17 @@ export default async function DepartmentBoardPage({
         {approvalQueue.length > 0 && (
           <section>
             <h2 className="mb-4 text-lg font-bold">بانتظار الاعتماد النهائي</h2>
-            <div className="flex flex-col gap-3">
-              {approvalQueue.map((m) => (
-                <ApprovalRow
-                  key={m.id}
-                  member={{
-                    id: m.id,
-                    fullName: m.fullName,
-                    email: m.email,
-                    testScore: m.testScore,
-                    departmentName: department.name,
-                    departmentColor: department.colorHex,
-                  }}
-                />
-              ))}
-            </div>
+            <ApprovalQueue
+              themeColorHex={department.colorHex}
+              members={approvalQueue.map((m) => ({
+                id: m.id,
+                fullName: m.fullName,
+                email: m.email,
+                testScore: m.testScore,
+                departmentName: department.name,
+                departmentColor: department.colorHex,
+              }))}
+            />
           </section>
         )}
 
@@ -147,6 +157,36 @@ export default async function DepartmentBoardPage({
               warningsCount: m.warningsCount,
             }))}
           />
+        </section>
+
+        <section>
+          <h2 className="mb-4 text-lg font-bold">تذاكر الأعضاء ({tickets.length})</h2>
+          <p className="mb-4 -mt-3 text-xs text-black/40">
+            طلبات مباشرة من القسم المستهدف ومن تذاكر مصعّدة إليك كقائد قسم العضو
+          </p>
+          {tickets.length === 0 ? (
+            <Card className="p-8 text-center text-sm text-black/40">لا توجد تذاكر مفتوحة</Card>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {tickets.map((t) => (
+                <TicketCard
+                  key={t.id}
+                  theme={theme}
+                  ticket={{
+                    id: t.id,
+                    subject: t.subject,
+                    description: t.description,
+                    status: t.status,
+                    stage: t.stage,
+                    stageDueAt: t.stageDueAt.toISOString(),
+                    resolutionNote: t.resolutionNote,
+                    memberName: t.member.fullName,
+                    targetDepartmentName: t.targetDepartment.name,
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </section>
 
         <section>

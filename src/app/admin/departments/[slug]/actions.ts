@@ -3,7 +3,8 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { sendInviteEmail } from "@/lib/email";
-import { issueWarning } from "@/lib/workflow";
+import { issueWarning, resetMemberCredentials } from "@/lib/workflow";
+import { respondToTicket } from "@/lib/tickets";
 import { getTrackForTarget, ROLE_LABELS } from "@/lib/testTracks";
 import { revalidatePath } from "next/cache";
 
@@ -82,4 +83,61 @@ export async function issueWarningAction(
   } catch (err) {
     return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع", success: false };
   }
+}
+
+/** إعادة تعيين بيانات دخول عضو (كلمة مرور جديدة، وبريد جديد اختيارياً) عند
+ *  نسيانه أو أي إشكالية — متاح لأدمن القسم المعني أو الفاونڈر/التنفيذي */
+export async function resetMemberCredentialsAction(
+  memberId: string,
+  newEmail: string
+): Promise<{ error: string | null; tempPassword?: string; email?: string }> {
+  const session = await auth();
+  if (!session) return { error: "يجب تسجيل الدخول" };
+
+  const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
+  const allowed =
+    session.user.role === "super_admin" ||
+    session.user.role === "executive" ||
+    (session.user.role === "department_admin" && session.user.departmentId === member.departmentId);
+  if (!allowed) return { error: "غير مصرح لك بهذا الإجراء" };
+
+  const trimmedEmail = newEmail.trim().toLowerCase();
+  try {
+    const { tempPassword, member: updated } = await resetMemberCredentials(
+      memberId,
+      trimmedEmail && trimmedEmail !== member.email ? trimmedEmail : undefined
+    );
+    revalidatePath(`/admin/departments`);
+    return { error: null, tempPassword, email: updated.email };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع" };
+  }
+}
+
+/** يرد أدمن القسم (المستهدف أصلاً أو قائد قسم العضو بعد التصعيد) على تذكرة —
+ *  الفاونڈر/التنفيذي مصرَّح لهما دائماً */
+export async function respondToTicketAction(
+  ticketId: string,
+  status: "in_progress" | "resolved",
+  resolutionNote: string
+) {
+  const session = await auth();
+  if (!session) throw new Error("يجب تسجيل الدخول");
+
+  const ticket = await prisma.ticket.findUniqueOrThrow({
+    where: { id: ticketId },
+    include: { member: true },
+  });
+
+  const allowed =
+    session.user.role === "super_admin" ||
+    session.user.role === "executive" ||
+    (session.user.role === "department_admin" &&
+      (session.user.departmentId === ticket.targetDepartmentId ||
+        session.user.departmentId === ticket.member.departmentId));
+  if (!allowed) throw new Error("غير مصرح لك بهذا الإجراء");
+
+  await respondToTicket({ ticketId, status, resolutionNote });
+  revalidatePath("/admin/departments");
+  revalidatePath("/admin");
 }

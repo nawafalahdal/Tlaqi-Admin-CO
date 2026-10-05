@@ -427,21 +427,30 @@ async function main() {
   await upsertTrack("executive", null, EXECUTIVE_QUESTIONS);
 
   // الحساب الجذر للنظام — لا يخضع لإجبار تغيير كلمة المرور لأنه ليس نتيجة دعوة
+  const FOUNDER_EMAIL = "nawafalahdal.sa@gmail.com";
   const founderPassword = await bcrypt.hash("Tlaqi@2026", 10);
-  await prisma.user.upsert({
-    where: { email: "super.admin@tlaqi.co" },
-    update: {},
-    create: {
-      fullName: "الفاونڈر",
-      email: "super.admin@tlaqi.co",
-      passwordHash: founderPassword,
-      role: "super_admin",
-      mustChangePassword: false,
-    },
-  });
+  const oldFounder = await prisma.user.findUnique({ where: { email: "super.admin@tlaqi.co" } });
+  if (oldFounder && oldFounder.role === "super_admin") {
+    await prisma.user.update({
+      where: { id: oldFounder.id },
+      data: { email: FOUNDER_EMAIL },
+    });
+  } else {
+    await prisma.user.upsert({
+      where: { email: FOUNDER_EMAIL },
+      update: {},
+      create: {
+        fullName: "الفاونڈر",
+        email: FOUNDER_EMAIL,
+        passwordHash: founderPassword,
+        role: "super_admin",
+        mustChangePassword: false,
+      },
+    });
+  }
 
   console.log("Seed complete.");
-  console.log("حساب الفاونڈر: super.admin@tlaqi.co / Tlaqi@2026");
+  console.log(`حساب الفاونڈر: ${FOUNDER_EMAIL} / Tlaqi@2026 (غيّرها فوراً)`);
   console.log("كل الحسابات الأخرى (تنفيذي، قادة أقسام، أعضاء) تُنشأ الآن حصراً عبر دورة دعوة/اختبار/اعتماد — لا بذور تجريبية لها بعد الآن.");
 }
 
