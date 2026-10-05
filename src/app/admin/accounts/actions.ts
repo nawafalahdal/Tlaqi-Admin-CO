@@ -3,6 +3,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { resetUserCredentials } from "@/lib/workflow";
+import { safeErrorMessage } from "@/lib/safeError";
 import { revalidatePath } from "next/cache";
 
 /** إعادة تعيين بيانات دخول حساب إداري (قائد قسم / تنفيذي) — الفاونڈر يملك هذا
@@ -33,6 +34,6 @@ export async function resetUserCredentialsAction(
     revalidatePath("/admin/accounts");
     return { error: null, tempPassword, email: user.email };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع" };
+    return { error: safeErrorMessage(err) };
   }
 }

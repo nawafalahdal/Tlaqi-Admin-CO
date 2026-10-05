@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { sendInviteEmail } from "@/lib/email";
 import { approveMember, rejectMember, reopenInviteForMember, syncMemberLifecycleRow } from "@/lib/workflow";
 import { getTrackForTarget, ROLE_LABELS } from "@/lib/testTracks";
+import { safeErrorMessage } from "@/lib/safeError";
 import { revalidatePath } from "next/cache";
 
 async function requireSession() {
@@ -53,7 +54,7 @@ export async function createExecutiveInviteAction(
     revalidatePath("/admin");
     return { error: null, success: true, inviteUrl };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع", success: false };
+    return { error: safeErrorMessage(err), success: false };
   }
 }
 
@@ -92,7 +93,7 @@ export async function createDeptAdminInviteAction(
     revalidatePath("/admin");
     return { error: null, success: true, inviteUrl };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع", success: false };
+    return { error: safeErrorMessage(err), success: false };
   }
 }
 
@@ -129,7 +130,7 @@ export async function createOperationsOfficerInviteAction(
     revalidatePath("/admin");
     return { error: null, success: true, inviteUrl };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع", success: false };
+    return { error: safeErrorMessage(err), success: false };
   }
 }
 

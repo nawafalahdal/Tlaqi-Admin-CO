@@ -3,6 +3,7 @@
 import { auth } from "@/auth";
 import { acknowledgeWarning } from "@/lib/workflow";
 import { raiseTicket } from "@/lib/tickets";
+import { safeErrorMessage } from "@/lib/safeError";
 import { revalidatePath } from "next/cache";
 
 export async function acknowledgeWarningAction(warningId: string) {
@@ -32,6 +33,6 @@ export async function raiseTicketAction(
     revalidatePath("/member");
     return { error: null, success: true };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع", success: false };
+    return { error: safeErrorMessage(err), success: false };
   }
 }

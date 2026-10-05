@@ -3,6 +3,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { canEditTrack } from "@/lib/testTracks";
+import { safeErrorMessage } from "@/lib/safeError";
 import { revalidatePath } from "next/cache";
 
 async function authorizeTrack(trackId: string) {
@@ -41,7 +42,7 @@ export async function addQuestionAction(
     revalidatePath("/admin");
     return { error: null };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع" };
+    return { error: safeErrorMessage(err) };
   }
 }
 
@@ -68,7 +69,7 @@ export async function updateQuestionAction(
     revalidatePath("/admin");
     return { error: null };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع" };
+    return { error: safeErrorMessage(err) };
   }
 }
 

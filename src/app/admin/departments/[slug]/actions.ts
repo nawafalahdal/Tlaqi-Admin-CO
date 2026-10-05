@@ -6,6 +6,7 @@ import { sendInviteEmail } from "@/lib/email";
 import { issueWarning, resetMemberCredentials, markMemberExited, issueCertificate } from "@/lib/workflow";
 import { respondToTicket } from "@/lib/tickets";
 import { getTrackForTarget, ROLE_LABELS } from "@/lib/testTracks";
+import { safeErrorMessage } from "@/lib/safeError";
 import { revalidatePath } from "next/cache";
 
 /** حوكمة صارمة: إصدار دعوة عضو داخل قسم معيّن هو حصراً من صلاحية أدمن ذلك
@@ -56,7 +57,7 @@ export async function createMemberInviteAction(
     revalidatePath(`/admin/departments`);
     return { error: null, success: true, inviteUrl };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع", success: false };
+    return { error: safeErrorMessage(err), success: false };
   }
 }
 
@@ -82,7 +83,7 @@ export async function issueWarningAction(
     revalidatePath(`/admin/departments`);
     return { error: null, success: true };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع", success: false };
+    return { error: safeErrorMessage(err), success: false };
   }
 }
 
@@ -111,7 +112,7 @@ export async function resetMemberCredentialsAction(
     revalidatePath(`/admin/departments`);
     return { error: null, tempPassword, email: updated.email };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع" };
+    return { error: safeErrorMessage(err) };
   }
 }
 
@@ -139,7 +140,7 @@ export async function markMemberExitedAction(
     revalidatePath(`/admin/departments`);
     return { error: null, success: true };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع", success: false };
+    return { error: safeErrorMessage(err), success: false };
   }
 }
 
@@ -160,7 +161,7 @@ export async function issueCertificateAction(memberId: string): Promise<{ error:
     revalidatePath(`/admin/departments`);
     return { error: null };
   } catch (err) {
-    return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع" };
+    return { error: safeErrorMessage(err) };
   }
 }
 
