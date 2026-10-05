@@ -5,6 +5,7 @@ import {
   sendTicketEscalatedEmail,
   sendTicketResolvedEmail,
 } from "@/lib/email";
+import { appendTicketEvent } from "@/lib/googleSheets";
 
 export const TICKET_STAGE_DAYS = 2;
 
@@ -44,6 +45,7 @@ export async function raiseTicket(opts: {
   description: string;
 }) {
   const member = await prisma.member.findUniqueOrThrow({ where: { id: opts.memberId } });
+  const targetDepartment = await prisma.department.findUniqueOrThrow({ where: { id: opts.targetDepartmentId } });
   const stageDueAt = addDays(new Date(), TICKET_STAGE_DAYS);
 
   const ticket = await prisma.ticket.create({
@@ -68,6 +70,17 @@ export async function raiseTicket(opts: {
   });
   await sendTicketConfirmationEmail({ to: member.email, subject: opts.subject, dueDate: stageDueAt });
 
+  await appendTicketEvent({
+    fullName: member.fullName,
+    email: member.email,
+    targetDepartment: targetDepartment.name,
+    subject: opts.subject,
+    details: opts.description,
+    event: "رفع تذكرة",
+    stage: TICKET_STAGE_LABELS.department,
+    at: new Date(),
+  });
+
   return ticket;
 }
 
@@ -83,7 +96,7 @@ export async function respondToTicket(opts: {
       status: opts.status,
       resolutionNote: opts.resolutionNote,
     },
-    include: { member: true },
+    include: { member: true, targetDepartment: true },
   });
 
   if (opts.status === "resolved") {
@@ -93,6 +106,17 @@ export async function respondToTicket(opts: {
       resolutionNote: opts.resolutionNote ?? "تم حل التذكرة.",
     });
   }
+
+  await appendTicketEvent({
+    fullName: ticket.member.fullName,
+    email: ticket.member.email,
+    targetDepartment: ticket.targetDepartment.name,
+    subject: ticket.subject,
+    details: opts.resolutionNote ?? "",
+    event: opts.status === "resolved" ? "تم الحل" : "قيد المعالجة",
+    stage: TICKET_STAGE_LABELS[ticket.stage],
+    at: new Date(),
+  });
 
   return ticket;
 }
@@ -106,7 +130,7 @@ export async function sweepTicketEscalation() {
       stage: { in: ["department", "lead_escalation"] },
       stageDueAt: { lt: new Date() },
     },
-    include: { member: true },
+    include: { member: true, targetDepartment: true },
   });
 
   for (const ticket of overdue) {
@@ -129,6 +153,17 @@ export async function sweepTicketEscalation() {
           portalUrl: `${baseUrl()}/admin`,
         });
       }
+
+      await appendTicketEvent({
+        fullName: ticket.member.fullName,
+        email: ticket.member.email,
+        targetDepartment: ticket.targetDepartment.name,
+        subject: ticket.subject,
+        details: ticket.description,
+        event: "تصعيد",
+        stage: TICKET_STAGE_LABELS.lead_escalation,
+        at: new Date(),
+      });
     } else if (ticket.stage === "lead_escalation") {
       await prisma.ticket.update({
         where: { id: ticket.id },
@@ -144,6 +179,17 @@ export async function sweepTicketEscalation() {
         stageLabel: TICKET_STAGE_LABELS.ceo_escalation,
         dueDate: null,
         portalUrl: `${baseUrl()}/admin`,
+      });
+
+      await appendTicketEvent({
+        fullName: ticket.member.fullName,
+        email: ticket.member.email,
+        targetDepartment: ticket.targetDepartment.name,
+        subject: ticket.subject,
+        details: ticket.description,
+        event: "تصعيد نهائي",
+        stage: TICKET_STAGE_LABELS.ceo_escalation,
+        at: new Date(),
       });
     }
   }

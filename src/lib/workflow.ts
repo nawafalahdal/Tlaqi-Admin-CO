@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { appendApprovedMember, appendMemberEvent } from "@/lib/googleSheets";
+import { appendApprovedMember, appendMemberEvent, appendTestResult } from "@/lib/googleSheets";
 import { sendMeetingReminderEmail, sendCredentialsEmail, sendWarningEmail } from "@/lib/email";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { generateTempPassword, hashPassword } from "@/lib/credentials";
@@ -55,6 +55,15 @@ export async function submitTestAttempt(opts: { memberId: string; answers: Recor
       approvalStatus: "pending_review",
     },
     include: { department: true, invite: true },
+  });
+
+  await appendTestResult({
+    fullName: updated.fullName,
+    email: updated.email,
+    track: updated.department?.name ?? (updated.invite.targetRole === "executive" ? "الإدارة التنفيذية" : "قيادة قسم"),
+    score,
+    passed,
+    at: new Date(),
   });
 
   if (!passed && updated.invite.targetRole === "member" && updated.departmentId) {
