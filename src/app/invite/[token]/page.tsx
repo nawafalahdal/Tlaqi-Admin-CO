@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { themeFromColor } from "@/lib/brand";
+import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
+import { ROLE_LABELS, toQuestionViewModel } from "@/lib/testTracks";
 import { LogoLockup } from "@/components/Logo";
 import { InviteFlow } from "./InviteFlow";
 
@@ -11,10 +12,16 @@ export default async function InvitePage({
   const { token } = await params;
   const invite = await prisma.invite.findUnique({
     where: { token },
-    include: { department: true },
+    include: { department: true, testTrack: { include: { questions: { orderBy: { order: "asc" } } } } },
   });
 
-  const theme = themeFromColor(invite?.department.colorHex ?? "#341D2B");
+  const theme = themeFromColor(invite?.department?.colorHex ?? SUPER_ADMIN_THEME.colorHex);
+
+  const roleLabel = invite
+    ? invite.department
+      ? `${ROLE_LABELS[invite.targetRole]} — ${invite.department.name}`
+      : ROLE_LABELS[invite.targetRole]
+    : "";
 
   return (
     <main
@@ -33,7 +40,8 @@ export default async function InvitePage({
             token={token}
             fullName={invite.fullName}
             email={invite.email}
-            departmentName={invite.department.name}
+            roleLabel={roleLabel}
+            questions={invite.testTrack.questions.map(toQuestionViewModel)}
             theme={theme}
             initialStatus={invite.status}
           />

@@ -2,25 +2,27 @@
 
 import { useState } from "react";
 import { confirmInviteEmailAction, submitInviteTestAction } from "./actions";
-import { TEST_QUESTIONS } from "@/lib/testQuestions";
 import type { themeFromColor } from "@/lib/brand";
 import { readableTextOn } from "@/lib/colors";
 
 type Theme = ReturnType<typeof themeFromColor>;
 type Step = "confirm" | "test" | "result" | "already-used" | "expired";
+type Question = { id: string; prompt: string; options: string[]; correctIndex: number };
 
 export function InviteFlow({
   token,
   fullName,
   email,
-  departmentName,
+  roleLabel,
+  questions,
   theme,
   initialStatus,
 }: {
   token: string;
   fullName: string;
   email: string;
-  departmentName: string;
+  roleLabel: string;
+  questions: Question[];
   theme: Theme;
   initialStatus: "open" | "used" | "expired";
 }) {
@@ -52,9 +54,9 @@ export function InviteFlow({
     setStep("test");
   }
 
-  const question = TEST_QUESTIONS[qIndex];
-  const isLast = qIndex === TEST_QUESTIONS.length - 1;
-  const canNext = answers[question.id] !== undefined;
+  const question = questions[qIndex];
+  const isLast = qIndex === questions.length - 1;
+  const canNext = question ? answers[question.id] !== undefined : false;
 
   async function handleSubmitTest() {
     setPending(true);
@@ -75,7 +77,7 @@ export function InviteFlow({
       <StateCard
         theme={theme}
         title="تم استخدام هذه الدعوة من قبل"
-        body="سبق أن أكملت الاختبار عبر هذا الرابط. سيتواصل معك القسم المعني بخصوص نتيجتك."
+        body="سبق أن أكملت الاختبار عبر هذا الرابط. سيتم التواصل معك بخصوص نتيجتك."
       />
     );
   }
@@ -94,7 +96,7 @@ export function InviteFlow({
     return (
       <div className="rounded-3xl bg-white p-8 shadow-xl">
         <p className="mb-1 text-xs font-semibold" style={{ color: theme.accentDark }}>
-          دعوة انضمام — قسم {departmentName}
+          دعوة انضمام — {roleLabel}
         </p>
         <h1 className="mb-6 text-xl font-bold">مرحباً {fullName}</h1>
 
@@ -129,21 +131,21 @@ export function InviteFlow({
     );
   }
 
-  if (step === "test") {
+  if (step === "test" && question) {
     return (
       <div className="rounded-3xl bg-white p-8 shadow-xl">
         <div className="mb-6 flex items-center justify-between text-xs text-black/40">
           <span>
-            السؤال {qIndex + 1} من {TEST_QUESTIONS.length}
+            السؤال {qIndex + 1} من {questions.length}
           </span>
-          <span>اختبار قبول قسم {departmentName}</span>
+          <span>اختبار قبول — {roleLabel}</span>
         </div>
 
         <div className="mb-6 h-1.5 w-full overflow-hidden rounded-full bg-black/5">
           <div
             className="h-full rounded-full transition-all"
             style={{
-              width: `${((qIndex + 1) / TEST_QUESTIONS.length) * 100}%`,
+              width: `${((qIndex + 1) / questions.length) * 100}%`,
               background: theme.accentDark,
             }}
           />
@@ -198,7 +200,7 @@ export function InviteFlow({
             <button
               type="button"
               disabled={!canNext}
-              onClick={() => setQIndex((i) => Math.min(TEST_QUESTIONS.length - 1, i + 1))}
+              onClick={() => setQIndex((i) => Math.min(questions.length - 1, i + 1))}
               className="rounded-xl px-6 py-3 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
               style={{ background: theme.accentDark, color: buttonTextColor }}
             >
@@ -228,8 +230,8 @@ export function InviteFlow({
       <p className="mb-1 text-sm text-black/60">نتيجتك: {result?.score}%</p>
       <p className="mx-auto max-w-sm text-sm text-black/60">
         {result?.passed
-          ? `طلبك الآن بانتظار الاعتماد النهائي من قسم ${departmentName}. سيتم التواصل معك قريباً.`
-          : `سيتواصل معك فريق ${departmentName} لجدولة اجتماع شرح قصير.`}
+          ? "طلبك الآن بانتظار الاعتماد النهائي. سيتم التواصل معك قريباً."
+          : "سيتم التواصل معك لجدولة اجتماع شرح قصير."}
       </p>
     </div>
   );

@@ -54,3 +54,37 @@ export async function appendApprovedMember(row: {
     return { skipped: true, error: true };
   }
 }
+
+/** يسجّل أي تحديث لاحق على عضو (تنبيه، استبعاد...) كصف في تبويب أحداث منفصل —
+ *  يبقي سجل تلاقي الرسمي على Google Sheet محدّثاً أولاً بأول كما طلب الفاونڈر */
+export async function appendMemberEvent(row: {
+  fullName: string;
+  email: string;
+  event: string;
+  details: string;
+  at: Date;
+}) {
+  const sheets = getClient();
+  if (!sheets) {
+    console.warn(
+      "[google-sheets:disabled] لم تُضبط بيانات اعتماد Google Sheets — تم تجاهل تسجيل الحدث.",
+      row
+    );
+    return { skipped: true };
+  }
+
+  try {
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID!,
+      range: "الأحداث!A:E",
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [[row.fullName, row.email, row.event, row.details, row.at.toISOString()]],
+      },
+    });
+    return { skipped: false };
+  } catch (err) {
+    console.error("فشلت الكتابة إلى Google Sheet:", err);
+    return { skipped: true, error: true };
+  }
+}

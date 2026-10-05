@@ -9,7 +9,14 @@ datasource db {
 
 enum UserRole {
   super_admin
+  executive
   department_admin
+}
+
+enum InviteTargetRole {
+  member
+  department_admin
+  executive
 }
 
 enum InviteStatus {
@@ -44,6 +51,12 @@ enum RequestStatus {
   overdue
 }
 
+enum TestTrackScope {
+  department_member
+  department_admin
+  executive
+}
+
 /// قسم داخلي — كل قسم له لون هوية خاص (hex) يُستخدم في تخصيص الواجهات
 model Department {
   id        String   @id @default(cuid())
@@ -52,60 +65,78 @@ model Department {
   colorHex  String
   createdAt DateTime @default(now())
 
-  admins   User[]
-  invites  Invite[]
-  members  Member[]
-  requests Request[] @relation("TargetDepartmentRequests")
+  admins     User[]
+  invites    Invite[]
+  members    Member[]
+  requests   Request[]  @relation("TargetDepartmentRequests")
+  testTracks TestTrack[]
 }
 
+/// حساب إداري (قائد قسم / تنفيذي / الإدارة العليا) — يُنشأ إما مباشرة (بذرة النظام)
+/// أو تلقائياً عند اعتماد مرشح قيادي بعد اجتيازه اختبار المستوى المناسب
 model User {
-  id             String    @id @default(cuid())
-  fullName       String
-  email          String    @unique
-  passwordHash   String
-  role           UserRole
-  departmentId   String?
-  department     Department? @relation(fields: [departmentId], references: [id])
-  createdAt      DateTime  @default(now())
+  id                 String    @id @default(cuid())
+  fullName           String
+  email              String    @unique
+  passwordHash       String
+  mustChangePassword Boolean   @default(false)
+  role               UserRole
+  departmentId       String?
+  department         Department? @relation(fields: [departmentId], references: [id])
+  createdAt          DateTime  @default(now())
 
-  invitesIssued  Invite[]  @relation("InvitedBy")
+  invitesIssued Invite[] @relation("InvitedBy")
 }
 
-/// دعوة بريد مقفلة بالاسم والإيميل — لا تسجيل عام
+/// دعوة مقفلة بالاسم والإيميل — لا تسجيل عام. targetRole يحدد المسار:
+/// عضو قسم (يدعوه أدمن قسمه) / قائد قسم (يدعوه الفاونڈر أو التنفيذي) / تنفيذي (الفاونڈر فقط)
 model Invite {
-  id           String       @id @default(cuid())
-  token        String       @unique @default(cuid())
+  id           String           @id @default(cuid())
+  token        String           @unique @default(cuid())
   fullName     String
   email        String
-  departmentId String
-  department   Department   @relation(fields: [departmentId], references: [id])
+  targetRole   InviteTargetRole @default(member)
+  departmentId String?
+  department   Department?      @relation(fields: [departmentId], references: [id])
+  testTrackId  String
+  testTrack    TestTrack        @relation(fields: [testTrackId], references: [id])
   invitedById  String
-  invitedBy    User         @relation("InvitedBy", fields: [invitedById], references: [id])
-  status       InviteStatus @default(open)
-  createdAt    DateTime     @default(now())
+  invitedBy    User             @relation("InvitedBy", fields: [invitedById], references: [id])
+  status       InviteStatus     @default(open)
+  createdAt    DateTime         @default(now())
 
   member Member?
 }
 
+/// مرشح مرّ بدورة دعوة/اختبار — لأي مستوى (عضو/قائد قسم/تنفيذي). بعد الاعتماد
+/// يصبح له حساب دخول دائم (مباشرة كـ Member للأعضاء، أو يُنشأ له User للقيادة)
 model Member {
-  id               String         @id @default(cuid())
-  fullName         String
-  email            String         @unique
-  departmentId     String
-  department       Department     @relation(fields: [departmentId], references: [id])
-  jobTitle         String?
-  joinDate         DateTime       @default(now())
-  testScore        Int?
-  testStatus       TestStatus     @default(not_started)
-  approvalStatus   ApprovalStatus @default(pending_review)
-  assignedAdminId  String?
-  inviteId         String         @unique
-  invite           Invite         @relation(fields: [inviteId], references: [id])
-  createdAt        DateTime       @default(now())
-  decidedAt        DateTime?
+  id                 String         @id @default(cuid())
+  fullName           String
+  email              String         @unique
+  phone              String?
+  departmentId       String?
+  department         Department?    @relation(fields: [departmentId], references: [id])
+  jobTitle           String?
+  joinDate           DateTime       @default(now())
+  testScore          Int?
+  testStatus         TestStatus     @default(not_started)
+  approvalStatus     ApprovalStatus @default(pending_review)
+  assignedAdminId    String?
+  inviteId           String         @unique
+  invite             Invite         @relation(fields: [inviteId], references: [id])
+  createdAt          DateTime       @default(now())
+  decidedAt          DateTime?
+
+  // بوابة العضو (بعد الاعتماد فقط — لا تسجيل دخول قبل ذلك)
+  passwordHash       String?
+  mustChangePassword Boolean        @default(false)
+  isActive           Boolean        @default(true)
+  warningsCount      Int            @default(0)
 
   testAttempts TestAttempt[]
-  requests     Request[]         @relation("LinkedMemberRequests")
+  requests     Request[]      @relation("LinkedMemberRequests")
+  warnings     MemberWarning[]
 }
 
 model TestAttempt {
@@ -116,6 +147,42 @@ model TestAttempt {
   score       Int
   passed      Boolean
   attemptedAt DateTime @default(now())
+}
+
+/// بنك أسئلة قابل للتعديل حسب المستوى: اختبار أعضاء قسم معيّن (يعدّله أدمن ذلك
+/// القسم)، اختبار قادة الأقسام (يعدّله التنفيذي), اختبار التنفيذيين (يعدّله الفاونڈر فقط)
+model TestTrack {
+  id           String          @id @default(cuid())
+  scope        TestTrackScope
+  departmentId String?
+  department   Department?     @relation(fields: [departmentId], references: [id])
+  createdAt    DateTime        @default(now())
+
+  questions TestQuestion[]
+  invites   Invite[]
+
+  @@unique([scope, departmentId])
+}
+
+model TestQuestion {
+  id           String    @id @default(cuid())
+  trackId      String
+  track        TestTrack @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  prompt       String
+  options      Json
+  correctIndex Int
+  order        Int       @default(0)
+}
+
+/// تنبيه يصدره أدمن القسم لعضو معتمد — ٣ تنبيهات تؤدي لاستبعاد تلقائي
+model MemberWarning {
+  id             String    @id @default(cuid())
+  memberId       String
+  member         Member    @relation(fields: [memberId], references: [id])
+  issuedByUserId String
+  reason         String
+  createdAt      DateTime  @default(now())
+  acknowledgedAt DateTime?
 }
 
 /// طلب داخلي بين الأقسام — مالك واحد واضح (targetDepartment) لكل طلب

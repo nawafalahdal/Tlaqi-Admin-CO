@@ -13,27 +13,48 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "كلمة المرور", type: "password" },
       },
       authorize: async (credentials) => {
-        const email = credentials?.email as string | undefined;
+        const email = (credentials?.email as string | undefined)?.toLowerCase().trim();
         const password = credentials?.password as string | undefined;
         if (!email || !password) return null;
 
         const user = await prisma.user.findUnique({
-          where: { email: email.toLowerCase().trim() },
+          where: { email },
           include: { department: true },
         });
-        if (!user) return null;
+        if (user && (await bcrypt.compare(password, user.passwordHash))) {
+          return {
+            id: user.id,
+            name: user.fullName,
+            email: user.email,
+            role: user.role,
+            departmentId: user.departmentId,
+            departmentSlug: user.department?.slug ?? null,
+            mustChangePassword: user.mustChangePassword,
+          };
+        }
 
-        const valid = await bcrypt.compare(password, user.passwordHash);
-        if (!valid) return null;
+        const member = await prisma.member.findUnique({
+          where: { email },
+          include: { department: true },
+        });
+        if (
+          member &&
+          member.passwordHash &&
+          member.approvalStatus === "approved" &&
+          (await bcrypt.compare(password, member.passwordHash))
+        ) {
+          return {
+            id: member.id,
+            name: member.fullName,
+            email: member.email,
+            role: "member",
+            departmentId: member.departmentId,
+            departmentSlug: member.department?.slug ?? null,
+            mustChangePassword: member.mustChangePassword,
+          };
+        }
 
-        return {
-          id: user.id,
-          name: user.fullName,
-          email: user.email,
-          role: user.role,
-          departmentId: user.departmentId,
-          departmentSlug: user.department?.slug ?? null,
-        };
+        return null;
       },
     }),
   ],
@@ -43,15 +64,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.role = user.role;
         token.departmentId = user.departmentId;
         token.departmentSlug = user.departmentSlug;
+        token.mustChangePassword = user.mustChangePassword;
       }
       return token;
     },
     session: async ({ session, token }) => {
       if (session.user) {
         session.user.id = token.sub as string;
-        session.user.role = token.role as "super_admin" | "department_admin";
-        session.user.departmentId = token.departmentId as string | null;
-        session.user.departmentSlug = token.departmentSlug as string | null;
+        session.user.role = token.role;
+        session.user.departmentId = token.departmentId;
+        session.user.departmentSlug = token.departmentSlug;
+        session.user.mustChangePassword = token.mustChangePassword;
       }
       return session;
     },

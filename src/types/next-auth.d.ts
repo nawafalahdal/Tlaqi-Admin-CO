@@ -1,26 +1,34 @@
 import type { DefaultSession } from "next-auth";
 
-declare module "next-auth" {
+type SessionRole = "super_admin" | "executive" | "department_admin" | "member";
+
+// next-auth (v5 beta) يعيد تصدير Session/User/JWT من @auth/core بدون إعادة تعريفها
+// في وحدته الخاصة، فإضافة الحقول هنا تطال الوحدة الأصلية @auth/core مباشرة
+// وإلا لن تندمج (type-only re-export لا يُدمَج مع module augmentation).
+declare module "@auth/core/types" {
   interface Session {
     user: {
       id: string;
-      role: "super_admin" | "department_admin";
+      role: SessionRole;
       departmentId: string | null;
       departmentSlug: string | null;
+      mustChangePassword: boolean;
     } & DefaultSession["user"];
   }
 
   interface User {
-    role: "super_admin" | "department_admin";
+    role: SessionRole;
     departmentId: string | null;
     departmentSlug: string | null;
+    mustChangePassword: boolean;
   }
 }
 
-declare module "next-auth/jwt" {
+declare module "@auth/core/jwt" {
   interface JWT {
-    role: "super_admin" | "department_admin";
+    role: SessionRole;
     departmentId: string | null;
     departmentSlug: string | null;
+    mustChangePassword: boolean;
   }
 }

@@ -8,6 +8,9 @@ import { LogoutButton } from "@/components/LogoutButton";
 import { ApprovalRow } from "../../ApprovalRow";
 import { NeedsMeetingRow } from "./NeedsMeetingRow";
 import { RequestCard } from "./RequestCard";
+import { MemberInviteForm } from "./MemberInviteForm";
+import { MemberRoster } from "./MemberRoster";
+import Link from "next/link";
 
 const COLUMNS: { status: "new" | "in_progress" | "done" | "overdue"; label: string }[] = [
   { status: "new", label: "جديد" },
@@ -26,28 +29,48 @@ export default async function DepartmentBoardPage({
   if (!session) redirect("/login");
 
   const isSuperAdmin = session.user.role === "super_admin";
+  const isExecutive = session.user.role === "executive";
   const isOwnDept = session.user.role === "department_admin" && session.user.departmentSlug === slug;
-  if (!isSuperAdmin && !isOwnDept) redirect("/admin");
+  if (!isSuperAdmin && !isExecutive && !isOwnDept) redirect("/admin");
 
   const department = await prisma.department.findUnique({ where: { slug } });
   if (!department) notFound();
 
   await sweepOverdueRequests(department.id);
 
-  const [approvalQueue, needsMeeting, requests] = await Promise.all([
+  const [approvalQueue, needsMeeting, requests, activeMembers] = await Promise.all([
     prisma.member.findMany({
-      where: { departmentId: department.id, approvalStatus: "pending_review", testStatus: "passed" },
+      where: {
+        departmentId: department.id,
+        approvalStatus: "pending_review",
+        testStatus: "passed",
+        invite: { targetRole: "member" },
+      },
       include: { department: true },
       orderBy: { createdAt: "asc" },
     }),
     prisma.member.findMany({
-      where: { departmentId: department.id, approvalStatus: "pending_review", testStatus: "failed" },
+      where: {
+        departmentId: department.id,
+        approvalStatus: "pending_review",
+        testStatus: "failed",
+        invite: { targetRole: "member" },
+      },
       orderBy: { createdAt: "asc" },
     }),
     prisma.request.findMany({
       where: { targetDepartmentId: department.id },
       include: { linkedMember: true },
       orderBy: { createdAt: "desc" },
+    }),
+    prisma.member.findMany({
+      where: {
+        departmentId: department.id,
+        approvalStatus: "approved",
+        isActive: true,
+        invite: { targetRole: "member" },
+      },
+      orderBy: { fullName: "asc" },
     }),
   ]);
 
@@ -60,6 +83,22 @@ export default async function DepartmentBoardPage({
       </AppHeader>
 
       <main className="mx-auto max-w-6xl px-5 py-8 flex flex-col gap-10">
+        <section>
+          <h1 className="mb-1 text-xl font-bold">دعوة عضو جديد</h1>
+          <p className="mb-4 text-sm text-black/50">
+            حصراً أدمن هذا القسم يملك هذا الإجراء — حوكمة صارمة بالتسلسل
+          </p>
+          {isOwnDept ? (
+            <Card className="p-6">
+              <MemberInviteForm departmentId={department.id} theme={theme} />
+            </Card>
+          ) : (
+            <Card className="p-6 text-sm text-black/50">
+              للعرض فقط — إصدار دعوة عضو هنا متاح لأدمن {department.name} حصراً.
+            </Card>
+          )}
+        </section>
+
         {approvalQueue.length > 0 && (
           <section>
             <h2 className="mb-4 text-lg font-bold">بانتظار الاعتماد النهائي</h2>
@@ -97,6 +136,20 @@ export default async function DepartmentBoardPage({
         )}
 
         <section>
+          <h2 className="mb-4 text-lg font-bold">الأعضاء النشطون ({activeMembers.length})</h2>
+          <MemberRoster
+            theme={theme}
+            members={activeMembers.map((m) => ({
+              id: m.id,
+              fullName: m.fullName,
+              email: m.email,
+              jobTitle: m.jobTitle,
+              warningsCount: m.warningsCount,
+            }))}
+          />
+        </section>
+
+        <section>
           <h2 className="mb-4 text-lg font-bold">طلبات القسم</h2>
           <div className="grid gap-4 md:grid-cols-4">
             {COLUMNS.map((col) => {
@@ -130,6 +183,22 @@ export default async function DepartmentBoardPage({
               );
             })}
           </div>
+        </section>
+
+        <section>
+          <Card className="p-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold">اختبار قبول أعضاء {department.name}</h2>
+              <p className="text-xs text-black/40">الأسئلة التي يجتازها مرشحو هذا القسم</p>
+            </div>
+            <Link
+              href={`/admin/departments/${slug}/test`}
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold"
+              style={{ background: theme.surface, color: theme.accentDark }}
+            >
+              تعديل الأسئلة
+            </Link>
+          </Card>
         </section>
       </main>
     </div>
