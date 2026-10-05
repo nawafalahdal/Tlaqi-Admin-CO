@@ -4,6 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { LogoLockup } from "@/components/Logo";
 import { BRAND } from "@/lib/brand";
 import { SecurityForm } from "./SecurityForm";
+import { BackButton } from "@/components/BackButton";
+
+const ROLE_HOME: Record<string, string> = {
+  super_admin: "/admin",
+  executive: "/admin",
+  operations_officer: "/admin/operations",
+};
 
 export default async function SecurityPage() {
   const session = await auth();
@@ -13,6 +20,11 @@ export default async function SecurityPage() {
     where: { id: session.user.id },
     select: { totpEnabled: true },
   });
+
+  const fallbackHref =
+    session.user.role === "department_admin" && session.user.departmentSlug
+      ? `/admin/departments/${session.user.departmentSlug}`
+      : (ROLE_HOME[session.user.role] ?? "/admin");
 
   return (
     <main
@@ -25,6 +37,7 @@ export default async function SecurityPage() {
         </div>
 
         <div className="rounded-3xl bg-white p-8 shadow-xl">
+          <BackButton fallbackHref={fallbackHref} />
           <h1 className="mb-1 text-lg font-bold text-black/90">التحقق بخطوتين (2FA)</h1>
           <p className="mb-6 text-sm text-black/50">
             طبقة حماية إضافية لحسابك الإداري عبر تطبيق مصادقة (Google Authenticator، Authy، إلخ).

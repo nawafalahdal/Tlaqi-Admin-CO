@@ -346,8 +346,13 @@ export async function acknowledgeWarning(warningId: string, memberId: string) {
 }
 
 /** يعيد تعيين كلمة مرور عضو (ويحدّث بريده اختيارياً) عند نسيانه أو أي إشكالية —
- *  يولّد كلمة مرور مؤقتة جديدة، يجبر تغييرها عند الدخول التالي، ويرسلها بالبريد */
-export async function resetMemberCredentials(memberId: string, newEmail?: string) {
+ *  يولّد كلمة مرور مؤقتة جديدة، يجبر تغييرها عند الدخول التالي، ويرسلها بالبريد،
+ *  ويُسجَّل الإجراء ومن نفّذه في السجل الحي لوضوح كامل المجريات لاحقاً */
+export async function resetMemberCredentials(
+  memberId: string,
+  newEmail?: string,
+  performedByName?: string
+) {
   const tempPassword = generateTempPassword();
   const passwordHash = await hashPassword(tempPassword);
   const member = await prisma.member.update({
@@ -366,11 +371,23 @@ export async function resetMemberCredentials(memberId: string, newEmail?: string
     loginUrl: `${baseUrl()}/login`,
   });
 
+  await appendMemberEvent({
+    fullName: member.fullName,
+    email: member.email,
+    event: "إعادة تعيين كلمة المرور",
+    details: performedByName ? `نفّذه: ${performedByName}` : "",
+    at: new Date(),
+  });
+
   return { member, tempPassword };
 }
 
-/** نفس الفكرة لحساب إداري (قائد قسم / تنفيذي) */
-export async function resetUserCredentials(userId: string, newEmail?: string) {
+/** نفس الفكرة لحساب إداري (قائد قسم / تنفيذي / مسؤول تشغيل) */
+export async function resetUserCredentials(
+  userId: string,
+  newEmail?: string,
+  performedByName?: string
+) {
   const tempPassword = generateTempPassword();
   const passwordHash = await hashPassword(tempPassword);
   const user = await prisma.user.update({
@@ -387,6 +404,14 @@ export async function resetUserCredentials(userId: string, newEmail?: string) {
     fullName: user.fullName,
     tempPassword,
     loginUrl: `${baseUrl()}/login`,
+  });
+
+  await appendMemberEvent({
+    fullName: user.fullName,
+    email: user.email,
+    event: "إعادة تعيين كلمة المرور",
+    details: performedByName ? `نفّذه: ${performedByName}` : "",
+    at: new Date(),
   });
 
   return { user, tempPassword };

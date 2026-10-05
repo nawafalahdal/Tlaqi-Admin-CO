@@ -29,7 +29,8 @@ export async function resetUserCredentialsAction(
   try {
     const { tempPassword, user } = await resetUserCredentials(
       userId,
-      trimmedEmail && trimmedEmail !== target.email ? trimmedEmail : undefined
+      trimmedEmail && trimmedEmail !== target.email ? trimmedEmail : undefined,
+      session.user.name ?? undefined
     );
     revalidatePath("/admin/accounts");
     return { error: null, tempPassword, email: user.email };

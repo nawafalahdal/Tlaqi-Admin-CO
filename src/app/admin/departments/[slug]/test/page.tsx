@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { TestEditor } from "../../../tests/TestEditor";
 import { toQuestionViewModel } from "@/lib/testTracks";
+import { BackButton } from "@/components/BackButton";
 
 export default async function DepartmentTestPage({
   params,
@@ -37,6 +38,7 @@ export default async function DepartmentTestPage({
         <HeaderActions color={theme.text} />
       </AppHeader>
       <main className="mx-auto max-w-3xl px-5 py-8">
+        <BackButton fallbackHref={`/admin/departments/${department.slug}`} />
         <h1 className="mb-1 text-xl font-bold">اختبار قبول أعضاء {department.name}</h1>
         <p className="mb-6 text-sm text-black/50">الأسئلة التي يجتازها مرشحو هذا القسم</p>
         <TestEditor trackId={track.id} questions={track.questions.map(toQuestionViewModel)} theme={theme} />

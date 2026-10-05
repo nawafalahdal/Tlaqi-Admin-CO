@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { TestEditor } from "../TestEditor";
 import { toQuestionViewModel } from "@/lib/testTracks";
+import { BackButton } from "@/components/BackButton";
 
 export default async function LeadsTestPage() {
   const session = await auth();
@@ -29,6 +30,7 @@ export default async function LeadsTestPage() {
         <HeaderActions color={theme.text} />
       </AppHeader>
       <main className="mx-auto max-w-3xl px-5 py-8">
+        <BackButton />
         <h1 className="mb-1 text-xl font-bold">اختبار قادة الأقسام</h1>
         <p className="mb-6 text-sm text-black/50">الأسئلة التي يجتازها مرشحو قيادة أي قسم</p>
         <TestEditor trackId={track.id} questions={track.questions.map(toQuestionViewModel)} theme={theme} />

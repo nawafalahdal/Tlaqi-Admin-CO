@@ -107,7 +107,8 @@ export async function resetMemberCredentialsAction(
   try {
     const { tempPassword, member: updated } = await resetMemberCredentials(
       memberId,
-      trimmedEmail && trimmedEmail !== member.email ? trimmedEmail : undefined
+      trimmedEmail && trimmedEmail !== member.email ? trimmedEmail : undefined,
+      session.user.name ?? undefined
     );
     revalidatePath(`/admin/departments`);
     return { error: null, tempPassword, email: updated.email };

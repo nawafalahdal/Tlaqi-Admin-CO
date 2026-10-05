@@ -6,7 +6,7 @@ import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { AccountRow } from "./AccountRow";
 import { MemberAccountRow } from "./MemberAccountRow";
-import Link from "next/link";
+import { BackButton } from "@/components/BackButton";
 
 export default async function AccountsPage() {
   const session = await auth();
@@ -43,12 +43,7 @@ export default async function AccountsPage() {
       </AppHeader>
 
       <main className="mx-auto max-w-3xl px-5 py-8">
-        <Link
-          href="/admin"
-          className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-black/50 hover:text-black/80"
-        >
-          ← رجوع للوحة الرئيسية
-        </Link>
+        <BackButton />
 
         <h1 className="mb-1 text-xl font-bold">إدارة الحسابات القيادية</h1>
         <p className="mb-6 text-sm text-black/50">

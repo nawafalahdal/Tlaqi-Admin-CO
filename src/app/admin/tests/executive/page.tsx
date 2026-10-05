@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { TestEditor } from "../TestEditor";
 import { toQuestionViewModel } from "@/lib/testTracks";
+import { BackButton } from "@/components/BackButton";
 
 export default async function ExecutiveTestPage() {
   const session = await auth();
@@ -25,6 +26,7 @@ export default async function ExecutiveTestPage() {
         <HeaderActions color={theme.text} />
       </AppHeader>
       <main className="mx-auto max-w-3xl px-5 py-8">
+        <BackButton />
         <h1 className="mb-1 text-xl font-bold">اختبار الإدارة التنفيذية</h1>
         <p className="mb-6 text-sm text-black/50">
           الأسئلة التي يجتازها مرشحو حساب CEO — تحريرك هنا فقط
