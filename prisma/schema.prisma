@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  super_admin
+  department_admin
+}
+
+enum InviteStatus {
+  open
+  used
+  expired
+}
+
+enum TestStatus {
+  not_started
+  passed
+  failed
+}
+
+enum ApprovalStatus {
+  pending_review
+  approved
+  rejected
+}
+
+enum RequestType {
+  welcome_banner
+  custom_design
+  dept_contact
+  meeting
+}
+
+enum RequestStatus {
+  new
+  in_progress
+  done
+  overdue
+}
+
+/// قسم داخلي — كل قسم له لون هوية خاص (hex) يُستخدم في تخصيص الواجهات
+model Department {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  colorHex  String
+  createdAt DateTime @default(now())
+
+  admins   User[]
+  invites  Invite[]
+  members  Member[]
+  requests Request[] @relation("TargetDepartmentRequests")
+}
+
+model User {
+  id             String    @id @default(cuid())
+  fullName       String
+  email          String    @unique
+  passwordHash   String
+  role           UserRole
+  departmentId   String?
+  department     Department? @relation(fields: [departmentId], references: [id])
+  createdAt      DateTime  @default(now())
+
+  invitesIssued  Invite[]  @relation("InvitedBy")
+}
+
+/// دعوة بريد مقفلة بالاسم والإيميل — لا تسجيل عام
+model Invite {
+  id           String       @id @default(cuid())
+  token        String       @unique @default(cuid())
+  fullName     String
+  email        String
+  departmentId String
+  department   Department   @relation(fields: [departmentId], references: [id])
+  invitedById  String
+  invitedBy    User         @relation("InvitedBy", fields: [invitedById], references: [id])
+  status       InviteStatus @default(open)
+  createdAt    DateTime     @default(now())
+
+  member Member?
+}
+
+model Member {
+  id               String         @id @default(cuid())
+  fullName         String
+  email            String         @unique
+  departmentId     String
+  department       Department     @relation(fields: [departmentId], references: [id])
+  jobTitle         String?
+  joinDate         DateTime       @default(now())
+  testScore        Int?
+  testStatus       TestStatus     @default(not_started)
+  approvalStatus   ApprovalStatus @default(pending_review)
+  assignedAdminId  String?
+  inviteId         String         @unique
+  invite           Invite         @relation(fields: [inviteId], references: [id])
+  createdAt        DateTime       @default(now())
+  decidedAt        DateTime?
+
+  testAttempts TestAttempt[]
+  requests     Request[]         @relation("LinkedMemberRequests")
+}
+
+model TestAttempt {
+  id          String   @id @default(cuid())
+  memberId    String
+  member      Member   @relation(fields: [memberId], references: [id])
+  answers     Json
+  score       Int
+  passed      Boolean
+  attemptedAt DateTime @default(now())
+}
+
+/// طلب داخلي بين الأقسام — مالك واحد واضح (targetDepartment) لكل طلب
+model Request {
+  id                 String        @id @default(cuid())
+  type               RequestType
+  createdById        String?
+  targetDepartmentId String
+  targetDepartment   Department    @relation("TargetDepartmentRequests", fields: [targetDepartmentId], references: [id])
+  status             RequestStatus @default(new)
+  dueDate            DateTime?
+  linkedMemberId     String?
+  linkedMember       Member?       @relation("LinkedMemberRequests", fields: [linkedMemberId], references: [id])
+  note               String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+}
