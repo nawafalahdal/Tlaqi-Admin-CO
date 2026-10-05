@@ -82,23 +82,23 @@ model Department {
   admins     User[]
   invites    Invite[]
   members    Member[]
-  requests   Request[]  @relation("TargetDepartmentRequests")
+  requests   Request[]   @relation("TargetDepartmentRequests")
   testTracks TestTrack[]
-  tickets    Ticket[]   @relation("TicketTargetDepartment")
+  tickets    Ticket[]    @relation("TicketTargetDepartment")
 }
 
 /// حساب إداري (قائد قسم / تنفيذي / الإدارة العليا) — يُنشأ إما مباشرة (بذرة النظام)
 /// أو تلقائياً عند اعتماد مرشح قيادي بعد اجتيازه اختبار المستوى المناسب
 model User {
-  id                 String    @id @default(cuid())
+  id                 String      @id @default(cuid())
   fullName           String
-  email              String    @unique
+  email              String      @unique
   passwordHash       String
-  mustChangePassword Boolean   @default(false)
+  mustChangePassword Boolean     @default(false)
   role               UserRole
   departmentId       String?
   department         Department? @relation(fields: [departmentId], references: [id])
-  createdAt          DateTime  @default(now())
+  createdAt          DateTime    @default(now())
 
   invitesIssued Invite[] @relation("InvitedBy")
 }
@@ -126,31 +126,35 @@ model Invite {
 /// مرشح مرّ بدورة دعوة/اختبار — لأي مستوى (عضو/قائد قسم/تنفيذي). بعد الاعتماد
 /// يصبح له حساب دخول دائم (مباشرة كـ Member للأعضاء، أو يُنشأ له User للقيادة)
 model Member {
-  id                 String         @id @default(cuid())
-  fullName           String
-  email              String         @unique
-  phone              String?
-  departmentId       String?
-  department         Department?    @relation(fields: [departmentId], references: [id])
-  jobTitle           String?
-  joinDate           DateTime       @default(now())
-  testScore          Int?
-  testStatus         TestStatus     @default(not_started)
-  approvalStatus     ApprovalStatus @default(pending_review)
-  assignedAdminId    String?
-  inviteId           String         @unique
-  invite             Invite         @relation(fields: [inviteId], references: [id])
-  createdAt          DateTime       @default(now())
-  decidedAt          DateTime?
+  id              String         @id @default(cuid())
+  fullName        String
+  email           String         @unique
+  phone           String?
+  departmentId    String?
+  department      Department?    @relation(fields: [departmentId], references: [id])
+  jobTitle        String?
+  joinDate        DateTime       @default(now())
+  testScore       Int?
+  testStatus      TestStatus     @default(not_started)
+  approvalStatus  ApprovalStatus @default(pending_review)
+  assignedAdminId String?
+  inviteId        String         @unique
+  invite          Invite         @relation(fields: [inviteId], references: [id])
+  createdAt       DateTime       @default(now())
+  decidedAt       DateTime?
 
   // بوابة العضو (بعد الاعتماد فقط — لا تسجيل دخول قبل ذلك)
-  passwordHash       String?
-  mustChangePassword Boolean        @default(false)
-  isActive           Boolean        @default(true)
-  warningsCount      Int            @default(0)
+  passwordHash        String?
+  mustChangePassword  Boolean   @default(false)
+  isActive            Boolean   @default(true)
+  warningsCount       Int       @default(0)
+  terminatedAt        DateTime?
+  exitReason          String?
+  certificateIssuedAt DateTime?
+  sheetRow            Int?
 
   testAttempts TestAttempt[]
-  requests     Request[]      @relation("LinkedMemberRequests")
+  requests     Request[]       @relation("LinkedMemberRequests")
   warnings     MemberWarning[]
   tickets      Ticket[]
 }
@@ -168,11 +172,11 @@ model TestAttempt {
 /// بنك أسئلة قابل للتعديل حسب المستوى: اختبار أعضاء قسم معيّن (يعدّله أدمن ذلك
 /// القسم)، اختبار قادة الأقسام (يعدّله التنفيذي), اختبار التنفيذيين (يعدّله الفاونڈر فقط)
 model TestTrack {
-  id           String          @id @default(cuid())
+  id           String         @id @default(cuid())
   scope        TestTrackScope
   departmentId String?
-  department   Department?     @relation(fields: [departmentId], references: [id])
-  createdAt    DateTime        @default(now())
+  department   Department?    @relation(fields: [departmentId], references: [id])
+  createdAt    DateTime       @default(now())
 
   questions TestQuestion[]
   invites   Invite[]
@@ -221,6 +225,7 @@ model Request {
 /// يُستجب خلال المهلة: القسم المستهدف (يومان) ← قائد قسم العضو (يومان) ← الإدارة التنفيذية
 model Ticket {
   id                 String       @id @default(cuid())
+  ticketNumber       Int          @unique @default(autoincrement())
   subject            String
   description        String
   memberId           String
@@ -231,6 +236,8 @@ model Ticket {
   stage              TicketStage  @default(department)
   stageDueAt         DateTime
   resolutionNote     String?
+  resolvedAt         DateTime?
+  sheetRow           Int?
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 }
