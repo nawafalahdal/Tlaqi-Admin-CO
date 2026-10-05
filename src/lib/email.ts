@@ -20,8 +20,10 @@ async function send(to: string | string[], subject: string, html: string) {
   if (recipients.length === 0) return { skipped: true };
 
   if (!resend) {
-    console.warn(`[email:disabled] لم يُضبط RESEND_API_KEY — سيُطبع البريد هنا فقط.`);
-    console.warn(`→ إلى: ${recipients.join(", ")} | الموضوع: ${subject}\n${html}`);
+    // لا نطبع محتوى الرسالة كاملاً (قد يحمل كلمة مرور مؤقتة أو رابط دعوة حساس) — فقط عنوان الرسالة ومستلمها
+    console.warn(
+      `[email:disabled] لم يُضبط RESEND_API_KEY — تم تجاهل إرسال بريد بعنوان "${subject}" إلى: ${recipients.join(", ")}`
+    );
     return { skipped: true };
   }
   try {
