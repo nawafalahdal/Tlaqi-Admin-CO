@@ -23,9 +23,9 @@ function canManageDepartment(session: Session, departmentId: string | null) {
 
 /** الفاونڈر فقط يُصدر دعوة لحساب تنفيذي (CEO) جديد */
 export async function createExecutiveInviteAction(
-  _prevState: { error: string | null; success: boolean },
+  _prevState: { error: string | null; success: boolean; inviteUrl?: string },
   formData: FormData
-): Promise<{ error: string | null; success: boolean }> {
+): Promise<{ error: string | null; success: boolean; inviteUrl?: string }> {
   try {
     const session = await requireSession();
     if (session.user.role !== "super_admin") {
@@ -47,15 +47,11 @@ export async function createExecutiveInviteAction(
       },
     });
 
-    await sendInviteEmail({
-      to: email,
-      fullName,
-      roleLabel: ROLE_LABELS.executive,
-      inviteUrl: `${process.env.APP_BASE_URL || "http://localhost:3000"}/invite/${invite.token}`,
-    });
+    const inviteUrl = `${process.env.APP_BASE_URL || "http://localhost:3000"}/invite/${invite.token}`;
+    await sendInviteEmail({ to: email, fullName, roleLabel: ROLE_LABELS.executive, inviteUrl });
 
     revalidatePath("/admin");
-    return { error: null, success: true };
+    return { error: null, success: true, inviteUrl };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع", success: false };
   }
@@ -64,9 +60,9 @@ export async function createExecutiveInviteAction(
 /** الفاونڈر أو التنفيذي يُصدر دعوة لحساب قائد قسم جديد — لا يمكن إضافة عضو داخل
  *  القسم مباشرة من هنا، فقط حساب قيادي (حوكمة صارمة بالتسلسل) */
 export async function createDeptAdminInviteAction(
-  _prevState: { error: string | null; success: boolean },
+  _prevState: { error: string | null; success: boolean; inviteUrl?: string },
   formData: FormData
-): Promise<{ error: string | null; success: boolean }> {
+): Promise<{ error: string | null; success: boolean; inviteUrl?: string }> {
   try {
     const session = await requireSession();
     if (session.user.role !== "super_admin" && session.user.role !== "executive") {
@@ -90,15 +86,11 @@ export async function createDeptAdminInviteAction(
       },
     });
 
-    await sendInviteEmail({
-      to: email,
-      fullName,
-      roleLabel: ROLE_LABELS.department_admin,
-      inviteUrl: `${process.env.APP_BASE_URL || "http://localhost:3000"}/invite/${invite.token}`,
-    });
+    const inviteUrl = `${process.env.APP_BASE_URL || "http://localhost:3000"}/invite/${invite.token}`;
+    await sendInviteEmail({ to: email, fullName, roleLabel: ROLE_LABELS.department_admin, inviteUrl });
 
     revalidatePath("/admin");
-    return { error: null, success: true };
+    return { error: null, success: true, inviteUrl };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع", success: false };
   }

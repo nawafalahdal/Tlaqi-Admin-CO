@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useRef, useEffect } from "react";
+import { useActionState, useRef, useEffect, useState } from "react";
 import { createExecutiveInviteAction, createDeptAdminInviteAction } from "./actions";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { Button } from "@/components/ui";
+import { InviteLinkReveal } from "@/components/InviteLinkReveal";
 
 type Dept = { id: string; name: string };
 
@@ -15,10 +16,21 @@ export function ExecutiveInviteForm() {
     success: false,
   });
   const formRef = useRef<HTMLFormElement>(null);
+  const [dismissedUrl, setDismissedUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (state.success) formRef.current?.reset();
   }, [state.success]);
+
+  if (state.success && state.inviteUrl && state.inviteUrl !== dismissedUrl) {
+    return (
+      <InviteLinkReveal
+        inviteUrl={state.inviteUrl}
+        theme={theme}
+        onClose={() => setDismissedUrl(state.inviteUrl!)}
+      />
+    );
+  }
 
   return (
     <form ref={formRef} action={formAction} className="flex flex-col gap-4">
@@ -26,7 +38,7 @@ export function ExecutiveInviteForm() {
         <Field label="الاسم الكامل" name="fullName" placeholder="اسم المرشح للإدارة التنفيذية" />
         <Field label="البريد الإلكتروني" name="email" type="email" placeholder="candidate@email.com" dir="ltr" />
       </div>
-      <Status state={state} successMessage="تم إصدار دعوة الإدارة التنفيذية بنجاح" />
+      {state.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>}
       <div>
         <Button type="submit" theme={theme} disabled={pending}>
           {pending ? "جارِ الإصدار..." : "دعوة لحساب تنفيذي (CEO)"}
@@ -42,10 +54,21 @@ export function DeptAdminInviteForm({ departments }: { departments: Dept[] }) {
     success: false,
   });
   const formRef = useRef<HTMLFormElement>(null);
+  const [dismissedUrl, setDismissedUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (state.success) formRef.current?.reset();
   }, [state.success]);
+
+  if (state.success && state.inviteUrl && state.inviteUrl !== dismissedUrl) {
+    return (
+      <InviteLinkReveal
+        inviteUrl={state.inviteUrl}
+        theme={theme}
+        onClose={() => setDismissedUrl(state.inviteUrl!)}
+      />
+    );
+  }
 
   return (
     <form ref={formRef} action={formAction} className="flex flex-col gap-4">
@@ -71,7 +94,7 @@ export function DeptAdminInviteForm({ departments }: { departments: Dept[] }) {
           </select>
         </label>
       </div>
-      <Status state={state} successMessage="تم إصدار دعوة قيادة القسم بنجاح" />
+      {state.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>}
       <div>
         <Button type="submit" theme={theme} disabled={pending}>
           {pending ? "جارِ الإصدار..." : "دعوة لحساب قائد قسم"}
@@ -107,20 +130,4 @@ function Field({
       />
     </label>
   );
-}
-
-function Status({
-  state,
-  successMessage,
-}: {
-  state: { error: string | null; success: boolean };
-  successMessage: string;
-}) {
-  if (state.error) {
-    return <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>;
-  }
-  if (state.success) {
-    return <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">{successMessage}</p>;
-  }
-  return null;
 }

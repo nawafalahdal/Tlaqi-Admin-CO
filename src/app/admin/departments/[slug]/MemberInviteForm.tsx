@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useRef, useEffect } from "react";
+import { useActionState, useRef, useEffect, useState } from "react";
 import { createMemberInviteAction } from "./actions";
 import { Button } from "@/components/ui";
+import { InviteLinkReveal } from "@/components/InviteLinkReveal";
 import type { themeFromColor } from "@/lib/brand";
 
 export function MemberInviteForm({
@@ -17,10 +18,21 @@ export function MemberInviteForm({
     success: false,
   });
   const formRef = useRef<HTMLFormElement>(null);
+  const [dismissedUrl, setDismissedUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (state.success) formRef.current?.reset();
   }, [state.success]);
+
+  if (state.success && state.inviteUrl && state.inviteUrl !== dismissedUrl) {
+    return (
+      <InviteLinkReveal
+        inviteUrl={state.inviteUrl}
+        theme={theme}
+        onClose={() => setDismissedUrl(state.inviteUrl!)}
+      />
+    );
+  }
 
   return (
     <form ref={formRef} action={formAction} className="flex flex-col gap-4">
@@ -58,11 +70,6 @@ export function MemberInviteForm({
 
       {state.error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>
-      )}
-      {state.success && (
-        <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
-          تم إصدار دعوة العضو وإرسالها بنجاح
-        </p>
       )}
 
       <div>

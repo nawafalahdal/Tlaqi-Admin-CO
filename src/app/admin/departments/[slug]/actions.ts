@@ -11,9 +11,9 @@ import { revalidatePath } from "next/cache";
 /** حوكمة صارمة: إصدار دعوة عضو داخل قسم معيّن هو حصراً من صلاحية أدمن ذلك
  *  القسم — حتى الفاونڈر نفسه لا يملك هذا الإجراء مباشرة */
 export async function createMemberInviteAction(
-  _prevState: { error: string | null; success: boolean },
+  _prevState: { error: string | null; success: boolean; inviteUrl?: string },
   formData: FormData
-): Promise<{ error: string | null; success: boolean }> {
+): Promise<{ error: string | null; success: boolean; inviteUrl?: string }> {
   try {
     const session = await auth();
     const departmentId = String(formData.get("departmentId") ?? "");
@@ -45,15 +45,16 @@ export async function createMemberInviteAction(
       },
     });
 
+    const inviteUrl = `${process.env.APP_BASE_URL || "http://localhost:3000"}/invite/${invite.token}`;
     await sendInviteEmail({
       to: email,
       fullName,
       roleLabel: `${ROLE_LABELS.member} — ${department.name}${jobTitle ? ` (${jobTitle})` : ""}`,
-      inviteUrl: `${process.env.APP_BASE_URL || "http://localhost:3000"}/invite/${invite.token}`,
+      inviteUrl,
     });
 
     revalidatePath(`/admin/departments`);
-    return { error: null, success: true };
+    return { error: null, success: true, inviteUrl };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع", success: false };
   }
