@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useEffect, useState } from "react";
-import { createExecutiveInviteAction, createDeptAdminInviteAction } from "./actions";
+import { createExecutiveInviteAction, createDeptAdminInviteAction, createOperationsOfficerInviteAction } from "./actions";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { Button } from "@/components/ui";
 import { InviteLinkReveal } from "@/components/InviteLinkReveal";
@@ -98,6 +98,44 @@ export function DeptAdminInviteForm({ departments }: { departments: Dept[] }) {
       <div>
         <Button type="submit" theme={theme} disabled={pending}>
           {pending ? "جارِ الإصدار..." : "دعوة لحساب قائد قسم"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+export function OperationsOfficerInviteForm() {
+  const [state, formAction, pending] = useActionState(createOperationsOfficerInviteAction, {
+    error: null,
+    success: false,
+  });
+  const formRef = useRef<HTMLFormElement>(null);
+  const [dismissedUrl, setDismissedUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (state.success) formRef.current?.reset();
+  }, [state.success]);
+
+  if (state.success && state.inviteUrl && state.inviteUrl !== dismissedUrl) {
+    return (
+      <InviteLinkReveal
+        inviteUrl={state.inviteUrl}
+        theme={theme}
+        onClose={() => setDismissedUrl(state.inviteUrl!)}
+      />
+    );
+  }
+
+  return (
+    <form ref={formRef} action={formAction} className="flex flex-col gap-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="الاسم الكامل" name="fullName" placeholder="اسم المرشح لمسؤول التشغيل" />
+        <Field label="البريد الإلكتروني" name="email" type="email" placeholder="candidate@email.com" dir="ltr" />
+      </div>
+      {state.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>}
+      <div>
+        <Button type="submit" theme={theme} disabled={pending}>
+          {pending ? "جارِ الإصدار..." : "دعوة لحساب مسؤول تشغيل"}
         </Button>
       </div>
     </form>

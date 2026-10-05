@@ -20,7 +20,7 @@ export async function resetUserCredentialsAction(
     session.user.role === "super_admin"
       ? true
       : session.user.role === "executive"
-        ? target.role === "department_admin"
+        ? target.role === "department_admin" || target.role === "operations_officer"
         : false;
   if (!allowed) return { error: "غير مصرح لك بهذا الإجراء" };
 

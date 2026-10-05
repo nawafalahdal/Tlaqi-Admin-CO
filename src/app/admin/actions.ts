@@ -96,6 +96,43 @@ export async function createDeptAdminInviteAction(
   }
 }
 
+/** الفاونڈر أو التنفيذي يُصدر دعوة لحساب مسؤول تشغيل — اطّلاع على كل
+ *  التذاكر والطلبات عبر كل الأقسام وإرسال تذكيرات، بدون صلاحية حل التذاكر */
+export async function createOperationsOfficerInviteAction(
+  _prevState: { error: string | null; success: boolean; inviteUrl?: string },
+  formData: FormData
+): Promise<{ error: string | null; success: boolean; inviteUrl?: string }> {
+  try {
+    const session = await requireSession();
+    if (session.user.role !== "super_admin" && session.user.role !== "executive") {
+      return { error: "هذا الإجراء خاص بالفاونڈر أو التنفيذي فقط", success: false };
+    }
+
+    const fullName = String(formData.get("fullName") ?? "").trim();
+    const email = String(formData.get("email") ?? "").trim().toLowerCase();
+    if (!fullName || !email) return { error: "جميع الحقول مطلوبة", success: false };
+
+    const track = await getTrackForTarget("operations_officer", null);
+    const invite = await prisma.invite.create({
+      data: {
+        fullName,
+        email,
+        targetRole: "operations_officer",
+        testTrackId: track.id,
+        invitedById: session.user.id,
+      },
+    });
+
+    const inviteUrl = `${process.env.APP_BASE_URL || "http://localhost:3000"}/invite/${invite.token}`;
+    await sendInviteEmail({ to: email, fullName, roleLabel: ROLE_LABELS.operations_officer, inviteUrl });
+
+    revalidatePath("/admin");
+    return { error: null, success: true, inviteUrl };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع", success: false };
+  }
+}
+
 export async function approveMemberAction(memberId: string) {
   const session = await requireSession();
   const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });

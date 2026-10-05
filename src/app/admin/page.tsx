@@ -1,24 +1,17 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { sweepOverdueRequests } from "@/lib/workflow";
+import { sweepOverdueRequests, REQUEST_TYPE_LABELS } from "@/lib/workflow";
 import { sweepTicketEscalation } from "@/lib/tickets";
 import { TicketCard } from "./tickets/TicketCard";
 import { themeFromColor, SUPER_ADMIN_THEME, BRAND } from "@/lib/brand";
 import { ROLE_LABELS } from "@/lib/testTracks";
 import { AppHeader, Card, StatusBadge } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
-import { ExecutiveInviteForm, DeptAdminInviteForm } from "./LeadershipInviteForms";
+import { ExecutiveInviteForm, DeptAdminInviteForm, OperationsOfficerInviteForm } from "./LeadershipInviteForms";
 import { ApprovalQueue } from "./ApprovalQueue";
 import { formatDate } from "@/lib/format";
 import Link from "next/link";
-
-const REQUEST_TYPE_LABELS: Record<string, string> = {
-  welcome_banner: "بانر ترحيبي",
-  custom_design: "تصميم مخصص",
-  dept_contact: "تواصل قسم",
-  meeting: "اجتماع شرح",
-};
 
 export default async function AdminPage() {
   const session = await auth();
@@ -27,6 +20,7 @@ export default async function AdminPage() {
   if (session.user.role === "department_admin" && session.user.departmentSlug) {
     redirect(`/admin/departments/${session.user.departmentSlug}`);
   }
+  if (session.user.role === "operations_officer") redirect("/admin/operations");
   if (session.user.role === "member") redirect("/member");
 
   const isSuperAdmin = session.user.role === "super_admin";
@@ -40,7 +34,7 @@ export default async function AdminPage() {
       where: {
         approvalStatus: "pending_review",
         testStatus: "passed",
-        invite: { targetRole: { in: ["department_admin", "executive"] } },
+        invite: { targetRole: { in: ["department_admin", "operations_officer", "executive"] } },
       },
       include: { department: true, invite: true },
       orderBy: { createdAt: "asc" },
@@ -95,6 +89,16 @@ export default async function AdminPage() {
             </Card>
           </section>
         )}
+
+        <section>
+          <h2 className="mb-1 text-lg font-bold">إنشاء حساب مسؤول تشغيل</h2>
+          <p className="mb-4 text-sm text-black/50">
+            يطّلع على كل التذاكر والطلبات بتواريخها عبر كل الأقسام، ويرسل تذكيرات — بدون صلاحية حل التذاكر نفسها
+          </p>
+          <Card className="p-6">
+            <OperationsOfficerInviteForm />
+          </Card>
+        </section>
 
         <section>
           <h2 className="mb-1 text-lg font-bold">إنشاء حساب قائد قسم</h2>
@@ -305,6 +309,22 @@ export default async function AdminPage() {
             </div>
             <Link
               href="/admin/tests/leads"
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold"
+              style={{ background: theme.surface, color: theme.accentDark }}
+            >
+              تعديل الأسئلة
+            </Link>
+          </Card>
+        </section>
+
+        <section>
+          <Card className="p-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold">اختبار مسؤول التشغيل</h2>
+              <p className="text-xs text-black/40">الأسئلة التي يجتازها مرشحو مسؤول التشغيل</p>
+            </div>
+            <Link
+              href="/admin/tests/operations"
               className="rounded-lg px-3 py-1.5 text-xs font-semibold"
               style={{ background: theme.surface, color: theme.accentDark }}
             >

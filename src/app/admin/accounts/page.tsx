@@ -15,8 +15,8 @@ export default async function AccountsPage() {
 
   const accounts = await prisma.user.findMany({
     where: isSuperAdmin
-      ? { role: { in: ["executive", "department_admin"] } }
-      : { role: "department_admin" },
+      ? { role: { in: ["executive", "operations_officer", "department_admin"] } }
+      : { role: { in: ["operations_officer", "department_admin"] } },
     include: { department: true },
     orderBy: [{ role: "asc" }, { fullName: "asc" }],
   });

@@ -5,6 +5,7 @@ import type { Session } from "next-auth";
 /** يحدد بنك الأسئلة الصحيح حسب الدور المستهدف للدعوة:
  *  عضو قسم ← اختبار ذلك القسم (يملكه أدمن القسم)
  *  قائد قسم ← اختبار القادة الموحّد (يملكه التنفيذي)
+ *  مسؤول تشغيل ← اختبار موحّد (يملكه الفاونڈر أو التنفيذي)
  *  تنفيذي ← اختبار التنفيذيين (يملكه الفاونڈر فقط) */
 export async function getTrackForTarget(targetRole: InviteTargetRole, departmentId: string | null) {
   if (targetRole === "member") {
@@ -13,10 +14,13 @@ export async function getTrackForTarget(targetRole: InviteTargetRole, department
       where: { scope_departmentId: { scope: "department_member", departmentId } },
     });
   }
-  // department_admin/executive: صف وحيد بلا قسم — NULL في Postgres لا يصلح
-  // لمفتاح upsert/findUnique المركّب، فنبحث بـ scope فقط (findFirst آمن هنا)
+  // department_admin/operations_officer/executive: صف وحيد بلا قسم — NULL في
+  // Postgres لا يصلح لمفتاح upsert/findUnique المركّب، فنبحث بـ scope فقط
   if (targetRole === "department_admin") {
     return prisma.testTrack.findFirstOrThrow({ where: { scope: "department_admin" } });
+  }
+  if (targetRole === "operations_officer") {
+    return prisma.testTrack.findFirstOrThrow({ where: { scope: "operations_officer" } });
   }
   return prisma.testTrack.findFirstOrThrow({ where: { scope: "executive" } });
 }
@@ -51,15 +55,16 @@ export function scoreAnswers(
 export const ROLE_LABELS: Record<InviteTargetRole, string> = {
   member: "عضو",
   department_admin: "قائد قسم",
+  operations_officer: "مسؤول التشغيل",
   executive: "الإدارة التنفيذية",
 };
 
 /** يحدد من يملك صلاحية تعديل أسئلة بنك اختبار معيّن، تطبيقاً لتسلسل الحوكمة:
- *  الفاونڈر يحرر اختبار التنفيذيين، التنفيذي يحرر اختبار القادة، وأدمن كل
- *  قسم يحرر اختبار أعضاء قسمه فقط */
+ *  الفاونڋر يحرر اختبار التنفيذيين، التنفيذي يحرر اختبار القادة ومسؤول
+ *  التشغيل، وأدمن كل قسم يحرر اختبار أعضاء قسمه فقط */
 export function canEditTrack(session: Session, track: Pick<TestTrack, "scope" | "departmentId">) {
   if (track.scope === "executive") return session.user.role === "super_admin";
-  if (track.scope === "department_admin") {
+  if (track.scope === "department_admin" || track.scope === "operations_officer") {
     return session.user.role === "super_admin" || session.user.role === "executive";
   }
   return (

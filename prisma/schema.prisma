@@ -10,12 +10,14 @@ datasource db {
 enum UserRole {
   super_admin
   executive
+  operations_officer
   department_admin
 }
 
 enum InviteTargetRole {
   member
   department_admin
+  operations_officer
   executive
 }
 
@@ -54,6 +56,7 @@ enum RequestStatus {
 enum TestTrackScope {
   department_member
   department_admin
+  operations_officer
   executive
 }
 

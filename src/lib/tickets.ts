@@ -5,6 +5,7 @@ import {
   sendTicketConfirmationEmail,
   sendTicketEscalatedEmail,
   sendTicketResolvedEmail,
+  sendTicketReminderEmail,
 } from "@/lib/email";
 import { upsertTicketRow } from "@/lib/googleSheets";
 
@@ -194,4 +195,30 @@ export async function sweepTicketEscalation() {
       await syncTicketSheetRow(updated);
     }
   }
+}
+
+/** يرسل مسؤول التشغيل تذكيراً يدوياً للجهة المسؤولة حالياً عن تذكرة لم تُحل بعد */
+export async function remindTicket(ticketId: string, fromName: string) {
+  const ticket = await prisma.ticket.findUniqueOrThrow({
+    where: { id: ticketId },
+    include: { member: true, targetDepartment: true },
+  });
+  if (ticket.status === "resolved") return;
+
+  const recipients =
+    ticket.stage === "department"
+      ? await emailsForDepartmentAdmins(ticket.targetDepartmentId)
+      : ticket.stage === "lead_escalation" && ticket.member.departmentId
+        ? await emailsForDepartmentAdmins(ticket.member.departmentId)
+        : await emailsForLeadership();
+
+  await sendTicketReminderEmail({
+    to: recipients,
+    subject: ticket.subject,
+    memberName: ticket.member.fullName,
+    stageLabel: TICKET_STAGE_LABELS[ticket.stage],
+    dueDate: ticket.stageDueAt,
+    fromName,
+    portalUrl: `${baseUrl()}/admin`,
+  });
 }

@@ -8,6 +8,7 @@ import type { themeFromColor } from "@/lib/brand";
 
 const ROLE_LABELS: Record<string, string> = {
   executive: "الإدارة التنفيذية (CEO)",
+  operations_officer: "مسؤول التشغيل",
   department_admin: "قائد قسم",
 };
 

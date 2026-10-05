@@ -178,6 +178,47 @@ export async function sendTicketResolvedEmail(opts: {
   );
 }
 
+export async function sendTicketReminderEmail(opts: {
+  to: string | string[];
+  subject: string;
+  memberName: string;
+  stageLabel: string;
+  dueDate: Date;
+  fromName: string;
+  portalUrl: string;
+}) {
+  return send(
+    opts.to,
+    `تذكير — تذكرة لم تُحل بعد: ${opts.subject}`,
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>تذكير من ${opts.fromName} (مسؤول التشغيل): التذكرة التالية ما زالت بانتظار ردك كـ<strong>${opts.stageLabel}</strong>:</p>
+      <p><strong>${opts.subject}</strong> — من العضو ${opts.memberName}</p>
+      <p>الموعد النهائي: ${formatDate(opts.dueDate)}</p>
+      <p><a href="${opts.portalUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">فتح المنصة</a></p>
+    </div>`
+  );
+}
+
+export async function sendRequestReminderEmail(opts: {
+  to: string | string[];
+  typeLabel: string;
+  memberName: string | null;
+  note: string | null;
+  dueDate: Date | null;
+  fromName: string;
+}) {
+  return send(
+    opts.to,
+    `تذكير — طلب بانتظار الإنجاز: ${opts.typeLabel}`,
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>تذكير من ${opts.fromName} (مسؤول التشغيل): الطلب التالي ما زال بانتظار الإنجاز:</p>
+      <p><strong>${opts.typeLabel}</strong>${opts.memberName ? ` — متعلق بـ ${opts.memberName}` : ""}</p>
+      ${opts.note ? `<p>${opts.note}</p>` : ""}
+      ${opts.dueDate ? `<p>الموعد النهائي: ${formatDate(opts.dueDate)}</p>` : ""}
+    </div>`
+  );
+}
+
 export async function sendMeetingReminderEmail(opts: {
   to: string;
   candidateName: string;

@@ -6,10 +6,11 @@ import {
   sendWarningEmail,
   sendExitEmail,
   sendCertificateEmail,
+  sendRequestReminderEmail,
 } from "@/lib/email";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { generateTempPassword, hashPassword } from "@/lib/credentials";
-import { scoreAnswers } from "@/lib/testTracks";
+import { scoreAnswers, ROLE_LABELS } from "@/lib/testTracks";
 
 export const PASS_THRESHOLD = 80;
 export const WELCOME_BANNER_DUE_DAYS = 2;
@@ -176,7 +177,12 @@ export async function approveMember(memberId: string) {
 
     await syncMemberLifecycleRow(member.id);
   } else {
-    const role = member.invite.targetRole === "executive" ? "executive" : "department_admin";
+    const role =
+      member.invite.targetRole === "executive"
+        ? "executive"
+        : member.invite.targetRole === "operations_officer"
+          ? "operations_officer"
+          : "department_admin";
     await prisma.user.create({
       data: {
         fullName: member.fullName,
@@ -191,7 +197,7 @@ export async function approveMember(memberId: string) {
     await appendApprovedMember({
       fullName: member.fullName,
       email: member.email,
-      departmentName: member.department?.name ?? "الإدارة التنفيذية",
+      departmentName: member.department?.name ?? ROLE_LABELS[member.invite.targetRole],
       jobTitle: member.jobTitle,
       approvedAt: member.decidedAt ?? new Date(),
     });
@@ -384,4 +390,33 @@ export async function resetUserCredentials(userId: string, newEmail?: string) {
   });
 
   return { user, tempPassword };
+}
+
+export const REQUEST_TYPE_LABELS: Record<string, string> = {
+  welcome_banner: "بانر ترحيبي",
+  custom_design: "تصميم مخصص",
+  dept_contact: "تواصل قسم",
+  meeting: "اجتماع شرح",
+};
+
+/** يرسل مسؤول التشغيل تذكيراً يدوياً لأدمن القسم المستهدف بطلب لم يُنجز بعد */
+export async function remindRequest(requestId: string, fromName: string) {
+  const request = await prisma.request.findUniqueOrThrow({
+    where: { id: requestId },
+    include: { linkedMember: true },
+  });
+  if (request.status === "done") return;
+
+  const admins = await prisma.user.findMany({
+    where: { role: "department_admin", departmentId: request.targetDepartmentId },
+  });
+
+  await sendRequestReminderEmail({
+    to: admins.map((a) => a.email),
+    typeLabel: REQUEST_TYPE_LABELS[request.type] ?? request.type,
+    memberName: request.linkedMember?.fullName ?? null,
+    note: request.note,
+    dueDate: request.dueDate,
+    fromName,
+  });
 }
