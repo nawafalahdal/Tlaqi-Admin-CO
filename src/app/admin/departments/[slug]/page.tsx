@@ -118,22 +118,21 @@ export default async function DepartmentBoardPage({
           )}
         </section>
 
-        {approvalQueue.length > 0 && (
-          <section>
-            <h2 className="mb-4 text-lg font-bold">بانتظار الاعتماد النهائي</h2>
-            <ApprovalQueue
-              themeColorHex={department.colorHex}
-              members={approvalQueue.map((m) => ({
-                id: m.id,
-                fullName: m.fullName,
-                email: m.email,
-                testScore: m.testScore,
-                departmentName: department.name,
-                departmentColor: department.colorHex,
-              }))}
-            />
-          </section>
-        )}
+        <section>
+          <h2 className="mb-4 text-lg font-bold">بانتظار الاعتماد النهائي</h2>
+          <ApprovalQueue
+            themeColorHex={department.colorHex}
+            emptyMessage="لا يوجد أعضاء بانتظار الاعتماد النهائي حالياً"
+            members={approvalQueue.map((m) => ({
+              id: m.id,
+              fullName: m.fullName,
+              email: m.email,
+              testScore: m.testScore,
+              departmentName: department.name,
+              departmentColor: department.colorHex,
+            }))}
+          />
+        </section>
 
         {needsMeeting.length > 0 && (
           <section>

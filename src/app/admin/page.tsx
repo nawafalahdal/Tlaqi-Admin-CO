@@ -143,22 +143,17 @@ export default async function AdminPage() {
 
         <section>
           <h2 className="mb-4 text-lg font-bold">بانتظار اعتماد القيادة</h2>
-          {leadershipQueue.length === 0 ? (
-            <Card className="p-8 text-center text-sm text-black/40">
-              لا يوجد مرشحون لمناصب قيادية بانتظار الاعتماد حالياً
-            </Card>
-          ) : (
-            <ApprovalQueue
-              members={leadershipQueue.map((m) => ({
-                id: m.id,
-                fullName: m.fullName,
-                email: m.email,
-                testScore: m.testScore,
-                departmentName: m.department?.name ?? ROLE_LABELS[m.invite.targetRole],
-                departmentColor: m.department?.colorHex ?? BRAND.temptress,
-              }))}
-            />
-          )}
+          <ApprovalQueue
+            emptyMessage="لا يوجد مرشحون لمناصب قيادية بانتظار الاعتماد حالياً"
+            members={leadershipQueue.map((m) => ({
+              id: m.id,
+              fullName: m.fullName,
+              email: m.email,
+              testScore: m.testScore,
+              departmentName: m.department?.name ?? ROLE_LABELS[m.invite.targetRole],
+              departmentColor: m.department?.colorHex ?? BRAND.temptress,
+            }))}
+          />
         </section>
 
         <section>
@@ -166,20 +161,17 @@ export default async function AdminPage() {
           <p className="mb-4 -mt-3 text-xs text-black/40">
             الاعتماد الأساسي من مسؤولية أدمن كل قسم؛ هذه نظرة شاملة فقط
           </p>
-          {memberQueue.length === 0 ? (
-            <Card className="p-8 text-center text-sm text-black/40">لا يوجد أعضاء بانتظار الاعتماد</Card>
-          ) : (
-            <ApprovalQueue
-              members={memberQueue.map((m) => ({
-                id: m.id,
-                fullName: m.fullName,
-                email: m.email,
-                testScore: m.testScore,
-                departmentName: m.department?.name ?? "—",
-                departmentColor: m.department?.colorHex ?? BRAND.temptress,
-              }))}
-            />
-          )}
+          <ApprovalQueue
+            emptyMessage="لا يوجد أعضاء بانتظار الاعتماد"
+            members={memberQueue.map((m) => ({
+              id: m.id,
+              fullName: m.fullName,
+              email: m.email,
+              testScore: m.testScore,
+              departmentName: m.department?.name ?? "—",
+              departmentColor: m.department?.colorHex ?? BRAND.temptress,
+            }))}
+          />
         </section>
 
         <section>

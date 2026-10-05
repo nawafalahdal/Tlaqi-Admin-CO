@@ -5,6 +5,8 @@ import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { AccountRow } from "./AccountRow";
+import { MemberAccountRow } from "./MemberAccountRow";
+import Link from "next/link";
 
 export default async function AccountsPage() {
   const session = await auth();
@@ -13,13 +15,20 @@ export default async function AccountsPage() {
 
   const isSuperAdmin = session.user.role === "super_admin";
 
-  const accounts = await prisma.user.findMany({
-    where: isSuperAdmin
-      ? { role: { in: ["executive", "operations_officer", "department_admin"] } }
-      : { role: { in: ["operations_officer", "department_admin"] } },
-    include: { department: true },
-    orderBy: [{ role: "asc" }, { fullName: "asc" }],
-  });
+  const [accounts, members] = await Promise.all([
+    prisma.user.findMany({
+      where: isSuperAdmin
+        ? { role: { in: ["executive", "operations_officer", "department_admin"] } }
+        : { role: { in: ["operations_officer", "department_admin"] } },
+      include: { department: true },
+      orderBy: [{ role: "asc" }, { fullName: "asc" }],
+    }),
+    prisma.member.findMany({
+      where: { approvalStatus: "approved", isActive: true },
+      include: { department: true },
+      orderBy: [{ department: { name: "asc" } }, { fullName: "asc" }],
+    }),
+  ]);
 
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
 
@@ -34,6 +43,13 @@ export default async function AccountsPage() {
       </AppHeader>
 
       <main className="mx-auto max-w-3xl px-5 py-8">
+        <Link
+          href="/admin"
+          className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-black/50 hover:text-black/80"
+        >
+          ← رجوع للوحة الرئيسية
+        </Link>
+
         <h1 className="mb-1 text-xl font-bold">إدارة الحسابات القيادية</h1>
         <p className="mb-6 text-sm text-black/50">
           {isSuperAdmin
@@ -55,6 +71,31 @@ export default async function AccountsPage() {
                   email: a.email,
                   role: a.role,
                   departmentName: a.department?.name ?? null,
+                }}
+              />
+            ))}
+          </div>
+        )}
+
+        <h2 className="mb-1 mt-10 text-lg font-bold">إدارة حسابات الأعضاء</h2>
+        <p className="mb-6 text-sm text-black/50">
+          كل الأعضاء المعتمدين النشطين عبر كل الأقسام — تقدر تعيد تعيين كلمة المرور أو تعدّل البريد
+          لأي منهم مباشرة من هنا، بلا حاجة للدخول لصفحة قسمه.
+        </p>
+
+        {members.length === 0 ? (
+          <Card className="p-8 text-center text-sm text-black/40">لا يوجد أعضاء معتمدون بعد</Card>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {members.map((m) => (
+              <MemberAccountRow
+                key={m.id}
+                theme={theme}
+                member={{
+                  id: m.id,
+                  fullName: m.fullName,
+                  email: m.email,
+                  departmentName: m.department?.name ?? "—",
                 }}
               />
             ))}
