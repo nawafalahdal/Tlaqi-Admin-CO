@@ -30,10 +30,10 @@ export async function sendInviteEmail(opts: {
 }) {
   return send(
     opts.to,
-    `دعوتك للانضمام إلى تلاقي — ${opts.roleLabel}`,
+    `دعوتك للانضمام إلى تَـــلاقِ — ${opts.roleLabel}`,
     `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
       <p>مرحباً ${opts.fullName}،</p>
-      <p>تمت دعوتك للانضمام إلى منصة <strong>تلاقي</strong> بصفة <strong>${opts.roleLabel}</strong>.</p>
+      <p>تمت دعوتك للانضمام إلى منصة <strong>تَـــلاقِ</strong> بصفة <strong>${opts.roleLabel}</strong>.</p>
       <p><a href="${opts.inviteUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">فتح رابط الدعوة</a></p>
       <p style="color:#777;font-size:12px">هذا الرابط مخصص لك فقط بالاسم والبريد المذكورين.</p>
     </div>`
@@ -48,7 +48,7 @@ export async function sendCredentialsEmail(opts: {
 }) {
   return send(
     opts.to,
-    "تم اعتماد انضمامك إلى تلاقي — بيانات الدخول",
+    "تم اعتماد انضمامك إلى تَـــلاقِ — بيانات الدخول",
     `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
       <p>مرحباً ${opts.fullName}،</p>
       <p>تهانينا، تم اعتماد انضمامك. يمكنك الآن الدخول إلى المنصة بالبيانات التالية:</p>
@@ -70,7 +70,7 @@ export async function sendWarningEmail(opts: {
   const isFinal = opts.warningsCount >= 3;
   return send(
     opts.to,
-    isFinal ? "إشعار إنهاء العضوية — تلاقي" : `تنبيه (${opts.warningsCount}/3) — تلاقي`,
+    isFinal ? "إشعار إنهاء العضوية — تَـــلاقِ" : `تنبيه (${opts.warningsCount}/3) — تَـــلاقِ`,
     `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
       <p>مرحباً ${opts.fullName}،</p>
       ${

@@ -31,7 +31,7 @@ export default async function MemberPortalPage() {
         <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl">
           <h1 className="mb-2 text-lg font-bold text-red-700">تم إنهاء العضوية</h1>
           <p className="text-sm text-black/60">
-            نظراً لتجاوز عدد التنبيهات المسموح (3/3)، تم إنهاء عضويتك في منصة تلاقي. للاستفسار يرجى التواصل مع
+            نظراً لتجاوز عدد التنبيهات المسموح (3/3)، تم إنهاء عضويتك في منصة تَـــلاقِ. للاستفسار يرجى التواصل مع
             قسمك مباشرة.
           </p>
         </div>

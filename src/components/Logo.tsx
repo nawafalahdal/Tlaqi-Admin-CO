@@ -4,7 +4,7 @@ export function LogoMark({ size = 40 }: { size?: number }) {
   return (
     <Image
       src="/brand/symbol.png"
-      alt="تلاقي"
+      alt="تَـــلاقِ"
       width={size}
       height={size}
       className="rounded-full object-cover shrink-0"

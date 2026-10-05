@@ -35,7 +35,7 @@ export default async function LoginPage({
         </div>
 
         <p className="mt-6 text-center text-xs" style={{ color: BRAND.beige, opacity: 0.6 }}>
-          منصة تلاقي الداخلية © {new Date().getFullYear()}
+          منصة تَـــلاقِ الداخلية © {new Date().getFullYear()}
         </p>
       </div>
     </main>
