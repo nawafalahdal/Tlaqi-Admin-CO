@@ -1,6 +1,12 @@
 import { prisma } from "@/lib/prisma";
-import { appendApprovedMember, appendMemberEvent, appendTestResult } from "@/lib/googleSheets";
-import { sendMeetingReminderEmail, sendCredentialsEmail, sendWarningEmail } from "@/lib/email";
+import { appendApprovedMember, appendMemberEvent, appendTestResult, upsertMemberLifecycleRow } from "@/lib/googleSheets";
+import {
+  sendMeetingReminderEmail,
+  sendCredentialsEmail,
+  sendWarningEmail,
+  sendExitEmail,
+  sendCertificateEmail,
+} from "@/lib/email";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { generateTempPassword, hashPassword } from "@/lib/credentials";
 import { scoreAnswers } from "@/lib/testTracks";
@@ -17,6 +23,49 @@ function addDays(date: Date, days: number) {
 
 function baseUrl() {
   return process.env.APP_BASE_URL || "http://localhost:3000";
+}
+
+const THREE_MONTHS_MS = 90 * 24 * 60 * 60 * 1000;
+
+function reachedThreeMonths(decidedAt: Date, terminatedAt: Date | null): "نعم" | "لا بعد" | "توقف قبل إكمالها" {
+  const endDate = terminatedAt ?? new Date();
+  const reached = endDate.getTime() - decidedAt.getTime() >= THREE_MONTHS_MS;
+  if (terminatedAt) return reached ? "نعم" : "توقف قبل إكمالها";
+  return reached ? "نعم" : "لا بعد";
+}
+
+/** يكتب/يحدّث الصف الثابت الخاص بعضو واحد في تبويب دورة الحياة — يُستدعى عند
+ *  أي تغيّر بحالته: الاعتماد، تسليم البانر، تنبيه، توقف، أو إصدار شهادة */
+export async function syncMemberLifecycleRow(memberId: string) {
+  const member = await prisma.member.findUniqueOrThrow({
+    where: { id: memberId },
+    include: { department: true },
+  });
+  if (!member.decidedAt) return;
+
+  const bannerRequest = await prisma.request.findFirst({
+    where: { type: "welcome_banner", linkedMemberId: memberId },
+  });
+
+  const result = await upsertMemberLifecycleRow({
+    sheetRow: member.sheetRow,
+    fullName: member.fullName,
+    email: member.email,
+    departmentName: member.department?.name ?? "—",
+    decidedAt: member.decidedAt,
+    bannerDelivered: bannerRequest ? bannerRequest.status === "done" : null,
+    bannerDeliveredAt: bannerRequest?.status === "done" ? bannerRequest.updatedAt : null,
+    reachedThreeMonths: reachedThreeMonths(member.decidedAt, member.terminatedAt),
+    certificateIssuedAt: member.certificateIssuedAt,
+    isActive: member.isActive,
+    terminatedAt: member.terminatedAt,
+    exitReason: member.exitReason,
+    warningsCount: member.warningsCount,
+  });
+
+  if (!member.sheetRow && result.sheetRow) {
+    await prisma.member.update({ where: { id: member.id }, data: { sheetRow: result.sheetRow } });
+  }
 }
 
 /** يرفّع أي طلب تجاوز مهلته الزمنية ولم يُنجز إلى حالة "متأخر" — تُستدعى عند كل قراءة للوحة */
@@ -124,6 +173,8 @@ export async function approveMember(memberId: string) {
         },
       });
     }
+
+    await syncMemberLifecycleRow(member.id);
   } else {
     const role = member.invite.targetRole === "executive" ? "executive" : "department_admin";
     await prisma.user.create({
@@ -193,7 +244,11 @@ export async function issueWarning(opts: { memberId: string; issuedByUserId: str
 
   await prisma.member.update({
     where: { id: member.id },
-    data: { warningsCount, isActive: !terminated },
+    data: {
+      warningsCount,
+      isActive: !terminated,
+      ...(terminated ? { terminatedAt: new Date(), exitReason: "تجاوز 3 تنبيهات" } : {}),
+    },
   });
 
   await sendWarningEmail({
@@ -221,7 +276,58 @@ export async function issueWarning(opts: { memberId: string; issuedByUserId: str
     at: new Date(),
   });
 
+  await syncMemberLifecycleRow(member.id);
+
   return { warningsCount, terminated };
+}
+
+/** إنهاء عضوية يدوي (استقالة أو قرار إداري) — بخلاف الاستبعاد التلقائي بتجاوز
+ *  التنبيهات. يُسجَّل السبب كما كتبه الأدمن ويُرسل إشعاراً للعضو */
+export async function markMemberExited(memberId: string, reason: string) {
+  const member = await prisma.member.update({
+    where: { id: memberId },
+    data: { isActive: false, terminatedAt: new Date(), exitReason: reason },
+  });
+
+  await sendExitEmail({ to: member.email, fullName: member.fullName, reason });
+
+  await appendMemberEvent({
+    fullName: member.fullName,
+    email: member.email,
+    event: "إنهاء عضوية",
+    details: reason,
+    at: new Date(),
+  });
+
+  await syncMemberLifecycleRow(member.id);
+
+  return member;
+}
+
+/** إصدار شهادة إتمام لعضو — عملية يدوية يقررها الأدمن، غير مربوطة بالضرورة
+ *  بإكمال 3 أشهر (تظهر كتوصية بالعمود المجاور بالشيت لكن القرار للأدمن) */
+export async function issueCertificate(memberId: string) {
+  const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
+  if (member.certificateIssuedAt) return member;
+
+  const updated = await prisma.member.update({
+    where: { id: memberId },
+    data: { certificateIssuedAt: new Date() },
+  });
+
+  await sendCertificateEmail({ to: member.email, fullName: member.fullName });
+
+  await appendMemberEvent({
+    fullName: member.fullName,
+    email: member.email,
+    event: "إصدار شهادة",
+    details: "شهادة إتمام",
+    at: new Date(),
+  });
+
+  await syncMemberLifecycleRow(member.id);
+
+  return updated;
 }
 
 export async function acknowledgeWarning(warningId: string, memberId: string) {

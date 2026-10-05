@@ -1,7 +1,12 @@
 "use client";
 
 import { useActionState, useRef, useState, useTransition } from "react";
-import { issueWarningAction, resetMemberCredentialsAction } from "./actions";
+import {
+  issueWarningAction,
+  resetMemberCredentialsAction,
+  markMemberExitedAction,
+  issueCertificateAction,
+} from "./actions";
 import { Card, Button } from "@/components/ui";
 import { CredentialsReveal } from "@/components/CredentialsReveal";
 import type { themeFromColor } from "@/lib/brand";
@@ -12,6 +17,8 @@ type RosterMember = {
   email: string;
   jobTitle: string | null;
   warningsCount: number;
+  certificateIssuedAt: string | null;
+  certificateEligible: boolean;
 };
 
 export function MemberRoster({
@@ -56,6 +63,20 @@ export function MemberRoster({
               >
                 إصدار تنبيه
               </Button>
+              {m.certificateIssuedAt ? (
+                <span className="rounded-full bg-[#E3F3E8] px-2.5 py-1 text-xs font-semibold text-[#1F6B3A]">
+                  صدرت الشهادة
+                </span>
+              ) : (
+                <CertificateButton memberId={m.id} eligible={m.certificateEligible} theme={theme} />
+              )}
+              <Button
+                theme={theme}
+                variant="ghost"
+                onClick={() => setOpenFor(openFor === `exit-${m.id}` ? null : `exit-${m.id}`)}
+              >
+                إنهاء العضوية
+              </Button>
             </div>
           </div>
           {openFor === `warn-${m.id}` && (
@@ -73,9 +94,91 @@ export function MemberRoster({
               />
             </div>
           )}
+          {openFor === `exit-${m.id}` && (
+            <div className="mt-4 border-t border-black/5 pt-4">
+              <ExitForm memberId={m.id} theme={theme} onDone={() => setOpenFor(null)} />
+            </div>
+          )}
         </Card>
       ))}
     </div>
+  );
+}
+
+function CertificateButton({
+  memberId,
+  eligible,
+  theme,
+}: {
+  memberId: string;
+  eligible: boolean;
+  theme: ReturnType<typeof themeFromColor>;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <Button
+        theme={theme}
+        variant="ghost"
+        disabled={pending}
+        onClick={() =>
+          startTransition(async () => {
+            setError(null);
+            const res = await issueCertificateAction(memberId);
+            if (res.error) setError(res.error);
+          })
+        }
+      >
+        {pending ? "جارِ الإصدار..." : eligible ? "إصدار شهادة إتمام" : "إصدار شهادة (مبكر)"}
+      </Button>
+      {error && <span className="text-xs text-red-700">{error}</span>}
+    </div>
+  );
+}
+
+function ExitForm({
+  memberId,
+  theme,
+  onDone,
+}: {
+  memberId: string;
+  theme: ReturnType<typeof themeFromColor>;
+  onDone: () => void;
+}) {
+  const [state, formAction, pending] = useActionState(markMemberExitedAction, {
+    error: null,
+    success: false,
+  });
+
+  if (state.success) {
+    return <p className="text-sm text-green-700">تم إنهاء العضوية.</p>;
+  }
+
+  return (
+    <form action={formAction} className="flex flex-col gap-3">
+      <input type="hidden" name="memberId" value={memberId} />
+      <label className="flex flex-col gap-1.5 text-sm">
+        <span className="font-medium text-black/70">سبب إنهاء العضوية</span>
+        <textarea
+          name="reason"
+          required
+          rows={2}
+          placeholder="مثال: استقالة، قرار إداري..."
+          className="rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
+        />
+      </label>
+      {state.error && <p className="text-sm text-red-700">{state.error}</p>}
+      <div className="flex gap-2">
+        <Button theme={theme} type="submit" disabled={pending}>
+          {pending ? "جارِ التنفيذ..." : "تأكيد إنهاء العضوية"}
+        </Button>
+        <Button theme={theme} variant="ghost" onClick={onDone}>
+          إلغاء
+        </Button>
+      </div>
+    </form>
   );
 }
 

@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { sendInviteEmail } from "@/lib/email";
-import { approveMember, rejectMember, reopenInviteForMember } from "@/lib/workflow";
+import { approveMember, rejectMember, reopenInviteForMember, syncMemberLifecycleRow } from "@/lib/workflow";
 import { getTrackForTarget, ROLE_LABELS } from "@/lib/testTracks";
 import { revalidatePath } from "next/cache";
 
@@ -142,6 +142,11 @@ export async function updateRequestStatusAction(
     throw new Error("غير مصرح لك بهذا الإجراء");
   }
   await prisma.request.update({ where: { id: requestId }, data: { status } });
+
+  if (request.type === "welcome_banner" && status === "done" && request.linkedMemberId) {
+    await syncMemberLifecycleRow(request.linkedMemberId);
+  }
+
   revalidatePath("/admin");
   revalidatePath("/admin/departments");
 }

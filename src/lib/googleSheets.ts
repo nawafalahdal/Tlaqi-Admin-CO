@@ -22,6 +22,17 @@ function getClient() {
   return google.sheets({ version: "v4", auth });
 }
 
+function formatSheetDate(at: Date) {
+  return at.toLocaleString("ar-SA", {
+    timeZone: "Asia/Riyadh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 /** يضيف صفاً واحداً للسجل الحي الموحّد (الاسم، البريد، القسم/الصفة، النوع،
  *  التفاصيل، التاريخ) — هذا هو السجل الرسمي المحدّث أولاً بأول لكل الأحداث:
  *  اعتماد عضو جديد، تنبيه، استبعاد... إلخ */
@@ -96,38 +107,73 @@ export async function appendTestResult(row: {
   ]);
 }
 
-/** يضيف صفاً لتبويب "التذاكر" عند كل حدث على تذكرة: رفع، تصعيد، حل */
-export async function appendTicketEvent(row: {
+/** يحدّث (أو ينشئ أول مرة) الصف الثابت الخاص بتذكرة واحدة في تبويب "التذاكر" —
+ *  صف واحد لكل تذكرة بعمرها كاملاً، يعكس دائماً آخر حالة وجهة المسؤولية
+ *  والتأخر من عدمه، بدل سجل أحداث متعدد الصفوف. يعيد رقم الصف ليُحفظ على
+ *  التذكرة (sheetRow) ويُستخدم في التحديثات اللاحقة. */
+export async function upsertTicketRow(row: {
+  sheetRow: number | null;
+  ticketNumber: number;
   fullName: string;
   email: string;
   targetDepartment: string;
   subject: string;
   details: string;
-  event: string;
-  stage: string;
-  at: Date;
+  status: "جديدة" | "قيد المعالجة" | "تم الحل";
+  currentOwner: string;
+  isLate: boolean;
+  createdAt: Date;
+  closedOrDueAt: Date;
+  closedOnTime: boolean | null;
 }) {
-  return appendRow("التذاكر", [
+  return upsertRow("التذاكر", row.sheetRow, [
+    row.ticketNumber,
     row.fullName,
     row.email,
     row.targetDepartment,
     row.subject,
     row.details,
-    row.event,
-    row.stage,
-    formatSheetDate(row.at),
+    row.status,
+    row.status === "تم الحل" ? "—" : row.currentOwner,
+    row.isLate ? "نعم" : "لا",
+    formatSheetDate(row.createdAt),
+    formatSheetDate(row.closedOrDueAt),
+    row.closedOnTime === null ? "—" : row.closedOnTime ? "نعم" : "لا",
   ]);
 }
 
-function formatSheetDate(at: Date) {
-  return at.toLocaleString("ar-SA", {
-    timeZone: "Asia/Riyadh",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+/** يحدّث (أو ينشئ أول مرة) الصف الثابت الخاص بعضو واحد في تبويب "الأعضاء —
+ *  دورة الحياة" — صف واحد لكل عضو يعكس دائماً آخر حالة: تسليم البانر الترحيبي،
+ *  إكمال 3 أشهر عضوية فعّالة، إصدار شهادة الإتمام، أو التوقف وسببه. */
+export async function upsertMemberLifecycleRow(row: {
+  sheetRow: number | null;
+  fullName: string;
+  email: string;
+  departmentName: string;
+  decidedAt: Date;
+  bannerDelivered: boolean | null;
+  bannerDeliveredAt: Date | null;
+  reachedThreeMonths: "نعم" | "لا بعد" | "توقف قبل إكمالها";
+  certificateIssuedAt: Date | null;
+  isActive: boolean;
+  terminatedAt: Date | null;
+  exitReason: string | null;
+  warningsCount: number;
+}) {
+  return upsertRow("الأعضاء — دورة الحياة", row.sheetRow, [
+    row.fullName,
+    row.email,
+    row.departmentName,
+    formatSheetDate(row.decidedAt),
+    row.bannerDelivered === null ? "—" : row.bannerDelivered ? "نعم" : "لا",
+    row.bannerDeliveredAt ? formatSheetDate(row.bannerDeliveredAt) : "—",
+    row.reachedThreeMonths,
+    row.certificateIssuedAt ? `نعم — ${formatSheetDate(row.certificateIssuedAt)}` : "لم تصدر",
+    row.isActive ? "نشط" : "متوقف",
+    row.terminatedAt ? formatSheetDate(row.terminatedAt) : "—",
+    row.exitReason ?? "—",
+    row.warningsCount,
+  ]);
 }
 
 const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: number[] }> = {
@@ -142,9 +188,40 @@ const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: numb
     widths: [160, 220, 170, 100, 100, 170],
   },
   "التذاكر": {
-    title: "تَـــلاقِ — سجل التذاكر والتصعيد",
-    headers: ["الاسم", "البريد الإلكتروني", "القسم المستهدف", "الموضوع", "التفاصيل", "الحدث", "المرحلة الحالية", "التاريخ"],
-    widths: [160, 220, 160, 200, 300, 130, 160, 170],
+    title: "تَـــلاقِ — سجل التذاكر (صف ثابت لكل تذكرة)",
+    headers: [
+      "رقم التذكرة",
+      "اسم العضو",
+      "البريد الإلكتروني",
+      "القسم المستهدف",
+      "الموضوع",
+      "التفاصيل",
+      "الحالة",
+      "الجهة المسؤولة حالياً",
+      "متأخرة؟",
+      "تاريخ الرفع",
+      "الموعد الحالي / تاريخ الإغلاق",
+      "أُغلقت بالموعد؟",
+    ],
+    widths: [100, 160, 220, 150, 200, 280, 110, 170, 90, 160, 190, 120],
+  },
+  "الأعضاء — دورة الحياة": {
+    title: "تَـــلاقِ — دورة حياة الأعضاء (صف ثابت لكل عضو)",
+    headers: [
+      "الاسم",
+      "البريد الإلكتروني",
+      "القسم",
+      "تاريخ الاعتماد",
+      "وصل البانر الترحيبي؟",
+      "تاريخ تسليم البانر",
+      "أكمل 3 أشهر فعّالة؟",
+      "شهادة الإتمام",
+      "الحالة الحالية",
+      "تاريخ التوقف",
+      "سبب التوقف",
+      "عدد التنبيهات",
+    ],
+    widths: [160, 220, 150, 160, 140, 160, 150, 200, 110, 160, 220, 100],
   },
 };
 
@@ -168,6 +245,61 @@ async function appendRow(tabName: string, values: (string | number)[]) {
     console.error(`فشلت الكتابة إلى تبويب "${tabName}":`, err);
     return { skipped: true, error: true };
   }
+}
+
+/** يكتب صفاً ثابتاً لكيان واحد (تذكرة/عضو): يحدّث الصف نفسه إذا كان رقمه
+ *  معروفاً مسبقاً (sheetRow)، أو يضيف صفاً جديداً أول مرة ويُرجع رقمه ليُحفظ. */
+async function upsertRow(
+  tabName: string,
+  existingRow: number | null,
+  values: (string | number)[]
+): Promise<{ skipped: boolean; error?: boolean; sheetRow?: number }> {
+  const sheets = getClient();
+  if (!sheets) {
+    console.warn(`[google-sheets:disabled] لم تُضبط بيانات اعتماد Google Sheets — تم تجاهل الكتابة إلى "${tabName}".`, values);
+    return { skipped: true };
+  }
+
+  try {
+    await ensureTab(sheets, tabName);
+    const colCount = values.length;
+    const lastCol = columnLetter(colCount);
+
+    if (existingRow) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID!,
+        range: `'${tabName}'!A${existingRow}:${lastCol}${existingRow}`,
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values: [values] },
+      });
+      return { skipped: false, sheetRow: existingRow };
+    }
+
+    const appendResult = await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID!,
+      range: `'${tabName}'!A:${lastCol}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: [values] },
+    });
+    const updatedRange = appendResult.data.updates?.updatedRange ?? "";
+    const match = updatedRange.match(/![A-Z]+(\d+)/);
+    const sheetRow = match ? Number(match[1]) : undefined;
+    return { skipped: false, sheetRow };
+  } catch (err) {
+    console.error(`فشلت الكتابة إلى تبويب "${tabName}":`, err);
+    return { skipped: true, error: true };
+  }
+}
+
+function columnLetter(count: number) {
+  let n = count;
+  let letters = "";
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    letters = String.fromCharCode(65 + rem) + letters;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letters;
 }
 
 const ensuredTabs = new Set<string>();
@@ -204,10 +336,11 @@ async function ensureTab(sheets: sheets_v4.Sheets, tabName: string) {
   }
 
   const colCount = spec.headers.length;
+  const lastCol = columnLetter(colCount);
 
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID!,
-    range: `'${tabName}'!A1:${String.fromCharCode(64 + colCount)}2`,
+    range: `'${tabName}'!A1:${lastCol}2`,
     valueInputOption: "USER_ENTERED",
     requestBody: {
       values: [
@@ -318,7 +451,7 @@ async function ensureTab(sheets: sheets_v4.Sheets, tabName: string) {
       {
         addConditionalFormatRule: {
           rule: {
-            ranges: [{ sheetId, startRowIndex: 2, endRowIndex: 2000, startColumnIndex: 5, endColumnIndex: 6 }],
+            ranges: [{ sheetId, startRowIndex: 2, endRowIndex: 2000, startColumnIndex: 6, endColumnIndex: 7 }],
             booleanRule: {
               condition: { type: "TEXT_EQ", values: [{ userEnteredValue: "تم الحل" }] },
               format: { backgroundColor: { red: 0.89, green: 0.95, blue: 0.91 }, textFormat: { foregroundColor: { red: 0.12, green: 0.42, blue: 0.23 } } },
@@ -330,10 +463,39 @@ async function ensureTab(sheets: sheets_v4.Sheets, tabName: string) {
       {
         addConditionalFormatRule: {
           rule: {
-            ranges: [{ sheetId, startRowIndex: 2, endRowIndex: 2000, startColumnIndex: 5, endColumnIndex: 6 }],
+            ranges: [{ sheetId, startRowIndex: 2, endRowIndex: 2000, startColumnIndex: 8, endColumnIndex: 9 }],
             booleanRule: {
-              condition: { type: "TEXT_CONTAINS", values: [{ userEnteredValue: "تصعيد" }] },
-              format: { backgroundColor: { red: 1, green: 0.95, blue: 0.87 }, textFormat: { foregroundColor: { red: 0.54, green: 0.35, blue: 0 } } },
+              condition: { type: "TEXT_EQ", values: [{ userEnteredValue: "نعم" }] },
+              format: { backgroundColor: { red: 0.98, green: 0.9, blue: 0.88 }, textFormat: { foregroundColor: { red: 0.6, green: 0.18, blue: 0.11 } } },
+            },
+          },
+          index: 1,
+        },
+      }
+    );
+  }
+
+  if (tabName === "الأعضاء — دورة الحياة") {
+    requests.push(
+      {
+        addConditionalFormatRule: {
+          rule: {
+            ranges: [{ sheetId, startRowIndex: 2, endRowIndex: 2000, startColumnIndex: 8, endColumnIndex: 9 }],
+            booleanRule: {
+              condition: { type: "TEXT_EQ", values: [{ userEnteredValue: "نشط" }] },
+              format: { backgroundColor: { red: 0.89, green: 0.95, blue: 0.91 }, textFormat: { foregroundColor: { red: 0.12, green: 0.42, blue: 0.23 } } },
+            },
+          },
+          index: 0,
+        },
+      },
+      {
+        addConditionalFormatRule: {
+          rule: {
+            ranges: [{ sheetId, startRowIndex: 2, endRowIndex: 2000, startColumnIndex: 8, endColumnIndex: 9 }],
+            booleanRule: {
+              condition: { type: "TEXT_EQ", values: [{ userEnteredValue: "متوقف" }] },
+              format: { backgroundColor: { red: 0.98, green: 0.9, blue: 0.88 }, textFormat: { foregroundColor: { red: 0.6, green: 0.18, blue: 0.11 } } },
             },
           },
           index: 1,

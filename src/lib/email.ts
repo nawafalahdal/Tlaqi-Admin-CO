@@ -86,6 +86,29 @@ export async function sendWarningEmail(opts: {
   );
 }
 
+export async function sendExitEmail(opts: { to: string; fullName: string; reason: string }) {
+  return send(
+    opts.to,
+    "إنهاء العضوية — تَـــلاقِ",
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>مرحباً ${opts.fullName}،</p>
+      <p>نحيطك علماً بإنهاء عضويتك في منصة تَـــلاقِ.</p>
+      <p>السبب: ${opts.reason}</p>
+    </div>`
+  );
+}
+
+export async function sendCertificateEmail(opts: { to: string; fullName: string }) {
+  return send(
+    opts.to,
+    "شهادة إتمام — تَـــلاقِ",
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>مرحباً ${opts.fullName}،</p>
+      <p>يسعدنا إبلاغك بإصدار شهادة إتمام لك تقديراً لمسيرتك في منصة تَـــلاقِ.</p>
+    </div>`
+  );
+}
+
 export async function sendTicketCreatedEmail(opts: {
   to: string | string[];
   subject: string;

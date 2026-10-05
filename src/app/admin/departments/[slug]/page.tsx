@@ -21,6 +21,11 @@ const COLUMNS: { status: "new" | "in_progress" | "done" | "overdue"; label: stri
   { status: "done", label: "منجز" },
 ];
 
+function isCertificateEligible(decidedAt: Date | null) {
+  if (!decidedAt) return false;
+  return Date.now() - decidedAt.getTime() >= 90 * 24 * 60 * 60 * 1000;
+}
+
 export default async function DepartmentBoardPage({
   params,
 }: {
@@ -155,6 +160,8 @@ export default async function DepartmentBoardPage({
               email: m.email,
               jobTitle: m.jobTitle,
               warningsCount: m.warningsCount,
+              certificateIssuedAt: m.certificateIssuedAt ? m.certificateIssuedAt.toISOString() : null,
+              certificateEligible: isCertificateEligible(m.decidedAt),
             }))}
           />
         </section>
@@ -174,6 +181,7 @@ export default async function DepartmentBoardPage({
                   theme={theme}
                   ticket={{
                     id: t.id,
+                    ticketNumber: t.ticketNumber,
                     subject: t.subject,
                     description: t.description,
                     status: t.status,

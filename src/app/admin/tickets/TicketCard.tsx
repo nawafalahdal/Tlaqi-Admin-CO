@@ -24,6 +24,7 @@ const STAGE_LABELS: Record<string, string> = {
 
 type TicketData = {
   id: string;
+  ticketNumber: number;
   subject: string;
   description: string;
   status: string;
@@ -59,6 +60,9 @@ export function TicketCard({
   return (
     <Card className="p-4">
       <div className="mb-2 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-mono text-black/40" dir="ltr">
+          #{ticket.ticketNumber}
+        </span>
         <span
           className="rounded-full px-2.5 py-1 text-xs font-semibold"
           style={{ background: statusColor.bg, color: statusColor.text }}

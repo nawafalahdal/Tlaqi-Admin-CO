@@ -3,7 +3,7 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { sendInviteEmail } from "@/lib/email";
-import { issueWarning, resetMemberCredentials } from "@/lib/workflow";
+import { issueWarning, resetMemberCredentials, markMemberExited, issueCertificate } from "@/lib/workflow";
 import { respondToTicket } from "@/lib/tickets";
 import { getTrackForTarget, ROLE_LABELS } from "@/lib/testTracks";
 import { revalidatePath } from "next/cache";
@@ -109,6 +109,55 @@ export async function resetMemberCredentialsAction(
     );
     revalidatePath(`/admin/departments`);
     return { error: null, tempPassword, email: updated.email };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع" };
+  }
+}
+
+/** إنهاء عضوية يدوي (استقالة أو قرار إداري) بسبب يكتبه الأدمن — متاح لأدمن
+ *  القسم المعني أو الفاونڈر/التنفيذي، بخلاف الاستبعاد التلقائي بـ3 تنبيهات */
+export async function markMemberExitedAction(
+  _prevState: { error: string | null; success: boolean },
+  formData: FormData
+): Promise<{ error: string | null; success: boolean }> {
+  try {
+    const session = await auth();
+    const memberId = String(formData.get("memberId") ?? "");
+    const reason = String(formData.get("reason") ?? "").trim();
+    if (!session) return { error: "يجب تسجيل الدخول", success: false };
+    if (!reason) return { error: "يجب كتابة سبب إنهاء العضوية", success: false };
+
+    const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
+    const allowed =
+      session.user.role === "super_admin" ||
+      session.user.role === "executive" ||
+      (session.user.role === "department_admin" && session.user.departmentId === member.departmentId);
+    if (!allowed) return { error: "غير مصرح لك بهذا الإجراء", success: false };
+
+    await markMemberExited(memberId, reason);
+    revalidatePath(`/admin/departments`);
+    return { error: null, success: true };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع", success: false };
+  }
+}
+
+/** إصدار شهادة إتمام لعضو — قرار يدوي من أدمن القسم أو الفاونڈر/التنفيذي */
+export async function issueCertificateAction(memberId: string): Promise<{ error: string | null }> {
+  const session = await auth();
+  if (!session) return { error: "يجب تسجيل الدخول" };
+
+  const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
+  const allowed =
+    session.user.role === "super_admin" ||
+    session.user.role === "executive" ||
+    (session.user.role === "department_admin" && session.user.departmentId === member.departmentId);
+  if (!allowed) return { error: "غير مصرح لك بهذا الإجراء" };
+
+  try {
+    await issueCertificate(memberId);
+    revalidatePath(`/admin/departments`);
+    return { error: null };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "حدث خطأ غير متوقع" };
   }

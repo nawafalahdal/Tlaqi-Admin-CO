@@ -107,6 +107,7 @@ export default async function MemberPortalPage() {
                   theme={theme}
                   ticket={{
                     id: t.id,
+                    ticketNumber: t.ticketNumber,
                     subject: t.subject,
                     description: t.description,
                     status: t.status,
