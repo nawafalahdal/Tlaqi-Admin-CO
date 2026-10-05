@@ -98,6 +98,8 @@ model User {
   email              String      @unique
   passwordHash       String
   mustChangePassword Boolean     @default(false)
+  totpSecret         String?
+  totpEnabled        Boolean     @default(false)
   role               UserRole
   departmentId       String?
   department         Department? @relation(fields: [departmentId], references: [id])

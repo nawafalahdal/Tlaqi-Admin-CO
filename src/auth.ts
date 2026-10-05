@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { isLockedOut, recordFailedAttempt, clearFailedAttempts } from "@/lib/loginAttempts";
+import { verifyTotpCode } from "@/lib/totp";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
@@ -12,10 +13,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: {
         email: { label: "البريد الإلكتروني", type: "email" },
         password: { label: "كلمة المرور", type: "password" },
+        totp: { label: "رمز التحقق", type: "text" },
       },
       authorize: async (credentials) => {
         const email = (credentials?.email as string | undefined)?.toLowerCase().trim();
         const password = credentials?.password as string | undefined;
+        const totp = credentials?.totp as string | undefined;
         if (!email || !password) return null;
 
         // مقاومة التخمين وحشو بيانات الاعتماد: قفل مؤقت بعد محاولات فاشلة متتالية
@@ -26,6 +29,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           include: { department: true },
         });
         if (user && (await bcrypt.compare(password, user.passwordHash))) {
+          if (user.totpEnabled) {
+            if (!user.totpSecret || !totp || !verifyTotpCode(user.totpSecret, totp, user.email)) {
+              await recordFailedAttempt(email);
+              return null;
+            }
+          }
           await clearFailedAttempts(email);
           return {
             id: user.id,
