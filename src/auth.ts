@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { isLockedOut, recordFailedAttempt, clearFailedAttempts } from "@/lib/loginAttempts";
 import { verifyTotpCode } from "@/lib/totp";
+import { markFirstLogin } from "@/lib/workflow";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
@@ -51,13 +52,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where: { email },
           include: { department: true },
         });
+        // المرشّح يدخل منذ لحظة إنشاء حسابه — قبل الاختبار وقبل الاعتماد —
+        // لأن هذه هي الخطوة التي يغيّر فيها كلمة المرور المؤقتة ثم يبدأ
+        // اختباره. حارس المسارات (proxy) هو من يحصره في صفحة الاختبار حتى
+        // يُعتمد. المرفوض أو من أُنهيت عضويته لا يدخل إطلاقاً.
+        const candidateAllowed =
+          member &&
+          member.isActive &&
+          member.approvalStatus !== "rejected" &&
+          !member.terminatedAt;
+
         if (
           member &&
+          candidateAllowed &&
           member.passwordHash &&
-          member.approvalStatus === "approved" &&
           (await bcrypt.compare(password, member.passwordHash))
         ) {
           await clearFailedAttempts(email);
+          await markFirstLogin(member.id);
           return {
             id: member.id,
             name: member.fullName,

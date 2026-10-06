@@ -149,9 +149,12 @@ model Member {
   createdAt       DateTime       @default(now())
   decidedAt       DateTime?
 
-  // بوابة العضو (بعد الاعتماد فقط — لا تسجيل دخول قبل ذلك)
+  // بيانات الدخول — تُنشأ لحظة إنشاء الحساب (قبل الاختبار)، فالمرشّح يدخل
+  // بالرمز المؤقت أولاً ثم يغيّره ثم يبدأ اختباره داخل المنصة
   passwordHash        String?
   mustChangePassword  Boolean   @default(false)
+  credentialsIssuedAt DateTime?
+  firstLoginAt        DateTime?
   isActive            Boolean   @default(true)
   warningsCount       Int       @default(0)
   terminatedAt        DateTime?

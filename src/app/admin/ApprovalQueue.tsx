@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { ApprovalRow } from "./ApprovalRow";
-import { CredentialsReveal } from "@/components/CredentialsReveal";
 import { Card } from "@/components/ui";
-import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 type Member = {
   id: string;
@@ -17,41 +16,48 @@ type Member = {
 
 /** يلف قائمة طلبات الاعتماد في مكوّن عميل دائم — لأن الموافقة على طلب تُسقطه
  *  فوراً من قائمة الخادم بعد إعادة التحقق، فأي حالة محلية داخل صف الطلب نفسه
- *  (مثل بطاقة كلمة المرور المؤقتة) تُفقد لحظة اختفائه. هذا المكوّن الأب يبقى
- *  مثبّتاً دائماً فيحمل حالة الكشف عن بيانات الدخول بمعزل عن اختفاء الصف.
+ *  تُفقد لحظة اختفائه. هذا المكوّن الأب يبقى مثبّتاً دائماً فيحمل رسالة
+ *  التأكيد بمعزل عن اختفاء الصف.
  *
  *  هذا الثبات ينهار إن قرر المكوّن الأب (الصفحة) عدم تركيب <ApprovalQueue>
  *  أصلاً عندما تصبح القائمة فارغة (نمط: `list.length === 0 ? <Empty/> :
- *  <ApprovalQueue/>`) — فحالة revealed تُدمَّر مع المكوّن كاملاً قبل أن
- *  يراها المستخدم. لذلك تُعرَّف حالة "لا يوجد" هنا داخلياً، ويجب أن يُركَّب
- *  هذا المكوّن دائماً من الصفحة الأم بصرف النظر عن طول members. */
+ *  <ApprovalQueue/>`) — فالحالة تُدمَّر مع المكوّن كاملاً قبل أن يراها
+ *  المستخدم. لذلك تُعرَّف حالة "لا يوجد" هنا داخلياً، ويجب أن يُركَّب هذا
+ *  المكوّن دائماً من الصفحة الأم بصرف النظر عن طول members. */
 export function ApprovalQueue({
   members,
   emptyMessage,
-  themeColorHex = SUPER_ADMIN_THEME.colorHex,
 }: {
   members: Member[];
   emptyMessage: string;
+  /** يبقى مقبولاً للتوافق مع لوحات الأقسام وإن لم يعد يُستخدم بعد نقل بطاقة
+   *  بيانات الدخول من لحظة الاعتماد إلى لحظة إنشاء الحساب */
   themeColorHex?: string;
 }) {
-  const [revealed, setRevealed] = useState<{ email: string; tempPassword: string } | null>(null);
-  const theme = themeFromColor(themeColorHex);
+  const [approved, setApproved] = useState<string | null>(null);
+  const t = useTranslations();
 
   return (
     <div className="flex flex-col gap-3">
-      {revealed && (
-        <CredentialsReveal
-          email={revealed.email}
-          tempPassword={revealed.tempPassword}
-          theme={theme}
-          onClose={() => setRevealed(null)}
-        />
+      {approved && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 border-green-200 bg-green-50 p-4">
+          <p className="text-sm font-semibold text-green-800">
+            {t.admin.approvedNotice.replace("{name}", approved)}
+          </p>
+          <button
+            type="button"
+            onClick={() => setApproved(null)}
+            className="min-h-11 text-sm font-semibold text-green-800/70"
+          >
+            {t.common.close}
+          </button>
+        </Card>
       )}
-      {members.length === 0 && !revealed && (
+      {members.length === 0 && !approved && (
         <Card className="p-8 text-center text-sm text-black/40">{emptyMessage}</Card>
       )}
       {members.map((m) => (
-        <ApprovalRow key={m.id} member={m} onApproved={setRevealed} />
+        <ApprovalRow key={m.id} member={m} onApproved={setApproved} />
       ))}
     </div>
   );

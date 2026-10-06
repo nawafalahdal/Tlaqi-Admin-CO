@@ -3,9 +3,14 @@
 import { auth } from "@/auth";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { sendInviteEmail } from "@/lib/email";
-import { approveMember, rejectMember, reopenInviteForMember, syncMemberLifecycleRow } from "@/lib/workflow";
-import { getTrackForTarget, ROLE_LABELS } from "@/lib/testTracks";
+import {
+  approveMember,
+  createCandidateAccount,
+  rejectMember,
+  reopenInviteForMember,
+  syncMemberLifecycleRow,
+} from "@/lib/workflow";
+import { getTrackForTarget } from "@/lib/testTracks";
 import { safeErrorMessage } from "@/lib/safeError";
 import { revalidatePath } from "next/cache";
 
@@ -24,9 +29,9 @@ function canManageDepartment(session: Session, departmentId: string | null) {
 
 /** الفاونڈر فقط يُصدر دعوة لحساب تنفيذي (CEO) جديد */
 export async function createExecutiveInviteAction(
-  _prevState: { error: string | null; success: boolean; inviteUrl?: string },
+  _prevState: { error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } },
   formData: FormData
-): Promise<{ error: string | null; success: boolean; inviteUrl?: string }> {
+): Promise<{ error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } }> {
   try {
     const session = await requireSession();
     if (session.user.role !== "super_admin") {
@@ -38,21 +43,17 @@ export async function createExecutiveInviteAction(
     if (!fullName || !email) return { error: "جميع الحقول مطلوبة", success: false };
 
     const track = await getTrackForTarget("executive", null);
-    const invite = await prisma.invite.create({
-      data: {
-        fullName,
-        email,
-        targetRole: "executive",
-        testTrackId: track.id,
-        invitedById: session.user.id,
-      },
+    const { tempPassword } = await createCandidateAccount({
+      fullName,
+      email,
+      targetRole: "executive",
+      departmentId: null,
+      testTrackId: track.id,
+      invitedById: session.user.id,
     });
 
-    const inviteUrl = `${process.env.APP_BASE_URL || "http://localhost:3000"}/invite/${invite.token}`;
-    await sendInviteEmail({ to: email, fullName, roleLabel: ROLE_LABELS.executive, inviteUrl });
-
     revalidatePath("/admin");
-    return { error: null, success: true, inviteUrl };
+    return { error: null, success: true, credentials: { email, tempPassword } };
   } catch (err) {
     return { error: safeErrorMessage(err), success: false };
   }
@@ -61,9 +62,9 @@ export async function createExecutiveInviteAction(
 /** الفاونڈر أو التنفيذي يُصدر دعوة لحساب قائد قسم جديد — لا يمكن إضافة عضو داخل
  *  القسم مباشرة من هنا، فقط حساب قيادي (حوكمة صارمة بالتسلسل) */
 export async function createDeptAdminInviteAction(
-  _prevState: { error: string | null; success: boolean; inviteUrl?: string },
+  _prevState: { error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } },
   formData: FormData
-): Promise<{ error: string | null; success: boolean; inviteUrl?: string }> {
+): Promise<{ error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } }> {
   try {
     const session = await requireSession();
     if (session.user.role !== "super_admin" && session.user.role !== "executive") {
@@ -76,22 +77,17 @@ export async function createDeptAdminInviteAction(
     if (!fullName || !email || !departmentId) return { error: "جميع الحقول مطلوبة", success: false };
 
     const track = await getTrackForTarget("department_admin", null);
-    const invite = await prisma.invite.create({
-      data: {
-        fullName,
-        email,
-        targetRole: "department_admin",
-        departmentId,
-        testTrackId: track.id,
-        invitedById: session.user.id,
-      },
+    const { tempPassword } = await createCandidateAccount({
+      fullName,
+      email,
+      targetRole: "department_admin",
+      departmentId: departmentId,
+      testTrackId: track.id,
+      invitedById: session.user.id,
     });
 
-    const inviteUrl = `${process.env.APP_BASE_URL || "http://localhost:3000"}/invite/${invite.token}`;
-    await sendInviteEmail({ to: email, fullName, roleLabel: ROLE_LABELS.department_admin, inviteUrl });
-
     revalidatePath("/admin");
-    return { error: null, success: true, inviteUrl };
+    return { error: null, success: true, credentials: { email, tempPassword } };
   } catch (err) {
     return { error: safeErrorMessage(err), success: false };
   }
@@ -100,9 +96,9 @@ export async function createDeptAdminInviteAction(
 /** الفاونڈر أو التنفيذي يُصدر دعوة لحساب مسؤول تشغيل — اطّلاع على كل
  *  التذاكر والطلبات عبر كل الأقسام وإرسال تذكيرات، بدون صلاحية حل التذاكر */
 export async function createOperationsOfficerInviteAction(
-  _prevState: { error: string | null; success: boolean; inviteUrl?: string },
+  _prevState: { error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } },
   formData: FormData
-): Promise<{ error: string | null; success: boolean; inviteUrl?: string }> {
+): Promise<{ error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } }> {
   try {
     const session = await requireSession();
     if (session.user.role !== "super_admin" && session.user.role !== "executive") {
@@ -114,21 +110,17 @@ export async function createOperationsOfficerInviteAction(
     if (!fullName || !email) return { error: "جميع الحقول مطلوبة", success: false };
 
     const track = await getTrackForTarget("operations_officer", null);
-    const invite = await prisma.invite.create({
-      data: {
-        fullName,
-        email,
-        targetRole: "operations_officer",
-        testTrackId: track.id,
-        invitedById: session.user.id,
-      },
+    const { tempPassword } = await createCandidateAccount({
+      fullName,
+      email,
+      targetRole: "operations_officer",
+      departmentId: null,
+      testTrackId: track.id,
+      invitedById: session.user.id,
     });
 
-    const inviteUrl = `${process.env.APP_BASE_URL || "http://localhost:3000"}/invite/${invite.token}`;
-    await sendInviteEmail({ to: email, fullName, roleLabel: ROLE_LABELS.operations_officer, inviteUrl });
-
     revalidatePath("/admin");
-    return { error: null, success: true, inviteUrl };
+    return { error: null, success: true, credentials: { email, tempPassword } };
   } catch (err) {
     return { error: safeErrorMessage(err), success: false };
   }

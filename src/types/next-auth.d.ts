@@ -2,6 +2,7 @@ import type { DefaultSession } from "next-auth";
 
 type SessionRole = "super_admin" | "executive" | "operations_officer" | "department_admin" | "member";
 
+
 // next-auth (v5 beta) يعيد تصدير Session/User/JWT من @auth/core بدون إعادة تعريفها
 // في وحدته الخاصة، فإضافة الحقول هنا تطال الوحدة الأصلية @auth/core مباشرة
 // وإلا لن تندمج (type-only re-export لا يُدمَج مع module augmentation).

@@ -2,11 +2,11 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
-import { AppHeader, Card, StatusBadge } from "@/components/ui";
+import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { BackButton } from "@/components/BackButton";
-import { CopyInviteLink } from "@/components/CopyInviteLink";
 import { DataTable } from "@/components/DataTable";
+import { AccountStageBadge } from "@/components/AccountStageBadge";
 import {
   ExecutiveInviteForm,
   DeptAdminInviteForm,
@@ -27,7 +27,7 @@ export default async function AdminInvitesPage() {
   const [departments, invites] = await Promise.all([
     prisma.department.findMany({ orderBy: { name: "asc" } }),
     prisma.invite.findMany({
-      include: { department: true },
+      include: { department: true, member: true },
       orderBy: { createdAt: "desc" },
       take: 50,
     }),
@@ -37,7 +37,6 @@ export default async function AdminInvitesPage() {
   const t = dict.invitesPage;
   const ta = dict.admin;
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
-  const appBaseUrl = process.env.APP_BASE_URL || "http://localhost:3000";
 
   return (
     <div className="min-h-screen bg-[#FAF8F4]">
@@ -100,23 +99,27 @@ export default async function AdminInvitesPage() {
             columns={[
               { key: "name", label: ta.colName, primary: true },
               { key: "track", label: ta.colTrack },
-              { key: "status", label: ta.colStatus },
+              { key: "status", label: t.colAccountStatus },
               { key: "createdAt", label: ta.colIssuedAt },
-              { key: "link", label: t.colLink },
+              { key: "firstLogin", label: t.colFirstLogin },
             ]}
             rows={invites.map((inv) => ({
               id: inv.id,
               cells: {
                 name: inv.fullName,
                 track: `${dict.roles[inv.targetRole]}${inv.department ? ` — ${inv.department.name}` : ""}`,
-                status: <StatusBadge status={inv.status} />,
+                status: (
+                  <AccountStageBadge
+                    approvalStatus={inv.member?.approvalStatus ?? null}
+                    testStatus={inv.member?.testStatus ?? null}
+                  />
+                ),
                 createdAt: formatDate(inv.createdAt),
-                link:
-                  inv.status === "open" ? (
-                    <CopyInviteLink inviteUrl={`${appBaseUrl}/invite/${inv.token}`} />
-                  ) : (
-                    <span className="text-xs text-black/30">—</span>
-                  ),
+                firstLogin: inv.member?.firstLoginAt ? (
+                  formatDate(inv.member.firstLoginAt)
+                ) : (
+                  <span className="text-xs font-semibold text-amber-700">{t.notSignedInYet}</span>
+                ),
               },
             }))}
           />

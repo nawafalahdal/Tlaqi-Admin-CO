@@ -93,17 +93,24 @@ export async function submitTestAttempt(opts: { memberId: string; answers: Recor
   const score = scoreAnswers(member.invite.testTrack.questions, opts.answers);
   const passed = score >= PASS_THRESHOLD;
 
-  await prisma.testAttempt.create({
-    data: { memberId: opts.memberId, answers: opts.answers, score, passed },
-  });
-
-  const updated = await prisma.member.update({
-    where: { id: opts.memberId },
+  // المطالبة الذرّية: شرط not_started يضمن أن إرسالين متزامنين لا يسجّلان
+  // نتيجتين — الفائز الوحيد هو من ينجح بهذا التحديث
+  const claimed = await prisma.member.updateMany({
+    where: { id: opts.memberId, testStatus: "not_started" },
     data: {
       testScore: score,
       testStatus: passed ? "passed" : "failed",
       approvalStatus: "pending_review",
     },
+  });
+  if (claimed.count === 0) return null;
+
+  await prisma.testAttempt.create({
+    data: { memberId: opts.memberId, answers: opts.answers, score, passed },
+  });
+
+  const updated = await prisma.member.findUniqueOrThrow({
+    where: { id: opts.memberId },
     include: { department: true, invite: true },
   });
 
@@ -144,15 +151,11 @@ export async function approveMember(memberId: string) {
     include: { department: true, invite: true },
   });
 
-  const tempPassword = generateTempPassword();
-  const passwordHash = await hashPassword(tempPassword);
-
+  // لا تُولَّد كلمة مرور جديدة عند الاعتماد: المرشّح استلم رمزاً مؤقتاً لحظة
+  // إنشاء حسابه وغيّره بنفسه قبل الاختبار، فيدخل بعد الاعتماد بنفس كلمته.
+  // توليد رمز ثانٍ هنا كان يعني بيانات دخول مزدوجة لشخص واحد، وإرباكاً في
+  // تسليمها يدوياً.
   if (member.invite.targetRole === "member") {
-    await prisma.member.update({
-      where: { id: member.id },
-      data: { passwordHash, mustChangePassword: true },
-    });
-
     await appendApprovedMember({
       fullName: member.fullName,
       email: member.email,
@@ -183,15 +186,22 @@ export async function approveMember(memberId: string) {
         : member.invite.targetRole === "operations_officer"
           ? "operations_officer"
           : "department_admin";
+
+    // تُنقل كلمة المرور التي اختارها بنفسه إلى الحساب الإداري الجديد، ثم
+    // يُفرَّغ hash حساب المرشّح حتى لا يبقى لشخص واحد مَدخلان
     await prisma.user.create({
       data: {
         fullName: member.fullName,
         email: member.email,
-        passwordHash,
-        mustChangePassword: true,
+        passwordHash: member.passwordHash ?? (await hashPassword(generateTempPassword())),
+        mustChangePassword: member.mustChangePassword,
         role,
         departmentId: role === "department_admin" ? member.departmentId : null,
       },
+    });
+    await prisma.member.update({
+      where: { id: member.id },
+      data: { passwordHash: null },
     });
 
     await appendApprovedMember({
@@ -203,14 +213,15 @@ export async function approveMember(memberId: string) {
     });
   }
 
-  await sendCredentialsEmail({
-    to: member.email,
+  await appendMemberEvent({
     fullName: member.fullName,
-    tempPassword,
-    loginUrl: `${baseUrl()}/login`,
+    email: member.email,
+    event: "اعتماد نهائي",
+    details: "يدخل بنفس كلمة المرور التي اختارها — لم يُصدر رمز جديد",
+    at: new Date(),
   });
 
-  return { member, tempPassword };
+  return { member, tempPassword: null as string | null };
 }
 
 export async function rejectMember(memberId: string) {
@@ -443,5 +454,84 @@ export async function remindRequest(requestId: string, fromName: string) {
     note: request.note,
     dueDate: request.dueDate,
     fromName,
+  });
+}
+
+/** ينشئ حساب مرشّح كامل لحظة الدعوة: سجل الدعوة + سجل العضو + كلمة مرور
+ *  مؤقتة جاهزة للتسليم. هذا عكس الترتيب القديم الذي كان يؤجل بيانات الدخول
+ *  إلى ما بعد اجتياز الاختبار — فيبقى المرشّح بلا طريقة دخول، ويضطر من
+ *  أنشأ الحساب لتمرير رابط مجهول بدل بريد وكلمة مرور واضحين.
+ *
+ *  الرمز المؤقت يُعاد مرة واحدة فقط هنا؛ لا يُخزَّن إلا مُجزّأً (hash)، فإن
+ *  ضاع فالطريق الوحيد هو إعادة التعيين من صفحة إدارة الحسابات. */
+export async function createCandidateAccount(opts: {
+  fullName: string;
+  email: string;
+  phone?: string | null;
+  jobTitle?: string | null;
+  targetRole: "member" | "department_admin" | "operations_officer" | "executive";
+  departmentId: string | null;
+  testTrackId: string;
+  invitedById: string;
+}) {
+  const existingUser = await prisma.user.findUnique({ where: { email: opts.email } });
+  if (existingUser) throw new Error("هذا البريد مستخدم بالفعل في حساب قائم");
+  const existingMember = await prisma.member.findUnique({ where: { email: opts.email } });
+  if (existingMember) throw new Error("هذا البريد مستخدم بالفعل في حساب قائم");
+
+  const tempPassword = generateTempPassword();
+  const passwordHash = await hashPassword(tempPassword);
+
+  const invite = await prisma.invite.create({
+    data: {
+      fullName: opts.fullName,
+      email: opts.email,
+      targetRole: opts.targetRole,
+      departmentId: opts.departmentId,
+      testTrackId: opts.testTrackId,
+      invitedById: opts.invitedById,
+      // لا يوجد رابط يُفتح بعد الآن — الحساب موجود منذ هذه اللحظة
+      status: "used",
+    },
+  });
+
+  const member = await prisma.member.create({
+    data: {
+      fullName: opts.fullName,
+      email: opts.email,
+      phone: opts.phone ?? null,
+      jobTitle: opts.jobTitle ?? null,
+      departmentId: opts.departmentId,
+      inviteId: invite.id,
+      passwordHash,
+      mustChangePassword: true,
+      credentialsIssuedAt: new Date(),
+    },
+  });
+
+  await appendMemberEvent({
+    fullName: member.fullName,
+    email: member.email,
+    event: "إنشاء حساب مرشّح",
+    details: `${ROLE_LABELS[opts.targetRole]} — سُلِّم رمز مؤقت`,
+    at: new Date(),
+  });
+
+  await sendCredentialsEmail({
+    to: member.email,
+    fullName: member.fullName,
+    tempPassword,
+    loginUrl: `${baseUrl()}/login`,
+  });
+
+  return { invite, member, tempPassword };
+}
+
+/** يسجّل أول دخول فعلي للمرشّح — يتيح لمن أنشأ الحساب أن يرى هل وصل الرمز
+ *  واستُخدم فعلاً أم لا، فيكتشف ضياعه أو استخدامه من غير صاحبه */
+export async function markFirstLogin(memberId: string) {
+  await prisma.member.updateMany({
+    where: { id: memberId, firstLoginAt: null },
+    data: { firstLoginAt: new Date() },
   });
 }

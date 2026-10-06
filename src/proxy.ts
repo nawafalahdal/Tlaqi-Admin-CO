@@ -24,6 +24,7 @@ export default auth((req) => {
     if (pathname.startsWith("/member") && session.user.role !== "member") {
       return NextResponse.redirect(new URL("/admin", req.nextUrl.origin));
     }
+
   }
 });
 

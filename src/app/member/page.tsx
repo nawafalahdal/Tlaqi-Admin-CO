@@ -23,6 +23,12 @@ export default async function MemberPortalPage() {
     include: { department: true, warnings: { orderBy: { createdAt: "desc" } } },
   });
 
+  // حارس المرحلة من قاعدة البيانات: المرشّح يملك حساباً حقيقياً منذ إنشائه،
+  // فلا تفتح له البوابة قبل اجتياز الاختبار والاعتماد
+  if (member.approvalStatus !== "approved") {
+    redirect(member.testStatus === "not_started" ? "/member/test" : "/member/pending");
+  }
+
   const theme = themeFromColor(member.department?.colorHex ?? BRAND.temptress);
   const t = getDictionary(await getLocale());
 

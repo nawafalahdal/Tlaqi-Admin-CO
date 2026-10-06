@@ -3,7 +3,7 @@
 import { useActionState, useRef, useEffect, useState } from "react";
 import { createMemberInviteAction } from "./actions";
 import { Button } from "@/components/ui";
-import { InviteLinkReveal } from "@/components/InviteLinkReveal";
+import { CredentialsReveal } from "@/components/CredentialsReveal";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
 
@@ -19,19 +19,22 @@ export function MemberInviteForm({
     success: false,
   });
   const formRef = useRef<HTMLFormElement>(null);
-  const [dismissedUrl, setDismissedUrl] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState<string | null>(null);
   const t = useTranslations();
 
   useEffect(() => {
     if (state.success) formRef.current?.reset();
   }, [state.success]);
 
-  if (state.success && state.inviteUrl && state.inviteUrl !== dismissedUrl) {
+  // تُعرض بيانات الدخول مرة واحدة فقط بعد الإنشاء — لم تعد رابطاً مجهولاً
+  // بل بريداً وكلمة مرور مؤقتة يسلّمهما المسؤول مباشرة للمرشّح
+  if (state.success && state.credentials && state.credentials.tempPassword !== dismissed) {
     return (
-      <InviteLinkReveal
-        inviteUrl={state.inviteUrl}
+      <CredentialsReveal
+        email={state.credentials.email}
+        tempPassword={state.credentials.tempPassword}
         theme={theme}
-        onClose={() => setDismissedUrl(state.inviteUrl!)}
+        onClose={() => setDismissed(state.credentials!.tempPassword)}
       />
     );
   }

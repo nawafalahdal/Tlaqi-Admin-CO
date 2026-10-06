@@ -18,7 +18,7 @@ export function ApprovalRow({
     departmentName: string;
     departmentColor: string;
   };
-  onApproved: (result: { email: string; tempPassword: string }) => void;
+  onApproved: (fullName: string) => void;
 }) {
   const [pending, startTransition] = useTransition();
   const theme = themeFromColor(member.departmentColor);
@@ -26,8 +26,8 @@ export function ApprovalRow({
 
   function handleApprove() {
     startTransition(async () => {
-      const result = await approveMemberAction(member.id);
-      onApproved(result);
+      await approveMemberAction(member.id);
+      onApproved(member.fullName);
     });
   }
 

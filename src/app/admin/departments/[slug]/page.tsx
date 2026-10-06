@@ -12,7 +12,6 @@ import { NeedsMeetingRow } from "./NeedsMeetingRow";
 import { RequestCard } from "./RequestCard";
 import { MemberInviteForm } from "./MemberInviteForm";
 import { MemberRoster } from "./MemberRoster";
-import { CopyInviteLink } from "@/components/CopyInviteLink";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
 import Link from "next/link";
@@ -97,15 +96,18 @@ export default async function DepartmentBoardPage({
       include: { member: true, targetDepartment: true },
       orderBy: { createdAt: "desc" },
     }),
-    prisma.invite.findMany({
-      where: { departmentId: department.id, status: "open", targetRole: "member" },
+    prisma.member.findMany({
+      where: {
+        departmentId: department.id,
+        approvalStatus: { not: "approved" },
+        testStatus: "not_started",
+      },
       orderBy: { createdAt: "desc" },
     }),
     announcementsForSession(session, 6),
   ]);
 
   const theme = themeFromColor(department.colorHex);
-  const appBaseUrl = process.env.APP_BASE_URL || "http://localhost:3000";
 
   return (
     <div className="min-h-screen bg-[#FAF8F4]">
@@ -161,14 +163,18 @@ export default async function DepartmentBoardPage({
                 >
                   <div>
                     <p className="text-sm font-semibold">{inv.fullName}</p>
-                    <p className="text-xs text-black/50" dir="ltr">
+                    <p className="break-all text-xs text-black/50" dir="ltr">
                       {inv.email}
                     </p>
                     <p className="text-xs text-black/40">
                       {t.deptBoard.issuedOn} {formatDate(inv.createdAt)}
                     </p>
                   </div>
-                  <CopyInviteLink inviteUrl={`${appBaseUrl}/invite/${inv.token}`} />
+                  <div className="text-xs text-black/40">
+                    {inv.firstLoginAt
+                      ? `${t.invitesPage.colFirstLogin}: ${formatDate(inv.firstLoginAt)}`
+                      : t.invitesPage.notSignedInYet}
+                  </div>
                 </Card>
               ))}
             </div>

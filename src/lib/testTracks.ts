@@ -73,3 +73,14 @@ export function canEditTrack(session: Session, track: Pick<TestTrack, "scope" | 
     (session.user.role === "department_admin" && session.user.departmentId === track.departmentId)
   );
 }
+
+/** نسخة السؤال التي تُرسَل للمرشّح — بلا correctIndex. ما يُمرَّر لمكوّن عميل
+ *  يُسلسَل كاملاً داخل حمولة الصفحة ويقرؤه أي أحد من مصدرها، فتمرير الإجابة
+ *  الصحيحة معه يعني تسليم إجابات الاختبار للممتحَن نفسه. */
+export function toCandidateQuestion(q: { id: string; prompt: string; options: unknown }) {
+  return {
+    id: q.id,
+    prompt: q.prompt,
+    options: q.options as string[],
+  };
+}

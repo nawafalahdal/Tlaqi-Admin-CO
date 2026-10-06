@@ -2,19 +2,24 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { sendInviteEmail } from "@/lib/email";
-import { issueWarning, resetMemberCredentials, markMemberExited, issueCertificate } from "@/lib/workflow";
+import {
+  createCandidateAccount,
+  issueWarning,
+  resetMemberCredentials,
+  markMemberExited,
+  issueCertificate,
+} from "@/lib/workflow";
 import { respondToTicket } from "@/lib/tickets";
-import { getTrackForTarget, ROLE_LABELS } from "@/lib/testTracks";
+import { getTrackForTarget } from "@/lib/testTracks";
 import { safeErrorMessage } from "@/lib/safeError";
 import { revalidatePath } from "next/cache";
 
 /** حوكمة صارمة: إصدار دعوة عضو داخل قسم معيّن هو حصراً من صلاحية أدمن ذلك
  *  القسم — حتى الفاونڈر نفسه لا يملك هذا الإجراء مباشرة */
 export async function createMemberInviteAction(
-  _prevState: { error: string | null; success: boolean; inviteUrl?: string },
+  _prevState: { error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } },
   formData: FormData
-): Promise<{ error: string | null; success: boolean; inviteUrl?: string }> {
+): Promise<{ error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } }> {
   try {
     const session = await auth();
     const departmentId = String(formData.get("departmentId") ?? "");
@@ -32,30 +37,20 @@ export async function createMemberInviteAction(
     const jobTitle = String(formData.get("jobTitle") ?? "").trim();
     if (!fullName || !email) return { error: "الاسم والبريد مطلوبان", success: false };
 
-    const department = await prisma.department.findUniqueOrThrow({ where: { id: departmentId } });
     const track = await getTrackForTarget("member", departmentId);
 
-    const invite = await prisma.invite.create({
-      data: {
-        fullName,
-        email,
-        targetRole: "member",
-        departmentId,
-        testTrackId: track.id,
-        invitedById: session.user.id,
-      },
-    });
-
-    const inviteUrl = `${process.env.APP_BASE_URL || "http://localhost:3000"}/invite/${invite.token}`;
-    await sendInviteEmail({
-      to: email,
+    const { tempPassword } = await createCandidateAccount({
       fullName,
-      roleLabel: `${ROLE_LABELS.member} — ${department.name}${jobTitle ? ` (${jobTitle})` : ""}`,
-      inviteUrl,
+      email,
+      jobTitle: jobTitle || null,
+      targetRole: "member",
+      departmentId,
+      testTrackId: track.id,
+      invitedById: session.user.id,
     });
 
     revalidatePath(`/admin/departments`);
-    return { error: null, success: true, inviteUrl };
+    return { error: null, success: true, credentials: { email, tempPassword } };
   } catch (err) {
     return { error: safeErrorMessage(err), success: false };
   }
