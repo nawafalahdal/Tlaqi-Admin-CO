@@ -10,6 +10,7 @@ import { AppHeader, Card, StatusBadge } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { ExecutiveInviteForm, DeptAdminInviteForm, OperationsOfficerInviteForm } from "./LeadershipInviteForms";
 import { ApprovalQueue } from "./ApprovalQueue";
+import { CopyInviteLink } from "@/components/CopyInviteLink";
 import { formatDate } from "@/lib/format";
 import Link from "next/link";
 
@@ -66,6 +67,7 @@ export default async function AdminPage() {
   ]);
 
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
+  const appBaseUrl = process.env.APP_BASE_URL || "http://localhost:3000";
 
   return (
     <div className="min-h-screen bg-[#FAF8F4]">
@@ -184,6 +186,7 @@ export default async function AdminPage() {
                   <th className="px-4 py-3 font-medium">المسار</th>
                   <th className="px-4 py-3 font-medium">الحالة</th>
                   <th className="px-4 py-3 font-medium">تاريخ الإصدار</th>
+                  <th className="px-4 py-3 font-medium">رابط الدعوة</th>
                 </tr>
               </thead>
               <tbody>
@@ -198,11 +201,18 @@ export default async function AdminPage() {
                       <StatusBadge status={inv.status} />
                     </td>
                     <td className="px-4 py-3 text-black/50">{formatDate(inv.createdAt)}</td>
+                    <td className="px-4 py-3">
+                      {inv.status === "open" ? (
+                        <CopyInviteLink inviteUrl={`${appBaseUrl}/invite/${inv.token}`} />
+                      ) : (
+                        <span className="text-xs text-black/30">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {invites.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-black/40">
+                    <td colSpan={5} className="px-4 py-8 text-center text-black/40">
                       لا توجد دعوات بعد
                     </td>
                   </tr>

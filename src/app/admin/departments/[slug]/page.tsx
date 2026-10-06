@@ -12,6 +12,8 @@ import { NeedsMeetingRow } from "./NeedsMeetingRow";
 import { RequestCard } from "./RequestCard";
 import { MemberInviteForm } from "./MemberInviteForm";
 import { MemberRoster } from "./MemberRoster";
+import { CopyInviteLink } from "@/components/CopyInviteLink";
+import { formatDate } from "@/lib/format";
 import Link from "next/link";
 
 const COLUMNS: { status: "new" | "in_progress" | "done" | "overdue"; label: string }[] = [
@@ -46,7 +48,7 @@ export default async function DepartmentBoardPage({
   await sweepOverdueRequests(department.id);
   await sweepTicketEscalation();
 
-  const [approvalQueue, needsMeeting, requests, activeMembers, tickets] = await Promise.all([
+  const [approvalQueue, needsMeeting, requests, activeMembers, tickets, openInvites] = await Promise.all([
     prisma.member.findMany({
       where: {
         departmentId: department.id,
@@ -91,9 +93,14 @@ export default async function DepartmentBoardPage({
       include: { member: true, targetDepartment: true },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.invite.findMany({
+      where: { departmentId: department.id, status: "open", targetRole: "member" },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
 
   const theme = themeFromColor(department.colorHex);
+  const appBaseUrl = process.env.APP_BASE_URL || "http://localhost:3000";
 
   return (
     <div className="min-h-screen bg-[#FAF8F4]">
@@ -115,6 +122,31 @@ export default async function DepartmentBoardPage({
             <Card className="p-6 text-sm text-black/50">
               للعرض فقط — إصدار دعوة عضو هنا متاح لأدمن {department.name} حصراً.
             </Card>
+          )}
+        </section>
+
+        <section>
+          <h2 className="mb-1 text-lg font-bold">دعوات مفتوحة ({openInvites.length})</h2>
+          <p className="mb-4 text-sm text-black/50">
+            دعوات صدرت ولم يبدأ أصحابها الاختبار بعد — انسخ الرابط وأرسله يدوياً متى احتجت.
+          </p>
+          {openInvites.length === 0 ? (
+            <Card className="p-8 text-center text-sm text-black/40">لا توجد دعوات مفتوحة حالياً</Card>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {openInvites.map((inv) => (
+                <Card key={inv.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold">{inv.fullName}</p>
+                    <p className="text-xs text-black/50" dir="ltr">
+                      {inv.email}
+                    </p>
+                    <p className="text-xs text-black/40">صدرت في {formatDate(inv.createdAt)}</p>
+                  </div>
+                  <CopyInviteLink inviteUrl={`${appBaseUrl}/invite/${inv.token}`} />
+                </Card>
+              ))}
+            </div>
           )}
         </section>
 
