@@ -20,7 +20,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
           type="email"
           required
           autoComplete="email"
-          placeholder="name@tlaqi.co"
+          placeholder="name@tlaqiteam.site"
           className="min-h-11 rounded-xl border border-black/10 px-4 py-3 text-sm outline-none focus:border-[var(--brand-temptress)] focus:ring-2 focus:ring-[var(--brand-temptress)]/15"
         />
       </label>
