@@ -17,8 +17,10 @@ import { formatDate } from "@/lib/format";
 import {
   CANDIDATE_EXPIRY_REASON,
   candidateHoursLeft,
+  findRoleSeatHolder,
   sweepExpiredCandidateAccounts,
 } from "@/lib/workflow";
+import { SeatOccupied } from "@/components/SeatOccupied";
 import { getLocale, getDictionary } from "@/i18n/server";
 
 export default async function AdminInvitesPage() {
@@ -32,19 +34,39 @@ export default async function AdminInvitesPage() {
 
   await sweepExpiredCandidateAccounts();
 
-  const [departments, invites] = await Promise.all([
+  const [departments, invites, execSeat, opsSeat] = await Promise.all([
     prisma.department.findMany({ orderBy: { name: "asc" } }),
     prisma.invite.findMany({
       include: { department: true, member: true },
       orderBy: { createdAt: "desc" },
       take: 50,
     }),
+    findRoleSeatHolder("executive", null),
+    findRoleSeatHolder("operations_officer", null),
   ]);
+
+  // المناصب الفردية: يُعرض شاغلها بدل النموذج، فلا يملأ أحد حقولاً ستُرفض
+  const deptSeats = new Map(
+    (
+      await Promise.all(
+        departments.map(async (d) => [d.id, await findRoleSeatHolder("department_admin", d.id)] as const)
+      )
+    ).filter(([, holder]) => holder)
+  );
+
+  function seatLine(holder: { fullName: string; kind: string } | null) {
+    if (!holder) return "";
+    return (holder.kind === "active" ? ts.occupiedBy : ts.occupiedCandidate).replace(
+      "{name}",
+      holder.fullName
+    );
+  }
 
   const dict = getDictionary(await getLocale());
   const t = dict.invitesPage;
   const ta = dict.admin;
   const tw = dict.candidateWindow;
+  const ts = dict.seats;
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
 
   return (
@@ -61,6 +83,9 @@ export default async function AdminInvitesPage() {
         <div>
           <BackButton fallbackHref="/admin" />
           <h1 className="text-lg font-bold sm:text-xl">{t.title}</h1>
+          <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+            {ts.governance}
+          </p>
           <p className="mt-1 text-sm text-black/50">
             {t.subtitle}
           </p>
@@ -72,9 +97,17 @@ export default async function AdminInvitesPage() {
             <p className="mb-3 text-sm text-black/50">
               {ta.createExecSubtitle}
             </p>
-            <Card className="p-4 sm:p-6">
-              <ExecutiveInviteForm />
-            </Card>
+            {execSeat ? (
+              <SeatOccupied
+                title={ts.occupiedTitle}
+                holderLine={seatLine(execSeat)}
+                hint={ts.occupiedHint}
+              />
+            ) : (
+              <Card className="p-4 sm:p-6">
+                <ExecutiveInviteForm />
+              </Card>
+            )}
           </section>
         )}
 
@@ -83,9 +116,17 @@ export default async function AdminInvitesPage() {
           <p className="mb-3 text-sm text-black/50">
             {t.createOpsSubtitle}
           </p>
-          <Card className="p-4 sm:p-6">
-            <OperationsOfficerInviteForm />
-          </Card>
+          {opsSeat ? (
+            <SeatOccupied
+              title={ts.occupiedTitle}
+              holderLine={seatLine(opsSeat)}
+              hint={ts.occupiedHint}
+            />
+          ) : (
+            <Card className="p-4 sm:p-6">
+              <OperationsOfficerInviteForm />
+            </Card>
+          )}
         </section>
 
         <section>
@@ -94,8 +135,15 @@ export default async function AdminInvitesPage() {
             {ta.createLeadSubtitle}
           </p>
           <Card className="p-4 sm:p-6">
-            <DeptAdminInviteForm departments={departments} />
+            <DeptAdminInviteForm
+              departments={departments.filter((d) => !deptSeats.has(d.id))}
+            />
           </Card>
+          {deptSeats.size > 0 && (
+            <p className="mt-2 text-xs leading-relaxed text-black/40">
+              {ts.occupiedHint}
+            </p>
+          )}
         </section>
 
         <section>

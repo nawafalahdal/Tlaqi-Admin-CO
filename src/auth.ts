@@ -29,7 +29,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where: { email },
           include: { department: true },
         });
-        if (user && (await bcrypt.compare(password, user.passwordHash))) {
+        // الحساب المُنحّى يبقى سجلاً فقط — لا يَقبل دخولاً بعد تنحيته
+        if (user && user.isActive && (await bcrypt.compare(password, user.passwordHash))) {
           if (user.totpEnabled) {
             if (!user.totpSecret || !totp || !verifyTotpCode(user.totpSecret, totp, user.email)) {
               await recordFailedAttempt(email);

@@ -187,6 +187,10 @@ export async function approveMember(memberId: string) {
           ? "operations_officer"
           : "department_admin";
 
+    // فحص ثانٍ لحظة الإنشاء الفعلي للحساب: قد يكون المنصب شُغل بين لحظة
+    // إنشاء المرشّح ولحظة اعتماده (مرشّحان قديمان، أو تنحية ثم تعيين)
+    await assertRoleSeatAvailable(member.invite.targetRole, member.departmentId);
+
     // تُنقل كلمة المرور التي اختارها بنفسه إلى الحساب الإداري الجديد، ثم
     // يُفرَّغ hash حساب المرشّح حتى لا يبقى لشخص واحد مَدخلان
     await prisma.user.create({
@@ -492,6 +496,8 @@ export async function createCandidateAccount(opts: {
   testTrackId: string;
   invitedById: string;
 }) {
+  await assertRoleSeatAvailable(opts.targetRole, opts.departmentId);
+
   const existingUser = await prisma.user.findUnique({ where: { email: opts.email } });
   if (existingUser) throw new Error("هذا البريد مستخدم بالفعل في حساب قائم");
   const existingMember = await prisma.member.findUnique({ where: { email: opts.email } });
@@ -620,4 +626,93 @@ export async function sweepExpiredCandidateAccounts() {
   }
 
   return expired.length;
+}
+
+/** المناصب الفردية: لا يصح أن يوجد مديران تنفيذيان، ولا مسؤولا تشغيل،
+ *  ولا قائدان لقسم واحد. الصلاحية في هذه المناصب تعني قراراً نهائياً،
+ *  وازدواجها يعني تضارب قرارات وغموضاً في المسؤولية. */
+const SINGLETON_ROLES = ["executive", "operations_officer", "department_admin"] as const;
+
+type SingletonRole = (typeof SINGLETON_ROLES)[number];
+
+export function isSingletonRole(role: string): role is SingletonRole {
+  return (SINGLETON_ROLES as readonly string[]).includes(role);
+}
+
+/** من يشغل المنصب الآن — سواء حساب قائم فعلاً، أو مرشّح لم يُحسم أمره بعد.
+ *  المرشّح المعلّق يُحتسب شاغلاً: لو سُمح بمرشّح ثانٍ لاجتاز كلاهما الاختبار
+ *  ثم تعذّر اعتماد أحدهما، وهذا إهدار لوقت شخص حقيقي. */
+export async function findRoleSeatHolder(
+  targetRole: string,
+  departmentId: string | null
+): Promise<{ fullName: string; email: string; kind: "active" | "candidate" } | null> {
+  if (!isSingletonRole(targetRole)) return null;
+
+  const user = await prisma.user.findFirst({
+    where: {
+      role: targetRole,
+      isActive: true,
+      ...(targetRole === "department_admin" ? { departmentId } : {}),
+    },
+    select: { fullName: true, email: true },
+  });
+  if (user) return { ...user, kind: "active" };
+
+  const candidate = await prisma.member.findFirst({
+    where: {
+      isActive: true,
+      approvalStatus: "pending_review",
+      invite: {
+        targetRole,
+        ...(targetRole === "department_admin" ? { departmentId } : {}),
+      },
+    },
+    select: { fullName: true, email: true },
+  });
+  if (candidate) return { ...candidate, kind: "candidate" };
+
+  return null;
+}
+
+/** يرفض إنشاء أو اعتماد حساب لمنصب مشغول، برسالة تسمّي شاغله وتدل على
+ *  طريق التفريغ — فلا يقف المستخدم أمام رفض بلا مخرج. */
+export async function assertRoleSeatAvailable(targetRole: string, departmentId: string | null) {
+  const holder = await findRoleSeatHolder(targetRole, departmentId);
+  if (!holder) return;
+
+  const label = ROLE_LABELS[targetRole as keyof typeof ROLE_LABELS] ?? targetRole;
+  throw new Error(
+    holder.kind === "active"
+      ? `منصب ${label} مشغول حالياً بـ${holder.fullName}. نحِّ الحساب القائم أولاً من إدارة الحسابات، ثم أنشئ البديل.`
+      : `يوجد مرشّح لمنصب ${label} لم يُحسم أمره بعد (${holder.fullName}). اعتمده أو ارفضه أولاً.`
+  );
+}
+
+/** تنحية حساب قيادي: تُعطّله وتُفرِغ منصبه لمن بعده، دون حذف سجله.
+ *  الفاونڈر وحده يملكها، ولا تطال حساب فاونڈر آخر ولا حسابه هو. */
+export async function removeLeadershipUser(opts: {
+  userId: string;
+  reason: string;
+  performedById: string;
+  performedByName: string;
+}) {
+  const target = await prisma.user.findUniqueOrThrow({ where: { id: opts.userId } });
+  if (target.id === opts.performedById) throw new Error("لا يمكنك تنحية حسابك أنت");
+  if (target.role === "super_admin") throw new Error("لا يمكن تنحية حساب الفاونڈر");
+  if (!target.isActive) throw new Error("هذا الحساب مُنحّى بالفعل");
+
+  const user = await prisma.user.update({
+    where: { id: opts.userId },
+    data: { isActive: false, removedAt: new Date(), removalReason: opts.reason },
+  });
+
+  await appendMemberEvent({
+    fullName: user.fullName,
+    email: user.email,
+    event: "تنحية حساب قيادي",
+    details: `${ROLE_LABELS[user.role as keyof typeof ROLE_LABELS] ?? user.role} — السبب: ${opts.reason} — نفّذه: ${opts.performedByName}`,
+    at: new Date(),
+  });
+
+  return user;
 }

@@ -9,6 +9,7 @@ import { MemberAccountRow } from "./MemberAccountRow";
 import { BackButton } from "@/components/BackButton";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { CANDIDATE_EXPIRY_REASON, sweepExpiredCandidateAccounts } from "@/lib/workflow";
+import { ROLE_LABELS } from "@/lib/testTracks";
 
 export default async function AccountsPage() {
   const session = await auth();
@@ -20,11 +21,14 @@ export default async function AccountsPage() {
 
   await sweepExpiredCandidateAccounts();
 
-  const [accounts, members, lapsed] = await Promise.all([
+  const [accounts, members, removedUsers, lapsed] = await Promise.all([
     prisma.user.findMany({
-      where: isSuperAdmin
-        ? { role: { in: ["executive", "operations_officer", "department_admin"] } }
-        : { role: { in: ["operations_officer", "department_admin"] } },
+      where: {
+        isActive: true,
+        role: isSuperAdmin
+          ? { in: ["executive", "operations_officer", "department_admin"] }
+          : { in: ["operations_officer", "department_admin"] },
+      },
       include: { department: true },
       orderBy: [{ role: "asc" }, { fullName: "asc" }],
     }),
@@ -32,6 +36,13 @@ export default async function AccountsPage() {
       where: { approvalStatus: "approved", isActive: true },
       include: { department: true },
       orderBy: [{ department: { name: "asc" } }, { fullName: "asc" }],
+    }),
+    // الحسابات القيادية المُنحّاة — سجل فقط، لا تَقبل دخولاً
+    prisma.user.findMany({
+      where: { isActive: false },
+      include: { department: true },
+      orderBy: { removedAt: "desc" },
+      take: 20,
     }),
     // الحسابات التي أسقطتها المهلة — تُعرض هنا وحدها لأن هذه هي النافذة
     // الوحيدة التي تُعيد إصدارها، وإخفاؤها يعني ضياعها بلا طريق للعودة
@@ -44,6 +55,25 @@ export default async function AccountsPage() {
   ]);
 
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
+
+  // المناصب التي يشغلها أكثر من حساب نشط الآن
+  const duplicateSeats: { label: string; holders: string[] }[] = [];
+  for (const role of ["executive", "operations_officer"] as const) {
+    const holders = accounts.filter((a) => a.role === role).map((a) => a.fullName);
+    if (holders.length > 1) {
+      duplicateSeats.push({ label: ROLE_LABELS[role], holders });
+    }
+  }
+  const byDept = new Map<string, string[]>();
+  for (const a of accounts.filter((x) => x.role === "department_admin")) {
+    const key = a.department?.name ?? "—";
+    byDept.set(key, [...(byDept.get(key) ?? []), a.fullName]);
+  }
+  for (const [dept, holders] of byDept) {
+    if (holders.length > 1) {
+      duplicateSeats.push({ label: `${ROLE_LABELS.department_admin} — ${dept}`, holders });
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#FAF8F4]">
@@ -63,6 +93,26 @@ export default async function AccountsPage() {
           {isSuperAdmin ? t.accounts.subtitleSuper : t.accounts.subtitleExec}
         </p>
 
+        <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+          {t.seats.governance}
+        </p>
+
+        {/* بيانات سابقة لتطبيق القاعدة قد تحمل أكثر من شاغل لمنصب واحد —
+            تُعرض صراحةً لأن القاعدة تمنع الإضافة ولا تحسم ما هو قائم */}
+        {duplicateSeats.length > 0 && (
+          <div className="mb-4 rounded-lg bg-red-50 px-3 py-2.5 text-xs leading-relaxed text-red-900">
+            <p className="font-bold">{t.seats.duplicatesTitle}</p>
+            <ul className="mt-1 list-inside list-disc">
+              {duplicateSeats.map((d) => (
+                <li key={d.label}>
+                  {d.label}: {d.holders.join("، ")}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 opacity-80">{t.seats.duplicatesHint}</p>
+          </div>
+        )}
+
         {accounts.length === 0 ? (
           <Card className="p-8 text-center text-sm text-black/40">{t.accounts.empty}</Card>
         ) : (
@@ -71,6 +121,7 @@ export default async function AccountsPage() {
               <AccountRow
                 key={a.id}
                 theme={theme}
+                canRemove={isSuperAdmin}
                 account={{
                   id: a.id,
                   fullName: a.fullName,
@@ -105,6 +156,26 @@ export default async function AccountsPage() {
               />
             ))}
           </div>
+        )}
+
+        {removedUsers.length > 0 && (
+          <>
+            <h2 className="mb-4 mt-10 text-lg font-bold">{t.seats.removedTitle}</h2>
+            <div className="flex flex-col gap-3">
+              {removedUsers.map((u) => (
+                <Card key={u.id} className="p-4">
+                  <p className="text-sm font-semibold">{u.fullName}</p>
+                  <p className="break-all text-xs text-black/50" dir="ltr">
+                    {u.email}
+                  </p>
+                  <p className="mt-1 text-xs text-black/40">
+                    {u.department ? `${u.department.name} — ` : ""}
+                    {u.removalReason}
+                  </p>
+                </Card>
+              ))}
+            </div>
+          </>
         )}
 
         {lapsed.length > 0 && (

@@ -451,6 +451,22 @@ export const en: Dictionary = {
       "Governance: any account whose holder does not sign in within 24 hours of creation lapses automatically and accepts no sign-in afterwards — its row stays in the record marked \"Window lapsed\" for review. Re-issue it by resetting its credentials.",
     reissue: "Re-issue",
   },
+  seats: {
+    duplicatesTitle: "Seats held by more than one account",
+    duplicatesHint: "These accounts were created before the one-seat rule. The rule blocks new additions but does not resolve what already exists — remove the extras so each seat has a single holder.",
+    remove: "Remove",
+    removeHint:
+      "Removal disables the account immediately so it accepts no sign-in, and frees the seat for a replacement. The record is kept, not deleted.",
+    removeReason: "Reason for removal (kept in the record)",
+    removeConfirm: "Confirm removal",
+    occupiedTitle: "Seat occupied",
+    occupiedBy: "Currently held by: {name}",
+    occupiedCandidate: "Undecided candidate: {name}",
+    occupiedHint: "Remove the current holder from account management before creating a replacement — the seat takes only one.",
+    governance:
+      "Governance: one seat, one person — no two executives, no two operations officers, no two leads for one department.",
+    removedTitle: "Removed accounts",
+  },
   testEditor: {
     empty: "No questions in this test yet",
     addQuestion: "+ Add a new question",

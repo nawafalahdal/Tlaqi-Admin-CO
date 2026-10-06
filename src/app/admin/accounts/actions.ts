@@ -2,7 +2,7 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { resetUserCredentials } from "@/lib/workflow";
+import { removeLeadershipUser, resetUserCredentials } from "@/lib/workflow";
 import { safeErrorMessage } from "@/lib/safeError";
 import { revalidatePath } from "next/cache";
 
@@ -36,5 +36,36 @@ export async function resetUserCredentialsAction(
     return { error: null, tempPassword, email: user.email };
   } catch (err) {
     return { error: safeErrorMessage(err) };
+  }
+}
+
+/** تنحية حساب قيادي — الفاونڈر وحده. هذه هي الطريقة الوحيدة لتفريغ منصب
+ *  فردي (تنفيذي / مسؤول تشغيل / قائد قسم) قبل تعيين بديل، لأن المنصب
+ *  لا يقبل شاغلَين. */
+export async function removeLeadershipUserAction(
+  userId: string,
+  reason: string
+): Promise<{ error: string | null; success: boolean }> {
+  const session = await auth();
+  if (!session) return { error: "يجب تسجيل الدخول", success: false };
+  if (session.user.role !== "super_admin") {
+    return { error: "تنحية الحسابات القيادية خاصة بالفاونڈر فقط", success: false };
+  }
+
+  const trimmed = reason.trim();
+  if (!trimmed) return { error: "اكتب سبب التنحية — يُحفظ في السجل", success: false };
+
+  try {
+    await removeLeadershipUser({
+      userId,
+      reason: trimmed,
+      performedById: session.user.id,
+      performedByName: session.user.name ?? "الفاونڈر",
+    });
+    revalidatePath("/admin/accounts");
+    revalidatePath("/admin/invites");
+    return { error: null, success: true };
+  } catch (err) {
+    return { error: safeErrorMessage(err), success: false };
   }
 }
