@@ -47,7 +47,7 @@ async function emailsForLeadership() {
 
 /** يكتب/يحدّث الصف الثابت الخاص بالتذكرة في الشيت، ويحفظ رقم الصف على التذكرة
  *  أول مرة فقط — كل استدعاء لاحق يحدّث نفس الصف بدل إضافة صف جديد */
-async function syncTicketSheetRow(ticket: Ticket & { member: Member; targetDepartment: Department }) {
+export async function syncTicketSheetRow(ticket: Ticket & { member: Member; targetDepartment: Department }) {
   const resolved = ticket.status === "resolved";
   const isLate = resolved ? ticket.stage !== "department" : new Date() > ticket.stageDueAt;
 

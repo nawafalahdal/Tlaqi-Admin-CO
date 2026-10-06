@@ -12,6 +12,26 @@ import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { generateTempPassword, hashPassword } from "@/lib/credentials";
 import { scoreAnswers, ROLE_LABELS } from "@/lib/testTracks";
 
+
+/** تسمية القسم أو الصفة كما تظهر في عمود "القسم / الصفة" بالسجل الحي.
+ *  تقبل العضو سواء جُلب معه قسمه أو لا — وتستعلم عنه عند الحاجة فقط. */
+async function memberScope(member: {
+  departmentId?: string | null;
+  department?: { name: string } | null;
+  invite?: { targetRole: string } | null;
+}): Promise<string> {
+  if (member.department?.name) return member.department.name;
+  if (member.departmentId) {
+    const dept = await prisma.department.findUnique({
+      where: { id: member.departmentId },
+      select: { name: true },
+    });
+    if (dept) return dept.name;
+  }
+  const role = member.invite?.targetRole;
+  return role ? (ROLE_LABELS[role as keyof typeof ROLE_LABELS] ?? role) : "—";
+}
+
 export const PASS_THRESHOLD = 80;
 export const WELCOME_BANNER_DUE_DAYS = 2;
 export const MAX_WARNINGS = 3;
@@ -221,6 +241,7 @@ export async function approveMember(memberId: string) {
     fullName: member.fullName,
     email: member.email,
     event: "اعتماد نهائي",
+    roleOrDepartment: await memberScope(member),
     details: "يدخل بنفس كلمة المرور التي اختارها — لم يُصدر رمز جديد",
     at: new Date(),
   });
@@ -237,6 +258,7 @@ export async function rejectMember(memberId: string) {
     fullName: member.fullName,
     email: member.email,
     event: "رفض",
+    roleOrDepartment: await memberScope(member),
     details: "تم رفض الطلب بعد المراجعة",
     at: new Date(),
   });
@@ -293,6 +315,7 @@ export async function issueWarning(opts: { memberId: string; issuedByUserId: str
     fullName: member.fullName,
     email: member.email,
     event: terminated ? "استبعاد" : `تنبيه ${warningsCount}/3`,
+    roleOrDepartment: await memberScope(member),
     details: opts.reason,
     at: new Date(),
   });
@@ -316,6 +339,7 @@ export async function markMemberExited(memberId: string, reason: string) {
     fullName: member.fullName,
     email: member.email,
     event: "إنهاء عضوية",
+    roleOrDepartment: await memberScope(member),
     details: reason,
     at: new Date(),
   });
@@ -342,6 +366,7 @@ export async function issueCertificate(memberId: string) {
     fullName: member.fullName,
     email: member.email,
     event: "إصدار شهادة",
+    roleOrDepartment: await memberScope(member),
     details: "شهادة إتمام",
     at: new Date(),
   });
@@ -408,6 +433,7 @@ export async function resetMemberCredentials(
     fullName: member.fullName,
     email: member.email,
     event: lapsedByWindow ? "إعادة إصدار حساب سقطت مهلته" : "إعادة تعيين كلمة المرور",
+    roleOrDepartment: await memberScope(member),
     details: performedByName ? `نفّذه: ${performedByName}` : "",
     at: new Date(),
   });
@@ -443,6 +469,7 @@ export async function resetUserCredentials(
     fullName: user.fullName,
     email: user.email,
     event: "إعادة تعيين كلمة المرور",
+    roleOrDepartment: ROLE_LABELS[user.role as keyof typeof ROLE_LABELS] ?? user.role,
     details: performedByName ? `نفّذه: ${performedByName}` : "",
     at: new Date(),
   });
@@ -537,7 +564,8 @@ export async function createCandidateAccount(opts: {
     fullName: member.fullName,
     email: member.email,
     event: "إنشاء حساب مرشّح",
-    details: `${ROLE_LABELS[opts.targetRole]} — سُلِّم رمز مؤقت`,
+    roleOrDepartment: ROLE_LABELS[opts.targetRole],
+    details: "سُلِّم رمز مؤقت — مهلة 24 ساعة لأول دخول",
     at: new Date(),
   });
 
@@ -710,7 +738,8 @@ export async function removeLeadershipUser(opts: {
     fullName: user.fullName,
     email: user.email,
     event: "تنحية حساب قيادي",
-    details: `${ROLE_LABELS[user.role as keyof typeof ROLE_LABELS] ?? user.role} — السبب: ${opts.reason} — نفّذه: ${opts.performedByName}`,
+    roleOrDepartment: ROLE_LABELS[user.role as keyof typeof ROLE_LABELS] ?? user.role,
+    details: `السبب: ${opts.reason} — نفّذه: ${opts.performedByName}`,
     at: new Date(),
   });
 

@@ -77,11 +77,14 @@ export async function appendMemberEvent(row: {
   event: string;
   details: string;
   at: Date;
+  /** القسم أو الصفة — كان يُترك فارغاً في كل الأحداث، فيتعذّر فلترة السجل
+   *  بالقسم ويضيع نصف فائدته. يُمرَّر الآن من موضع الاستدعاء. */
+  roleOrDepartment?: string;
 }) {
   return appendSheetRow({
     fullName: row.fullName,
     email: row.email,
-    roleOrDepartment: "",
+    roleOrDepartment: row.roleOrDepartment ?? "",
     eventType: row.event,
     details: row.details,
     at: row.at,

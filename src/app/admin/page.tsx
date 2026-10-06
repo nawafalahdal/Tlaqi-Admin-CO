@@ -90,6 +90,9 @@ export default async function AdminPage() {
       desc: ti.quickAccountsHint,
     },
     ...(isSuperAdmin
+      ? [{ href: "/admin/sheet", title: dict.sheetPage.title, desc: dict.sheetPage.subtitle }]
+      : []),
+    ...(isSuperAdmin
       ? [
           {
             href: "/admin/tests/executive",
