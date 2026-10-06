@@ -5,7 +5,9 @@ import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { BackButton } from "@/components/BackButton";
 import { getLocale, getDictionary } from "@/i18n/server";
+import { TAB_LAYOUTS } from "@/lib/googleSheets";
 import { BackfillPanel } from "./BackfillPanel";
+import { PrepareTabs } from "./PrepareTabs";
 
 // التعبئة تكتب عشرات الأسطر عبر Google API، فتحتاج مهلة أطول من الافتراضية
 export const maxDuration = 60;
@@ -20,12 +22,17 @@ export default async function SheetPage() {
   const sheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
   const sheetUrl = sheetId ? `https://docs.google.com/spreadsheets/d/${sheetId}/edit` : null;
 
-  const tabs = [
-    { name: t.sheetPage.tabLive, desc: t.sheetPage.tabLiveDesc },
-    { name: t.sheetPage.tabTests, desc: t.sheetPage.tabTestsDesc },
-    { name: t.sheetPage.tabTickets, desc: t.sheetPage.tabTicketsDesc },
-    { name: t.sheetPage.tabLifecycle, desc: t.sheetPage.tabLifecycleDesc },
-  ];
+  // الأعمدة تُقرأ من نفس المصدر الذي يبني التبويبات فعلاً، فلا يفترق
+  // ما يُعرض هنا عمّا يُكتب في الملف
+  const tabs = TAB_LAYOUTS.map((layout) => ({
+    ...layout,
+    desc: {
+      "السجل الحي": t.sheetPage.tabLiveDesc,
+      "نتائج الاختبارات": t.sheetPage.tabTestsDesc,
+      "التذاكر": t.sheetPage.tabTicketsDesc,
+      "الأعضاء — دورة الحياة": t.sheetPage.tabLifecycleDesc,
+    }[layout.name] ?? "",
+  }));
 
   return (
     <div className="min-h-screen bg-[#FAF8F4]">
@@ -64,11 +71,26 @@ export default async function SheetPage() {
               <Card key={tab.name} className="p-4">
                 <p className="text-sm font-bold">{tab.name}</p>
                 <p className="mt-1 text-xs leading-relaxed text-black/50">{tab.desc}</p>
+                <ol className="mt-3 flex flex-wrap gap-1.5">
+                  {tab.headers.map((h, i) => (
+                    <li
+                      key={h}
+                      className="rounded-md bg-black/[0.04] px-2 py-1 text-[11px] text-black/60"
+                    >
+                      <span className="text-black/30">{i + 1}.</span> {h}
+                    </li>
+                  ))}
+                </ol>
+                <p className="mt-2 text-[11px] text-black/30">
+                  {tab.headers.length} {t.sheetPage.columnsWord}
+                </p>
               </Card>
             ))}
           </div>
           <p className="mt-3 text-xs leading-relaxed text-black/40">{t.sheetPage.lazyNote}</p>
         </section>
+
+        <PrepareTabs theme={theme} />
 
         <BackfillPanel theme={theme} />
       </main>

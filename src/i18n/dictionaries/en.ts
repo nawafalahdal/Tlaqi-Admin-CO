@@ -468,6 +468,12 @@ export const en: Dictionary = {
     removedTitle: "Removed accounts",
   },
   sheetPage: {
+    prepareTitle: "Prepare the templates",
+    prepareBody: "Creates all four tabs, fully formatted in the Tlaqi identity, before any data arrives — so you see the columns ready and every entry lands in its place as it happens.",
+    prepareRun: "Prepare the four tabs",
+    preparing: "Preparing...",
+    prepareDone: "Ready now",
+    columnsWord: "columns",
     title: "Live tracking file (Google Sheets)",
     subtitle: "Everything that happens on the platform is written here automatically as it happens",
     linkLabel: "File link",

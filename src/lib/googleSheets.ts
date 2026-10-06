@@ -514,3 +514,36 @@ async function ensureTab(sheets: sheets_v4.Sheets, tabName: string) {
 
   ensuredTabs.add(tabName);
 }
+
+/** يُجهّز التبويبات الأربعة كاملةً منسّقةً بهوية تَـــلاقِ قبل وصول أي بيانات.
+ *
+ *  التبويب كان يُنشأ عند أول كتابة فيه، فيبدو الملف شبه فارغ ولا يرى صاحبه
+ *  الأعمدة التي ستصله. هذا يقلب الترتيب: القالب جاهز أولاً، ثم تنزل البيانات
+ *  في مكانها لحظة وقوعها.
+ *
+ *  آمن للتكرار: ensureTab يتحقق من وجود التبويب فعلياً قبل إنشائه، فلا
+ *  يُنشئ نسخة ثانية ولا يمس تنسيق تبويب قائم ولا بياناته. */
+/** مخطط التبويبات كما يُبنى فعلاً — يُصدَّر ليعرض في الواجهة نفس الأعمدة
+ *  التي ستُكتب في الملف، فلا يفترق الشرح عن الواقع */
+export const TAB_LAYOUTS = Object.entries(TAB_SPECS).map(([name, spec]) => ({
+  name,
+  title: spec.title,
+  headers: spec.headers,
+}));
+
+export async function prepareAllTabs() {
+  const sheets = getClient();
+  if (!sheets) {
+    throw new Error("لم تُضبط بيانات اعتماد Google Sheets في بيئة التشغيل");
+  }
+
+  const prepared: string[] = [];
+  for (const tabName of Object.keys(TAB_SPECS)) {
+    // التحقق يسبق الإنشاء داخل ensureTab، فنُفرغ ذاكرة العملية لنضمن فحصاً
+    // حقيقياً للملف لا اعتماداً على تشغيل سابق في نفس الدالة
+    ensuredTabs.delete(tabName);
+    await ensureTab(sheets, tabName);
+    prepared.push(tabName);
+  }
+  return prepared;
+}

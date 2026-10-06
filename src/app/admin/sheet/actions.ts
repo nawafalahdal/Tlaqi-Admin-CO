@@ -2,6 +2,7 @@
 
 import { auth } from "@/auth";
 import { backfillSheets } from "@/lib/sheetBackfill";
+import { prepareAllTabs } from "@/lib/googleSheets";
 import { safeErrorMessage } from "@/lib/safeError";
 
 export type BackfillState = {
@@ -27,5 +28,21 @@ export async function backfillSheetsAction(
     return { error: null, counts };
   } catch (err) {
     return { error: safeErrorMessage(err), counts: null };
+  }
+}
+
+export type PrepareState = { error: string | null; prepared: string[] | null };
+
+/** تجهيز القوالب الأربعة منسّقةً قبل وصول أي بيانات — الفاونڈر وحده.
+ *  آمن للتكرار: لا يُنشئ تبويباً قائماً ولا يمس تنسيقه ولا بياناته. */
+export async function prepareTabsAction(): Promise<PrepareState> {
+  const session = await auth();
+  if (!session || session.user.role !== "super_admin") {
+    return { error: "هذا الإجراء خاص بالفاونڈر فقط", prepared: null };
+  }
+  try {
+    return { error: null, prepared: await prepareAllTabs() };
+  } catch (err) {
+    return { error: safeErrorMessage(err), prepared: null };
   }
 }
