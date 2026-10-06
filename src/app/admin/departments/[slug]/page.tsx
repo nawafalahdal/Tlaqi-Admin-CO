@@ -230,6 +230,7 @@ export default async function DepartmentBoardPage({
           <h2 className="mb-4 text-lg font-bold">{t.deptBoard.activeMembersTitle} ({activeMembers.length})</h2>
           <MemberRoster
             theme={theme}
+            canReset={session.user.role === "super_admin"}
             members={activeMembers.map((m) => ({
               id: m.id,
               fullName: m.fullName,

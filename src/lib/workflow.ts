@@ -1,8 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { appendApprovedMember, appendMemberEvent, appendTestResult, upsertMemberLifecycleRow } from "@/lib/googleSheets";
 import {
-  sendMeetingReminderEmail,
   sendCredentialsEmail,
+  sendTestPassedEmail,
+  sendTestFailedEmail,
+  sendMeetingOwnerEmail,
+  sendApprovedEmail,
+  sendWindowReminderEmail,
   sendWarningEmail,
   sendExitEmail,
   sendCertificateEmail,
@@ -60,7 +64,7 @@ function reachedThreeMonths(decidedAt: Date, terminatedAt: Date | null): "نعم
 export async function syncMemberLifecycleRow(memberId: string) {
   const member = await prisma.member.findUniqueOrThrow({
     where: { id: memberId },
-    include: { department: true },
+    include: { department: true, invite: true },
   });
   if (!member.decidedAt) return;
 
@@ -73,6 +77,14 @@ export async function syncMemberLifecycleRow(memberId: string) {
     fullName: member.fullName,
     email: member.email,
     departmentName: member.department?.name ?? "—",
+    roleLabel: ROLE_LABELS[member.invite.targetRole] ?? member.invite.targetRole,
+    phone: member.phone,
+    jobTitle: member.jobTitle,
+    createdAt: member.createdAt,
+    credentialsIssuedAt: member.credentialsIssuedAt,
+    firstLoginAt: member.firstLoginAt,
+    testScore: member.testScore,
+    testStatus: member.testStatus,
     decidedAt: member.decidedAt,
     bannerDelivered: bannerRequest ? bannerRequest.status === "done" : null,
     bannerDeliveredAt: bannerRequest?.status === "done" ? bannerRequest.updatedAt : null,
@@ -143,7 +155,18 @@ export async function submitTestAttempt(opts: { memberId: string; answers: Recor
     at: new Date(),
   });
 
-  if (!passed && updated.invite.targetRole === "member" && updated.departmentId) {
+  const roleLabel = ROLE_LABELS[updated.invite.targetRole] ?? updated.invite.targetRole;
+
+  if (passed) {
+    await sendTestPassedEmail({
+      to: updated.email,
+      fullName: updated.fullName,
+      score,
+      roleLabel: updated.department?.name ?? roleLabel,
+    });
+  } else if (updated.departmentId) {
+    // الرسوب ليس نهاية الطريق: يُفتح طلب اجتماع شرح للقسم، ويُبلَّغ الطرفان
+    // — المرشّح ليعرف خطوته التالية، والقسم لأنه من ينفّذ الاجتماع
     const dueDate = addDays(new Date(), 3);
     await prisma.request.create({
       data: {
@@ -155,7 +178,30 @@ export async function submitTestAttempt(opts: { memberId: string; answers: Recor
         note: `جدولة اجتماع شرح لـ ${updated.fullName} (النتيجة: ${score}%)`,
       },
     });
-    await sendMeetingReminderEmail({ to: updated.email, candidateName: updated.fullName, dueDate });
+
+    const departmentName = updated.department?.name ?? "قسمك";
+    await sendTestFailedEmail({
+      to: updated.email,
+      fullName: updated.fullName,
+      score,
+      departmentName,
+      dueDate,
+    });
+
+    const owners = await prisma.user.findMany({
+      where: { isActive: true, departmentId: updated.departmentId, role: "department_admin" },
+      select: { email: true },
+    });
+    if (owners.length > 0) {
+      await sendMeetingOwnerEmail({
+        to: owners.map((o) => o.email),
+        candidateName: updated.fullName,
+        candidateEmail: updated.email,
+        score,
+        departmentName,
+        dueDate,
+      });
+    }
   }
 
   return { member: updated, score, passed };
@@ -236,6 +282,13 @@ export async function approveMember(memberId: string) {
       approvedAt: member.decidedAt ?? new Date(),
     });
   }
+
+  await sendApprovedEmail({
+    to: member.email,
+    fullName: member.fullName,
+    roleLabel: member.department?.name ?? (ROLE_LABELS[member.invite.targetRole] ?? ""),
+    loginUrl: `${baseUrl()}/login`,
+  });
 
   await appendMemberEvent({
     fullName: member.fullName,
@@ -744,4 +797,42 @@ export async function removeLeadershipUser(opts: {
   });
 
   return user;
+}
+
+
+/** يُذكّر من أُنشئ له حساب ولم يدخل بعد، قبل سقوط مهلته.
+ *
+ *  يُستدعى من الكنس اليومي. العلامة أن التذكير أُرسل هي firstLoginAt الفارغ
+ *  مع اقتراب المهلة — ولتفادي تكرار التذكير في اليوم نفسه، يُرسَل فقط لمن
+ *  بقي له 12 ساعة أو أقل، وهي نافذة لا يمرّ بها الحساب إلا مرة واحدة ما
+ *  دام الكنس يومياً. */
+export async function remindExpiringCandidates() {
+  const now = Date.now();
+  const windowMs = CANDIDATE_WINDOW_HOURS * 3600_000;
+
+  const pending = await prisma.member.findMany({
+    where: {
+      firstLoginAt: null,
+      isActive: true,
+      approvalStatus: { not: "approved" },
+      credentialsIssuedAt: { not: null },
+    },
+    select: { fullName: true, email: true, credentialsIssuedAt: true },
+  });
+
+  let sent = 0;
+  for (const m of pending) {
+    const msLeft = m.credentialsIssuedAt!.getTime() + windowMs - now;
+    const hoursLeft = Math.ceil(msLeft / 3600_000);
+    if (hoursLeft <= 0 || hoursLeft > 12) continue;
+
+    await sendWindowReminderEmail({
+      to: m.email,
+      fullName: m.fullName,
+      hoursLeft,
+      loginUrl: `${baseUrl()}/login`,
+    });
+    sent++;
+  }
+  return sent;
 }

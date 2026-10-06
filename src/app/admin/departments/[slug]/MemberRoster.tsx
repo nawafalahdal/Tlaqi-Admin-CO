@@ -25,9 +25,12 @@ type RosterMember = {
 export function MemberRoster({
   members,
   theme,
+  canReset = false,
 }: {
   members: RosterMember[];
   theme: ReturnType<typeof themeFromColor>;
+  /** صار العضو يستعيد كلمته بنفسه عبر بريده؛ التعيين اليدوي للفاونڈر وحده */
+  canReset?: boolean;
 }) {
   const [openFor, setOpenFor] = useState<string | null>(null);
   const t = useTranslations();
@@ -51,13 +54,15 @@ export function MemberRoster({
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <WarningBadge count={m.warningsCount} />
-              <Button
-                theme={theme}
-                variant="ghost"
-                onClick={() => setOpenFor(openFor === `reset-${m.id}` ? null : `reset-${m.id}`)}
-              >
-                {t.memberRoster.resetCredentials}
-              </Button>
+              {canReset && (
+                <Button
+                  theme={theme}
+                  variant="ghost"
+                  onClick={() => setOpenFor(openFor === `reset-${m.id}` ? null : `reset-${m.id}`)}
+                >
+                  {t.memberRoster.resetCredentials}
+                </Button>
+              )}
               <Button
                 theme={theme}
                 variant="outline"

@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { sweepExpiredCandidateAccounts, sweepOverdueRequests } from "@/lib/workflow";
+import {
+  remindExpiringCandidates,
+  sweepExpiredCandidateAccounts,
+  sweepOverdueRequests,
+} from "@/lib/workflow";
 import { sweepTicketEscalation } from "@/lib/tickets";
 
 export const dynamic = "force-dynamic";
@@ -23,9 +27,11 @@ export async function GET(request: Request) {
     }
   }
 
+  // التذكير قبل الكنس: من بقي له ساعات يُذكَّر، ومن انقضت مهلته يسقط
+  const reminded = await remindExpiringCandidates();
   const expiredAccounts = await sweepExpiredCandidateAccounts();
   await sweepOverdueRequests();
   await sweepTicketEscalation();
 
-  return NextResponse.json({ ok: true, expiredAccounts });
+  return NextResponse.json({ ok: true, reminded, expiredAccounts });
 }

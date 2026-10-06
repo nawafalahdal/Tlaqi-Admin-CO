@@ -11,11 +11,14 @@ export function MemberAccountRow({
   member,
   theme,
   lapsed = false,
+  canReset = true,
 }: {
   member: { id: string; fullName: string; email: string; departmentName: string };
   theme: ReturnType<typeof themeFromColor>;
   /** حساب أسقطته مهلة الـ24 ساعة — نفس الإجراء يُحييه، فيختلف النص فقط */
   lapsed?: boolean;
+  /** التعيين اليدوي صار شبكة أمان للفاونڈر وحده بعد إتاحة الاستعادة الذاتية */
+  canReset?: boolean;
 }) {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
@@ -51,9 +54,11 @@ export function MemberAccountRow({
             <p className="mt-1 text-xs font-semibold text-red-700">{t.candidateWindow.lapsed}</p>
           )}
         </div>
-        <Button theme={theme} variant="outline" onClick={() => setOpen((o) => !o)}>
-          {lapsed ? t.candidateWindow.reissue : t.misc.loginTrouble}
-        </Button>
+        {canReset && (
+          <Button theme={theme} variant="outline" onClick={() => setOpen((o) => !o)}>
+            {lapsed ? t.candidateWindow.reissue : t.misc.loginTrouble}
+          </Button>
+        )}
       </div>
 
       {open && !revealed && (

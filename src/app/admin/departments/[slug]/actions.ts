@@ -92,11 +92,10 @@ export async function resetMemberCredentialsAction(
   if (!session) return { error: "يجب تسجيل الدخول" };
 
   const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
-  const allowed =
-    session.user.role === "super_admin" ||
-    session.user.role === "executive" ||
-    (session.user.role === "department_admin" && session.user.departmentId === member.departmentId);
-  if (!allowed) return { error: "غير مصرح لك بهذا الإجراء" };
+  // الاستعادة صارت ذاتية عبر البريد؛ وتعيينها يدوياً شبكة أمان للفاونڈر وحده
+  if (session.user.role !== "super_admin") {
+    return { error: "استعادة كلمة المرور صارت ذاتية عبر البريد — وتعيينها يدوياً خاص بالفاونڈر" };
+  }
 
   const trimmedEmail = newEmail.trim().toLowerCase();
   try {

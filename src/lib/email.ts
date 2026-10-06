@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { formatDate } from "@/lib/format";
+import { appendEmailLog } from "@/lib/googleSheets";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FROM = process.env.EMAIL_FROM || "تَـــلاقِ <no-reply@tlaqiteam.site>";
@@ -15,22 +16,40 @@ function esc(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-async function send(to: string | string[], subject: string, html: string) {
-  const recipients = Array.isArray(to) ? to.filter(Boolean) : [to];
+/** كل إرسال يُسجَّل في تبويب "الرسائل المُرسَلة" — نجح أم لم ينجح. التسجيل
+ *  لا يُفشل الإرسال أبداً: لو تعذّر الوصول للشيت يمضي البريد في طريقه. */
+async function logEmail(
+  recipients: string[],
+  kind: string,
+  subject: string,
+  status: "أُرسلت" | "لم تُرسل (البريد معطّل)" | "فشل الإرسال"
+) {
+  try {
+    await appendEmailLog({ to: recipients, kind, subject, status, at: new Date() });
+  } catch (err) {
+    console.error("تعذّر تسجيل البريد في الشيت:", err);
+  }
+}
+
+async function send(to: string | string[], subject: string, html: string, kind = "عام") {
+  const recipients = Array.isArray(to) ? to.filter(Boolean) : [to].filter(Boolean);
   if (recipients.length === 0) return { skipped: true };
 
   if (!resend) {
-    // لا نطبع محتوى الرسالة كاملاً (قد يحمل كلمة مرور مؤقتة أو رابط دعوة حساس) — فقط عنوان الرسالة ومستلمها
+    // لا نطبع محتوى الرسالة كاملاً (قد يحمل كلمة مرور مؤقتة أو رابطاً حساساً) — فقط عنوانها ومستلمها
     console.warn(
       `[email:disabled] لم يُضبط RESEND_API_KEY — تم تجاهل إرسال بريد بعنوان "${subject}" إلى: ${recipients.join(", ")}`
     );
+    await logEmail(recipients, kind, subject, "لم تُرسل (البريد معطّل)");
     return { skipped: true };
   }
   try {
     await resend.emails.send({ from: FROM, to: recipients, subject, html });
+    await logEmail(recipients, kind, subject, "أُرسلت");
     return { skipped: false };
   } catch (err) {
     console.error("فشل إرسال البريد:", err);
+    await logEmail(recipients, kind, subject, "فشل الإرسال");
     return { skipped: true, error: true };
   }
 }
@@ -49,7 +68,8 @@ export async function sendInviteEmail(opts: {
       <p>تمت دعوتك للانضمام إلى منصة <strong>تَـــلاقِ</strong> بصفة <strong>${esc(opts.roleLabel)}</strong>.</p>
       <p><a href="${opts.inviteUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">فتح رابط الدعوة</a></p>
       <p style="color:#777;font-size:12px">هذا الرابط مخصص لك فقط بالاسم والبريد المذكورين.</p>
-    </div>`
+    </div>`,
+    "دعوة"
   );
 }
 
@@ -69,7 +89,8 @@ export async function sendCredentialsEmail(opts: {
          كلمة المرور المؤقتة: <strong dir="ltr">${esc(opts.tempPassword)}</strong></p>
       <p><a href="${opts.loginUrl}" style="background:#341D2B;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">تسجيل الدخول</a></p>
       <p style="color:#777;font-size:12px">سيُطلب منك تغيير كلمة المرور فور الدخول الأول.</p>
-    </div>`
+    </div>`,
+    "بيانات الدخول"
   );
 }
 
@@ -95,7 +116,8 @@ export async function sendWarningEmail(opts: {
              <p>يرجى الدخول إلى المنصة لتأكيد الاطلاع عليه.</p>
              <p><a href="${opts.loginUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">الدخول إلى المنصة</a></p>`
       }
-    </div>`
+    </div>`,
+    "تنبيه"
   );
 }
 
@@ -107,7 +129,8 @@ export async function sendExitEmail(opts: { to: string; fullName: string; reason
       <p>مرحباً ${esc(opts.fullName)}،</p>
       <p>نحيطك علماً بإنهاء عضويتك في منصة تَـــلاقِ.</p>
       <p>السبب: ${esc(opts.reason)}</p>
-    </div>`
+    </div>`,
+    "إنهاء عضوية"
   );
 }
 
@@ -118,7 +141,8 @@ export async function sendCertificateEmail(opts: { to: string; fullName: string 
     `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
       <p>مرحباً ${esc(opts.fullName)}،</p>
       <p>يسعدنا إبلاغك بإصدار شهادة إتمام لك تقديراً لمسيرتك في منصة تَـــلاقِ.</p>
-    </div>`
+    </div>`,
+    "شهادة إتمام"
   );
 }
 
@@ -139,7 +163,8 @@ export async function sendTicketCreatedEmail(opts: {
       <p>${esc(opts.description)}</p>
       <p>المهلة للرد: ${formatDate(opts.dueDate)} — إذا لم يُستجب خلالها تتصعّد التذكرة تلقائياً.</p>
       <p><a href="${opts.portalUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">فتح المنصة</a></p>
-    </div>`
+    </div>`,
+    "تذكرة جديدة"
   );
 }
 
@@ -150,7 +175,8 @@ export async function sendTicketConfirmationEmail(opts: { to: string; subject: s
     `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
       <p>تم رفع تذكرتك بنجاح: <strong>${esc(opts.subject)}</strong>.</p>
       <p>سيتم الرد خلال يومين (قبل ${formatDate(opts.dueDate)})، وإذا لم يحدث ذلك تتصعّد تلقائياً للمستوى التالي — نظامنا صارم وواضح.</p>
-    </div>`
+    </div>`,
+    "تأكيد تذكرة"
   );
 }
 
@@ -172,7 +198,8 @@ export async function sendTicketEscalatedEmail(opts: {
       <p>${esc(opts.description)}</p>
       ${opts.dueDate ? `<p>المهلة الجديدة: ${formatDate(opts.dueDate)}</p>` : ""}
       <p><a href="${opts.portalUrl}" style="background:#341D2B;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">فتح المنصة</a></p>
-    </div>`
+    </div>`,
+    "تصعيد تذكرة"
   );
 }
 
@@ -187,7 +214,8 @@ export async function sendTicketResolvedEmail(opts: {
     `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
       <p>تم التعامل مع تذكرتك: <strong>${esc(opts.subject)}</strong>.</p>
       <p>${esc(opts.resolutionNote)}</p>
-    </div>`
+    </div>`,
+    "حل تذكرة"
   );
 }
 
@@ -208,7 +236,8 @@ export async function sendTicketReminderEmail(opts: {
       <p><strong>${esc(opts.subject)}</strong> — من العضو ${esc(opts.memberName)}</p>
       <p>الموعد النهائي: ${formatDate(opts.dueDate)}</p>
       <p><a href="${opts.portalUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">فتح المنصة</a></p>
-    </div>`
+    </div>`,
+    "تذكير تذكرة"
   );
 }
 
@@ -228,7 +257,8 @@ export async function sendRequestReminderEmail(opts: {
       <p><strong>${esc(opts.typeLabel)}</strong>${opts.memberName ? ` — متعلق بـ ${esc(opts.memberName)}` : ""}</p>
       ${opts.note ? `<p>${esc(opts.note)}</p>` : ""}
       ${opts.dueDate ? `<p>الموعد النهائي: ${formatDate(opts.dueDate)}</p>` : ""}
-    </div>`
+    </div>`,
+    "تذكير طلب"
   );
 }
 
@@ -243,6 +273,138 @@ export async function sendMeetingReminderEmail(opts: {
     `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
       <p>المرشح <strong>${esc(opts.candidateName)}</strong> لم يحقق نسبة النجاح في الاختبار.</p>
       <p>يرجى جدولة اجتماع شرح قبل ${formatDate(opts.dueDate)}.</p>
-    </div>`
+    </div>`,
+    "اجتماع شرح"
+  );
+}
+
+/** تهنئة فور اجتياز الاختبار — تُطمئن المرشّح أن نتيجته وصلت القيادة،
+ *  فلا يبقى في فراغ بين الاختبار والقرار */
+export async function sendTestPassedEmail(opts: {
+  to: string;
+  fullName: string;
+  score: number;
+  roleLabel: string;
+}) {
+  return send(
+    opts.to,
+    `مبروك — اجتزت اختبار القبول (${opts.score}%)`,
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>مرحباً ${esc(opts.fullName)}،</p>
+      <p style="font-size:17px"><strong>مبروك! اجتزت اختبار القبول بنتيجة ${opts.score}%.</strong></p>
+      <p>تقدّمت لصفة <strong>${esc(opts.roleLabel)}</strong>، ونتيجتك وصلت القيادة للاعتماد النهائي.</p>
+      <p>بمجرد اعتمادك تُفتح لك بوابتك كاملة <strong>بنفس كلمة المرور التي اخترتها</strong> — لن يُرسل لك رمز جديد.</p>
+      <p style="color:#777;font-size:12px">سيصلك إشعار فور صدور القرار.</p>
+    </div>`,
+    "اجتياز الاختبار"
+  );
+}
+
+/** إشعار عدم الاجتياز — يُصاغ كخطوة تالية لا كرفض: اجتماع شرح مجدول */
+export async function sendTestFailedEmail(opts: {
+  to: string;
+  fullName: string;
+  score: number;
+  departmentName: string;
+  dueDate: Date;
+}) {
+  return send(
+    opts.to,
+    "نتيجة اختبار القبول — اجتماع شرح قادم",
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>مرحباً ${esc(opts.fullName)}،</p>
+      <p>نتيجتك في اختبار القبول كانت <strong>${opts.score}%</strong>، ولم تبلغ الحد المطلوب هذه المرة.</p>
+      <p>تم إبلاغ <strong>${esc(opts.departmentName)}</strong> لجدولة <strong>اجتماع شرح</strong> معك قبل
+        ${esc(formatDate(opts.dueDate))}، يوضّح لك المتوقع ويجيب أسئلتك.</p>
+      <p><strong>حسابك يبقى قائماً</strong> ولا تحتاج إنشاء حساب جديد.</p>
+    </div>`,
+    "عدم اجتياز الاختبار"
+  );
+}
+
+/** إبلاغ القسم بمرشّح يحتاج اجتماع شرح — الطرف المسؤول عن تنفيذ الاجتماع */
+export async function sendMeetingOwnerEmail(opts: {
+  to: string[];
+  candidateName: string;
+  candidateEmail: string;
+  score: number;
+  departmentName: string;
+  dueDate: Date;
+}) {
+  return send(
+    opts.to,
+    `مطلوب جدولة اجتماع شرح — ${opts.candidateName}`,
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>وصل طلب جديد إلى <strong>${esc(opts.departmentName)}</strong>:</p>
+      <p><strong>${esc(opts.candidateName)}</strong> (${esc(opts.candidateEmail)}) لم يجتز اختبار القبول
+        بنتيجة <strong>${opts.score}%</strong>.</p>
+      <p>المطلوب: جدولة <strong>اجتماع شرح</strong> معه قبل <strong>${esc(formatDate(opts.dueDate))}</strong>.</p>
+      <p>الطلب مسجّل في لوحة قسمكم ضمن الطلبات، ويُتابَع آلياً حتى إنجازه.</p>
+    </div>`,
+    "تكليف اجتماع شرح"
+  );
+}
+
+/** تذكير قبل سقوط مهلة الـ24 ساعة — فرصة أخيرة قبل أن يفقد الرمز صلاحيته */
+export async function sendWindowReminderEmail(opts: {
+  to: string;
+  fullName: string;
+  hoursLeft: number;
+  loginUrl: string;
+}) {
+  return send(
+    opts.to,
+    `تبقّى ${opts.hoursLeft} ساعة لتفعيل حسابك في تَـــلاقِ`,
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>مرحباً ${esc(opts.fullName)}،</p>
+      <p>أُنشئ لك حساب في <strong>تَـــلاقِ</strong> ولم تدخل إليه بعد.</p>
+      <p style="background:#FFF1DE;border-radius:10px;padding:12px">
+        <strong>يتبقّى ${opts.hoursLeft} ساعة</strong> قبل أن يسقط الحساب تلقائياً وتفقد كلمة المرور المؤقتة صلاحيتها.
+      </p>
+      <p><a href="${opts.loginUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">تسجيل الدخول الآن</a></p>
+      <p style="color:#777;font-size:12px">إن لم تصلك كلمة المرور المؤقتة أو ضاعت، تواصل مع من أنشأ حسابك.</p>
+    </div>`,
+    "تذكير قبل سقوط المهلة"
+  );
+}
+
+/** إشعار الاعتماد النهائي — يُغلق دائرة الانتظار */
+export async function sendApprovedEmail(opts: {
+  to: string;
+  fullName: string;
+  roleLabel: string;
+  loginUrl: string;
+}) {
+  return send(
+    opts.to,
+    "تم اعتمادك في تَـــلاقِ",
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>مرحباً ${esc(opts.fullName)}،</p>
+      <p style="font-size:17px"><strong>تم اعتمادك رسمياً بصفة ${esc(opts.roleLabel)}.</strong></p>
+      <p>بوابتك مفتوحة الآن — ادخل <strong>بنفس كلمة المرور التي اخترتها</strong> عند أول دخول.</p>
+      <p><a href="${opts.loginUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">فتح المنصة</a></p>
+    </div>`,
+    "الاعتماد النهائي"
+  );
+}
+
+/** رابط استعادة كلمة المرور — صالح لمدة محدودة ولمرة واحدة */
+export async function sendPasswordResetEmail(opts: {
+  to: string;
+  fullName: string;
+  resetUrl: string;
+  minutesValid: number;
+}) {
+  return send(
+    opts.to,
+    "استعادة كلمة المرور — تَـــلاقِ",
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>مرحباً ${esc(opts.fullName)}،</p>
+      <p>وصلنا طلب لاستعادة كلمة مرور حسابك في <strong>تَـــلاقِ</strong>.</p>
+      <p><a href="${opts.resetUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">تعيين كلمة مرور جديدة</a></p>
+      <p style="color:#777;font-size:13px">الرابط صالح <strong>${opts.minutesValid} دقيقة</strong> ويُستخدم مرة واحدة.</p>
+      <p style="color:#777;font-size:12px">إن لم تطلب هذا، تجاهل الرسالة — لن يتغيّر شيء في حسابك.</p>
+    </div>`,
+    "استعادة كلمة المرور"
   );
 }

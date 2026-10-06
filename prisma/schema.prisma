@@ -287,3 +287,17 @@ model LoginAttempt {
   lockedUntil DateTime?
   updatedAt   DateTime  @updatedAt
 }
+
+/// رمز استعادة كلمة المرور — يُخزَّن مُجزّأً (hash) لا نصاً صريحاً: من يطّلع
+/// على القاعدة لا يستطيع انتحال طلب استعادة. صالح لمرة واحدة ولمدة قصيرة.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  email     String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email])
+  @@index([expiresAt])
+}

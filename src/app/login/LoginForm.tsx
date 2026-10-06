@@ -49,6 +49,12 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
       >
         {pending ? t.login.submitting : t.login.submit}
       </button>
+      <a
+        href="/forgot-password"
+        className="mt-1 text-center text-sm font-semibold text-black/45 hover:text-black/70"
+      >
+        {t.login.forgotLink}
+      </a>
     </form>
   );
 }

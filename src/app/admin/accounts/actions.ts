@@ -17,13 +17,12 @@ export async function resetUserCredentialsAction(
 
   const target = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
-  const allowed =
-    session.user.role === "super_admin"
-      ? true
-      : session.user.role === "executive"
-        ? target.role === "department_admin" || target.role === "operations_officer"
-        : false;
-  if (!allowed) return { error: "غير مصرح لك بهذا الإجراء" };
+  // صار لكل شخص أن يستعيد كلمته بنفسه عبر بريده، فلم يعد تعيينُها يدوياً
+  // صلاحيةً تشغيلية بل شبكة أمان أخيرة: تبقى للفاونڈر وحده. حصرُها يقلّل
+  // عدد من يستطيع انتحال حساب غيره من أربعة أدوار إلى واحد.
+  if (session.user.role !== "super_admin") {
+    return { error: "استعادة كلمة المرور صارت ذاتية عبر البريد — وتعيينها يدوياً خاص بالفاونڈر" };
+  }
 
   const trimmedEmail = newEmail.trim().toLowerCase();
   try {

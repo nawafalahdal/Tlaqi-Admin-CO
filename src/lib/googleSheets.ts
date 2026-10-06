@@ -33,6 +33,25 @@ function formatSheetDate(at: Date) {
   });
 }
 
+/** يسجّل كل رسالة بريد تُرسلها المنصة — لمن، ونوعها، وهل وصلت فعلاً أم
+ *  تُجوهلت لغياب المفتاح أو فشل الإرسال. بدون هذا السجل تبقى الحوكمة
+ *  البريدية غير مرئية: لا تعرف هل بلغ الشخصَ إشعارُه أم لا. */
+export async function appendEmailLog(row: {
+  to: string[];
+  kind: string;
+  subject: string;
+  status: "أُرسلت" | "لم تُرسل (البريد معطّل)" | "فشل الإرسال";
+  at: Date;
+}) {
+  return appendRow("الرسائل المُرسَلة", [
+    row.to.join("، "),
+    row.kind,
+    row.subject,
+    row.status,
+    formatSheetDate(row.at),
+  ]);
+}
+
 /** يضيف صفاً واحداً للسجل الحي الموحّد (الاسم، البريد، القسم/الصفة، النوع،
  *  التفاصيل، التاريخ) — هذا هو السجل الرسمي المحدّث أولاً بأول لكل الأحداث:
  *  اعتماد عضو جديد، تنبيه، استبعاد... إلخ */
@@ -153,6 +172,14 @@ export async function upsertMemberLifecycleRow(row: {
   fullName: string;
   email: string;
   departmentName: string;
+  roleLabel: string;
+  phone: string | null;
+  jobTitle: string | null;
+  createdAt: Date;
+  credentialsIssuedAt: Date | null;
+  firstLoginAt: Date | null;
+  testScore: number | null;
+  testStatus: string;
   decidedAt: Date;
   bannerDelivered: boolean | null;
   bannerDeliveredAt: Date | null;
@@ -163,10 +190,24 @@ export async function upsertMemberLifecycleRow(row: {
   exitReason: string | null;
   warningsCount: number;
 }) {
+  const TEST_VERDICT: Record<string, string> = {
+    passed: "ناجح",
+    failed: "لم يجتز",
+    not_started: "لم يبدأ",
+  };
+
   return upsertRow("الأعضاء — دورة الحياة", row.sheetRow, [
     row.fullName,
     row.email,
     row.departmentName,
+    row.roleLabel,
+    row.phone ?? "—",
+    row.jobTitle ?? "—",
+    formatSheetDate(row.createdAt),
+    row.credentialsIssuedAt ? formatSheetDate(row.credentialsIssuedAt) : "—",
+    row.firstLoginAt ? formatSheetDate(row.firstLoginAt) : "لم يدخل بعد",
+    row.testScore === null ? "—" : `${row.testScore}%`,
+    TEST_VERDICT[row.testStatus] ?? row.testStatus,
     formatSheetDate(row.decidedAt),
     row.bannerDelivered === null ? "—" : row.bannerDelivered ? "نعم" : "لا",
     row.bannerDeliveredAt ? formatSheetDate(row.bannerDeliveredAt) : "—",
@@ -189,6 +230,11 @@ const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: numb
     title: "تَـــلاقِ — نتائج اختبارات القبول",
     headers: ["الاسم", "البريد الإلكتروني", "القسم / المسار", "النتيجة", "الحكم", "التاريخ"],
     widths: [160, 220, 170, 100, 100, 170],
+  },
+  "الرسائل المُرسَلة": {
+    title: "تَـــلاقِ — سجل الرسائل المُرسَلة",
+    headers: ["المستلم", "نوع الرسالة", "عنوان الرسالة", "الحالة", "التاريخ"],
+    widths: [240, 180, 300, 120, 170],
   },
   "التذاكر": {
     title: "تَـــلاقِ — سجل التذاكر (صف ثابت لكل تذكرة)",
@@ -214,6 +260,14 @@ const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: numb
       "الاسم",
       "البريد الإلكتروني",
       "القسم",
+      "الصفة",
+      "رقم الجوال",
+      "المسمى الوظيفي",
+      "تاريخ إنشاء الحساب",
+      "تاريخ تسليم بيانات الدخول",
+      "أول دخول",
+      "نتيجة الاختبار",
+      "حكم الاختبار",
       "تاريخ الاعتماد",
       "وصل البانر الترحيبي؟",
       "تاريخ تسليم البانر",
@@ -224,7 +278,7 @@ const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: numb
       "سبب التوقف",
       "عدد التنبيهات",
     ],
-    widths: [160, 220, 150, 160, 140, 160, 150, 200, 110, 160, 220, 100],
+    widths: [160, 220, 150, 140, 130, 150, 170, 180, 160, 110, 110, 160, 140, 160, 150, 200, 110, 160, 220, 100],
   },
 };
 
