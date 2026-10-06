@@ -7,6 +7,7 @@ import { HeaderActions } from "@/components/HeaderActions";
 import { TestEditor } from "../TestEditor";
 import { toQuestionViewModel } from "@/lib/testTracks";
 import { BackButton } from "@/components/BackButton";
+import { getLocale, getDictionary } from "@/i18n/server";
 
 export default async function ExecutiveTestPage() {
   const session = await auth();
@@ -19,18 +20,17 @@ export default async function ExecutiveTestPage() {
   });
 
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
+  const t = getDictionary(await getLocale());
 
   return (
     <div className="min-h-screen bg-[#FAF8F4]">
-      <AppHeader theme={theme} roleName="الفاونڈر — الإدارة العليا" userName={session.user.name ?? ""}>
+      <AppHeader theme={theme} roleName={t.admin.founderRole} userName={session.user.name ?? ""}>
         <HeaderActions color={theme.text} />
       </AppHeader>
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-5 sm:py-8">
         <BackButton />
-        <h1 className="mb-1 text-xl font-bold">اختبار الإدارة التنفيذية</h1>
-        <p className="mb-6 text-sm text-black/50">
-          الأسئلة التي يجتازها مرشحو حساب CEO — تحريرك هنا فقط
-        </p>
+        <h1 className="mb-1 text-xl font-bold">{t.testEditorPage.execTitle}</h1>
+        <p className="mb-6 text-sm text-black/50">{t.testEditorPage.execSubtitle}</p>
         <TestEditor trackId={track.id} questions={track.questions.map(toQuestionViewModel)} theme={theme} />
       </main>
     </div>

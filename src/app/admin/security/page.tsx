@@ -5,6 +5,7 @@ import { LogoLockup } from "@/components/Logo";
 import { BRAND } from "@/lib/brand";
 import { SecurityForm } from "./SecurityForm";
 import { BackButton } from "@/components/BackButton";
+import { getLocale, getDictionary } from "@/i18n/server";
 
 const ROLE_HOME: Record<string, string> = {
   super_admin: "/admin",
@@ -15,6 +16,8 @@ const ROLE_HOME: Record<string, string> = {
 export default async function SecurityPage() {
   const session = await auth();
   if (!session || session.user.role === "member") redirect("/login");
+
+  const t = getDictionary(await getLocale());
 
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: session.user.id },
@@ -38,9 +41,9 @@ export default async function SecurityPage() {
 
         <div className="rounded-3xl bg-white p-8 shadow-xl">
           <BackButton fallbackHref={fallbackHref} />
-          <h1 className="mb-1 text-lg font-bold text-black/90">التحقق بخطوتين (2FA)</h1>
+          <h1 className="mb-1 text-lg font-bold text-black/90">{t.security.title}</h1>
           <p className="mb-6 text-sm text-black/50">
-            طبقة حماية إضافية لحسابك الإداري عبر تطبيق مصادقة (Google Authenticator، Authy، إلخ).
+            {t.misc.securityHint}
           </p>
           <SecurityForm initialEnabled={user.totpEnabled} />
         </div>

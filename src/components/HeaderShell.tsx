@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 /** غلاف الهيدر: على الجوال يخفي بيانات المستخدم والأزرار داخل قائمة منسدلة
  *  بدل حشرها في سطر واحد (كانت تتراكم وتقصّ النص على الشاشات الصغيرة).
@@ -20,6 +21,7 @@ export function HeaderShell({
   logo: ReactNode;
   actions?: ReactNode;
 }) {
+  const t = useTranslations();
   const [open, setOpen] = useState(false);
 
   return (
@@ -41,7 +43,7 @@ export function HeaderShell({
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
-          aria-label={open ? "إغلاق القائمة" : "فتح القائمة"}
+          aria-label={open ? t.actions.closeMenu : t.actions.openMenu}
           className="-me-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl sm:hidden"
           style={{ color: textColor }}
         >

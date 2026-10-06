@@ -13,7 +13,7 @@ import {
   OperationsOfficerInviteForm,
 } from "../LeadershipInviteForms";
 import { formatDate } from "@/lib/format";
-import { getLocale, getDictionary } from "@/i18n";
+import { getLocale, getDictionary } from "@/i18n/server";
 
 export default async function AdminInvitesPage() {
   const session = await auth();

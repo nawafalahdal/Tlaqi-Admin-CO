@@ -5,12 +5,7 @@ import { resetUserCredentialsAction } from "./actions";
 import { Card, Button } from "@/components/ui";
 import { CredentialsReveal } from "@/components/CredentialsReveal";
 import type { themeFromColor } from "@/lib/brand";
-
-const ROLE_LABELS: Record<string, string> = {
-  executive: "الإدارة التنفيذية (CEO)",
-  operations_officer: "مسؤول التشغيل",
-  department_admin: "قائد قسم",
-};
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 export function AccountRow({
   account,
@@ -24,6 +19,14 @@ export function AccountRow({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<{ email: string; tempPassword: string } | null>(null);
+  const t = useTranslations();
+
+  const roleLabel =
+    account.role === "executive"
+      ? t.accounts.roleExecutive
+      : account.role === "department_admin"
+      ? t.accounts.roleDeptAdmin
+      : account.role;
 
   function handleReset() {
     setError(null);
@@ -46,19 +49,19 @@ export function AccountRow({
             {account.email}
           </p>
           <p className="text-xs text-black/40">
-            {ROLE_LABELS[account.role] ?? account.role}
+            {roleLabel}
             {account.departmentName ? ` — ${account.departmentName}` : ""}
           </p>
         </div>
         <Button theme={theme} variant="outline" onClick={() => setOpen((o) => !o)}>
-          مشكلة دخول؟
+          {t.accounts.resetCredentials}
         </Button>
       </div>
 
       {open && !revealed && (
         <div className="mt-4 flex flex-col gap-3 border-t border-black/5 pt-4">
           <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium text-black/70">البريد الإلكتروني (عدّله إذا لزم)</span>
+            <span className="font-medium text-black/70">{t.accounts.emailEditable}</span>
             <input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -67,16 +70,14 @@ export function AccountRow({
               className="min-h-11 rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
             />
           </label>
-          <p className="text-xs text-black/40">
-            سيولَّد رمز مرور مؤقت جديد ويُرسل للبريد أعلاه، ويُطلب تغييره فور الدخول التالي.
-          </p>
+          <p className="text-xs text-black/40">{t.accounts.resetHint}</p>
           {error && <p className="text-sm text-red-700">{error}</p>}
           <div className="flex gap-2">
             <Button theme={theme} disabled={pending} onClick={handleReset}>
-              {pending ? "جارِ التنفيذ..." : "إعادة تعيين كلمة المرور"}
+              {pending ? t.accounts.resetSubmitting : t.accounts.resetSubmit}
             </Button>
             <Button theme={theme} variant="ghost" onClick={() => setOpen(false)}>
-              إلغاء
+              {t.common.cancel}
             </Button>
           </div>
         </div>

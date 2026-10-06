@@ -5,6 +5,7 @@ import { createExecutiveInviteAction, createDeptAdminInviteAction, createOperati
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { Button } from "@/components/ui";
 import { InviteLinkReveal } from "@/components/InviteLinkReveal";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 type Dept = { id: string; name: string };
 
@@ -17,6 +18,7 @@ export function ExecutiveInviteForm() {
   });
   const formRef = useRef<HTMLFormElement>(null);
   const [dismissedUrl, setDismissedUrl] = useState<string | null>(null);
+  const t = useTranslations();
 
   useEffect(() => {
     if (state.success) formRef.current?.reset();
@@ -35,13 +37,13 @@ export function ExecutiveInviteForm() {
   return (
     <form ref={formRef} action={formAction} className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="الاسم الكامل" name="fullName" placeholder="اسم المرشح للإدارة التنفيذية" />
-        <Field label="البريد الإلكتروني" name="email" type="email" placeholder="candidate@email.com" dir="ltr" />
+        <Field label={t.leadershipInvite.fullName} name="fullName" placeholder={t.leadershipInvite.execFullNamePlaceholder} />
+        <Field label={t.leadershipInvite.email} name="email" type="email" placeholder="candidate@email.com" dir="ltr" />
       </div>
       {state.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>}
       <div>
         <Button type="submit" theme={theme} disabled={pending}>
-          {pending ? "جارِ الإصدار..." : "دعوة لحساب تنفيذي (CEO)"}
+          {pending ? t.leadershipInvite.submitting : t.leadershipInvite.execSubmit}
         </Button>
       </div>
     </form>
@@ -55,6 +57,7 @@ export function DeptAdminInviteForm({ departments }: { departments: Dept[] }) {
   });
   const formRef = useRef<HTMLFormElement>(null);
   const [dismissedUrl, setDismissedUrl] = useState<string | null>(null);
+  const t = useTranslations();
 
   useEffect(() => {
     if (state.success) formRef.current?.reset();
@@ -73,10 +76,10 @@ export function DeptAdminInviteForm({ departments }: { departments: Dept[] }) {
   return (
     <form ref={formRef} action={formAction} className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="الاسم الكامل" name="fullName" placeholder="اسم المرشح لقيادة القسم" />
-        <Field label="البريد الإلكتروني" name="email" type="email" placeholder="candidate@email.com" dir="ltr" />
+        <Field label={t.leadershipInvite.fullName} name="fullName" placeholder={t.leadershipInvite.leadFullNamePlaceholder} />
+        <Field label={t.leadershipInvite.email} name="email" type="email" placeholder="candidate@email.com" dir="ltr" />
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">القسم</span>
+          <span className="font-medium text-black/70">{t.leadershipInvite.department}</span>
           <select
             name="departmentId"
             required
@@ -84,7 +87,7 @@ export function DeptAdminInviteForm({ departments }: { departments: Dept[] }) {
             className="min-h-11 rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30 bg-white"
           >
             <option value="" disabled>
-              اختر القسم
+              {t.leadershipInvite.departmentPlaceholder}
             </option>
             {departments.map((d) => (
               <option key={d.id} value={d.id}>
@@ -97,7 +100,7 @@ export function DeptAdminInviteForm({ departments }: { departments: Dept[] }) {
       {state.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>}
       <div>
         <Button type="submit" theme={theme} disabled={pending}>
-          {pending ? "جارِ الإصدار..." : "دعوة لحساب قائد قسم"}
+          {pending ? t.leadershipInvite.submitting : t.leadershipInvite.leadSubmit}
         </Button>
       </div>
     </form>
@@ -111,6 +114,7 @@ export function OperationsOfficerInviteForm() {
   });
   const formRef = useRef<HTMLFormElement>(null);
   const [dismissedUrl, setDismissedUrl] = useState<string | null>(null);
+  const t = useTranslations();
 
   useEffect(() => {
     if (state.success) formRef.current?.reset();
@@ -129,13 +133,23 @@ export function OperationsOfficerInviteForm() {
   return (
     <form ref={formRef} action={formAction} className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="الاسم الكامل" name="fullName" placeholder="اسم المرشح لمسؤول التشغيل" />
-        <Field label="البريد الإلكتروني" name="email" type="email" placeholder="candidate@email.com" dir="ltr" />
+        <Field
+          label={t.opsExtras.fullNameLabel}
+          name="fullName"
+          placeholder={t.opsExtras.opsFullNamePlaceholder}
+        />
+        <Field
+          label={t.opsExtras.emailLabel}
+          name="email"
+          type="email"
+          placeholder="candidate@email.com"
+          dir="ltr"
+        />
       </div>
       {state.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>}
       <div>
         <Button type="submit" theme={theme} disabled={pending}>
-          {pending ? "جارِ الإصدار..." : "دعوة لحساب مسؤول تشغيل"}
+          {pending ? t.actions.issuing : t.actions.inviteOpsAccount}
         </Button>
       </div>
     </form>

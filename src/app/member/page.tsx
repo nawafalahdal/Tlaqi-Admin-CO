@@ -9,7 +9,7 @@ import { WarningCard } from "./WarningCard";
 import { MyTicketCard } from "./MyTicketCard";
 import { RaiseTicketForm } from "./RaiseTicketForm";
 import { sweepTicketEscalation } from "@/lib/tickets";
-import { getLocale, getDictionary } from "@/i18n";
+import { getLocale, getDictionary } from "@/i18n/server";
 import { announcementsForSession } from "@/lib/announcements";
 import { AnnouncementList } from "@/app/admin/hub/AnnouncementList";
 

@@ -5,6 +5,7 @@ import { resetMemberCredentialsAction } from "../departments/[slug]/actions";
 import { Card, Button } from "@/components/ui";
 import { CredentialsReveal } from "@/components/CredentialsReveal";
 import type { themeFromColor } from "@/lib/brand";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 export function MemberAccountRow({
   member,
@@ -13,6 +14,7 @@ export function MemberAccountRow({
   member: { id: string; fullName: string; email: string; departmentName: string };
   theme: ReturnType<typeof themeFromColor>;
 }) {
+  const t = useTranslations();
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState(member.email);
   const [pending, startTransition] = useTransition();
@@ -39,17 +41,19 @@ export function MemberAccountRow({
           <p className="text-xs text-black/50" dir="ltr">
             {member.email}
           </p>
-          <p className="text-xs text-black/40">عضو — {member.departmentName}</p>
+          <p className="text-xs text-black/40">
+            {t.misc.memberIn} — {member.departmentName}
+          </p>
         </div>
         <Button theme={theme} variant="outline" onClick={() => setOpen((o) => !o)}>
-          مشكلة دخول؟
+          {t.misc.loginTrouble}
         </Button>
       </div>
 
       {open && !revealed && (
         <div className="mt-4 flex flex-col gap-3 border-t border-black/5 pt-4">
           <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium text-black/70">البريد الإلكتروني (عدّله إذا لزم)</span>
+            <span className="font-medium text-black/70">{t.opsExtras.emailEditable}</span>
             <input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -59,15 +63,15 @@ export function MemberAccountRow({
             />
           </label>
           <p className="text-xs text-black/40">
-            سيولَّد رمز مرور مؤقت جديد ويُرسل للبريد أعلاه، ويُطلب تغييره فور الدخول التالي.
+            {t.misc.resetNotice}
           </p>
           {error && <p className="text-sm text-red-700">{error}</p>}
           <div className="flex gap-2">
             <Button theme={theme} disabled={pending} onClick={handleReset}>
-              {pending ? "جارِ التنفيذ..." : "إعادة تعيين كلمة المرور"}
+              {pending ? t.actions.working : t.actions.resetPassword}
             </Button>
             <Button theme={theme} variant="ghost" onClick={() => setOpen(false)}>
-              إلغاء
+              {t.common.cancel}
             </Button>
           </div>
         </div>

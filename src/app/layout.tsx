@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Cairo } from "next/font/google";
 import "./globals.css";
-import { getLocale } from "@/i18n";
+import { getLocale } from "@/i18n/server";
 import { LocaleProvider } from "@/i18n/LocaleProvider";
 
 const cairo = Cairo({

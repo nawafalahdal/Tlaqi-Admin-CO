@@ -3,8 +3,12 @@
 import { useState, useTransition, useActionState } from "react";
 import { startTotpSetupAction, confirmTotpSetupAction, disableTotpAction } from "./actions";
 import { BRAND } from "@/lib/brand";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 export function SecurityForm({ initialEnabled }: { initialEnabled: boolean }) {
+  const dict = useTranslations();
+  const t = dict.security;
+  const a = dict.actions;
   const [enabled, setEnabled] = useState(initialEnabled);
   const [setup, setSetup] = useState<{ qrDataUrl: string; secret: string } | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
@@ -44,11 +48,11 @@ export function SecurityForm({ initialEnabled }: { initialEnabled: boolean }) {
     return (
       <div className="flex flex-col gap-4">
         <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
-          التحقق بخطوتين مُفعَّل على حسابك.
+          {dict.misc.twoFactorEnabled}
         </p>
         <form action={disableAction} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium text-black/70">كلمة المرور الحالية لإيقاف التفعيل</span>
+            <span className="font-medium text-black/70">{t.currentPasswordToDisable}</span>
             <input
               name="currentPassword"
               type="password"
@@ -65,7 +69,7 @@ export function SecurityForm({ initialEnabled }: { initialEnabled: boolean }) {
             disabled={disablePending}
             className="rounded-xl border border-red-200 px-4 py-3 text-sm font-semibold text-red-700 transition-opacity hover:opacity-90 disabled:opacity-60"
           >
-            {disablePending ? "جارِ الإيقاف..." : "إيقاف التحقق بخطوتين"}
+            {disablePending ? a.disabling : a.disable2fa}
           </button>
         </form>
       </div>
@@ -85,7 +89,7 @@ export function SecurityForm({ initialEnabled }: { initialEnabled: boolean }) {
           className="rounded-xl px-4 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
           style={{ background: BRAND.temptress }}
         >
-          {starting ? "جارِ التحضير..." : "تفعيل التحقق بخطوتين"}
+          {starting ? a.preparing : a.enable2fa}
         </button>
       </div>
     );
@@ -93,14 +97,14 @@ export function SecurityForm({ initialEnabled }: { initialEnabled: boolean }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-black/70">امسح الرمز بتطبيق المصادقة، أو أدخل المفتاح يدوياً:</p>
+      <p className="text-sm text-black/70">{t.scanHint}</p>
       <img src={setup.qrDataUrl} alt="QR" className="mx-auto h-48 w-48" />
       <p className="break-all rounded-lg bg-black/5 px-3 py-2 text-center text-xs" dir="ltr">
         {setup.secret}
       </p>
       <form action={confirmAction} className="flex flex-col gap-3">
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">أدخل الرمز المكوّن من 6 أرقام للتأكيد</span>
+          <span className="font-medium text-black/70">{t.codeLabel}</span>
           <input
             name="code"
             type="text"
@@ -121,7 +125,7 @@ export function SecurityForm({ initialEnabled }: { initialEnabled: boolean }) {
           className="rounded-xl px-4 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
           style={{ background: BRAND.temptress }}
         >
-          {confirmPending ? "جارِ التأكيد..." : "تأكيد التفعيل"}
+          {confirmPending ? a.confirming : a.confirmEnable}
         </button>
       </form>
     </div>

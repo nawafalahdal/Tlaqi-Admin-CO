@@ -8,7 +8,7 @@ import { AppHeader, Card, StatusBadge } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { formatDate } from "@/lib/format";
 import { ReminderButton } from "./ReminderButton";
-import { getLocale, getDictionary } from "@/i18n";
+import { getLocale, getDictionary } from "@/i18n/server";
 import { announcementsForSession, canPublishAnnouncement } from "@/lib/announcements";
 import { AnnouncementComposer } from "../hub/AnnouncementComposer";
 import { AnnouncementList } from "../hub/AnnouncementList";

@@ -5,6 +5,7 @@ import { createMemberInviteAction } from "./actions";
 import { Button } from "@/components/ui";
 import { InviteLinkReveal } from "@/components/InviteLinkReveal";
 import type { themeFromColor } from "@/lib/brand";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 export function MemberInviteForm({
   departmentId,
@@ -19,6 +20,7 @@ export function MemberInviteForm({
   });
   const formRef = useRef<HTMLFormElement>(null);
   const [dismissedUrl, setDismissedUrl] = useState<string | null>(null);
+  const t = useTranslations();
 
   useEffect(() => {
     if (state.success) formRef.current?.reset();
@@ -39,16 +41,16 @@ export function MemberInviteForm({
       <input type="hidden" name="departmentId" value={departmentId} />
       <div className="grid gap-4 sm:grid-cols-3">
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">الاسم الكامل</span>
+          <span className="font-medium text-black/70">{t.memberInviteForm.fullName}</span>
           <input
             name="fullName"
             required
-            placeholder="اسم المرشح"
+            placeholder={t.memberInviteForm.fullNamePlaceholder}
             className="min-h-11 rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
           />
         </label>
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">البريد الإلكتروني</span>
+          <span className="font-medium text-black/70">{t.memberInviteForm.email}</span>
           <input
             name="email"
             type="email"
@@ -59,10 +61,10 @@ export function MemberInviteForm({
           />
         </label>
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">المسمى الوظيفي</span>
+          <span className="font-medium text-black/70">{t.memberInviteForm.jobTitle}</span>
           <input
             name="jobTitle"
-            placeholder="مثال: أخصائي محتوى"
+            placeholder={t.memberInviteForm.jobTitlePlaceholder}
             className="min-h-11 rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
           />
         </label>
@@ -74,7 +76,7 @@ export function MemberInviteForm({
 
       <div>
         <Button type="submit" theme={theme} disabled={pending}>
-          {pending ? "جارِ الإصدار..." : "دعوة عضو جديد"}
+          {pending ? t.memberInviteForm.submitting : t.memberInviteForm.submit}
         </Button>
       </div>
     </form>

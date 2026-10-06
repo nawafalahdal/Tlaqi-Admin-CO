@@ -1,5 +1,5 @@
 import { signOut } from "@/auth";
-import { getLocale, getDictionary } from "@/i18n";
+import { getLocale, getDictionary } from "@/i18n/server";
 
 export async function LogoutButton({ color }: { color: string }) {
   const t = getDictionary(await getLocale());

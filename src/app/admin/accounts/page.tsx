@@ -7,6 +7,7 @@ import { HeaderActions } from "@/components/HeaderActions";
 import { AccountRow } from "./AccountRow";
 import { MemberAccountRow } from "./MemberAccountRow";
 import { BackButton } from "@/components/BackButton";
+import { getLocale, getDictionary } from "@/i18n/server";
 
 export default async function AccountsPage() {
   const session = await auth();
@@ -14,6 +15,7 @@ export default async function AccountsPage() {
   if (session.user.role !== "super_admin" && session.user.role !== "executive") redirect("/admin");
 
   const isSuperAdmin = session.user.role === "super_admin";
+  const t = getDictionary(await getLocale());
 
   const [accounts, members] = await Promise.all([
     prisma.user.findMany({
@@ -36,7 +38,7 @@ export default async function AccountsPage() {
     <div className="min-h-screen bg-[#FAF8F4]">
       <AppHeader
         theme={theme}
-        roleName={isSuperAdmin ? "الفاونڈر — الإدارة العليا" : "الإدارة التنفيذية (CEO)"}
+        roleName={isSuperAdmin ? t.admin.founderRole : t.admin.ceoRole}
         userName={session.user.name ?? ""}
       >
         <HeaderActions color={theme.text} />
@@ -45,15 +47,13 @@ export default async function AccountsPage() {
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-5 sm:py-8">
         <BackButton />
 
-        <h1 className="mb-1 text-xl font-bold">إدارة الحسابات القيادية</h1>
+        <h1 className="mb-1 text-xl font-bold">{t.admin.accountsTitle}</h1>
         <p className="mb-6 text-sm text-black/50">
-          {isSuperAdmin
-            ? "كل حسابات قادة الأقسام والإدارة التنفيذية — تقدر تعيد تعيين كلمة المرور أو تعدّل البريد لأي منها عند أي إشكالية."
-            : "حسابات قادة الأقسام فقط — تقدر تعيد تعيين كلمة المرور أو تعدّل البريد لأي منها عند أي إشكالية."}
+          {isSuperAdmin ? t.accounts.subtitleSuper : t.accounts.subtitleExec}
         </p>
 
         {accounts.length === 0 ? (
-          <Card className="p-8 text-center text-sm text-black/40">لا توجد حسابات بعد</Card>
+          <Card className="p-8 text-center text-sm text-black/40">{t.accounts.empty}</Card>
         ) : (
           <div className="flex flex-col gap-3">
             {accounts.map((a) => (
@@ -72,14 +72,13 @@ export default async function AccountsPage() {
           </div>
         )}
 
-        <h2 className="mb-1 mt-10 text-lg font-bold">إدارة حسابات الأعضاء</h2>
+        <h2 className="mb-1 mt-10 text-lg font-bold">{t.opsExtras.memberAccountsTitle}</h2>
         <p className="mb-6 text-sm text-black/50">
-          كل الأعضاء المعتمدين النشطين عبر كل الأقسام — تقدر تعيد تعيين كلمة المرور أو تعدّل البريد
-          لأي منهم مباشرة من هنا، بلا حاجة للدخول لصفحة قسمه.
+          {t.misc.memberAccountsHint}
         </p>
 
         {members.length === 0 ? (
-          <Card className="p-8 text-center text-sm text-black/40">لا يوجد أعضاء معتمدون بعد</Card>
+          <Card className="p-8 text-center text-sm text-black/40">{t.opsExtras.memberAccountsEmpty}</Card>
         ) : (
           <div className="flex flex-col gap-3">
             {members.map((m) => (

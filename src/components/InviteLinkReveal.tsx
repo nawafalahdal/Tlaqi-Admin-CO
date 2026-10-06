@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "@/i18n/LocaleProvider";
 import type { themeFromColor } from "@/lib/brand";
 
 /** يعرض رابط الدعوة فور إصدارها، مع زر نسخ — نسخة احتياطية يدوية حتى لو
@@ -15,6 +16,7 @@ export function InviteLinkReveal({
   theme: ReturnType<typeof themeFromColor>;
   onClose: () => void;
 }) {
+  const t = useTranslations();
   const [copied, setCopied] = useState(false);
 
   async function copy() {
@@ -34,14 +36,14 @@ export function InviteLinkReveal({
     >
       <div className="mb-2 flex items-start justify-between gap-2">
         <p className="text-sm font-bold" style={{ color: theme.accentDark }}>
-          تم إصدار الدعوة — انسخ الرابط وأرسله للمدعو يدوياً
+          {t.misc.inviteIssued}
         </p>
         <button type="button" onClick={onClose} className="text-xs text-black/40 hover:text-black/60">
-          إغلاق ✕
+          {t.common.close}
         </button>
       </div>
       <p className="text-xs text-black/50">
-        إذا لم يصل البريد الإلكتروني، هذا الرابط هو الطريقة الوحيدة ليبدأ المدعو اختباره.
+        {t.misc.inviteLinkOnlyWay}
       </p>
       <div className="mt-3 break-all rounded-lg bg-white px-3 py-2 text-xs" dir="ltr">
         {inviteUrl}
@@ -52,7 +54,7 @@ export function InviteLinkReveal({
         className="mt-3 rounded-lg px-3 py-1.5 text-xs font-semibold"
         style={{ background: theme.accentDark, color: "#FDFBF6" }}
       >
-        {copied ? "تم النسخ ✓" : "نسخ رابط الدعوة"}
+        {copied ? t.actions.copied : t.invite.copyInviteLink}
       </button>
     </div>
   );

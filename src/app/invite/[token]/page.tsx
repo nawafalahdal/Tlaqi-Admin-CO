@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
-import { ROLE_LABELS, toQuestionViewModel } from "@/lib/testTracks";
+import { toQuestionViewModel } from "@/lib/testTracks";
 import { LogoLockup } from "@/components/Logo";
 import { LocaleToggle } from "@/components/LocaleToggle";
 import { InviteFlow } from "./InviteFlow";
-import { getLocale, getDictionary } from "@/i18n";
+import { getLocale, getDictionary } from "@/i18n/server";
 
 export default async function InvitePage({
   params,
@@ -22,8 +22,8 @@ export default async function InvitePage({
 
   const roleLabel = invite
     ? invite.department
-      ? `${ROLE_LABELS[invite.targetRole]} — ${invite.department.name}`
-      : ROLE_LABELS[invite.targetRole]
+      ? `${t.roles[invite.targetRole]} — ${invite.department.name}`
+      : t.roles[invite.targetRole]
     : "";
 
   return (

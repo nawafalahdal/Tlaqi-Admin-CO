@@ -15,7 +15,7 @@ import { AnnouncementComposer } from "./hub/AnnouncementComposer";
 import { AnnouncementList } from "./hub/AnnouncementList";
 import { LeadershipRequestForm } from "./hub/LeadershipRequestForm";
 import { formatDate } from "@/lib/format";
-import { getLocale, getDictionary } from "@/i18n";
+import { getLocale, getDictionary } from "@/i18n/server";
 
 export default async function AdminPage() {
   const session = await auth();
@@ -277,8 +277,9 @@ export default async function AdminPage() {
                     <h3 className="text-sm font-bold">{l.title}</h3>
                     <p className="mt-0.5 text-xs leading-relaxed text-black/40">{l.desc}</p>
                   </div>
+                  {/* سهم منطقي: يُعكس تلقائياً في LTR بدل تثبيت اتجاه عربي */}
                   <span
-                    className="shrink-0 text-lg font-bold"
+                    className="shrink-0 text-lg font-bold ltr:-scale-x-100"
                     style={{ color: theme.accentDark }}
                     aria-hidden
                   >

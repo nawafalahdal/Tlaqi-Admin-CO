@@ -2,7 +2,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { LogoutButton } from "./LogoutButton";
 import { LocaleToggle } from "./LocaleToggle";
-import { getLocale, getDictionary } from "@/i18n";
+import { getLocale, getDictionary } from "@/i18n/server";
 
 export async function HeaderActions({ color }: { color: string }) {
   const [session, t] = await Promise.all([

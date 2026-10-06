@@ -2,7 +2,7 @@ import { LogoLockup } from "@/components/Logo";
 import { LoginForm } from "./LoginForm";
 import { BRAND } from "@/lib/brand";
 import { LocaleToggle } from "@/components/LocaleToggle";
-import { getLocale, getDictionary } from "@/i18n";
+import { getLocale, getDictionary } from "@/i18n/server";
 
 export default async function LoginPage({
   searchParams,

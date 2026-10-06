@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { remindTicketAction, remindRequestAction } from "./actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 export function ReminderButton({
   target,
@@ -12,6 +13,7 @@ export function ReminderButton({
   target: { type: "ticket" | "request"; id: string };
   theme: ReturnType<typeof themeFromColor>;
 }) {
+  const t = useTranslations();
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<"sent" | string | null>(null);
 
@@ -30,9 +32,9 @@ export function ReminderButton({
           })
         }
       >
-        {pending ? "جارِ الإرسال..." : "إرسال تذكير"}
+        {pending ? t.actions.sending : t.actions.sendReminder}
       </Button>
-      {result === "sent" && <span className="text-xs text-green-700">تم الإرسال ✓</span>}
+      {result === "sent" && <span className="text-xs text-green-700">{t.opsExtras.reminderSent}</span>}
       {result && result !== "sent" && <span className="text-xs text-red-700">{result}</span>}
     </div>
   );

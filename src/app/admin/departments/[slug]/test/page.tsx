@@ -7,6 +7,7 @@ import { HeaderActions } from "@/components/HeaderActions";
 import { TestEditor } from "../../../tests/TestEditor";
 import { toQuestionViewModel } from "@/lib/testTracks";
 import { BackButton } from "@/components/BackButton";
+import { getLocale, getDictionary } from "@/i18n/server";
 
 export default async function DepartmentTestPage({
   params,
@@ -31,16 +32,19 @@ export default async function DepartmentTestPage({
   });
 
   const theme = themeFromColor(department.colorHex);
+  const t = getDictionary(await getLocale());
 
   return (
     <div className="min-h-screen bg-[#FAF8F4]">
-      <AppHeader theme={theme} roleName={`أدمن ${department.name}`} userName={session.user.name ?? ""}>
+      <AppHeader theme={theme} roleName={`${t.deptBoard.adminRolePrefix} ${department.name}`} userName={session.user.name ?? ""}>
         <HeaderActions color={theme.text} />
       </AppHeader>
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-5 sm:py-8">
         <BackButton fallbackHref={`/admin/departments/${department.slug}`} />
-        <h1 className="mb-1 text-xl font-bold">اختبار قبول أعضاء {department.name}</h1>
-        <p className="mb-6 text-sm text-black/50">الأسئلة التي يجتازها مرشحو هذا القسم</p>
+        <h1 className="mb-1 text-xl font-bold">
+          {t.testEditorPage.deptTitlePrefix} {department.name}
+        </h1>
+        <p className="mb-6 text-sm text-black/50">{t.testEditorPage.deptSubtitle}</p>
         <TestEditor trackId={track.id} questions={track.questions.map(toQuestionViewModel)} theme={theme} />
       </main>
     </div>

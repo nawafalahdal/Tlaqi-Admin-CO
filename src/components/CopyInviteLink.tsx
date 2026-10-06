@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 /** زر نسخ رابط دعوة قائمة — يسمح باسترجاع الرابط في أي وقت بعد إصداره، لا مرة
  *  واحدة فقط لحظة الإنشاء. ضروري لأن البريد قد لا يصل، فيبقى الرابط الطريقة
  *  الوحيدة ليبدأ المدعو اختباره. */
 export function CopyInviteLink({ inviteUrl }: { inviteUrl: string }) {
+  const t = useTranslations();
   const [copied, setCopied] = useState(false);
   const [shown, setShown] = useState(false);
 
@@ -28,14 +30,14 @@ export function CopyInviteLink({ inviteUrl }: { inviteUrl: string }) {
           onClick={copy}
           className="rounded-lg border border-black/15 px-2.5 py-1 text-xs font-semibold text-black/70 hover:bg-black/5"
         >
-          {copied ? "تم النسخ ✓" : "نسخ الرابط"}
+          {copied ? t.actions.copied : t.actions.copyLink}
         </button>
         <button
           type="button"
           onClick={() => setShown((s) => !s)}
           className="rounded-lg px-2 py-1 text-xs font-semibold text-black/40 hover:text-black/70"
         >
-          {shown ? "إخفاء" : "عرض"}
+          {shown ? t.actions.hide : t.actions.show}
         </button>
       </div>
       {shown && (
