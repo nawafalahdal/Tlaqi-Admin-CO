@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { clearFailedAttempts } from "@/lib/loginAttempts";
-import { appendApprovedMember, appendMemberEvent, appendTestResult, upsertMemberLifecycleRow } from "@/lib/googleSheets";
+import { appendApprovedMember, appendMemberEvent, appendTestResult, upsertMemberLifecycleRow, upsertAdminAccountRow } from "@/lib/googleSheets";
 import {
   sendCredentialsEmail,
   sendTestPassedEmail,
@@ -53,21 +53,50 @@ function baseUrl() {
 
 const THREE_MONTHS_MS = 90 * 24 * 60 * 60 * 1000;
 
-function reachedThreeMonths(decidedAt: Date, terminatedAt: Date | null): "نعم" | "لا بعد" | "توقف قبل إكمالها" {
+function reachedThreeMonths(
+  decidedAt: Date | null,
+  terminatedAt: Date | null
+): "نعم" | "لا بعد" | "توقف قبل إكمالها" | "لم يُعتمد بعد" {
+  // المدة تُحسب من الاعتماد: من لم يُعتمد بعد لم تبدأ أشهره أصلاً
+  if (!decidedAt) return "لم يُعتمد بعد";
   const endDate = terminatedAt ?? new Date();
   const reached = endDate.getTime() - decidedAt.getTime() >= THREE_MONTHS_MS;
   if (terminatedAt) return reached ? "نعم" : "توقف قبل إكمالها";
   return reached ? "نعم" : "لا بعد";
 }
 
-/** يكتب/يحدّث الصف الثابت الخاص بعضو واحد في تبويب دورة الحياة — يُستدعى عند
- *  أي تغيّر بحالته: الاعتماد، تسليم البانر، تنبيه، توقف، أو إصدار شهادة */
+/** المرحلة التي يقف عندها العضو الآن، بعبارة واحدة مقروءة — هي العمود الذي
+ *  يُغني عن قراءة بقية الأعمدة لمعرفة أين وصل كل شخص */
+function memberStage(member: {
+  isActive: boolean;
+  exitReason: string | null;
+  approvalStatus: string;
+  testStatus: string;
+  firstLoginAt: Date | null;
+}): string {
+  if (!member.isActive) {
+    if (member.exitReason === CANDIDATE_EXPIRY_REASON) return "سقطت مهلته قبل الدخول";
+    return "متوقف";
+  }
+  if (member.approvalStatus === "rejected") return "مرفوض";
+  if (member.approvalStatus === "approved") return "عضو معتمد";
+  if (member.testStatus === "passed") return "اجتاز — بانتظار الاعتماد";
+  if (member.testStatus === "failed") return "لم يجتز الاختبار";
+  if (!member.firstLoginAt) return "مرشّح — لم يدخل بعد";
+  return "مرشّح — لم يُسلّم الاختبار";
+}
+
+/** يكتب/يحدّث الصف الثابت الخاص بعضو واحد في تبويب دورة الحياة.
+ *
+ *  يُستدعى منذ لحظة إنشاء الحساب، لا عند الاعتماد فقط: كان الشرط السابق
+ *  (decidedAt) يعني أن المرشّح لا يظهر في تبويب الأعضاء إطلاقاً حتى يُعتمد،
+ *  فيبقى أثره الوحيد سطراً في السجل الحي — وهذا سبب امتلاء السجل الحي
+ *  وحده وبقاء بقية التبويبات فارغة. */
 export async function syncMemberLifecycleRow(memberId: string) {
   const member = await prisma.member.findUniqueOrThrow({
     where: { id: memberId },
     include: { department: true, invite: true },
   });
-  if (!member.decidedAt) return;
 
   const bannerRequest = await prisma.request.findFirst({
     where: { type: "welcome_banner", linkedMemberId: memberId },
@@ -79,6 +108,7 @@ export async function syncMemberLifecycleRow(memberId: string) {
     email: member.email,
     departmentName: member.department?.name ?? "—",
     roleLabel: ROLE_LABELS[member.invite.targetRole] ?? member.invite.targetRole,
+    stage: memberStage(member),
     phone: member.phone,
     jobTitle: member.jobTitle,
     createdAt: member.createdAt,
@@ -99,6 +129,33 @@ export async function syncMemberLifecycleRow(memberId: string) {
 
   if (!member.sheetRow && result.sheetRow) {
     await prisma.member.update({ where: { id: member.id }, data: { sheetRow: result.sheetRow } });
+  }
+}
+
+/** نظير دالة الأعضاء للحسابات الإدارية — صف ثابت واحد لكل حساب، يُحدَّث عند
+ *  إنشائه، أو تغيير كلمة مروره، أو تفعيل التحقق بخطوتين، أو تنحيته */
+export async function syncAdminAccountRow(userId: string) {
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    include: { department: true },
+  });
+
+  const result = await upsertAdminAccountRow({
+    sheetRow: user.sheetRow,
+    fullName: user.fullName,
+    email: user.email,
+    roleLabel: ROLE_LABELS[user.role as keyof typeof ROLE_LABELS] ?? user.role,
+    departmentName: user.department?.name ?? null,
+    totpEnabled: user.totpEnabled,
+    isActive: user.isActive,
+    createdAt: user.createdAt,
+    passwordChangedAt: user.passwordChangedAt,
+    removedAt: user.removedAt,
+    removalReason: user.removalReason,
+  });
+
+  if (!user.sheetRow && result.sheetRow) {
+    await prisma.user.update({ where: { id: user.id }, data: { sheetRow: result.sheetRow } });
   }
 }
 
@@ -205,6 +262,7 @@ export async function submitTestAttempt(opts: { memberId: string; answers: Recor
     }
   }
 
+  await syncMemberLifecycleRow(updated.id);
   return { member: updated, score, passed };
 }
 
@@ -260,7 +318,7 @@ export async function approveMember(memberId: string) {
 
     // تُنقل كلمة المرور التي اختارها بنفسه إلى الحساب الإداري الجديد، ثم
     // يُفرَّغ hash حساب المرشّح حتى لا يبقى لشخص واحد مَدخلان
-    await prisma.user.create({
+    const createdUser = await prisma.user.create({
       data: {
         fullName: member.fullName,
         email: member.email,
@@ -282,6 +340,11 @@ export async function approveMember(memberId: string) {
       jobTitle: member.jobTitle,
       approvedAt: member.decidedAt ?? new Date(),
     });
+
+    // الحساب الإداري الجديد يفتح صفه في تبويب الحسابات الإدارية فوراً،
+    // وصف المرشّح في تبويب الأعضاء يُغلق على حالته الأخيرة
+    await syncAdminAccountRow(createdUser.id);
+    await syncMemberLifecycleRow(member.id);
   }
 
   await sendApprovedEmail({
@@ -316,6 +379,7 @@ export async function rejectMember(memberId: string) {
     details: "تم رفض الطلب بعد المراجعة",
     at: new Date(),
   });
+  await syncMemberLifecycleRow(member.id);
   return member;
 }
 
@@ -497,6 +561,8 @@ export async function resetMemberCredentials(
     at: new Date(),
   });
 
+  await syncMemberLifecycleRow(member.id);
+
   return { member, tempPassword };
 }
 
@@ -514,6 +580,7 @@ export async function resetUserCredentials(
     data: {
       passwordHash,
       mustChangePassword: true,
+      passwordChangedAt: new Date(),
       ...(newEmail ? { email: newEmail } : {}),
     },
   });
@@ -537,6 +604,8 @@ export async function resetUserCredentials(
     details: performedByName ? `نفّذه: ${performedByName}` : "",
     at: new Date(),
   });
+
+  await syncAdminAccountRow(user.id);
 
   return { user, tempPassword };
 }
@@ -640,16 +709,22 @@ export async function createCandidateAccount(opts: {
     loginUrl: `${baseUrl()}/login`,
   });
 
+  // الصف يُفتح في تبويب الأعضاء من هذه اللحظة، لا عند الاعتماد: المرشّح
+  // الذي لم يُعتمد بعد يجب أن يكون مرئياً هو أيضاً
+  await syncMemberLifecycleRow(member.id);
+
   return { invite, member, tempPassword };
 }
 
 /** يسجّل أول دخول فعلي للمرشّح — يتيح لمن أنشأ الحساب أن يرى هل وصل الرمز
  *  واستُخدم فعلاً أم لا، فيكتشف ضياعه أو استخدامه من غير صاحبه */
 export async function markFirstLogin(memberId: string) {
-  await prisma.member.updateMany({
+  const marked = await prisma.member.updateMany({
     where: { id: memberId, firstLoginAt: null },
     data: { firstLoginAt: new Date() },
   });
+  // أول دخول فقط يُحدِّث الصف — الدخول اليومي بعده لا يكتب شيئاً
+  if (marked.count > 0) await syncMemberLifecycleRow(memberId);
 }
 
 /** مهلة الحساب الجديد: إن لم يدخل صاحبه خلالها يسقط الحساب نهائياً.
@@ -806,6 +881,8 @@ export async function removeLeadershipUser(opts: {
     details: `السبب: ${opts.reason} — نفّذه: ${opts.performedByName}`,
     at: new Date(),
   });
+
+  await syncAdminAccountRow(user.id);
 
   return user;
 }

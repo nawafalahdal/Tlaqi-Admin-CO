@@ -7,7 +7,7 @@ import { safeErrorMessage } from "@/lib/safeError";
 
 export type BackfillState = {
   error: string | null;
-  counts: { lifecycle: number; tickets: number; testResults: number; events: number } | null;
+  counts: { lifecycle: number; adminAccounts: number; tickets: number; testResults: number; events: number } | null;
 };
 
 /** تشغيل التعبئة الرجعية — الفاونڈر وحده، لأنها تكتب عشرات الأسطر في ملف

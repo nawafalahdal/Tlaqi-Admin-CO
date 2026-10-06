@@ -30,6 +30,8 @@ export default async function SheetPage() {
       "السجل الحي": t.sheetPage.tabLiveDesc,
       "نتائج الاختبارات": t.sheetPage.tabTestsDesc,
       "التذاكر": t.sheetPage.tabTicketsDesc,
+      "الرسائل المُرسَلة": t.sheetPage.tabEmailsDesc,
+      "الحسابات الإدارية": t.sheetPage.tabAdminAccountsDesc,
       "الأعضاء — دورة الحياة": t.sheetPage.tabLifecycleDesc,
     }[layout.name] ?? "",
   }));

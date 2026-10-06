@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { formatDate } from "@/lib/format";
 import { appendEmailLog } from "@/lib/googleSheets";
+import { prisma } from "@/lib/prisma";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FROM = process.env.EMAIL_FROM || "تَـــلاقِ <hello@tlaqiteam.site>";
@@ -24,8 +25,19 @@ async function logEmail(
   subject: string,
   status: "أُرسلت" | "لم تُرسل (البريد معطّل)" | "فشل الإرسال"
 ) {
+  const at = new Date();
+  // قاعدة البيانات أولاً لأنها مصدر صفحة "سجل الرسائل" داخل المنصة،
+  // ثم الشيت نسخةً للمراجعة الخارجية. فشل أيٍّ منهما لا يُفشل الإرسال:
+  // رسالة وصلت فعلاً ثم تعذّر تسجيلها تبقى واصلة.
   try {
-    await appendEmailLog({ to: recipients, kind, subject, status, at: new Date() });
+    await prisma.emailLog.createMany({
+      data: recipients.map((recipient) => ({ recipient, kind, subject, status, createdAt: at })),
+    });
+  } catch (err) {
+    console.error("تعذّر تسجيل البريد في قاعدة البيانات:", err);
+  }
+  try {
+    await appendEmailLog({ to: recipients, kind, subject, status, at });
   } catch (err) {
     console.error("تعذّر تسجيل البريد في الشيت:", err);
   }

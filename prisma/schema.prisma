@@ -111,6 +111,11 @@ model User {
   removedAt     DateTime?
   removalReason String?
 
+  // رقم صفه الثابت في تبويب "الحسابات الإدارية" — يُحفظ أول مرة فقط ليُحدَّث
+  // الصف نفسه بعدها بدل تكديس صف جديد عند كل تغيّر
+  sheetRow            Int?
+  passwordChangedAt   DateTime?
+
   invitesIssued Invite[] @relation("InvitedBy")
 }
 
@@ -300,4 +305,19 @@ model PasswordResetToken {
 
   @@index([email])
   @@index([expiresAt])
+}
+
+/// سجل كل رسالة تُرسلها المنصة. كان هذا السجل يعيش في Google Sheet وحده،
+/// فلا تستطيع المنصة عرضه ولا البحث فيه، ويضيع كله إن تعطّل الاتصال بالشيت.
+/// الآن يُكتب هنا أولاً — وهو المصدر — ثم يُنسخ إلى الشيت.
+model EmailLog {
+  id        String   @id @default(cuid())
+  recipient String
+  kind      String
+  subject   String
+  status    String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([recipient])
 }

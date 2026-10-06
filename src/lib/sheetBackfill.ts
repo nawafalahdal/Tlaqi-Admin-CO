@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { appendMemberEvent, appendTestResult } from "@/lib/googleSheets";
-import { syncMemberLifecycleRow } from "@/lib/workflow";
+import { syncMemberLifecycleRow, syncAdminAccountRow } from "@/lib/workflow";
 import { syncTicketSheetRow } from "@/lib/tickets";
 import { ROLE_LABELS } from "@/lib/testTracks";
 
@@ -15,20 +15,31 @@ import { ROLE_LABELS } from "@/lib/testTracks";
  *  "نتائج الاختبارات" و"السجل الحي" فهما تبويبا إضافة، ولذلك يتخطّاهما
  *  التشغيل الثاني إلا بطلب صريح. */
 export async function backfillSheets(opts: { includeAppendOnlyTabs: boolean }) {
-  const counts = { lifecycle: 0, tickets: 0, testResults: 0, events: 0 };
+  const counts = { lifecycle: 0, adminAccounts: 0, tickets: 0, testResults: 0, events: 0 };
 
-  // 1) دورة حياة الأعضاء — صف ثابت لكل عضو معتمد
-  const decidedMembers = await prisma.member.findMany({
-    where: { decidedAt: { not: null } },
+  // 1) دورة حياة الأعضاء — صف ثابت لكل عضو، معتمداً كان أو ما زال مرشّحاً.
+  //    كان الشرط هنا decidedAt فلا يظهر المرشّحون إطلاقاً، وهو ما جعل
+  //    التبويب يبدو فارغاً بينما السجل الحي وحده يمتلئ.
+  const allMembers = await prisma.member.findMany({
     select: { id: true },
-    orderBy: { decidedAt: "asc" },
+    orderBy: { createdAt: "asc" },
   });
-  for (const m of decidedMembers) {
+  for (const m of allMembers) {
     await syncMemberLifecycleRow(m.id);
     counts.lifecycle++;
   }
 
-  // 2) التذاكر — صف ثابت لكل تذكرة
+  // 2) الحسابات الإدارية — صف ثابت لكل حساب، بما فيها المُنحّاة
+  const allUsers = await prisma.user.findMany({
+    select: { id: true },
+    orderBy: { createdAt: "asc" },
+  });
+  for (const u of allUsers) {
+    await syncAdminAccountRow(u.id);
+    counts.adminAccounts++;
+  }
+
+  // 3) التذاكر — صف ثابت لكل تذكرة
   const tickets = await prisma.ticket.findMany({
     include: { member: true, targetDepartment: true },
     orderBy: { createdAt: "asc" },
@@ -40,7 +51,7 @@ export async function backfillSheets(opts: { includeAppendOnlyTabs: boolean }) {
 
   if (!opts.includeAppendOnlyTabs) return counts;
 
-  // 3) نتائج الاختبارات — سطر لكل محاولة
+  // 4) نتائج الاختبارات — سطر لكل محاولة
   const attempts = await prisma.testAttempt.findMany({
     include: { member: { include: { department: true, invite: true } } },
     orderBy: { attemptedAt: "asc" },
@@ -59,7 +70,7 @@ export async function backfillSheets(opts: { includeAppendOnlyTabs: boolean }) {
     counts.testResults++;
   }
 
-  // 4) السجل الحي — تُعاد بناء الأحداث من الطوابع الزمنية المحفوظة.
+  // 5) السجل الحي — تُعاد بناء الأحداث من الطوابع الزمنية المحفوظة.
   //    لا يوجد جدول أحداث في القاعدة، فما لا طابع له لا يمكن استرجاعه؛
   //    وهذه هي الأحداث التي تحمل تاريخاً موثوقاً.
   const members = await prisma.member.findMany({

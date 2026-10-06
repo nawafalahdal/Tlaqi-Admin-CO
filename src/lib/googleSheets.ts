@@ -175,15 +175,16 @@ export async function upsertMemberLifecycleRow(row: {
   roleLabel: string;
   phone: string | null;
   jobTitle: string | null;
+  stage: string;
   createdAt: Date;
   credentialsIssuedAt: Date | null;
   firstLoginAt: Date | null;
   testScore: number | null;
   testStatus: string;
-  decidedAt: Date;
+  decidedAt: Date | null;
   bannerDelivered: boolean | null;
   bannerDeliveredAt: Date | null;
-  reachedThreeMonths: "نعم" | "لا بعد" | "توقف قبل إكمالها";
+  reachedThreeMonths: "نعم" | "لا بعد" | "توقف قبل إكمالها" | "لم يُعتمد بعد";
   certificateIssuedAt: Date | null;
   isActive: boolean;
   terminatedAt: Date | null;
@@ -201,6 +202,7 @@ export async function upsertMemberLifecycleRow(row: {
     row.email,
     row.departmentName,
     row.roleLabel,
+    row.stage,
     row.phone ?? "—",
     row.jobTitle ?? "—",
     formatSheetDate(row.createdAt),
@@ -208,7 +210,7 @@ export async function upsertMemberLifecycleRow(row: {
     row.firstLoginAt ? formatSheetDate(row.firstLoginAt) : "لم يدخل بعد",
     row.testScore === null ? "—" : `${row.testScore}%`,
     TEST_VERDICT[row.testStatus] ?? row.testStatus,
-    formatSheetDate(row.decidedAt),
+    row.decidedAt ? formatSheetDate(row.decidedAt) : "لم يُعتمد بعد",
     row.bannerDelivered === null ? "—" : row.bannerDelivered ? "نعم" : "لا",
     row.bannerDeliveredAt ? formatSheetDate(row.bannerDeliveredAt) : "—",
     row.reachedThreeMonths,
@@ -220,9 +222,39 @@ export async function upsertMemberLifecycleRow(row: {
   ]);
 }
 
+/** صف ثابت لكل حساب إداري (فاوندر/تنفيذي/مسؤول تشغيل/قائد قسم).
+ *  قبل هذا التبويب لم تكن الحسابات الإدارية تظهر في الملف إطلاقاً — كان
+ *  أثرها الوحيد سطراً في السجل الحي، فلا يُعرف من يشغل أي منصب الآن. */
+export async function upsertAdminAccountRow(row: {
+  sheetRow: number | null;
+  fullName: string;
+  email: string;
+  roleLabel: string;
+  departmentName: string | null;
+  totpEnabled: boolean;
+  isActive: boolean;
+  createdAt: Date;
+  passwordChangedAt: Date | null;
+  removedAt: Date | null;
+  removalReason: string | null;
+}) {
+  return upsertRow("الحسابات الإدارية", row.sheetRow, [
+    row.fullName,
+    row.email,
+    row.roleLabel,
+    row.departmentName ?? "—",
+    row.totpEnabled ? "مُفعّل" : "غير مُفعّل",
+    row.isActive ? "نشط" : "مُنحّى",
+    formatSheetDate(row.createdAt),
+    row.passwordChangedAt ? formatSheetDate(row.passwordChangedAt) : "—",
+    row.removedAt ? formatSheetDate(row.removedAt) : "—",
+    row.removalReason ?? "—",
+  ]);
+}
+
 const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: number[] }> = {
   "السجل الحي": {
-    title: "تَـــلاقِ — السجل الحي للأعضاء والأحداث",
+    title: "تَـــلاقِ — السجل الحي: كل حدث بتسلسله الزمني (مرجع تدقيق)",
     headers: ["الاسم", "البريد الإلكتروني", "القسم / الصفة", "النوع", "التفاصيل", "التاريخ"],
     widths: [160, 220, 160, 130, 320, 170],
   },
@@ -254,6 +286,22 @@ const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: numb
     ],
     widths: [100, 160, 220, 150, 200, 280, 110, 170, 90, 160, 190, 120],
   },
+  "الحسابات الإدارية": {
+    title: "تَـــلاقِ — الحسابات الإدارية (صف ثابت لكل حساب)",
+    headers: [
+      "الاسم",
+      "البريد الإلكتروني",
+      "الصفة",
+      "القسم",
+      "التحقق بخطوتين",
+      "الحالة",
+      "تاريخ إنشاء الحساب",
+      "آخر تغيير لكلمة المرور",
+      "تاريخ التنحية",
+      "سبب التنحية",
+    ],
+    widths: [170, 240, 150, 150, 140, 110, 170, 180, 160, 240],
+  },
   "الأعضاء — دورة الحياة": {
     title: "تَـــلاقِ — دورة حياة الأعضاء (صف ثابت لكل عضو)",
     headers: [
@@ -261,6 +309,7 @@ const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: numb
       "البريد الإلكتروني",
       "القسم",
       "الصفة",
+      "المرحلة الحالية",
       "رقم الجوال",
       "المسمى الوظيفي",
       "تاريخ إنشاء الحساب",
@@ -278,7 +327,7 @@ const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: numb
       "سبب التوقف",
       "عدد التنبيهات",
     ],
-    widths: [160, 220, 150, 140, 130, 150, 170, 180, 160, 110, 110, 160, 140, 160, 150, 200, 110, 160, 220, 100],
+    widths: [160, 220, 150, 140, 190, 130, 150, 170, 180, 160, 110, 110, 160, 140, 160, 150, 200, 110, 160, 220, 100],
   },
 };
 
@@ -365,14 +414,25 @@ const ensuredTabs = new Set<string>();
  *  ملوّنة، تجميد، اتجاه RTL، عرض أعمدة) — يُنفَّذ مرة واحدة فقط لكل تبويب في
  *  عمر العملية (serverless) بفضل ensuredTabs، والتحقق الفعلي من وجود التبويب
  *  يحمي بقية الاستدعاءات حتى بعد إعادة تشغيل الدالة */
-async function ensureTab(sheets: sheets_v4.Sheets, tabName: string) {
-  if (ensuredTabs.has(tabName)) return;
+/** يضمن وجود التبويب بترويسته وتنسيقه.
+ *
+ *  refresh = true يُعيد كتابة الترويسة والتنسيق على تبويب موجود أصلاً. هذا
+ *  ضروري كلما تغيّرت الأعمدة: بدونه يبقى في الملف ترويسةٌ قديمة أقصر من
+ *  الصفوف التي تُكتب تحتها، فتُقرأ القيم تحت عناوين ليست عناوينها.
+ *  التظليل المتناوب والقواعد الشرطية تُضاف للتبويب الجديد فقط، لأن إعادة
+ *  إضافتها على نطاق قائم يرفضها Google بتعارض النطاقات. */
+async function ensureTab(
+  sheets: sheets_v4.Sheets,
+  tabName: string,
+  opts: { refresh?: boolean } = {}
+) {
+  if (ensuredTabs.has(tabName) && !opts.refresh) return;
 
   const spec = TAB_SPECS[tabName];
   const meta = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID! });
   const existing = meta.data.sheets?.find((s) => s.properties?.title === tabName);
 
-  if (existing) {
+  if (existing && !opts.refresh) {
     ensuredTabs.add(tabName);
     return;
   }
@@ -382,11 +442,17 @@ async function ensureTab(sheets: sheets_v4.Sheets, tabName: string) {
     return;
   }
 
-  const addResult = await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: SPREADSHEET_ID!,
-    requestBody: { requests: [{ addSheet: { properties: { title: tabName } } }] },
-  });
-  const sheetId = addResult.data.replies?.[0]?.addSheet?.properties?.sheetId;
+  const isNew = !existing;
+  let sheetId: number | null | undefined = existing?.properties?.sheetId;
+
+  if (isNew) {
+    const addResult = await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID!,
+      requestBody: { requests: [{ addSheet: { properties: { title: tabName } } }] },
+    });
+    sheetId = addResult.data.replies?.[0]?.addSheet?.properties?.sheetId;
+  }
+
   if (sheetId === undefined || sheetId === null) {
     ensuredTabs.add(tabName);
     return;
@@ -454,6 +520,16 @@ async function ensureTab(sheets: sheets_v4.Sheets, tabName: string) {
       },
     })),
     {
+      repeatCell: {
+        range: { sheetId, startRowIndex: 2, endRowIndex: 2000, startColumnIndex: 0, endColumnIndex: colCount },
+        cell: { userEnteredFormat: { horizontalAlignment: "RIGHT", wrapStrategy: "WRAP" } },
+        fields: "userEnteredFormat(horizontalAlignment,wrapStrategy)",
+      },
+    },
+  ];
+
+  if (isNew) {
+    requests.push({
       addBanding: {
         bandedRange: {
           range: { sheetId, startRowIndex: 2, endRowIndex: 2000, startColumnIndex: 0, endColumnIndex: colCount },
@@ -464,17 +540,10 @@ async function ensureTab(sheets: sheets_v4.Sheets, tabName: string) {
           },
         },
       },
-    },
-    {
-      repeatCell: {
-        range: { sheetId, startRowIndex: 2, endRowIndex: 2000, startColumnIndex: 0, endColumnIndex: colCount },
-        cell: { userEnteredFormat: { horizontalAlignment: "RIGHT", wrapStrategy: "WRAP" } },
-        fields: "userEnteredFormat(horizontalAlignment,wrapStrategy)",
-      },
-    },
-  ];
+    });
+  }
 
-  if (tabName === "نتائج الاختبارات") {
+  if (isNew && tabName === "نتائج الاختبارات") {
     requests.push(
       {
         addConditionalFormatRule: {
@@ -503,7 +572,7 @@ async function ensureTab(sheets: sheets_v4.Sheets, tabName: string) {
     );
   }
 
-  if (tabName === "التذاكر") {
+  if (isNew && tabName === "التذاكر") {
     requests.push(
       {
         addConditionalFormatRule: {
@@ -596,7 +665,7 @@ export async function prepareAllTabs() {
     // التحقق يسبق الإنشاء داخل ensureTab، فنُفرغ ذاكرة العملية لنضمن فحصاً
     // حقيقياً للملف لا اعتماداً على تشغيل سابق في نفس الدالة
     ensuredTabs.delete(tabName);
-    await ensureTab(sheets, tabName);
+    await ensureTab(sheets, tabName, { refresh: true });
     prepared.push(tabName);
   }
   return prepared;

@@ -90,9 +90,6 @@ export default async function AdminPage() {
       desc: ti.quickAccountsHint,
     },
     ...(isSuperAdmin
-      ? [{ href: "/admin/sheet", title: dict.sheetPage.title, desc: dict.sheetPage.subtitle }]
-      : []),
-    ...(isSuperAdmin
       ? [
           {
             href: "/admin/tests/executive",
@@ -111,6 +108,17 @@ export default async function AdminPage() {
       title: ti.opsTestTitle,
       desc: ti.opsTestHint,
     },
+  ];
+
+  // السجلات مفصولة عن الإدارة: هذه صفحات قراءة ومراجعة، وتلك صفحات إجراء.
+  // خلطُهما هو ما جعل كل شيء يبدو مكدّساً في مكان واحد.
+  const recordLinks = [
+    { href: "/admin/members", title: dict.membersPage.title, desc: dict.membersPage.subtitle },
+    { href: "/admin/tickets", title: dict.ticketsPage.title, desc: dict.ticketsPage.subtitle },
+    { href: "/admin/messages", title: dict.messagesPage.title, desc: dict.messagesPage.subtitle },
+    ...(isSuperAdmin
+      ? [{ href: "/admin/sheet", title: dict.sheetPage.title, desc: dict.sheetPage.subtitle }]
+      : []),
   ];
 
   return (
@@ -270,31 +278,49 @@ export default async function AdminPage() {
           />
         </section>
 
-        {/* الإدارة — روابط ثانوية لا تأخذ مساحة اللوحة */}
+        {/* السجلات — لكل سجل صفحته، بدل تكديس كل شيء في مكان واحد */}
+        <section>
+          <h2 className="mb-3 text-base font-bold sm:text-lg">{t.recordsSectionTitle}</h2>
+          <LinkGrid links={recordLinks} accent={theme.accentDark} />
+        </section>
+
+        {/* الإدارة — روابط الإجراءات */}
         <section>
           <h2 className="mb-3 text-base font-bold sm:text-lg">{t.adminSectionTitle}</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {quickLinks.map((l) => (
-              <Link key={l.href} href={l.href} className="block">
-                <Card className="flex min-h-16 items-center justify-between gap-3 p-4 transition-shadow hover:shadow-md">
-                  <div className="min-w-0">
-                    <h3 className="text-sm font-bold">{l.title}</h3>
-                    <p className="mt-0.5 text-xs leading-relaxed text-black/40">{l.desc}</p>
-                  </div>
-                  {/* سهم منطقي: يُعكس تلقائياً في LTR بدل تثبيت اتجاه عربي */}
-                  <span
-                    className="shrink-0 text-lg font-bold ltr:-scale-x-100"
-                    style={{ color: theme.accentDark }}
-                    aria-hidden
-                  >
-                    ←
-                  </span>
-                </Card>
-              </Link>
-            ))}
-          </div>
+          <LinkGrid links={quickLinks} accent={theme.accentDark} />
         </section>
       </main>
+    </div>
+  );
+}
+
+function LinkGrid({
+  links,
+  accent,
+}: {
+  links: { href: string; title: string; desc: string }[];
+  accent: string;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {links.map((l) => (
+        <Link key={l.href} href={l.href} className="block">
+          <Card className="flex min-h-16 items-center justify-between gap-3 p-4 transition-shadow hover:shadow-md">
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold">{l.title}</h3>
+              <p className="mt-0.5 text-xs leading-relaxed text-black/40">{l.desc}</p>
+            </div>
+            {/* سهم منطقي: يُعكس تلقائياً في LTR بدل تثبيت اتجاه عربي */}
+            <span
+              className="shrink-0 text-lg font-bold ltr:-scale-x-100"
+              style={{ color: accent }}
+              aria-hidden
+            >
+              ←
+            </span>
+          </Card>
+        </Link>
+      ))}
     </div>
   );
 }

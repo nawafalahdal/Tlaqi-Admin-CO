@@ -46,6 +46,7 @@ export function BackfillPanel({ theme }: { theme: ReturnType<typeof themeFromCol
           <p className="font-bold">{t.done}</p>
           <ul className="mt-1 list-inside list-disc text-xs">
             <li>{t.cLifecycle}: {state.counts.lifecycle}</li>
+            <li>{t.cAdminAccounts}: {state.counts.adminAccounts}</li>
             <li>{t.cTickets}: {state.counts.tickets}</li>
             <li>{t.cTests}: {state.counts.testResults}</li>
             <li>{t.cEvents}: {state.counts.events}</li>
