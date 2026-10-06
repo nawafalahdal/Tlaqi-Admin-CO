@@ -3,6 +3,7 @@
 import bcrypt from "bcryptjs";
 import { auth, signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { clearFailedAttempts } from "@/lib/loginAttempts";
 
 export async function changePasswordAction(
   _prevState: { error: string | null },
@@ -44,6 +45,10 @@ export async function changePasswordAction(
       data: { passwordHash: newHash, mustChangePassword: false },
     });
   }
+
+  // أي تعيين جديد لكلمة المرور يصفّر عدّاد المحاولات، وإلا عاد صاحبها من
+  // هنا إلى صفحة الدخول ليجد حسابه مقفلاً بكلمة مرور صحيحة
+  await clearFailedAttempts((session.user.email ?? "").toLowerCase().trim());
 
   // الجلسة (JWT) تحمل mustChangePassword القديمة — نسجّل الخروج ليدخل بكلمة المرور
   // الجديدة ويحصل على جلسة نظيفة، بدل محاولة تحديث الـ JWT الموقّع يدوياً

@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { appendMemberEvent } from "@/lib/googleSheets";
+import { clearFailedAttempts } from "@/lib/loginAttempts";
 import { ROLE_LABELS } from "@/lib/testTracks";
 
 export const RESET_TOKEN_MINUTES = 30;
@@ -113,6 +114,11 @@ export async function consumeResetToken(token: string, newPassword: string) {
       data: { passwordHash, mustChangePassword: false },
     });
   }
+
+  // كلمة المرور الجديدة تُسقط كل أثر للمحاولات الفاشلة السابقة. بدون هذا
+  // السطر يخرج صاحب الحساب من الاستعادة بكلمة مرور صحيحة ثم يُردّ على
+  // باب الدخول برسالة "بيانات غير صحيحة" حتى ينتهي القفل.
+  await clearFailedAttempts(email);
 
   const name = user?.fullName ?? (await prisma.member.findUnique({ where: { email } }))?.fullName ?? "—";
   await appendMemberEvent({

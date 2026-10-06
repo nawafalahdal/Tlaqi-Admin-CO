@@ -3,6 +3,7 @@
 import { signIn } from "@/auth";
 import { AuthError } from "next-auth";
 import { prisma } from "@/lib/prisma";
+import { lockoutMinutesLeft } from "@/lib/loginAttempts";
 
 /** يسمح فقط بمسار داخلي نسبي (يبدأ بـ "/" وليس "//" أو "/\") لمنع Open Redirect
  *  عبر callbackUrl القادم من query string (قابل للتحكم الكامل من المهاجم) */
@@ -37,6 +38,16 @@ export async function loginAction(
     return { error: null };
   } catch (err) {
     if (err instanceof AuthError) {
+      // القفل المؤقت يردّ كلمة المرور الصحيحة أيضاً. إخفاء ذلك خلف رسالة
+      // "بيانات غير صحيحة" يجعل صاحب الحساب يظن أن كلمته خاطئة فيعيد
+      // تعيينها بلا فائدة. العدّاد يُسجَّل للبريد غير المسجّل أيضاً، فإعلان
+      // القفل لا يكشف من هو عضو في المنصة.
+      const minutes = await lockoutMinutesLeft(email.toLowerCase().trim());
+      if (minutes > 0) {
+        return {
+          error: `الحساب مقفل مؤقتاً بعد محاولات دخول متتالية. أعد المحاولة بعد ${minutes} دقيقة — كلمة المرور لم تتغيّر.`,
+        };
+      }
       return { error: "البريد الإلكتروني أو كلمة المرور أو رمز التحقق غير صحيح" };
     }
     throw err;

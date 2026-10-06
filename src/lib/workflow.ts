@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { clearFailedAttempts } from "@/lib/loginAttempts";
 import { appendApprovedMember, appendMemberEvent, appendTestResult, upsertMemberLifecycleRow } from "@/lib/googleSheets";
 import {
   sendCredentialsEmail,
@@ -475,6 +476,11 @@ export async function resetMemberCredentials(
     });
   }
 
+  // الرمز المؤقت الجديد يُبطل كل محاولة فاشلة سابقة — على البريد القديم
+  // والجديد معاً — وإلا سلّمنا صاحب الحساب رمزاً صحيحاً وباباً مقفلاً
+  await clearFailedAttempts(current.email);
+  if (member.email !== current.email) await clearFailedAttempts(member.email);
+
   await sendCredentialsEmail({
     to: member.email,
     fullName: member.fullName,
@@ -502,6 +508,7 @@ export async function resetUserCredentials(
 ) {
   const tempPassword = generateTempPassword();
   const passwordHash = await hashPassword(tempPassword);
+  const previous = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   const user = await prisma.user.update({
     where: { id: userId },
     data: {
@@ -510,6 +517,10 @@ export async function resetUserCredentials(
       ...(newEmail ? { email: newEmail } : {}),
     },
   });
+
+  // كما في حساب العضو: لا رمز مؤقت جديد مع قفل قديم
+  await clearFailedAttempts(previous.email);
+  if (user.email !== previous.email) await clearFailedAttempts(user.email);
 
   await sendCredentialsEmail({
     to: user.email,
