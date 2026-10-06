@@ -64,7 +64,7 @@ export function AccountRow({
               onChange={(e) => setEmail(e.target.value)}
               dir="ltr"
               type="email"
-              className="rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
+              className="min-h-11 rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
             />
           </label>
           <p className="text-xs text-black/40">

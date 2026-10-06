@@ -4,6 +4,7 @@ import { useTransition } from "react";
 import { approveMemberAction, rejectMemberAction } from "./actions";
 import { themeFromColor } from "@/lib/brand";
 import { Button, Card } from "@/components/ui";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 export function ApprovalRow({
   member,
@@ -21,6 +22,7 @@ export function ApprovalRow({
 }) {
   const [pending, startTransition] = useTransition();
   const theme = themeFromColor(member.departmentColor);
+  const t = useTranslations();
 
   function handleApprove() {
     startTransition(async () => {
@@ -53,7 +55,7 @@ export function ApprovalRow({
         <div className="text-end">
           <p className="text-xs text-black/40">{member.departmentName}</p>
           <p className="text-sm font-bold" style={{ color: theme.accentDark }}>
-            نتيجة الاختبار: {member.testScore}%
+            {t.admin.testScoreLabel}: {member.testScore}%
           </p>
         </div>
         <div className="flex gap-2">
@@ -63,10 +65,10 @@ export function ApprovalRow({
             disabled={pending}
             onClick={() => startTransition(() => rejectMemberAction(member.id))}
           >
-            رفض
+            {t.admin.reject}
           </Button>
           <Button theme={theme} disabled={pending} onClick={handleApprove}>
-            اعتماد نهائي
+            {t.admin.approveFinal}
           </Button>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { useActionState, useRef, useEffect } from "react";
 import { raiseTicketAction } from "./actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 export function RaiseTicketForm({
   departments,
@@ -17,6 +18,7 @@ export function RaiseTicketForm({
     success: false,
   });
   const formRef = useRef<HTMLFormElement>(null);
+  const t = useTranslations();
 
   useEffect(() => {
     if (state.success) formRef.current?.reset();
@@ -25,25 +27,25 @@ export function RaiseTicketForm({
   return (
     <form ref={formRef} action={formAction} className="flex flex-col gap-4">
       <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium text-black/70">الموضوع</span>
+        <span className="font-medium text-black/70">{t.member.subjectLabel}</span>
         <input
           name="subject"
           required
-          placeholder="مثال: لم يصلني البانر الترحيبي"
-          className="rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
+          placeholder={t.member.subjectPlaceholder}
+          className="min-h-11 rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
         />
       </label>
 
       <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium text-black/70">القسم المعني</span>
+        <span className="font-medium text-black/70">{t.member.departmentLabel}</span>
         <select
           name="targetDepartmentId"
           required
           defaultValue=""
-          className="rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30 bg-white"
+          className="min-h-11 rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30 bg-white"
         >
           <option value="" disabled>
-            اختر القسم
+            {t.member.departmentPlaceholder}
           </option>
           {departments.map((d) => (
             <option key={d.id} value={d.id}>
@@ -54,26 +56,24 @@ export function RaiseTicketForm({
       </label>
 
       <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium text-black/70">التفاصيل</span>
+        <span className="font-medium text-black/70">{t.member.detailsLabel}</span>
         <textarea
           name="description"
           required
           rows={3}
-          placeholder="اشرح المشكلة بوضوح"
-          className="rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
+          placeholder={t.member.detailsPlaceholder}
+          className="min-h-11 rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
         />
       </label>
 
       {state.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>}
       {state.success && (
-        <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
-          تم رفع التذكرة — سيُرد عليك خلال يومين، وإلا تتصعّد تلقائياً
-        </p>
+        <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">{t.member.raiseSuccess}</p>
       )}
 
       <div>
         <Button theme={theme} type="submit" disabled={pending}>
-          {pending ? "جارِ الرفع..." : "رفع التذكرة"}
+          {pending ? t.member.raiseSubmitting : t.member.raiseSubmit}
         </Button>
       </div>
     </form>

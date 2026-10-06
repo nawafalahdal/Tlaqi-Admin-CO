@@ -4,6 +4,7 @@ import { useState } from "react";
 import { confirmInviteEmailAction, submitInviteTestAction } from "./actions";
 import type { themeFromColor } from "@/lib/brand";
 import { readableTextOn } from "@/lib/colors";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 type Theme = ReturnType<typeof themeFromColor>;
 type Step = "confirm" | "test" | "result" | "already-used" | "expired";
@@ -40,6 +41,7 @@ export function InviteFlow({
   const [qIndex, setQIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [result, setResult] = useState<{ score: number; passed: boolean } | null>(null);
+  const t = useTranslations();
 
   async function handleConfirm(e: React.FormEvent) {
     e.preventDefault();
@@ -48,7 +50,7 @@ export function InviteFlow({
     const res = await confirmInviteEmailAction(token, emailInput);
     setPending(false);
     if (!res.ok) {
-      setError(res.error ?? "حدث خطأ");
+      setError(res.error ?? t.invite.genericError);
       return;
     }
     setStep("test");
@@ -63,7 +65,7 @@ export function InviteFlow({
     const res = await submitInviteTestAction(token, answers);
     setPending(false);
     if (!res.ok) {
-      setError(res.error ?? "حدث خطأ أثناء إرسال الإجابات");
+      setError(res.error ?? t.invite.testSubmitError);
       return;
     }
     setResult({ score: res.score, passed: res.passed });
@@ -76,8 +78,8 @@ export function InviteFlow({
     return (
       <StateCard
         theme={theme}
-        title="تم استخدام هذه الدعوة من قبل"
-        body="سبق أن أكملت الاختبار عبر هذا الرابط. سيتم التواصل معك بخصوص نتيجتك."
+        title={t.invite.usedTitle}
+        body={t.invite.usedBody}
       />
     );
   }
@@ -86,8 +88,8 @@ export function InviteFlow({
     return (
       <StateCard
         theme={theme}
-        title="انتهت صلاحية الدعوة"
-        body="يرجى التواصل مع من دعاك لإصدار رابط جديد."
+        title={t.invite.expiredTitle}
+        body={t.invite.expiredBody}
       />
     );
   }
@@ -96,14 +98,14 @@ export function InviteFlow({
     return (
       <div className="rounded-3xl bg-white p-8 shadow-xl">
         <p className="mb-1 text-xs font-semibold" style={{ color: theme.accentDark }}>
-          دعوة انضمام — {roleLabel}
+          {t.invite.invitePrefix} — {roleLabel}
         </p>
-        <h1 className="mb-6 text-xl font-bold">مرحباً {fullName}</h1>
+        <h1 className="mb-6 text-xl font-bold">{t.invite.welcome} {fullName}</h1>
 
         <form onSubmit={handleConfirm} className="flex flex-col gap-4">
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium text-black/70">
-              للتأكد أن هذا الرابط لك، أدخل بريدك الإلكتروني
+              {t.invite.confirmEmailLabel}
             </span>
             <input
               type="email"
@@ -124,7 +126,7 @@ export function InviteFlow({
             className="mt-2 rounded-xl px-4 py-3 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
             style={{ background: theme.accentDark, color: buttonTextColor }}
           >
-            {pending ? "جارِ التحقق..." : "متابعة لبدء الاختبار"}
+            {pending ? t.invite.verifying : t.invite.continueToTest}
           </button>
         </form>
       </div>
@@ -136,9 +138,9 @@ export function InviteFlow({
       <div className="rounded-3xl bg-white p-8 shadow-xl">
         <div className="mb-6 flex items-center justify-between text-xs text-black/40">
           <span>
-            السؤال {qIndex + 1} من {questions.length}
+            {t.invite.questionLabel} {qIndex + 1} {t.invite.ofLabel} {questions.length}
           </span>
-          <span>اختبار قبول — {roleLabel}</span>
+          <span>{t.invite.admissionTestPrefix} — {roleLabel}</span>
         </div>
 
         <div className="mb-6 h-1.5 w-full overflow-hidden rounded-full bg-black/5">
@@ -183,7 +185,7 @@ export function InviteFlow({
             onClick={() => setQIndex((i) => Math.max(0, i - 1))}
             className="text-sm font-semibold text-black/40 disabled:opacity-0"
           >
-            السابق
+            {t.invite.previous}
           </button>
 
           {isLast ? (
@@ -194,7 +196,7 @@ export function InviteFlow({
               className="rounded-xl px-6 py-3 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
               style={{ background: theme.accentDark, color: buttonTextColor }}
             >
-              {pending ? "جارِ الإرسال..." : "إرسال الإجابات"}
+              {pending ? t.invite.submitting : t.invite.submitAnswers}
             </button>
           ) : (
             <button
@@ -204,7 +206,7 @@ export function InviteFlow({
               className="rounded-xl px-6 py-3 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
               style={{ background: theme.accentDark, color: buttonTextColor }}
             >
-              التالي
+              {t.invite.next}
             </button>
           )}
         </div>
@@ -225,13 +227,11 @@ export function InviteFlow({
         {result?.passed ? "✓" : "!"}
       </div>
       <h1 className="mb-2 text-xl font-bold">
-        {result?.passed ? "تهانينا، اجتزت الاختبار" : "لم تحقق النسبة المطلوبة هذه المرة"}
+        {result?.passed ? t.invite.passedTitle : t.invite.failedTitle}
       </h1>
-      <p className="mb-1 text-sm text-black/60">نتيجتك: {result?.score}%</p>
+      <p className="mb-1 text-sm text-black/60">{t.invite.scoreLabel}: {result?.score}%</p>
       <p className="mx-auto max-w-sm text-sm text-black/60">
-        {result?.passed
-          ? "طلبك الآن بانتظار الاعتماد النهائي. سيتم التواصل معك قريباً."
-          : "سيتم التواصل معك لجدولة اجتماع شرح قصير."}
+        {result?.passed ? t.invite.passedBody : t.invite.failedBody}
       </p>
     </div>
   );

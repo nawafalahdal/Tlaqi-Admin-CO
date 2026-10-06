@@ -2,7 +2,9 @@ import { prisma } from "@/lib/prisma";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { ROLE_LABELS, toQuestionViewModel } from "@/lib/testTracks";
 import { LogoLockup } from "@/components/Logo";
+import { LocaleToggle } from "@/components/LocaleToggle";
 import { InviteFlow } from "./InviteFlow";
+import { getLocale, getDictionary } from "@/i18n";
 
 export default async function InvitePage({
   params,
@@ -16,6 +18,7 @@ export default async function InvitePage({
   });
 
   const theme = themeFromColor(invite?.department?.colorHex ?? SUPER_ADMIN_THEME.colorHex);
+  const t = getDictionary(await getLocale());
 
   const roleLabel = invite
     ? invite.department
@@ -28,13 +31,16 @@ export default async function InvitePage({
       className="flex min-h-screen flex-col items-center px-4 py-10"
       style={{ background: theme.surface }}
     >
+      <div className="mb-4 flex w-full max-w-lg justify-end">
+        <LocaleToggle color={theme.accentDark} />
+      </div>
       <div className="mb-8">
         <LogoLockup size={24} color={theme.accentDark} dotColor={theme.accentDark} />
       </div>
 
       <div className="w-full max-w-lg">
         {!invite ? (
-          <StateCard theme={theme} title="الرابط غير صحيح" body="تعذّر العثور على دعوة بهذا الرابط." />
+          <StateCard theme={theme} title={t.invite.invalidLinkTitle} body={t.invite.invalidLinkBody} />
         ) : (
           <InviteFlow
             token={token}

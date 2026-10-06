@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { themeFromColor } from "@/lib/brand";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 /** يعرض كلمة المرور المؤقتة لمرة واحدة فور إنشائها، مع زر نسخ — نسخة احتياطية
  *  للبريد الإلكتروني حتى يقدر من أنشأ الحساب يرسلها يدوياً (واتساب، شخصياً...).
@@ -18,10 +19,11 @@ export function CredentialsReveal({
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const t = useTranslations();
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(`البريد: ${email}\nكلمة المرور المؤقتة: ${tempPassword}`);
+      await navigator.clipboard.writeText(`${email}\n${tempPassword}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -36,13 +38,13 @@ export function CredentialsReveal({
     >
       <div className="mb-2 flex items-start justify-between gap-2">
         <p className="text-sm font-bold" style={{ color: theme.accentDark }}>
-          تم إنشاء بيانات الدخول — انسخها الآن وأرسلها يدوياً إن احتجت
+          {t.admin.credentialsCreated}
         </p>
         <button type="button" onClick={onClose} className="text-xs text-black/40 hover:text-black/60">
-          إغلاق ✕
+          {t.common.close}
         </button>
       </div>
-      <p className="text-xs text-black/50">هذه آخر مرة تظهر فيها كلمة المرور هذه — لن تُحفظ ولن تُعرض بعد الإغلاق.</p>
+      <p className="text-xs text-black/50">{t.admin.credentialsOnce}</p>
       <div className="mt-3 flex flex-col gap-1 rounded-lg bg-white px-3 py-2 text-sm" dir="ltr">
         <span>{email}</span>
         <span className="font-mono font-bold tracking-wide">{tempPassword}</span>
@@ -53,7 +55,7 @@ export function CredentialsReveal({
         className="mt-3 rounded-lg px-3 py-1.5 text-xs font-semibold"
         style={{ background: theme.accentDark, color: "#FDFBF6" }}
       >
-        {copied ? "تم النسخ ✓" : "نسخ البريد وكلمة المرور"}
+        {copied ? t.admin.copied : t.admin.copy}
       </button>
     </div>
   );

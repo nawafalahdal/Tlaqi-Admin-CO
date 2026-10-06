@@ -1,6 +1,9 @@
 import { signOut } from "@/auth";
+import { getLocale, getDictionary } from "@/i18n";
 
-export function LogoutButton({ color }: { color: string }) {
+export async function LogoutButton({ color }: { color: string }) {
+  const t = getDictionary(await getLocale());
+
   return (
     <form
       action={async () => {
@@ -13,7 +16,7 @@ export function LogoutButton({ color }: { color: string }) {
         className="rounded-lg px-3 py-1.5 text-xs font-semibold opacity-90 hover:opacity-100"
         style={{ color, border: `1px solid ${color}55` }}
       >
-        تسجيل الخروج
+        {t.common.logout}
       </button>
     </form>
   );

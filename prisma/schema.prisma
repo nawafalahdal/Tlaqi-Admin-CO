@@ -82,12 +82,13 @@ model Department {
   colorHex  String
   createdAt DateTime @default(now())
 
-  admins     User[]
-  invites    Invite[]
-  members    Member[]
-  requests   Request[]   @relation("TargetDepartmentRequests")
-  testTracks TestTrack[]
-  tickets    Ticket[]    @relation("TicketTargetDepartment")
+  admins        User[]
+  invites       Invite[]
+  members       Member[]
+  requests      Request[]      @relation("TargetDepartmentRequests")
+  testTracks    TestTrack[]
+  tickets       Ticket[]       @relation("TicketTargetDepartment")
+  announcements Announcement[]
 }
 
 /// حساب إداري (قائد قسم / تنفيذي / الإدارة العليا) — يُنشأ إما مباشرة (بذرة النظام)
@@ -245,6 +246,28 @@ model Ticket {
   sheetRow           Int?
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
+}
+
+/// جمهور الإعلان — يحدد من يراه على لوحته
+enum AnnouncementAudience {
+  everyone
+  leadership
+  department
+}
+
+/// إعلان داخلي ينشره الفاونڈر أو التنفيذي أو مسؤول التشغيل — يظهر لجمهوره
+/// المحدد على رأس لوحته، وهو قناة التواصل الرسمية بدل الرسائل المتفرقة
+model Announcement {
+  id           String               @id @default(cuid())
+  title        String
+  body         String
+  audience     AnnouncementAudience @default(everyone)
+  departmentId String?
+  department   Department?          @relation(fields: [departmentId], references: [id])
+  authorId     String
+  authorName   String
+  createdAt    DateTime             @default(now())
+  pinnedUntil  DateTime?
 }
 
 /// يمنع هجمات التخمين وحشو بيانات الاعتماد — يتتبع محاولات الدخول الفاشلة لكل

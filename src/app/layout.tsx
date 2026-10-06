@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Cairo } from "next/font/google";
 import "./globals.css";
+import { getLocale } from "@/i18n";
+import { LocaleProvider } from "@/i18n/LocaleProvider";
 
 const cairo = Cairo({
   variable: "--font-cairo",
@@ -14,15 +16,17 @@ export const metadata: Metadata = {
   icons: { icon: "/brand/favicon.png" },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const locale = await getLocale();
+
   return (
     <html
-      lang="ar"
-      dir="rtl"
+      lang={locale}
+      dir={locale === "ar" ? "rtl" : "ltr"}
       className={`${cairo.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        {children}
+        <LocaleProvider initialLocale={locale}>{children}</LocaleProvider>
       </body>
     </html>
   );

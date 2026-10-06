@@ -81,7 +81,7 @@ export function DeptAdminInviteForm({ departments }: { departments: Dept[] }) {
             name="departmentId"
             required
             defaultValue=""
-            className="rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30 bg-white"
+            className="min-h-11 rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30 bg-white"
           >
             <option value="" disabled>
               اختر القسم
@@ -164,7 +164,7 @@ function Field({
         required
         placeholder={placeholder}
         dir={dir}
-        className="rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
+        className="min-h-11 rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
       />
     </label>
   );

@@ -5,6 +5,7 @@ import { acknowledgeWarningAction } from "./actions";
 import { Card, Button } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import type { themeFromColor } from "@/lib/brand";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 export function WarningCard({
   warning,
@@ -14,6 +15,7 @@ export function WarningCard({
   theme: ReturnType<typeof themeFromColor>;
 }) {
   const [pending, startTransition] = useTransition();
+  const t = useTranslations();
 
   return (
     <Card className="p-4">
@@ -21,11 +23,11 @@ export function WarningCard({
         <span className="text-xs text-black/40">{formatDate(warning.createdAt)}</span>
         {warning.acknowledgedAt ? (
           <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700">
-            تم الاطلاع
+            {t.member.warningAcknowledged}
           </span>
         ) : (
           <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: theme.surface, color: theme.accentDark }}>
-            غير مُطّلع عليه
+            {t.member.warningUnacknowledged}
           </span>
         )}
       </div>
@@ -36,7 +38,7 @@ export function WarningCard({
           disabled={pending}
           onClick={() => startTransition(() => acknowledgeWarningAction(warning.id))}
         >
-          تأكيد الاطلاع
+          {t.member.warningAckButton}
         </Button>
       )}
     </Card>

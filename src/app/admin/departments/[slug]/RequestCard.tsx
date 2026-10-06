@@ -6,13 +6,7 @@ import { Card, StatusBadge } from "@/components/ui";
 import { themeFromColor } from "@/lib/brand";
 import { readableTextOn } from "@/lib/colors";
 import { formatDate } from "@/lib/format";
-
-const TYPE_LABELS: Record<string, string> = {
-  welcome_banner: "بانر ترحيبي",
-  custom_design: "تصميم مخصص",
-  dept_contact: "تواصل قسم",
-  meeting: "اجتماع شرح",
-};
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 export function RequestCard({
   request,
@@ -29,18 +23,20 @@ export function RequestCard({
   theme: ReturnType<typeof themeFromColor>;
 }) {
   const [pending, startTransition] = useTransition();
+  const t = useTranslations();
 
   const nextStatus =
     request.status === "new" ? "in_progress" : request.status === "in_progress" ? "done" : null;
-  const nextLabel = request.status === "new" ? "بدء التنفيذ" : "تمييز كمنجز";
+  const nextLabel = request.status === "new" ? t.requestCard.startWork : t.requestCard.markDone;
+  const typeLabel = (t.requestType as Record<string, string>)[request.type] ?? request.type;
 
   return (
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-sm font-bold">{TYPE_LABELS[request.type] ?? request.type}</p>
+          <p className="text-sm font-bold">{typeLabel}</p>
           {request.linkedMemberName && (
-            <p className="text-xs text-black/50">متعلق بـ: {request.linkedMemberName}</p>
+            <p className="text-xs text-black/50">{t.requestCard.relatedTo}: {request.linkedMemberName}</p>
           )}
         </div>
         <StatusBadge status={request.status} />
@@ -50,7 +46,7 @@ export function RequestCard({
 
       <div className="flex items-center justify-between pt-1">
         <span className="text-xs text-black/40">
-          {request.dueDate ? `المهلة: ${formatDate(request.dueDate)}` : ""}
+          {request.dueDate ? `${t.requestCard.deadline}: ${formatDate(request.dueDate)}` : ""}
         </span>
         {nextStatus && (
           <button

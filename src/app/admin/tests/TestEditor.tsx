@@ -4,6 +4,7 @@ import { useActionState, useState, useTransition, useRef, useEffect } from "reac
 import { addQuestionAction, updateQuestionAction, deleteQuestionAction } from "./actions";
 import { Card, Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 type Question = {
   id: string;
@@ -24,11 +25,12 @@ export function TestEditor({
   readOnly?: boolean;
 }) {
   const [adding, setAdding] = useState(false);
+  const t = useTranslations();
 
   return (
     <div className="flex flex-col gap-4">
       {questions.length === 0 && !adding && (
-        <Card className="p-8 text-center text-sm text-black/40">لا توجد أسئلة بعد في هذا الاختبار</Card>
+        <Card className="p-8 text-center text-sm text-black/40">{t.testEditor.empty}</Card>
       )}
 
       {questions.map((q, i) => (
@@ -46,7 +48,7 @@ export function TestEditor({
           </Card>
         ) : (
           <Button theme={theme} variant="outline" onClick={() => setAdding(true)}>
-            + إضافة سؤال جديد
+            {t.testEditor.addQuestion}
           </Button>
         ))}
     </div>
@@ -66,6 +68,7 @@ function QuestionCard({
 }) {
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
+  const t = useTranslations();
 
   if (editing) {
     return (
@@ -89,7 +92,7 @@ function QuestionCard({
               className="text-xs font-semibold"
               style={{ color: theme.accentDark }}
             >
-              تعديل
+              {t.testEditor.edit}
             </button>
             <button
               type="button"
@@ -97,7 +100,7 @@ function QuestionCard({
               onClick={() => startTransition(() => deleteQuestionAction(question.id))}
               className="text-xs font-semibold text-red-600 disabled:opacity-50"
             >
-              حذف
+              {t.testEditor.delete}
             </button>
           </div>
         )}
@@ -136,6 +139,7 @@ function QuestionForm({
   const [state, formAction, pending] = useActionState(action, { error: null });
   const [correctIndex, setCorrectIndex] = useState(question?.correctIndex ?? 0);
   const submittedRef = useRef(false);
+  const t = useTranslations();
 
   useEffect(() => {
     if (submittedRef.current && !pending && !state.error) onDone();
@@ -157,13 +161,13 @@ function QuestionForm({
       <input type="hidden" name="correctIndex" value={correctIndex} />
 
       <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium text-black/70">نص السؤال</span>
+        <span className="font-medium text-black/70">{t.testEditor.promptLabel}</span>
         <textarea
           name="prompt"
           required
           rows={2}
           defaultValue={question?.prompt}
-          className="rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
+          className="min-h-11 rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
         />
       </label>
 
@@ -181,22 +185,22 @@ function QuestionForm({
               name={`option${i}`}
               required
               defaultValue={question?.options[i]}
-              placeholder={`خيار ${i + 1}`}
+              placeholder={`${t.testEditor.optionPlaceholder} ${i + 1}`}
               className="flex-1 rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-black/30"
             />
           </label>
         ))}
       </div>
-      <p className="text-xs text-black/40">اختر الدائرة بجانب الإجابة الصحيحة</p>
+      <p className="text-xs text-black/40">{t.testEditor.correctHint}</p>
 
       {state.error && <p className="text-sm text-red-700">{state.error}</p>}
 
       <div className="flex gap-2">
         <Button theme={theme} type="submit" disabled={pending}>
-          {pending ? "جارِ الحفظ..." : "حفظ"}
+          {pending ? t.testEditor.saving : t.testEditor.save}
         </Button>
         <Button theme={theme} variant="ghost" onClick={onDone}>
-          إلغاء
+          {t.common.cancel}
         </Button>
       </div>
     </form>

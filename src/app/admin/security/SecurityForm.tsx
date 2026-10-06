@@ -54,7 +54,7 @@ export function SecurityForm({ initialEnabled }: { initialEnabled: boolean }) {
               type="password"
               required
               autoComplete="current-password"
-              className="rounded-xl border border-black/10 px-4 py-3 text-sm outline-none focus:border-[var(--brand-temptress)] focus:ring-2 focus:ring-[var(--brand-temptress)]/15"
+              className="min-h-11 rounded-xl border border-black/10 px-4 py-3 text-sm outline-none focus:border-[var(--brand-temptress)] focus:ring-2 focus:ring-[var(--brand-temptress)]/15"
             />
           </label>
           {disableState.error && (

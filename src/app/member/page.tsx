@@ -9,6 +9,9 @@ import { WarningCard } from "./WarningCard";
 import { MyTicketCard } from "./MyTicketCard";
 import { RaiseTicketForm } from "./RaiseTicketForm";
 import { sweepTicketEscalation } from "@/lib/tickets";
+import { getLocale, getDictionary } from "@/i18n";
+import { announcementsForSession } from "@/lib/announcements";
+import { AnnouncementList } from "@/app/admin/hub/AnnouncementList";
 
 export default async function MemberPortalPage() {
   const session = await auth();
@@ -21,6 +24,7 @@ export default async function MemberPortalPage() {
   });
 
   const theme = themeFromColor(member.department?.colorHex ?? BRAND.temptress);
+  const t = getDictionary(await getLocale());
 
   await sweepTicketEscalation();
 
@@ -29,11 +33,8 @@ export default async function MemberPortalPage() {
       <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-4" style={{ background: BRAND.temptress }}>
         <LogoLockup size={24} color={BRAND.beige} dotColor={BRAND.mahogany} />
         <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl">
-          <h1 className="mb-2 text-lg font-bold text-red-700">تم إنهاء العضوية</h1>
-          <p className="text-sm text-black/60">
-            نظراً لتجاوز عدد التنبيهات المسموح (3/3)، تم إنهاء عضويتك في منصة تَـــلاقِ. للاستفسار يرجى التواصل مع
-            قسمك مباشرة.
-          </p>
+          <h1 className="mb-2 text-lg font-bold text-red-700">{t.member.deactivatedTitle}</h1>
+          <p className="text-sm text-black/60">{t.member.deactivatedBody}</p>
         </div>
       </main>
     );
@@ -41,32 +42,54 @@ export default async function MemberPortalPage() {
 
   const unacknowledged = member.warnings.filter((w) => !w.acknowledgedAt).length;
 
-  const [departments, tickets] = await Promise.all([
+  const [departments, tickets, announcements] = await Promise.all([
     prisma.department.findMany({ orderBy: { name: "asc" } }),
     prisma.ticket.findMany({ where: { memberId: member.id }, orderBy: { createdAt: "desc" } }),
+    announcementsForSession(session, 6),
   ]);
 
   return (
     <div className="min-h-screen bg-[#FAF8F4]">
-      <AppHeader theme={theme} roleName={member.department?.name ?? "عضو"} userName={member.fullName}>
+      <AppHeader theme={theme} roleName={member.department?.name ?? t.member.roleFallback} userName={member.fullName}>
         <HeaderActions color={theme.text} />
       </AppHeader>
 
-      <main className="mx-auto max-w-2xl px-5 py-8 flex flex-col gap-8">
+      <main className="mx-auto flex max-w-2xl flex-col gap-8 px-4 py-6 sm:px-5 sm:py-8">
         <section>
-          <Card className="p-6">
-            <p className="text-xs text-black/40">عضو في</p>
-            <p className="text-lg font-bold">{member.department?.name ?? "—"}</p>
+          <Card className="p-4 sm:p-6">
+            <p className="text-xs text-black/40">{t.member.memberOf}</p>
+            <p className="text-lg font-bold">{member.department?.name ?? t.member.departmentFallback}</p>
             {member.jobTitle && <p className="text-sm text-black/50">{member.jobTitle}</p>}
           </Card>
         </section>
 
         <section>
+          <h2 className="mb-3 text-base font-bold sm:text-lg">{t.hub.announcementsTitle}</h2>
+          <AnnouncementList
+            canDelete={false}
+            announcements={announcements.map((a) => ({
+              id: a.id,
+              title: a.title,
+              body: a.body,
+              audience: a.audience,
+              departmentName: a.department?.name ?? null,
+              authorName: a.authorName,
+              createdAt: a.createdAt.toISOString(),
+            }))}
+          />
+        </section>
+
+        <section>
           <h2 className="mb-4 text-lg font-bold">
-            التنبيهات {unacknowledged > 0 && <span className="text-sm font-normal text-black/40">({unacknowledged} بانتظار الاطلاع)</span>}
+            {t.member.warningsTitle}{" "}
+            {unacknowledged > 0 && (
+              <span className="text-sm font-normal text-black/40">
+                ({unacknowledged} {t.member.warningsPending})
+              </span>
+            )}
           </h2>
           {member.warnings.length === 0 ? (
-            <Card className="p-8 text-center text-sm text-black/40">لا توجد أي تنبيهات — استمر بهذا الأداء</Card>
+            <Card className="p-8 text-center text-sm text-black/40">{t.member.warningsEmpty}</Card>
           ) : (
             <div className="flex flex-col gap-3">
               {member.warnings.map((w) => (
@@ -86,34 +109,34 @@ export default async function MemberPortalPage() {
         </section>
 
         <section>
-          <h2 className="mb-4 text-lg font-bold">رفع تذكرة جديدة</h2>
-          <p className="mb-4 -mt-3 text-xs text-black/40">
-            مثال: لم يصلك البانر الترحيبي، أو أي مشكلة تحتاج متابعة من قسم معيّن
-          </p>
+          <h2 className="mb-4 text-lg font-bold">{t.member.raiseTicketTitle}</h2>
+          <p className="mb-4 -mt-3 text-xs text-black/40">{t.member.raiseTicketHint}</p>
           <Card className="p-6">
             <RaiseTicketForm departments={departments} theme={theme} />
           </Card>
         </section>
 
         <section>
-          <h2 className="mb-4 text-lg font-bold">تذاكري {tickets.length > 0 && `(${tickets.length})`}</h2>
+          <h2 className="mb-4 text-lg font-bold">
+            {t.member.myTicketsTitle} {tickets.length > 0 && `(${tickets.length})`}
+          </h2>
           {tickets.length === 0 ? (
-            <Card className="p-8 text-center text-sm text-black/40">لا توجد تذاكر مرفوعة بعد</Card>
+            <Card className="p-8 text-center text-sm text-black/40">{t.member.myTicketsEmpty}</Card>
           ) : (
             <div className="flex flex-col gap-3">
-              {tickets.map((t) => (
+              {tickets.map((tk) => (
                 <MyTicketCard
-                  key={t.id}
+                  key={tk.id}
                   theme={theme}
                   ticket={{
-                    id: t.id,
-                    ticketNumber: t.ticketNumber,
-                    subject: t.subject,
-                    description: t.description,
-                    status: t.status,
-                    stage: t.stage,
-                    stageDueAt: t.stageDueAt.toISOString(),
-                    resolutionNote: t.resolutionNote,
+                    id: tk.id,
+                    ticketNumber: tk.ticketNumber,
+                    subject: tk.subject,
+                    description: tk.description,
+                    status: tk.status,
+                    stage: tk.stage,
+                    stageDueAt: tk.stageDueAt.toISOString(),
+                    resolutionNote: tk.resolutionNote,
                   }}
                 />
               ))}

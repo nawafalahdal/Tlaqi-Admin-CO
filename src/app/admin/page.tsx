@@ -1,18 +1,21 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { sweepOverdueRequests, REQUEST_TYPE_LABELS } from "@/lib/workflow";
+import { sweepOverdueRequests } from "@/lib/workflow";
 import { sweepTicketEscalation } from "@/lib/tickets";
+import { announcementsForSession, canPublishAnnouncement } from "@/lib/announcements";
 import { TicketCard } from "./tickets/TicketCard";
 import { themeFromColor, SUPER_ADMIN_THEME, BRAND } from "@/lib/brand";
-import { ROLE_LABELS } from "@/lib/testTracks";
 import { AppHeader, Card, StatusBadge } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
-import { ExecutiveInviteForm, DeptAdminInviteForm, OperationsOfficerInviteForm } from "./LeadershipInviteForms";
+import { DataTable } from "@/components/DataTable";
 import { ApprovalQueue } from "./ApprovalQueue";
-import { CopyInviteLink } from "@/components/CopyInviteLink";
+import { AnnouncementComposer } from "./hub/AnnouncementComposer";
+import { AnnouncementList } from "./hub/AnnouncementList";
+import { LeadershipRequestForm } from "./hub/LeadershipRequestForm";
 import { formatDate } from "@/lib/format";
-import Link from "next/link";
+import { getLocale, getDictionary } from "@/i18n";
 
 export default async function AdminPage() {
   const session = await auth();
@@ -29,96 +32,139 @@ export default async function AdminPage() {
   await sweepOverdueRequests();
   await sweepTicketEscalation();
 
-  const [departments, leadershipQueue, memberQueue, requests, invites, escalatedTickets] = await Promise.all([
-    prisma.department.findMany({ orderBy: { name: "asc" } }),
-    prisma.member.findMany({
-      where: {
-        approvalStatus: "pending_review",
-        testStatus: "passed",
-        invite: { targetRole: { in: ["department_admin", "operations_officer", "executive"] } },
-      },
-      include: { department: true, invite: true },
-      orderBy: { createdAt: "asc" },
-    }),
-    prisma.member.findMany({
-      where: {
-        approvalStatus: "pending_review",
-        testStatus: "passed",
-        invite: { targetRole: "member" },
-      },
-      include: { department: true, invite: true },
-      orderBy: { createdAt: "asc" },
-    }),
-    prisma.request.findMany({
-      include: { targetDepartment: true, linkedMember: true },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-    }),
-    prisma.invite.findMany({
-      include: { department: true },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-    }),
-    prisma.ticket.findMany({
-      where: { status: { in: ["open", "in_progress"] }, stage: "ceo_escalation" },
-      include: { member: true, targetDepartment: true },
-      orderBy: { createdAt: "desc" },
-    }),
-  ]);
+  const [departments, leadershipQueue, memberQueue, requests, escalatedTickets, announcements] =
+    await Promise.all([
+      prisma.department.findMany({ orderBy: { name: "asc" } }),
+      prisma.member.findMany({
+        where: {
+          approvalStatus: "pending_review",
+          testStatus: "passed",
+          invite: { targetRole: { in: ["department_admin", "operations_officer", "executive"] } },
+        },
+        include: { department: true, invite: true },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.member.findMany({
+        where: {
+          approvalStatus: "pending_review",
+          testStatus: "passed",
+          invite: { targetRole: "member" },
+        },
+        include: { department: true, invite: true },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.request.findMany({
+        include: { targetDepartment: true, linkedMember: true },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+      }),
+      prisma.ticket.findMany({
+        where: { status: { in: ["open", "in_progress"] }, stage: "ceo_escalation" },
+        include: { member: true, targetDepartment: true },
+        orderBy: { createdAt: "desc" },
+      }),
+      announcementsForSession(session, 8),
+    ]);
 
+  const dict = getDictionary(await getLocale());
+  const t = dict.hub;
+  const ti = dict.invitesPage;
+  const ta = dict.admin;
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
-  const appBaseUrl = process.env.APP_BASE_URL || "http://localhost:3000";
+  const canPublish = canPublishAnnouncement(session.user.role);
+  const deptOptions = departments.map((d) => ({ id: d.id, name: d.name }));
+
+  const pendingCount = leadershipQueue.length + memberQueue.length;
+  const openRequests = requests.filter((r) => r.status !== "done").length;
+
+  const quickLinks = [
+    {
+      href: "/admin/invites",
+      title: ti.quickInvites,
+      desc: ti.quickInvitesHint,
+    },
+    {
+      href: "/admin/accounts",
+      title: ti.quickAccounts,
+      desc: ti.quickAccountsHint,
+    },
+    ...(isSuperAdmin
+      ? [
+          {
+            href: "/admin/tests/executive",
+            title: ta.execTestTitle,
+            desc: ta.execTestHint,
+          },
+        ]
+      : []),
+    {
+      href: "/admin/tests/leads",
+      title: ta.leadTestTitle,
+      desc: ta.leadTestHint,
+    },
+    {
+      href: "/admin/tests/operations",
+      title: ti.opsTestTitle,
+      desc: ti.opsTestHint,
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-[#FAF8F4]">
       <AppHeader
         theme={theme}
-        roleName={isSuperAdmin ? "الفاونڈر — الإدارة العليا" : "الإدارة التنفيذية (CEO)"}
+        roleName={isSuperAdmin ? ta.founderRole : ta.ceoRole}
         userName={session.user.name ?? ""}
       >
         <HeaderActions color={theme.text} />
       </AppHeader>
 
-      <main className="mx-auto max-w-6xl px-5 py-8 flex flex-col gap-8">
-        {isSuperAdmin && (
-          <section>
-            <h1 className="mb-1 text-xl font-bold">إنشاء حساب تنفيذي (CEO)</h1>
-            <p className="mb-4 text-sm text-black/50">
-              يحصل على صلاحية إنشاء حسابات قادة الأقسام — لا يمكنه إنشاء حساب تنفيذي آخر
-            </p>
-            <Card className="p-6">
-              <ExecutiveInviteForm />
-            </Card>
-          </section>
-        )}
-
-        <section>
-          <h2 className="mb-1 text-lg font-bold">إنشاء حساب مسؤول تشغيل</h2>
-          <p className="mb-4 text-sm text-black/50">
-            يطّلع على كل التذاكر والطلبات بتواريخها عبر كل الأقسام، ويرسل تذكيرات — بدون صلاحية حل التذاكر نفسها
-          </p>
-          <Card className="p-6">
-            <OperationsOfficerInviteForm />
-          </Card>
+      <main className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-6 sm:px-5 sm:py-8">
+        {/* نبض التشغيل — أول ما يراه المستخدم */}
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatTile label={t.statEscalated} value={escalatedTickets.length} theme={theme} />
+          <StatTile label={t.statPending} value={pendingCount} theme={theme} />
+          <StatTile label={t.statOpenRequests} value={openRequests} theme={theme} />
+          <StatTile label={t.statDepartments} value={departments.length} theme={theme} />
         </section>
 
+        {/* الإعلانات */}
         <section>
-          <h2 className="mb-1 text-lg font-bold">إنشاء حساب قائد قسم</h2>
-          <p className="mb-4 text-sm text-black/50">
-            حوكمة صارمة: هذا الحساب وحده من يملك دعوة أعضاء جدد داخل قسمه
-          </p>
-          <Card className="p-6">
-            <DeptAdminInviteForm departments={departments} />
-          </Card>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold sm:text-lg">{t.announcementsTitle}</h2>
+              <p className="text-xs text-black/40">
+                {t.announcementsHint}
+              </p>
+            </div>
+            {canPublish && <AnnouncementComposer departments={deptOptions} theme={theme} />}
+          </div>
+          <AnnouncementList
+            canDelete={canPublish}
+            announcements={announcements.map((a) => ({
+              id: a.id,
+              title: a.title,
+              body: a.body,
+              audience: a.audience,
+              departmentName: a.department?.name ?? null,
+              authorName: a.authorName,
+              createdAt: a.createdAt.toISOString(),
+            }))}
+          />
         </section>
 
+        {/* التذاكر المصعّدة */}
         <section>
-          <h2 className="mb-4 text-lg font-bold">تذاكر مصعّدة إلى الإدارة التنفيذية ({escalatedTickets.length})</h2>
-          <p className="mb-4 -mt-3 text-xs text-black/40">
-            تذاكر لم تُحل خلال 4 أيام عبر القسم المستهدف ثم قائد قسم العضو — تحتاج تدخلك الآن
+          <h2 className="text-base font-bold sm:text-lg">
+            {ta.escalatedTicketsTitle} ({escalatedTickets.length})
+          </h2>
+          <p className="mb-3 mt-1 text-xs text-black/40">
+            {ta.escalatedTicketsHint}
           </p>
           {escalatedTickets.length === 0 ? (
-            <Card className="p-8 text-center text-sm text-black/40">لا توجد تذاكر متصعّدة حالياً</Card>
+            <Card className="p-8 text-center text-sm text-black/40">
+              {ta.escalatedTicketsEmpty}
+            </Card>
           ) : (
             <div className="flex flex-col gap-3">
               {escalatedTickets.map((t) => (
@@ -143,28 +189,72 @@ export default async function AdminPage() {
           )}
         </section>
 
+        {/* الطلبات بين الأقسام */}
         <section>
-          <h2 className="mb-4 text-lg font-bold">بانتظار اعتماد القيادة</h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold sm:text-lg">{t.requestsTitle}</h2>
+              <p className="text-xs text-black/40">
+                {t.requestsHint}
+              </p>
+            </div>
+            {canPublish && <LeadershipRequestForm departments={deptOptions} theme={theme} />}
+          </div>
+          <DataTable
+            emptyLabel={ta.requestsEmpty}
+            columns={[
+              { key: "type", label: ta.colType, primary: true },
+              { key: "dept", label: ta.colTargetDept },
+              { key: "member", label: ta.colRelatedTo },
+              { key: "status", label: ta.colStatus },
+              { key: "due", label: ta.colDeadline },
+            ]}
+            rows={requests.map((r) => ({
+              id: r.id,
+              cells: {
+                type: dict.requestType[r.type],
+                dept: (
+                  <span className="inline-flex items-center gap-1.5 text-black/70">
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ background: r.targetDepartment.colorHex }}
+                    />
+                    {r.targetDepartment.name}
+                  </span>
+                ),
+                member: r.linkedMember?.fullName ?? "—",
+                status: <StatusBadge status={r.status} />,
+                due: r.dueDate ? formatDate(r.dueDate) : "—",
+              },
+            }))}
+          />
+        </section>
+
+        {/* الاعتمادات */}
+        <section>
+          <h2 className="mb-3 text-base font-bold sm:text-lg">{ta.leadershipQueueTitle}</h2>
           <ApprovalQueue
-            emptyMessage="لا يوجد مرشحون لمناصب قيادية بانتظار الاعتماد حالياً"
+            emptyMessage={ta.leadershipQueueEmpty}
             members={leadershipQueue.map((m) => ({
               id: m.id,
               fullName: m.fullName,
               email: m.email,
               testScore: m.testScore,
-              departmentName: m.department?.name ?? ROLE_LABELS[m.invite.targetRole],
+              departmentName: m.department?.name ?? dict.roles[m.invite.targetRole],
               departmentColor: m.department?.colorHex ?? BRAND.temptress,
             }))}
           />
         </section>
 
         <section>
-          <h2 className="mb-4 text-lg font-bold">نظرة عامة — اعتماد الأعضاء في الأقسام</h2>
-          <p className="mb-4 -mt-3 text-xs text-black/40">
-            الاعتماد الأساسي من مسؤولية أدمن كل قسم؛ هذه نظرة شاملة فقط
+          <h2 className="text-base font-bold sm:text-lg">
+            {ta.memberQueueTitle}
+          </h2>
+          <p className="mb-3 mt-1 text-xs text-black/40">
+            {ta.memberQueueHint}
           </p>
           <ApprovalQueue
-            emptyMessage="لا يوجد أعضاء بانتظار الاعتماد"
+            emptyMessage={ta.memberQueueEmpty}
             members={memberQueue.map((m) => ({
               id: m.id,
               fullName: m.fullName,
@@ -176,165 +266,49 @@ export default async function AdminPage() {
           />
         </section>
 
+        {/* الإدارة — روابط ثانوية لا تأخذ مساحة اللوحة */}
         <section>
-          <h2 className="mb-4 text-lg font-bold">أحدث الدعوات الصادرة</h2>
-          <Card className="overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-black/5 text-start text-xs text-black/40">
-                  <th className="px-4 py-3 font-medium">الاسم</th>
-                  <th className="px-4 py-3 font-medium">المسار</th>
-                  <th className="px-4 py-3 font-medium">الحالة</th>
-                  <th className="px-4 py-3 font-medium">تاريخ الإصدار</th>
-                  <th className="px-4 py-3 font-medium">رابط الدعوة</th>
-                </tr>
-              </thead>
-              <tbody>
-                {invites.map((inv) => (
-                  <tr key={inv.id} className="border-b border-black/5 last:border-0">
-                    <td className="px-4 py-3 font-medium">{inv.fullName}</td>
-                    <td className="px-4 py-3 text-black/60">
-                      {ROLE_LABELS[inv.targetRole]}
-                      {inv.department ? ` — ${inv.department.name}` : ""}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={inv.status} />
-                    </td>
-                    <td className="px-4 py-3 text-black/50">{formatDate(inv.createdAt)}</td>
-                    <td className="px-4 py-3">
-                      {inv.status === "open" ? (
-                        <CopyInviteLink inviteUrl={`${appBaseUrl}/invite/${inv.token}`} />
-                      ) : (
-                        <span className="text-xs text-black/30">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {invites.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-black/40">
-                      لا توجد دعوات بعد
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </Card>
-        </section>
-
-        <section>
-          <h2 className="mb-4 text-lg font-bold">الطلبات بين الأقسام — نظرة شاملة</h2>
-          <Card className="overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-black/5 text-start text-xs text-black/40">
-                  <th className="px-4 py-3 font-medium">النوع</th>
-                  <th className="px-4 py-3 font-medium">القسم المستهدف</th>
-                  <th className="px-4 py-3 font-medium">متعلق بـ</th>
-                  <th className="px-4 py-3 font-medium">الحالة</th>
-                  <th className="px-4 py-3 font-medium">المهلة</th>
-                </tr>
-              </thead>
-              <tbody>
-                {requests.map((r) => (
-                  <tr key={r.id} className="border-b border-black/5 last:border-0">
-                    <td className="px-4 py-3 font-medium">{REQUEST_TYPE_LABELS[r.type]}</td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-1.5 text-black/70">
-                        <span
-                          className="h-2.5 w-2.5 rounded-full"
-                          style={{ background: r.targetDepartment.colorHex }}
-                        />
-                        {r.targetDepartment.name}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-black/60">{r.linkedMember?.fullName ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={r.status} />
-                    </td>
-                    <td className="px-4 py-3 text-black/50">{r.dueDate ? formatDate(r.dueDate) : "—"}</td>
-                  </tr>
-                ))}
-                {requests.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-black/40">
-                      لا توجد طلبات بعد
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </Card>
-        </section>
-
-        <section>
-          <Card className="p-5 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-bold">إدارة الحسابات القيادية</h2>
-              <p className="text-xs text-black/40">
-                مشاكل الدخول: إعادة تعيين كلمة المرور أو تعديل البريد لأي حساب
-              </p>
-            </div>
-            <Link
-              href="/admin/accounts"
-              className="rounded-lg px-3 py-1.5 text-xs font-semibold"
-              style={{ background: theme.surface, color: theme.accentDark }}
-            >
-              فتح
-            </Link>
-          </Card>
-        </section>
-
-        {isSuperAdmin && (
-          <section>
-            <Card className="p-5 flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-bold">اختبار الإدارة التنفيذية</h2>
-                <p className="text-xs text-black/40">الأسئلة التي يجتازها مرشحو حساب CEO</p>
-              </div>
-              <Link
-                href="/admin/tests/executive"
-                className="rounded-lg px-3 py-1.5 text-xs font-semibold"
-                style={{ background: theme.surface, color: theme.accentDark }}
-              >
-                تعديل الأسئلة
+          <h2 className="mb-3 text-base font-bold sm:text-lg">{t.adminSectionTitle}</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {quickLinks.map((l) => (
+              <Link key={l.href} href={l.href} className="block">
+                <Card className="flex min-h-16 items-center justify-between gap-3 p-4 transition-shadow hover:shadow-md">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-bold">{l.title}</h3>
+                    <p className="mt-0.5 text-xs leading-relaxed text-black/40">{l.desc}</p>
+                  </div>
+                  <span
+                    className="shrink-0 text-lg font-bold"
+                    style={{ color: theme.accentDark }}
+                    aria-hidden
+                  >
+                    ←
+                  </span>
+                </Card>
               </Link>
-            </Card>
-          </section>
-        )}
-
-        <section>
-          <Card className="p-5 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-bold">اختبار قادة الأقسام</h2>
-              <p className="text-xs text-black/40">الأسئلة التي يجتازها مرشحو قيادة أي قسم</p>
-            </div>
-            <Link
-              href="/admin/tests/leads"
-              className="rounded-lg px-3 py-1.5 text-xs font-semibold"
-              style={{ background: theme.surface, color: theme.accentDark }}
-            >
-              تعديل الأسئلة
-            </Link>
-          </Card>
-        </section>
-
-        <section>
-          <Card className="p-5 flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-bold">اختبار مسؤول التشغيل</h2>
-              <p className="text-xs text-black/40">الأسئلة التي يجتازها مرشحو مسؤول التشغيل</p>
-            </div>
-            <Link
-              href="/admin/tests/operations"
-              className="rounded-lg px-3 py-1.5 text-xs font-semibold"
-              style={{ background: theme.surface, color: theme.accentDark }}
-            >
-              تعديل الأسئلة
-            </Link>
-          </Card>
+            ))}
+          </div>
         </section>
       </main>
     </div>
+  );
+}
+
+function StatTile({
+  label,
+  value,
+  theme,
+}: {
+  label: string;
+  value: number;
+  theme: ReturnType<typeof themeFromColor>;
+}) {
+  return (
+    <Card className="p-3.5 sm:p-4">
+      <p className="text-2xl font-bold leading-none" style={{ color: theme.accentDark }}>
+        {value}
+      </p>
+      <p className="mt-1.5 text-xs leading-snug text-black/45">{label}</p>
+    </Card>
   );
 }

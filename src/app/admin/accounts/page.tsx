@@ -42,7 +42,7 @@ export default async function AccountsPage() {
         <HeaderActions color={theme.text} />
       </AppHeader>
 
-      <main className="mx-auto max-w-3xl px-5 py-8">
+      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-5 sm:py-8">
         <BackButton />
 
         <h1 className="mb-1 text-xl font-bold">إدارة الحسابات القيادية</h1>

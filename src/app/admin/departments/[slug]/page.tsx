@@ -15,6 +15,8 @@ import { MemberRoster } from "./MemberRoster";
 import { CopyInviteLink } from "@/components/CopyInviteLink";
 import { formatDate } from "@/lib/format";
 import Link from "next/link";
+import { announcementsForSession } from "@/lib/announcements";
+import { AnnouncementList } from "../../hub/AnnouncementList";
 
 const COLUMNS: { status: "new" | "in_progress" | "done" | "overdue"; label: string }[] = [
   { status: "new", label: "جديد" },
@@ -48,7 +50,7 @@ export default async function DepartmentBoardPage({
   await sweepOverdueRequests(department.id);
   await sweepTicketEscalation();
 
-  const [approvalQueue, needsMeeting, requests, activeMembers, tickets, openInvites] = await Promise.all([
+  const [approvalQueue, needsMeeting, requests, activeMembers, tickets, openInvites, announcements] = await Promise.all([
     prisma.member.findMany({
       where: {
         departmentId: department.id,
@@ -97,6 +99,7 @@ export default async function DepartmentBoardPage({
       where: { departmentId: department.id, status: "open", targetRole: "member" },
       orderBy: { createdAt: "desc" },
     }),
+    announcementsForSession(session, 6),
   ]);
 
   const theme = themeFromColor(department.colorHex);
@@ -108,7 +111,22 @@ export default async function DepartmentBoardPage({
         <HeaderActions color={theme.text} />
       </AppHeader>
 
-      <main className="mx-auto max-w-6xl px-5 py-8 flex flex-col gap-10">
+      <main className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-6 sm:px-5 sm:py-8">
+        <section>
+          <h2 className="mb-3 text-base font-bold sm:text-lg">لوحة الإعلانات</h2>
+          <AnnouncementList
+            canDelete={false}
+            announcements={announcements.map((a) => ({
+              id: a.id,
+              title: a.title,
+              body: a.body,
+              audience: a.audience,
+              departmentName: a.department?.name ?? null,
+              authorName: a.authorName,
+              createdAt: a.createdAt.toISOString(),
+            }))}
+          />
+        </section>
         <section>
           <h1 className="mb-1 text-xl font-bold">دعوة عضو جديد</h1>
           <p className="mb-4 text-sm text-black/50">

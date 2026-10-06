@@ -166,7 +166,7 @@ function ExitForm({
           required
           rows={2}
           placeholder="مثال: استقالة، قرار إداري..."
-          className="rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
+          className="min-h-11 rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
         />
       </label>
       {state.error && <p className="text-sm text-red-700">{state.error}</p>}
@@ -229,7 +229,7 @@ function WarningForm({
           required
           rows={2}
           placeholder="وضّح السبب بدقة — سيصل هذا النص للعضو"
-          className="rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
+          className="min-h-11 rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
         />
       </label>
       {state.error && <p className="text-sm text-red-700">{state.error}</p>}
@@ -295,7 +295,7 @@ function ResetCredentialsForm({
           onChange={(e) => setEmail(e.target.value)}
           dir="ltr"
           type="email"
-          className="rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
+          className="min-h-11 rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
         />
       </label>
       <p className="text-xs text-black/40">

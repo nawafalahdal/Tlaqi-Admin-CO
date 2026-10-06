@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { LogoLockup } from "./Logo";
+import { HeaderShell } from "./HeaderShell";
 import type { themeFromColor } from "@/lib/brand";
 import { readableTextOn } from "@/lib/colors";
 
@@ -18,19 +19,17 @@ export function AppHeader({
 }) {
   return (
     <header
-      className="sticky top-0 z-10 border-b"
+      className="sticky top-0 z-20 border-b"
       style={{ background: theme.base, borderColor: theme.accentDark }}
     >
-      <div className="mx-auto max-w-6xl px-5 py-4 flex items-center justify-between gap-4">
-        <LogoLockup size={22} color={theme.text} dotColor={theme.text} />
-        <div className="flex items-center gap-4">
-          <div className="text-end" style={{ color: theme.text }}>
-            <p className="text-sm font-semibold leading-tight">{userName}</p>
-            <p className="text-xs opacity-80 leading-tight">{roleName}</p>
-          </div>
-          {children}
-        </div>
-      </div>
+      <HeaderShell
+        textColor={theme.text}
+        borderColor={`${theme.text}22`}
+        userName={userName}
+        roleName={roleName}
+        logo={<LogoLockup size={22} color={theme.text} dotColor={theme.text} />}
+        actions={children}
+      />
     </header>
   );
 }
@@ -116,7 +115,7 @@ export function Button({
   className?: string;
 }) {
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-opacity disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90";
+    "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-opacity disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90";
   const style: React.CSSProperties =
     variant === "solid"
       ? { background: theme.accentDark, color: readableTextOn(theme.accentDark) }

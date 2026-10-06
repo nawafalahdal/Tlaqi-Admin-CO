@@ -29,7 +29,7 @@ export default async function OperationsTestPage() {
       >
         <HeaderActions color={theme.text} />
       </AppHeader>
-      <main className="mx-auto max-w-3xl px-5 py-8">
+      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-5 sm:py-8">
         <BackButton />
         <h1 className="mb-1 text-xl font-bold">اختبار مسؤول التشغيل</h1>
         <p className="mb-6 text-sm text-black/50">الأسئلة التي يجتازها مرشحو مسؤول التشغيل</p>
