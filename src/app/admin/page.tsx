@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { sweepOverdueRequests } from "@/lib/workflow";
+import { sweepOverdueRequests, sweepExpiredCandidateAccounts } from "@/lib/workflow";
 import { sweepTicketEscalation } from "@/lib/tickets";
 import { announcementsForSession, canPublishAnnouncement } from "@/lib/announcements";
 import { TicketCard } from "./tickets/TicketCard";
@@ -31,6 +31,7 @@ export default async function AdminPage() {
 
   await sweepOverdueRequests();
   await sweepTicketEscalation();
+  await sweepExpiredCandidateAccounts();
 
   const [departments, leadershipQueue, memberQueue, requests, escalatedTickets, announcements] =
     await Promise.all([

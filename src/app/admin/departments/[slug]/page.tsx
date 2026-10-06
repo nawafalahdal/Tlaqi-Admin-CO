@@ -1,7 +1,12 @@
 import { redirect, notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { sweepOverdueRequests } from "@/lib/workflow";
+import {
+  CANDIDATE_EXPIRY_REASON,
+  candidateHoursLeft,
+  sweepOverdueRequests,
+  sweepExpiredCandidateAccounts,
+} from "@/lib/workflow";
 import { sweepTicketEscalation } from "@/lib/tickets";
 import { TicketCard } from "../../tickets/TicketCard";
 import { themeFromColor } from "@/lib/brand";
@@ -17,6 +22,7 @@ import { getLocale, getDictionary } from "@/i18n/server";
 import Link from "next/link";
 import { announcementsForSession } from "@/lib/announcements";
 import { AnnouncementList } from "../../hub/AnnouncementList";
+import { CandidateWindow } from "@/components/CandidateWindow";
 
 function isCertificateEligible(decidedAt: Date | null) {
   if (!decidedAt) return false;
@@ -50,6 +56,7 @@ export default async function DepartmentBoardPage({
 
   await sweepOverdueRequests(department.id);
   await sweepTicketEscalation();
+  await sweepExpiredCandidateAccounts();
 
   const [approvalQueue, needsMeeting, requests, activeMembers, tickets, openInvites, announcements] = await Promise.all([
     prisma.member.findMany({
@@ -101,6 +108,7 @@ export default async function DepartmentBoardPage({
         departmentId: department.id,
         approvalStatus: { not: "approved" },
         testStatus: "not_started",
+        isActive: true,
       },
       orderBy: { createdAt: "desc" },
     }),
@@ -149,7 +157,10 @@ export default async function DepartmentBoardPage({
           <h2 className="mb-1 text-lg font-bold">
             {t.deptBoard.openInvitesTitle} ({openInvites.length})
           </h2>
-          <p className="mb-4 text-sm text-black/50">{t.deptBoard.openInvitesHint}</p>
+          <p className="mb-2 text-sm text-black/50">{t.deptBoard.openInvitesHint}</p>
+          <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+            {t.candidateWindow.governanceNote}
+          </p>
           {openInvites.length === 0 ? (
             <Card className="p-8 text-center text-sm text-black/40">
               {t.deptBoard.openInvitesEmpty}
@@ -170,11 +181,14 @@ export default async function DepartmentBoardPage({
                       {t.deptBoard.issuedOn} {formatDate(inv.createdAt)}
                     </p>
                   </div>
-                  <div className="text-xs text-black/40">
-                    {inv.firstLoginAt
-                      ? `${t.invitesPage.colFirstLogin}: ${formatDate(inv.firstLoginAt)}`
-                      : t.invitesPage.notSignedInYet}
-                  </div>
+                  <CandidateWindow
+                    firstLoginAt={inv.firstLoginAt?.toISOString() ?? null}
+                    hoursLeft={
+                      inv.credentialsIssuedAt ? candidateHoursLeft(inv.credentialsIssuedAt) : null
+                    }
+                    lapsed={!inv.isActive && inv.exitReason === CANDIDATE_EXPIRY_REASON}
+                    notApplicable={!inv.credentialsIssuedAt}
+                  />
                 </Card>
               ))}
             </div>

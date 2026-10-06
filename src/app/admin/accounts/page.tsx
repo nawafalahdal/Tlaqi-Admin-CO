@@ -8,6 +8,7 @@ import { AccountRow } from "./AccountRow";
 import { MemberAccountRow } from "./MemberAccountRow";
 import { BackButton } from "@/components/BackButton";
 import { getLocale, getDictionary } from "@/i18n/server";
+import { CANDIDATE_EXPIRY_REASON, sweepExpiredCandidateAccounts } from "@/lib/workflow";
 
 export default async function AccountsPage() {
   const session = await auth();
@@ -17,7 +18,9 @@ export default async function AccountsPage() {
   const isSuperAdmin = session.user.role === "super_admin";
   const t = getDictionary(await getLocale());
 
-  const [accounts, members] = await Promise.all([
+  await sweepExpiredCandidateAccounts();
+
+  const [accounts, members, lapsed] = await Promise.all([
     prisma.user.findMany({
       where: isSuperAdmin
         ? { role: { in: ["executive", "operations_officer", "department_admin"] } }
@@ -29,6 +32,14 @@ export default async function AccountsPage() {
       where: { approvalStatus: "approved", isActive: true },
       include: { department: true },
       orderBy: [{ department: { name: "asc" } }, { fullName: "asc" }],
+    }),
+    // الحسابات التي أسقطتها المهلة — تُعرض هنا وحدها لأن هذه هي النافذة
+    // الوحيدة التي تُعيد إصدارها، وإخفاؤها يعني ضياعها بلا طريق للعودة
+    prisma.member.findMany({
+      where: { isActive: false, exitReason: CANDIDATE_EXPIRY_REASON },
+      include: { department: true },
+      orderBy: { terminatedAt: "desc" },
+      take: 30,
     }),
   ]);
 
@@ -94,6 +105,28 @@ export default async function AccountsPage() {
               />
             ))}
           </div>
+        )}
+
+        {lapsed.length > 0 && (
+          <>
+            <h2 className="mb-1 mt-10 text-lg font-bold">{t.candidateWindow.lapsedTitle}</h2>
+            <p className="mb-6 text-sm text-black/50">{t.candidateWindow.lapsedHint}</p>
+            <div className="flex flex-col gap-3">
+              {lapsed.map((m) => (
+                <MemberAccountRow
+                  key={m.id}
+                  theme={theme}
+                  lapsed
+                  member={{
+                    id: m.id,
+                    fullName: m.fullName,
+                    email: m.email,
+                    departmentName: m.department?.name ?? "—",
+                  }}
+                />
+              ))}
+            </div>
+          </>
         )}
       </main>
     </div>

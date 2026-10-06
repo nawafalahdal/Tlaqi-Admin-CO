@@ -10,9 +10,12 @@ import { useTranslations } from "@/i18n/LocaleProvider";
 export function MemberAccountRow({
   member,
   theme,
+  lapsed = false,
 }: {
   member: { id: string; fullName: string; email: string; departmentName: string };
   theme: ReturnType<typeof themeFromColor>;
+  /** حساب أسقطته مهلة الـ24 ساعة — نفس الإجراء يُحييه، فيختلف النص فقط */
+  lapsed?: boolean;
 }) {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
@@ -44,9 +47,12 @@ export function MemberAccountRow({
           <p className="text-xs text-black/40">
             {t.misc.memberIn} — {member.departmentName}
           </p>
+          {lapsed && (
+            <p className="mt-1 text-xs font-semibold text-red-700">{t.candidateWindow.lapsed}</p>
+          )}
         </div>
         <Button theme={theme} variant="outline" onClick={() => setOpen((o) => !o)}>
-          {t.misc.loginTrouble}
+          {lapsed ? t.candidateWindow.reissue : t.misc.loginTrouble}
         </Button>
       </div>
 
@@ -68,7 +74,11 @@ export function MemberAccountRow({
           {error && <p className="text-sm text-red-700">{error}</p>}
           <div className="flex gap-2">
             <Button theme={theme} disabled={pending} onClick={handleReset}>
-              {pending ? t.actions.working : t.actions.resetPassword}
+              {pending
+                ? t.actions.working
+                : lapsed
+                  ? t.candidateWindow.reissue
+                  : t.actions.resetPassword}
             </Button>
             <Button theme={theme} variant="ghost" onClick={() => setOpen(false)}>
               {t.common.cancel}

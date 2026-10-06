@@ -7,12 +7,18 @@ import { HeaderActions } from "@/components/HeaderActions";
 import { BackButton } from "@/components/BackButton";
 import { DataTable } from "@/components/DataTable";
 import { AccountStageBadge } from "@/components/AccountStageBadge";
+import { CandidateWindow } from "@/components/CandidateWindow";
 import {
   ExecutiveInviteForm,
   DeptAdminInviteForm,
   OperationsOfficerInviteForm,
 } from "../LeadershipInviteForms";
 import { formatDate } from "@/lib/format";
+import {
+  CANDIDATE_EXPIRY_REASON,
+  candidateHoursLeft,
+  sweepExpiredCandidateAccounts,
+} from "@/lib/workflow";
 import { getLocale, getDictionary } from "@/i18n/server";
 
 export default async function AdminInvitesPage() {
@@ -23,6 +29,8 @@ export default async function AdminInvitesPage() {
   }
 
   const isSuperAdmin = session.user.role === "super_admin";
+
+  await sweepExpiredCandidateAccounts();
 
   const [departments, invites] = await Promise.all([
     prisma.department.findMany({ orderBy: { name: "asc" } }),
@@ -36,6 +44,7 @@ export default async function AdminInvitesPage() {
   const dict = getDictionary(await getLocale());
   const t = dict.invitesPage;
   const ta = dict.admin;
+  const tw = dict.candidateWindow;
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
 
   return (
@@ -91,8 +100,9 @@ export default async function AdminInvitesPage() {
 
         <section>
           <h2 className="mb-3 text-base font-bold sm:text-lg">{t.issuedTitle}</h2>
-          <p className="mb-3 -mt-2 text-xs text-black/40">
-            {t.issuedHint}
+          <p className="mb-2 -mt-2 text-xs text-black/40">{t.issuedHint}</p>
+          <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+            {tw.governanceNote}
           </p>
           <DataTable
             emptyLabel={ta.invitesEmpty}
@@ -101,7 +111,7 @@ export default async function AdminInvitesPage() {
               { key: "track", label: ta.colTrack },
               { key: "status", label: t.colAccountStatus },
               { key: "createdAt", label: ta.colIssuedAt },
-              { key: "firstLogin", label: t.colFirstLogin },
+              { key: "firstLogin", label: t.colWindow },
             ]}
             rows={invites.map((inv) => ({
               id: inv.id,
@@ -115,10 +125,25 @@ export default async function AdminInvitesPage() {
                   />
                 ),
                 createdAt: formatDate(inv.createdAt),
-                firstLogin: inv.member?.firstLoginAt ? (
-                  formatDate(inv.member.firstLoginAt)
-                ) : (
-                  <span className="text-xs font-semibold text-amber-700">{t.notSignedInYet}</span>
+                firstLogin: (
+                  <CandidateWindow
+                    firstLoginAt={inv.member?.firstLoginAt?.toISOString() ?? null}
+                    hoursLeft={
+                      inv.member?.credentialsIssuedAt
+                        ? candidateHoursLeft(inv.member.credentialsIssuedAt)
+                        : null
+                    }
+                    lapsed={
+                      !!inv.member &&
+                      !inv.member.isActive &&
+                      inv.member.exitReason === CANDIDATE_EXPIRY_REASON
+                    }
+                    notApplicable={
+                      !inv.member ||
+                      !inv.member.credentialsIssuedAt ||
+                      inv.member.approvalStatus === "approved"
+                    }
+                  />
                 ),
               },
             }))}

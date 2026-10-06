@@ -366,14 +366,32 @@ export async function resetMemberCredentials(
 ) {
   const tempPassword = generateTempPassword();
   const passwordHash = await hashPassword(tempPassword);
+
+  // إعادة التعيين إجراء إداري متعمّد، فهي الطريق الشرعي لإحياء حساب سقطت
+  // مهلته: تُعاد المهلة من الصفر فقط لمن سقط بهذا السبب تحديداً — لا لمن
+  // أُنهيت عضويته بقرار إداري.
+  const current = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
+  const lapsedByWindow = !current.isActive && current.exitReason === CANDIDATE_EXPIRY_REASON;
+
   const member = await prisma.member.update({
     where: { id: memberId },
     data: {
       passwordHash,
       mustChangePassword: true,
+      credentialsIssuedAt: new Date(),
       ...(newEmail ? { email: newEmail } : {}),
+      ...(lapsedByWindow
+        ? { isActive: true, terminatedAt: null, exitReason: null, firstLoginAt: null }
+        : {}),
     },
   });
+
+  if (lapsedByWindow) {
+    await prisma.invite.update({
+      where: { id: member.inviteId },
+      data: { status: "used" },
+    });
+  }
 
   await sendCredentialsEmail({
     to: member.email,
@@ -385,7 +403,7 @@ export async function resetMemberCredentials(
   await appendMemberEvent({
     fullName: member.fullName,
     email: member.email,
-    event: "إعادة تعيين كلمة المرور",
+    event: lapsedByWindow ? "إعادة إصدار حساب سقطت مهلته" : "إعادة تعيين كلمة المرور",
     details: performedByName ? `نفّذه: ${performedByName}` : "",
     at: new Date(),
   });
@@ -534,4 +552,72 @@ export async function markFirstLogin(memberId: string) {
     where: { id: memberId, firstLoginAt: null },
     data: { firstLoginAt: new Date() },
   });
+}
+
+/** مهلة الحساب الجديد: إن لم يدخل صاحبه خلالها يسقط الحساب نهائياً.
+ *  رمز مؤقت يبقى صالحاً أسابيع هو رمز ضائع — مكتوب في محادثة أو ورقة
+ *  ويصلح للاستخدام من أي أحد وصله. */
+export const CANDIDATE_WINDOW_HOURS = 24;
+
+export const CANDIDATE_EXPIRY_REASON = `انتهت مهلة ${CANDIDATE_WINDOW_HOURS} ساعة دون أول دخول`;
+
+/** هل سقط هذا الحساب بانقضاء المهلة؟ تُحسب لحظياً من التاريخ لا من حقل
+ *  محفوظ، فلا تعتمد الحماية على تشغيل أي كنس مجدول. */
+export function candidateWindowExpired(member: {
+  firstLoginAt: Date | null;
+  credentialsIssuedAt: Date | null;
+  approvalStatus: string;
+}) {
+  if (member.firstLoginAt) return false;
+  if (member.approvalStatus === "approved") return false;
+  if (!member.credentialsIssuedAt) return false;
+  return Date.now() - member.credentialsIssuedAt.getTime() >= CANDIDATE_WINDOW_HOURS * 3600_000;
+}
+
+/** الوقت المتبقي بالساعات قبل سقوط الحساب (سالب = سقط) */
+export function candidateHoursLeft(credentialsIssuedAt: Date) {
+  const msLeft = credentialsIssuedAt.getTime() + CANDIDATE_WINDOW_HOURS * 3600_000 - Date.now();
+  return Math.ceil(msLeft / 3600_000);
+}
+
+/** يُسقط كل حساب مرشّح انقضت مهلته دون أول دخول.
+ *
+ *  لا يُحذف الصف: الحوكمة تعني القدرة على إثبات أن حساباً صدر ولمن ومتى
+ *  وأنه انتهى دون استخدام — وحذف السجل يمحو هذا الإثبات. فيُعطَّل الحساب
+ *  نهائياً (لا يقبل دخولاً)، وتُعلَّم دعوته "منتهية"، ويخرج من القوائم
+ *  العاملة، ويُسجَّل الحدث في السجل الحي. */
+export async function sweepExpiredCandidateAccounts() {
+  const cutoff = new Date(Date.now() - CANDIDATE_WINDOW_HOURS * 3600_000);
+
+  const expired = await prisma.member.findMany({
+    where: {
+      firstLoginAt: null,
+      isActive: true,
+      approvalStatus: { not: "approved" },
+      credentialsIssuedAt: { not: null, lte: cutoff },
+    },
+    select: { id: true, fullName: true, email: true, inviteId: true },
+  });
+  if (expired.length === 0) return 0;
+
+  await prisma.member.updateMany({
+    where: { id: { in: expired.map((m) => m.id) } },
+    data: { isActive: false, terminatedAt: new Date(), exitReason: CANDIDATE_EXPIRY_REASON },
+  });
+  await prisma.invite.updateMany({
+    where: { id: { in: expired.map((m) => m.inviteId) } },
+    data: { status: "expired" },
+  });
+
+  for (const m of expired) {
+    await appendMemberEvent({
+      fullName: m.fullName,
+      email: m.email,
+      event: "إسقاط حساب مرشّح",
+      details: CANDIDATE_EXPIRY_REASON,
+      at: new Date(),
+    });
+  }
+
+  return expired.length;
 }

@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { isLockedOut, recordFailedAttempt, clearFailedAttempts } from "@/lib/loginAttempts";
 import { verifyTotpCode } from "@/lib/totp";
-import { markFirstLogin } from "@/lib/workflow";
+import { candidateWindowExpired, markFirstLogin } from "@/lib/workflow";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
@@ -56,11 +56,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // لأن هذه هي الخطوة التي يغيّر فيها كلمة المرور المؤقتة ثم يبدأ
         // اختباره. حارس المسارات (proxy) هو من يحصره في صفحة الاختبار حتى
         // يُعتمد. المرفوض أو من أُنهيت عضويته لا يدخل إطلاقاً.
+        // المهلة تُحسب هنا لحظياً من تاريخ إصدار الرمز، لا من حقل يضعه كنس
+        // مجدول: لو تعطّل الكنس أو تأخر، يظل الرمز المنتهي مرفوضاً. هذه هي
+        // نقطة الفرض الحقيقية؛ الكنس مهمته تنظيف القوائم لا الحماية.
+        const windowExpired = member ? candidateWindowExpired(member) : false;
+
         const candidateAllowed =
           member &&
           member.isActive &&
           member.approvalStatus !== "rejected" &&
-          !member.terminatedAt;
+          !member.terminatedAt &&
+          !windowExpired;
 
         if (
           member &&

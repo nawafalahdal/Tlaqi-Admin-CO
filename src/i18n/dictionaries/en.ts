@@ -343,6 +343,7 @@ export const en: Dictionary = {
   invitesPage: {
     colAccountStatus: "Account status",
     colFirstLogin: "First sign-in",
+    colWindow: "Window",
     notSignedInYet: "Not signed in yet",
     title: "Accounts & invitations",
     subtitle: "Create leadership accounts, hand over their credentials, and track where each candidate stands",
@@ -438,6 +439,17 @@ export const en: Dictionary = {
     approved: "Approved",
     rejected: "Rejected",
     failed: "Did not pass",
+  },
+  candidateWindow: {
+    lapsedTitle: "Accounts dropped by the window",
+    lapsedHint: "Their holders did not sign in within 24 hours of creation, so they lapsed. Re-issuing grants a fresh temporary password and restarts the window.",
+    signedIn: "Signed in ✓",
+    lapsed: "Window lapsed",
+    hoursLeft: "{h}h left",
+    windowExplainer: "The account lapses automatically if its holder does not sign in within 24 hours of creation",
+    governanceNote:
+      "Governance: any account whose holder does not sign in within 24 hours of creation lapses automatically and accepts no sign-in afterwards — its row stays in the record marked \"Window lapsed\" for review. Re-issue it by resetting its credentials.",
+    reissue: "Re-issue",
   },
   testEditor: {
     empty: "No questions in this test yet",
