@@ -37,6 +37,50 @@
 > `onboarding@resend.dev` للتجربة فقط — لكنه يرسل إلى بريدك المسجَّل لا غير،
 > فلا يصلح للتشغيل الفعلي.
 
+### إضافة السجلات في GoDaddy — بالتفصيل
+
+Resend **يعرض** السجلات فقط؛ إضافتها تتم في GoDaddy.
+
+**الوصول للوحة DNS:**
+
+1. ادخل godaddy.com بحسابك
+2. اضغط اسمك أعلى اليمين ← **My Products** (أو **Domain Portfolio**)
+3. جنب `tlaqiteam.site` اضغط **DNS** (أو الثلاث نقاط ← **Edit DNS**)
+4. تفتح صفحة **DNS Management** وفيها جدول السجلات وزر **Add New Record**
+
+**أهم نقطة — خانة Name:**
+
+GoDaddy **يُضيف اسم النطاق تلقائياً**. فانسخ من Resend الجزء الذي *قبل*
+`.tlaqiteam.site` فقط:
+
+| ما يعرضه Resend في Name | ما تكتبه في GoDaddy |
+|---|---|
+| `send.tlaqiteam.site` | `send` |
+| `resend._domainkey.tlaqiteam.site` | `resend._domainkey` |
+| `tlaqiteam.site` (الجذر) | `@` |
+
+كتابة الاسم كاملاً تُنتج `send.tlaqiteam.site.tlaqiteam.site` ولن يُوثَّق النطاق.
+
+**السجلات الثلاثة (الشكل المعتاد — اعتمد ما يعرضه Resend عندك):**
+
+| Type | Name | Value | Priority |
+|---|---|---|---|
+| `MX` | `send` | `feedback-smtp.***.amazonses.com` | `10` |
+| `TXT` | `send` | `v=spf1 include:amazonses.com ~all` | — |
+| `TXT` | `resend._domainkey` | `p=MIGfMA0GCSq...` (مفتاح طويل) | — |
+
+**لكل سجل:** Add New Record ← اختر Type ← املأ Name و Value ← Priority للـMX
+فقط ← TTL اتركه الافتراضي (1 Hour) ← **Save**.
+
+**تنبيهات:**
+
+- انسخ قيمة DKIM **كاملة** بلا مسافات أو أسطر — أطول سجل وأكثرها خطأً
+- لا تغيّر **Nameservers**؛ أضف سجلات فقط. تغييرها ينقل التحكم خارج GoDaddy
+- إن وُجد سجل قديم بنفس الـType ونفس الـName احذفه أو عدّله بدل إضافة ثانٍ
+- بعد الحفظ قد يعرض GoDaddy الاسم مع النطاق كاملاً — هذا طبيعي
+- ارجع لـResend واضغط **Verify**. الانتشار من دقائق إلى ساعات؛ إن بقي
+  `Pending` بعد ساعة راجع خانة Name تحديداً
+
 ## الخطوة 3 — إنشاء مفتاح API
 
 1. من لوحة Resend: **API Keys** ← **Create API Key**.
