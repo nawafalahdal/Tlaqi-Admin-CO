@@ -12,7 +12,8 @@ import { getLocale, getDictionary } from "@/i18n/server";
 import { announcementsForSession, canPublishAnnouncement } from "@/lib/announcements";
 import { AnnouncementComposer } from "../hub/AnnouncementComposer";
 import { AnnouncementList } from "../hub/AnnouncementList";
-import { LeadershipRequestForm } from "../hub/LeadershipRequestForm";
+import { RaiseAdminTicketForm, type TicketTargetOption } from "../tickets/RaiseAdminTicketForm";
+import { accountRoleLabel } from "@/lib/testTracks";
 
 function isOverdue(dueAt: Date) {
   return Date.now() > dueAt.getTime();
@@ -45,6 +46,40 @@ export default async function OperationsPage() {
   const dict = getDictionary(await getLocale());
   const tOps = dict.operations;
   const tHub = dict.hub;
+
+  // وجهات التذكرة: الأقسام والحسابات الإدارية والأعضاء المعتمدون.
+  // نموذج "الطلبات" القديم كان يعرض الأقسام وحدها، فنوع "رفع للإدارة
+  // العليا" لم تكن له وجهة أصلاً — تناقضٌ ظاهر في الواجهة.
+  const [ticketPeople, ticketMembers] = await Promise.all([
+    prisma.user.findMany({
+      where: { isActive: true, id: { not: session.user.id } },
+      orderBy: [{ role: "asc" }, { fullName: "asc" }],
+    }),
+    prisma.member.findMany({
+      where: { isActive: true, approvalStatus: "approved" },
+      include: { department: true },
+      orderBy: { fullName: "asc" },
+    }),
+  ]);
+
+  const ticketTargets: TicketTargetOption[] = [
+    ...departments.map((d) => ({
+      value: `dept:${d.id}`,
+      label: d.name,
+      group: dict.ticketsPage.groupDepartments,
+    })),
+    ...ticketPeople.map((u) => ({
+      value: `user:${u.id}`,
+      label: `${u.fullName} — ${accountRoleLabel(u.role)}`,
+      group: dict.ticketsPage.groupLeadership,
+    })),
+    ...ticketMembers.map((m) => ({
+      value: `member:${m.id}`,
+      label: m.department ? `${m.fullName} — ${m.department.name}` : m.fullName,
+      group: dict.ticketsPage.groupMembers,
+    })),
+  ];
+
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
   const canPublish = canPublishAnnouncement(session.user.role);
   const deptOptions = departments.map((d) => ({ id: d.id, name: d.name }));
@@ -85,7 +120,7 @@ export default async function OperationsPage() {
                 <h2 className="text-base font-bold sm:text-lg">{tHub.raiseRequestTitle}</h2>
                 <p className="text-xs text-black/40">{tHub.raiseRequestHint}</p>
               </div>
-              <LeadershipRequestForm departments={deptOptions} theme={theme} />
+              <RaiseAdminTicketForm targets={ticketTargets} theme={theme} />
             </div>
           </section>
         )}

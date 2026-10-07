@@ -13,7 +13,8 @@ import { DataTable } from "@/components/DataTable";
 import { ApprovalQueue } from "./ApprovalQueue";
 import { AnnouncementComposer } from "./hub/AnnouncementComposer";
 import { AnnouncementList } from "./hub/AnnouncementList";
-import { LeadershipRequestForm } from "./hub/LeadershipRequestForm";
+import { RaiseAdminTicketForm, type TicketTargetOption } from "./tickets/RaiseAdminTicketForm";
+import { accountRoleLabel } from "@/lib/testTracks";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
 
@@ -86,6 +87,39 @@ export default async function AdminPage() {
 
   const pendingCount = leadershipQueue.length + memberQueue.length;
   const openRequests = requests.filter((r) => r.status !== "done").length;
+
+  // وجهات التذكرة: الأقسام والحسابات الإدارية والأعضاء المعتمدون.
+  // نموذج "الطلبات" القديم كان يعرض الأقسام وحدها، فنوع "رفع للإدارة
+  // العليا" لم تكن له وجهة أصلاً — تناقضٌ ظاهر في الواجهة.
+  const [ticketPeople, ticketMembers] = await Promise.all([
+    prisma.user.findMany({
+      where: { isActive: true, id: { not: session.user.id } },
+      orderBy: [{ role: "asc" }, { fullName: "asc" }],
+    }),
+    prisma.member.findMany({
+      where: { isActive: true, approvalStatus: "approved" },
+      include: { department: true },
+      orderBy: { fullName: "asc" },
+    }),
+  ]);
+
+  const ticketTargets: TicketTargetOption[] = [
+    ...departments.map((d) => ({
+      value: `dept:${d.id}`,
+      label: d.name,
+      group: dict.ticketsPage.groupDepartments,
+    })),
+    ...ticketPeople.map((u) => ({
+      value: `user:${u.id}`,
+      label: `${u.fullName} — ${accountRoleLabel(u.role)}`,
+      group: dict.ticketsPage.groupLeadership,
+    })),
+    ...ticketMembers.map((m) => ({
+      value: `member:${m.id}`,
+      label: m.department ? `${m.fullName} — ${m.department.name}` : m.fullName,
+      group: dict.ticketsPage.groupMembers,
+    })),
+  ];
 
   const quickLinks = [
     { href: "/admin/profile", title: dict.adminProfile.title, desc: dict.adminProfile.subtitle },
@@ -240,7 +274,7 @@ export default async function AdminPage() {
                 {t.requestsHint}
               </p>
             </div>
-            {canPublish && <LeadershipRequestForm departments={deptOptions} theme={theme} />}
+            {canPublish && <RaiseAdminTicketForm targets={ticketTargets} theme={theme} />}
           </div>
           <DataTable
             emptyLabel={ta.requestsEmpty}
