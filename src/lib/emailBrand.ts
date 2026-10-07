@@ -15,6 +15,34 @@ const BRAND = {
   paper: "#FAF8F4",
 };
 
+export function appBaseUrl() {
+  return process.env.APP_BASE_URL || "http://localhost:3000";
+}
+
+/** الشعار يُستضاف على النطاق نفسه ويُشار إليه برابط مطلق: عميل البريد
+ *  لا يعرف موقعنا، والرابط النسبي يصل إليه مكسوراً. */
+function assetUrl(path: string) {
+  return `${appBaseUrl()}${path}`;
+}
+
+/** خلفية بلون الهوية مرسومة كصورة لا كلون.
+ *
+ *  Gmail على الجوال يعكس ألوان الخلفيات في الوضع الداكن ويتجاهل إعلان
+ *  color-scheme، فكانت ترويسة تَـــلاقِ الداكنة تصير وردية. والصور لا
+ *  يعكسها أي عميل — ولهذا بقي الشعار نفسه سليماً بينما انقلب ما حوله.
+ *  فتُرسم ألوان الهوية بصورة مربّعة صلبة تتكرّر، ويبقى اللون المكتوب
+ *  خلفها لمن لا يحمّل الصور. */
+function brandFill(tile: string, color: string) {
+  return `background-color:${color};background-image:url('${assetUrl(tile)}');background-repeat:repeat;background-size:8px 8px`;
+}
+
+const FILL = {
+  temptress: () => brandFill("/brand/bg-temptress.png", BRAND.temptress),
+  mahogany: () => brandFill("/brand/bg-mahogany.png", BRAND.mahogany),
+  alert: () => brandFill("/brand/bg-alert.png", "#8C2F1B"),
+  green: () => brandFill("/brand/bg-green.png", BRAND.greenSheen),
+};
+
 /** أنواع الرسائل الأربعة.
  *
  *  الهوية واحدة في كل رسالة — الشعار والجملة والتذييل لا تتغيّر — لكن
@@ -24,40 +52,52 @@ export type EmailVariant = "default" | "ticket" | "celebration" | "serious" | "s
 
 const VARIANT_STYLE: Record<
   EmailVariant,
-  { rule: string; badge: string | null; badgeBg: string; badgeColor: string; note: string | null }
+  {
+    rule: string;
+    ruleFill: string;
+    badge: string | null;
+    badgeFill: string;
+    badgeColor: string;
+    note: string | null;
+  }
 > = {
   default: {
     rule: BRAND.mahogany,
+    ruleFill: FILL.mahogany(),
     badge: null,
-    badgeBg: BRAND.mahogany,
+    badgeFill: FILL.mahogany(),
     badgeColor: "#ffffff",
     note: null,
   },
   ticket: {
     rule: BRAND.mahogany,
+    ruleFill: FILL.mahogany(),
     badge: "تذكرة عمل · تحتاج إجراءً",
-    badgeBg: BRAND.mahogany,
+    badgeFill: FILL.mahogany(),
     badgeColor: "#ffffff",
     note: "هذه تذكرة في نظام العمل، وليست إشعاراً عابراً. لها مهلة، وإن انقضت دون ردّ تُصعَّد تلقائياً إلى المسؤول الذي يليك.",
   },
   celebration: {
     rule: BRAND.greenSheen,
+    ruleFill: FILL.green(),
     badge: "خبر سار",
-    badgeBg: BRAND.greenSheen,
+    badgeFill: FILL.green(),
     badgeColor: "#10321F",
     note: null,
   },
   serious: {
     rule: "#8C2F1B",
+    ruleFill: FILL.alert(),
     badge: "إشعار رسمي",
-    badgeBg: "#8C2F1B",
+    badgeFill: FILL.alert(),
     badgeColor: "#ffffff",
     note: "هذا الإشعار مُسجَّل في سجلّ الفريق ويمكن الرجوع إليه.",
   },
   security: {
     rule: BRAND.temptress,
+    ruleFill: FILL.temptress(),
     badge: "رمز دخول لمرة واحدة",
-    badgeBg: BRAND.temptress,
+    badgeFill: FILL.temptress(),
     badgeColor: BRAND.beige,
     // التحذير المضاد للتصيّد: أكثر ما يُسرق به رمز الدخول أن يتصل أحد
     // بصاحبه منتحلاً صفة الفريق ويطلبه منه
@@ -105,16 +145,6 @@ const KIND_VARIANT: Record<string, EmailVariant> = {
 
 export function variantForKind(kind: string): EmailVariant {
   return KIND_VARIANT[kind] ?? "default";
-}
-
-export function appBaseUrl() {
-  return process.env.APP_BASE_URL || "http://localhost:3000";
-}
-
-/** الشعار يُستضاف على النطاق نفسه ويُشار إليه برابط مطلق: عميل البريد
- *  لا يعرف موقعنا، والرابط النسبي يصل إليه مكسوراً. */
-function assetUrl(path: string) {
-  return `${appBaseUrl()}${path}`;
 }
 
 /** الجملة التي تُذيَّل بها كل رسالة. تُضبط من البيئة ليُغيّرها صاحب
@@ -171,7 +201,7 @@ export function wrapEmail(opts: {
     SOCIAL_LINKS.length === 0
       ? ""
       : `<tr>
-          <td align="center" dir="ltr" class="tq-dark" style="background:${BRAND.temptress};padding:0 20px 16px;white-space:nowrap">
+          <td align="center" dir="ltr" class="tq-dark" bgcolor="${BRAND.temptress}" style="${FILL.temptress()};padding:0 20px 16px;white-space:nowrap">
             <span style="font-family:Tahoma,Arial,sans-serif;font-size:12px;color:${BRAND.beige}">
               ${SOCIAL_LINKS.map(
                 (s) =>
@@ -221,7 +251,7 @@ export function wrapEmail(opts: {
 
     <!-- الترويسة: الشعار -->
     <tr>
-      <td align="center" class="tq-dark" style="background:${BRAND.temptress};padding:22px 24px 18px">
+      <td align="center" class="tq-dark" bgcolor="${BRAND.temptress}" style="${FILL.temptress()};padding:22px 24px 18px">
         <!-- الشعار الكامل بخلفية شفافة: كُتب اسمه بالبيج، فيظهر على
              الداكن وحده. الأبعاد مثبّتة في الوسم لأن عملاء البريد
              يرسمون قبل تحميل الصورة، فبدونها يقفز التخطيط. -->
@@ -233,13 +263,13 @@ export function wrapEmail(opts: {
     </tr>
 
     <!-- شريط لوني فاصل: لونه يقول نوع الرسالة قبل قراءة حرف منها -->
-    <tr><td style="height:5px;background:${style.rule};font-size:0;line-height:0">&nbsp;</td></tr>
+    <tr><td style="height:5px;${style.ruleFill};font-size:0;line-height:0">&nbsp;</td></tr>
 
     ${
       style.badge
         ? `<tr>
       <td align="center" style="padding:18px 24px 0">
-        <span style="display:inline-block;background:${style.badgeBg};color:${style.badgeColor};font-family:Tahoma,Arial,sans-serif;font-size:12px;font-weight:bold;letter-spacing:0.5px;padding:8px 18px;border-radius:999px">${esc(style.badge)}</span>
+        <span style="display:inline-block;${style.badgeFill};color:${style.badgeColor};font-family:Tahoma,Arial,sans-serif;font-size:12px;font-weight:bold;letter-spacing:0.5px;padding:8px 18px;border-radius:999px">${esc(style.badge)}</span>
       </td>
     </tr>`
         : ""
@@ -267,13 +297,13 @@ export function wrapEmail(opts: {
 
     <!-- البانر: الجملة وحسابات التواصل -->
     <tr>
-      <td align="center" class="tq-dark" style="background:${BRAND.temptress};padding:18px 24px 12px">
+      <td align="center" class="tq-dark" bgcolor="${BRAND.temptress}" style="${FILL.temptress()};padding:18px 24px 12px">
         <div class="tq-on-dark" style="font-family:Tahoma,Arial,sans-serif;font-size:15px;font-weight:bold;color:${BRAND.beige};letter-spacing:1px">${esc(TAGLINE)}</div>
       </td>
     </tr>
     ${social}
     <tr>
-      <td align="center" class="tq-dark" style="background:${BRAND.temptress};padding:0 24px 22px">
+      <td align="center" class="tq-dark" bgcolor="${BRAND.temptress}" style="${FILL.temptress()};padding:0 24px 22px">
         <a href="${appBaseUrl()}" style="font-family:Tahoma,Arial,sans-serif;font-size:12px;color:rgba(238,246,223,0.75);text-decoration:none">${esc(appBaseUrl().replace(/^https?:\/\//, ""))}</a>
       </td>
     </tr>

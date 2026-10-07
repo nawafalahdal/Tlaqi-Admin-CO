@@ -85,6 +85,8 @@ export const en: Dictionary = {
     other: "Other",
   },
   login: {
+    methodEmail: "Email code",
+    methodApp: "App code",
     rememberLabel: "Keep me signed in on this device",
     rememberHint: "Without it your session ends two hours after your last activity. Do not enable it on a shared device.",
     sessionExpired: "Your session has ended \u2014 please sign in again",
@@ -94,7 +96,7 @@ export const en: Dictionary = {
     codeHint: "Check {email} \u2014 a six-digit code valid for 10 minutes. Look in your spam folder if it is slow.",
     codeLabel: "Login code",
     totpTitle: "Enter your authenticator code",
-    totpHint: "Your account has two-factor authentication enabled, so the code comes from the app, not email.",
+    totpHint: "Open your authenticator app and enter the code shown. If you cannot, switch back to the email code \u2014 either one opens your account.",
     totpLabel: "Verification code",
     startOver: "Go back and change the email",
     forgotLink: "Forgot your password?",

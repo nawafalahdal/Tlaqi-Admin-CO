@@ -22,7 +22,7 @@ export type LoginStep1 = {
   error: string | null;
   /** أُرسل رمز إلى البريد وننتظر إدخاله */
   codeSent: boolean;
-  /** هذا الحساب يستعمل تطبيق المصادقة بدل رمز البريد */
+  /** هذا الحساب يملك تطبيق مصادقة أيضاً، فيُعرض عليه الطريقان */
   needsTotp: boolean;
   maskedEmail: string | null;
 };
@@ -61,9 +61,10 @@ export async function requestLoginCodeAction(
 
   const user = await prisma.user.findUnique({ where: { email } });
   if (user && user.isActive && (await bcrypt.compare(password, user.passwordHash))) {
-    // صاحب تطبيق المصادقة لا يحتاج رمز بريد: عاملان يكفيان
-    if (user.totpEnabled) return { ...base, needsTotp: true, maskedEmail: maskEmail(email) };
-    return deliverCode(email, user.fullName);
+    // يُرسَل رمز البريد حتى لمن فعّل تطبيق المصادقة، ليختار أيّهما أقرب
+    // إليه الآن. مَن ضاع جهازه يبقى بريده معه، والعكس.
+    const sent = await deliverCode(email, user.fullName);
+    return { ...sent, needsTotp: user.totpEnabled };
   }
 
   const member = await prisma.member.findUnique({ where: { email } });

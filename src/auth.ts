@@ -48,8 +48,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
          *  الكلمة يتيح لمن يعرف البريد وحده أن يُحرق رموز صاحبه ويمنعه من
          *  الدخول. ومن فعّل التحقّق بخطوتين يُعفى — عاملان يكفيان، وطلب
          *  ثالث يرهق بلا زيادة أمان حقيقية. */
-        const codeAccepted = async (totpEnabled: boolean) => {
-          if (totpEnabled) return true;
+        const codeAccepted = async () => {
           if (!loginCode) return false;
           const result = await consumeLoginCode(email, loginCode);
           return result.ok;
@@ -64,12 +63,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
         // الحساب المُنحّى يبقى سجلاً فقط — لا يَقبل دخولاً بعد تنحيته
         if (user && user.isActive && (await bcrypt.compare(password, user.passwordHash))) {
-          if (user.totpEnabled) {
-            if (!user.totpSecret || !totp || !verifyTotpCode(user.totpSecret, totp, user.email)) {
-              await recordFailedAttempt(email);
-              return null;
-            }
-          } else if (!(await codeAccepted(false))) {
+          // من فعّل التحقّق بخطوتين يملك طريقين: رمز التطبيق أو رمز البريد.
+          // الاثنان عامل ثانٍ صحيح، وحصرُه في التطبيق يحبسه خارج حسابه إن
+          // ضاع جهازه — بينما بريده باقٍ معه.
+          const viaTotp = Boolean(
+            user.totpEnabled && user.totpSecret && totp && verifyTotpCode(user.totpSecret, totp, user.email)
+          );
+          if (!viaTotp && !(await codeAccepted())) {
             await recordFailedAttempt(email);
             return null;
           }
@@ -113,7 +113,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           (await bcrypt.compare(password, member.passwordHash))
         ) {
           // الأعضاء لا يملكون التحقّق بخطوتين، فرمز البريد هو عاملهم الثاني
-          if (!(await codeAccepted(false))) {
+          if (!(await codeAccepted())) {
             await recordFailedAttempt(email);
             return null;
           }

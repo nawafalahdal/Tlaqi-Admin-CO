@@ -22,6 +22,8 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
     { error: null, codeSent: false, needsTotp: false, maskedEmail: null }
   );
   const [step2, submitLogin, submitting] = useActionState(loginAction, { error: null });
+  // من يملك تطبيق المصادقة يختار طريقه؛ الافتراض رمز البريد لأنه وصل للتوّ
+  const [useTotp, setUseTotp] = useState(false);
 
   const atSecondStep = step1.codeSent || step1.needsTotp;
 
@@ -89,21 +91,47 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
 
       <div className="rounded-xl bg-[#EEF6DF]/70 px-4 py-3 text-sm leading-relaxed">
         <p className="font-semibold text-black/75">
-          {step1.needsTotp ? t.login.totpTitle : t.login.codeTitle}
+          {useTotp ? t.login.totpTitle : t.login.codeTitle}
         </p>
         <p className="mt-1 text-xs text-black/55">
-          {step1.needsTotp
+          {useTotp
             ? t.login.totpHint
             : t.login.codeHint.replace("{email}", step1.maskedEmail ?? "")}
         </p>
       </div>
 
+      {/* الطريقان معاً لمن يملكهما: ضياع الجهاز لا يحبسه، وتأخّر البريد
+          لا يوقفه */}
+      {step1.needsTotp && (
+        <div className="grid grid-cols-2 gap-2 rounded-xl bg-black/[0.04] p-1">
+          <button
+            type="button"
+            onClick={() => setUseTotp(false)}
+            className={`min-h-10 rounded-lg text-xs font-semibold transition-colors ${
+              !useTotp ? "bg-white shadow-sm" : "text-black/50"
+            }`}
+          >
+            {t.login.methodEmail}
+          </button>
+          <button
+            type="button"
+            onClick={() => setUseTotp(true)}
+            className={`min-h-10 rounded-lg text-xs font-semibold transition-colors ${
+              useTotp ? "bg-white shadow-sm" : "text-black/50"
+            }`}
+          >
+            {t.login.methodApp}
+          </button>
+        </div>
+      )}
+
       <label className="flex flex-col gap-1.5 text-sm">
         <span className="font-medium text-black/70">
-          {step1.needsTotp ? t.login.totpLabel : t.login.codeLabel}
+          {useTotp ? t.login.totpLabel : t.login.codeLabel}
         </span>
         <input
-          name={step1.needsTotp ? "totp" : "loginCode"}
+          key={useTotp ? "totp" : "loginCode"}
+          name={useTotp ? "totp" : "loginCode"}
           inputMode="numeric"
           autoComplete="one-time-code"
           pattern="[0-9]*"
