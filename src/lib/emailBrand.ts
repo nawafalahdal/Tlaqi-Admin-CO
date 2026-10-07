@@ -31,11 +31,24 @@ export const TAGLINE = process.env.BRAND_TAGLINE || "نلتقي · نفكّر ·
 /** حسابات التواصل. تُقرأ من البيئة لأنها تتغيّر ولا يصحّ تخمينها:
  *  رابط حساب خاطئ في بريد رسمي أسوأ من غياب الرابط. الصفّ كله لا يُرسم
  *  ما لم يُضبط منها شيء. */
+/** اليوزر موحّد على المنصات الثلاث. يبقى قابلاً للضبط من البيئة لتغييره
+ *  دون نشر، وأي منصة يُفرَّغ يوزرها تختفي من الصفّ من تلقاء نفسها. */
+const UNIFIED_HANDLE = "tlaqisa";
+
 export const SOCIAL_LINKS: { label: string; handle: string; url: string }[] = [
-  { label: "X", handle: process.env.SOCIAL_X || "", url: "https://x.com/" },
-  { label: "Instagram", handle: process.env.SOCIAL_INSTAGRAM || "", url: "https://instagram.com/" },
-  { label: "LinkedIn", handle: process.env.SOCIAL_LINKEDIN || "", url: "https://linkedin.com/company/" },
-  { label: "TikTok", handle: process.env.SOCIAL_TIKTOK || "", url: "https://tiktok.com/@" },
+  { label: "X", handle: process.env.SOCIAL_X ?? UNIFIED_HANDLE, url: "https://x.com/" },
+  {
+    label: "Instagram",
+    handle: process.env.SOCIAL_INSTAGRAM ?? UNIFIED_HANDLE,
+    url: "https://instagram.com/",
+  },
+  {
+    label: "LinkedIn",
+    handle: process.env.SOCIAL_LINKEDIN ?? UNIFIED_HANDLE,
+    url: "https://linkedin.com/company/",
+  },
+  // لا حساب تيك توك حالياً — يُضاف بضبط SOCIAL_TIKTOK وحده
+  { label: "TikTok", handle: process.env.SOCIAL_TIKTOK ?? "", url: "https://tiktok.com/@" },
 ].filter((s) => s.handle.trim().length > 0);
 
 function esc(value: string): string {
@@ -54,10 +67,10 @@ export function wrapEmail(opts: { title: string; bodyHtml: string; preheader?: s
     SOCIAL_LINKS.length === 0
       ? ""
       : `<tr>
-          <td align="center" style="padding:0 24px 18px">
+          <td align="center" style="background:${BRAND.temptress};padding:0 20px 20px">
             ${SOCIAL_LINKS.map(
               (s) =>
-                `<a href="${s.url}${esc(s.handle)}" style="display:inline-block;margin:0 6px;padding:7px 14px;border:1px solid rgba(238,246,223,0.35);border-radius:999px;color:${BRAND.beige};font-size:12px;text-decoration:none;font-family:Tahoma,Arial,sans-serif">${esc(s.label)} · @${esc(s.handle)}</a>`
+                `<a href="${s.url}${esc(s.handle)}" style="display:inline-block;margin:4px 4px;padding:9px 16px;background:${BRAND.mahogany};border-radius:999px;color:#ffffff;font-size:13px;font-weight:bold;text-decoration:none;font-family:Tahoma,Arial,sans-serif">${esc(s.label)} · @${esc(s.handle)}</a>`
             ).join("")}
           </td>
         </tr>`;
