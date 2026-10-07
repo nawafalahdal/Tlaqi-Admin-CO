@@ -306,6 +306,7 @@ export const en: Dictionary = {
     failedBody: "We'll be in touch to schedule a short briefing meeting.",
   },
   testEditorPage: {
+    founderReadOnly: "You are viewing this department\u2019s question bank for oversight only. Editing belongs to the department lead \u2014 they are the one answerable for its results.",
     execTitle: "Executive management test",
     execSubtitle: "The questions CEO account candidates must pass — only you can edit this",
     leadsTitle: "Department leads test",

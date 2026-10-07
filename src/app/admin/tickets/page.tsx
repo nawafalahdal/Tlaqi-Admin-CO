@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { sweepTicketEscalation, TICKET_STAGE_LABELS, TICKET_INCLUDE, ticketAuthor, ticketTargetLabel } from "@/lib/tickets";
+import { sweepTicketEscalation, TICKET_STAGE_LABELS, TICKET_INCLUDE, ticketAuthor, ticketTargetLabel, ticketVisibilityWhere } from "@/lib/tickets";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
@@ -31,6 +31,7 @@ export default async function TicketsPage() {
 
   const [tickets, departments, people, memberPeople] = await Promise.all([
     prisma.ticket.findMany({
+      where: ticketVisibilityWhere(session),
       include: TICKET_INCLUDE,
       orderBy: { createdAt: "desc" },
       take: 200,

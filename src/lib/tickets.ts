@@ -354,3 +354,45 @@ export async function escalateTicketNow(ticketId: string, byName: string) {
   await syncTicketSheetRow(updated);
   return updated;
 }
+
+/** ما يحقّ لكل دور أن يراه من التذاكر.
+ *
+ *  الفاوندر استثناء مقصود: لا تصله تذاكر الأقسام وهي تعمل. التصعيد نظامٌ
+ *  لا يعمل إن كان أعلى الهرم يقرأ كل شيء من أوله — يصير مرجعاً أولَ بدل
+ *  أن يكون ملاذاً أخيراً، ويُفرَّغ دور التنفيذي من معناه. فلا يرى إلا ما
+ *  بلغ مرحلته الأخيرة بعد أن وقف عند الجميع، وما هو طرف فيه بنفسه.
+ *
+ *  التنفيذي ومسؤول التشغيل يريان كل شيء: إدارة العمل اليومي وظيفتهما.
+ *  وقائد القسم يرى ما يخصّ قسمه أو ما وُجّه إليه. */
+export function ticketVisibilityWhere(session: {
+  user: { id: string; role: string; departmentId?: string | null };
+}) {
+  const { id, role, departmentId } = session.user;
+
+  if (role === "super_admin") {
+    return {
+      OR: [
+        { stage: "founder_escalation" as const },
+        { raisedByUserId: id },
+        { targetUserId: id },
+      ],
+    };
+  }
+
+  if (role === "department_admin") {
+    const dept = departmentId ?? "__none__";
+    return {
+      OR: [
+        { targetDepartmentId: dept },
+        { targetUserId: id },
+        { raisedByUserId: id },
+        { member: { departmentId: dept } },
+        { targetMember: { departmentId: dept } },
+        { raisedByUser: { departmentId: dept } },
+      ],
+    };
+  }
+
+  // التنفيذي ومسؤول التشغيل: لا قيد
+  return {};
+}

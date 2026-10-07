@@ -45,7 +45,19 @@ export default async function DepartmentTestPage({
           {t.testEditorPage.deptTitlePrefix} {department.name}
         </h1>
         <p className="mb-6 text-sm text-black/50">{t.testEditorPage.deptSubtitle}</p>
-        <TestEditor trackId={track.id} questions={track.questions.map(toQuestionViewModel)} theme={theme} />
+        {/* بنك أسئلة القسم يملكه قائده. الفاوندر يطّلع عليه ولا يعدّله:
+            الاطّلاع رقابة، والتعديل تجاوزٌ على من يُحاسَب على نتيجته. */}
+        {isSuperAdmin && (
+          <div className="mb-5 rounded-2xl border border-black/10 bg-white px-4 py-3 text-xs leading-relaxed text-black/55">
+            {t.testEditorPage.founderReadOnly}
+          </div>
+        )}
+        <TestEditor
+          trackId={track.id}
+          questions={track.questions.map(toQuestionViewModel)}
+          theme={theme}
+          readOnly={isSuperAdmin}
+        />
       </main>
     </div>
   );

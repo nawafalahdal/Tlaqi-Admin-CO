@@ -60,7 +60,11 @@ export default async function AdminPage() {
         take: 30,
       }),
       prisma.ticket.findMany({
-        where: { status: { in: ["open", "in_progress"] }, stage: "ceo_escalation" },
+        where: {
+          status: { in: ["open", "in_progress"] },
+          // الفاوندر يرى ما بلغ مرحلته هو؛ التنفيذي يرى ما بلغ مرحلته
+          stage: isSuperAdmin ? "founder_escalation" : "ceo_escalation",
+        },
         include: TICKET_INCLUDE,
         orderBy: { createdAt: "desc" },
       }),

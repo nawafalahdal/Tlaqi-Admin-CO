@@ -95,8 +95,12 @@ export default async function DepartmentBoardPage({
     prisma.ticket.findMany({
       where: {
         status: { in: ["open", "in_progress"] },
+        // الفاوندر داخل لوحة القسم مراقبٌ لا طرف: لا تُعرض له تذاكر
+        // القسم إلا ما بلغ مرحلته الأخيرة بعد أن وقف عند الجميع
+        ...(isSuperAdmin ? { stage: "founder_escalation" as const } : {}),
         OR: [
           { targetDepartmentId: department.id },
+          { targetMember: { departmentId: department.id } },
           { stage: "lead_escalation", member: { departmentId: department.id } },
         ],
       },
