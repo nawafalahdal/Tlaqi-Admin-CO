@@ -3,7 +3,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { sweepOverdueRequests, sweepExpiredCandidateAccounts } from "@/lib/workflow";
-import { sweepTicketEscalation } from "@/lib/tickets";
+import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE } from "@/lib/tickets";
 import { announcementsForSession, canPublishAnnouncement } from "@/lib/announcements";
 import { TicketCard } from "./tickets/TicketCard";
 import { themeFromColor, SUPER_ADMIN_THEME, BRAND } from "@/lib/brand";
@@ -61,7 +61,7 @@ export default async function AdminPage() {
       }),
       prisma.ticket.findMany({
         where: { status: { in: ["open", "in_progress"] }, stage: "ceo_escalation" },
-        include: { member: true, targetDepartment: true },
+        include: TICKET_INCLUDE,
         orderBy: { createdAt: "desc" },
       }),
       announcementsForSession(session, 8),
@@ -192,8 +192,8 @@ export default async function AdminPage() {
                     stage: t.stage,
                     stageDueAt: t.stageDueAt.toISOString(),
                     resolutionNote: t.resolutionNote,
-                    memberName: t.member.fullName,
-                    targetDepartmentName: t.targetDepartment.name,
+                    memberName: ticketAuthor(t).name,
+                    targetDepartmentName: ticketTargetLabel(t),
                   }}
                 />
               ))}

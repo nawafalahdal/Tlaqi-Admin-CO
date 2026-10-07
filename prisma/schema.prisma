@@ -44,6 +44,16 @@ enum RequestType {
   custom_design
   dept_contact
   meeting
+  content_writing
+  design_work
+  publishing
+  tech_support
+  hr_support
+  equipment
+  budget_approval
+  escalate_to_executive
+  escalate_to_founder
+  other
 }
 
 enum RequestStatus {
@@ -72,6 +82,7 @@ enum TicketStage {
   department
   lead_escalation
   ceo_escalation
+  founder_escalation
 }
 
 /// قسم داخلي — كل قسم له لون هوية خاص (hex) يُستخدم في تخصيص الواجهات
@@ -116,7 +127,9 @@ model User {
   sheetRow            Int?
   passwordChangedAt   DateTime?
 
-  invitesIssued Invite[] @relation("InvitedBy")
+  invitesIssued   Invite[] @relation("InvitedBy")
+  ticketsRaised   Ticket[] @relation("TicketRaisedBy")
+  ticketsAssigned Ticket[] @relation("TicketTargetUser")
 }
 
 /// دعوة مقفلة بالاسم والإيميل — لا تسجيل عام. targetRole يحدد المسار:
@@ -172,10 +185,21 @@ model Member {
   certificateIssuedAt DateTime?
   sheetRow            Int?
 
-  testAttempts TestAttempt[]
-  requests     Request[]       @relation("LinkedMemberRequests")
-  warnings     MemberWarning[]
-  tickets      Ticket[]
+  // بيانات يسجّلها المرشّح بنفسه قبل بدء الاختبار — تُكتب في الشيت فوراً
+  specialization     String?
+  section            String?
+  profileCompletedAt DateTime?
+
+  // إعادة فتح الاختبار بعد عدم الاجتياز: من أعادها، ومتى، وعلى أي أساس
+  testReopenCount  Int       @default(0)
+  testReopenedAt   DateTime?
+  testReopenNote   String?
+
+  testAttempts    TestAttempt[]
+  requests        Request[]       @relation("LinkedMemberRequests")
+  warnings        MemberWarning[]
+  tickets         Ticket[]
+  ticketsAssigned Ticket[]        @relation("TicketTargetMember")
 }
 
 model TestAttempt {
@@ -247,10 +271,18 @@ model Ticket {
   ticketNumber       Int          @unique @default(autoincrement())
   subject            String
   description        String
-  memberId           String
-  member             Member       @relation(fields: [memberId], references: [id])
-  targetDepartmentId String
-  targetDepartment   Department   @relation("TicketTargetDepartment", fields: [targetDepartmentId], references: [id])
+  // صاحب التذكرة: عضو أو حساب إداري — واحد منهما لا كلاهما
+  memberId           String?
+  member             Member?      @relation(fields: [memberId], references: [id])
+  raisedByUserId     String?
+  raisedByUser       User?        @relation("TicketRaisedBy", fields: [raisedByUserId], references: [id])
+  // الوجهة: قسم كامل أو شخص بعينه — واحدة منهما
+  targetDepartmentId String?
+  targetDepartment   Department?  @relation("TicketTargetDepartment", fields: [targetDepartmentId], references: [id])
+  targetUserId       String?
+  targetUser         User?        @relation("TicketTargetUser", fields: [targetUserId], references: [id])
+  targetMemberId     String?
+  targetMember       Member?      @relation("TicketTargetMember", fields: [targetMemberId], references: [id])
   status             TicketStatus @default(open)
   stage              TicketStage  @default(department)
   stageDueAt         DateTime
@@ -281,6 +313,10 @@ model Announcement {
   authorName   String
   createdAt    DateTime             @default(now())
   pinnedUntil  DateTime?
+
+  // هل نُسخ الإعلان إلى بريد الجميع، لا على المنصة وحدها
+  sentByEmail    Boolean @default(false)
+  emailRecipients Int    @default(0)
 }
 
 /// يمنع هجمات التخمين وحشو بيانات الاعتماد — يتتبع محاولات الدخول الفاشلة لكل

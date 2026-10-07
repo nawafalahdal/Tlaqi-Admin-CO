@@ -48,11 +48,44 @@ export default async function MemberPortalPage() {
 
   const unacknowledged = member.warnings.filter((w) => !w.acknowledgedAt).length;
 
-  const [departments, tickets, announcements] = await Promise.all([
+  const [departments, tickets, announcements, leadership, colleagues] = await Promise.all([
     prisma.department.findMany({ orderBy: { name: "asc" } }),
-    prisma.ticket.findMany({ where: { memberId: member.id }, orderBy: { createdAt: "desc" } }),
+    // تذاكره: ما رفعه هو، وما وُجِّه إليه باسمه
+    prisma.ticket.findMany({
+      where: { OR: [{ memberId: member.id }, { targetMemberId: member.id }] },
+      orderBy: { createdAt: "desc" },
+    }),
     announcementsForSession(session, 6),
+    prisma.user.findMany({ where: { isActive: true }, orderBy: { fullName: "asc" } }),
+    // زملاء قسمه: هم طرف مسار العمل اليومي (محتوى ← تصميم ← نشر)
+    prisma.member.findMany({
+      where: {
+        isActive: true,
+        approvalStatus: "approved",
+        departmentId: member.departmentId,
+        id: { not: member.id },
+      },
+      orderBy: { fullName: "asc" },
+    }),
   ]);
+
+  const ticketTargets = [
+    ...departments.map((d) => ({
+      value: `dept:${d.id}`,
+      label: d.name,
+      group: t.ticketsPage.groupDepartments,
+    })),
+    ...colleagues.map((m) => ({
+      value: `member:${m.id}`,
+      label: m.fullName,
+      group: t.ticketsPage.groupMembers,
+    })),
+    ...leadership.map((u) => ({
+      value: `user:${u.id}`,
+      label: `${u.fullName} — ${t.roles[u.role as keyof typeof t.roles] ?? u.role}`,
+      group: t.ticketsPage.groupLeadership,
+    })),
+  ];
 
   return (
     <div className="min-h-screen bg-[#FAF8F4]">
@@ -118,7 +151,7 @@ export default async function MemberPortalPage() {
           <h2 className="mb-4 text-lg font-bold">{t.member.raiseTicketTitle}</h2>
           <p className="mb-4 -mt-3 text-xs text-black/40">{t.member.raiseTicketHint}</p>
           <Card className="p-6">
-            <RaiseTicketForm departments={departments} theme={theme} />
+            <RaiseTicketForm targets={ticketTargets} theme={theme} />
           </Card>
         </section>
 

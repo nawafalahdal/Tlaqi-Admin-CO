@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { Ticket, Member, Department } from "@prisma/client";
+import type { Ticket, Member, Department, User } from "@prisma/client";
 import {
   sendTicketCreatedEmail,
   sendTicketConfirmationEmail,
@@ -8,6 +8,7 @@ import {
   sendTicketReminderEmail,
 } from "@/lib/email";
 import { upsertTicketRow } from "@/lib/googleSheets";
+import { ROLE_LABELS } from "@/lib/testTracks";
 
 export const TICKET_STAGE_DAYS = 2;
 
@@ -23,8 +24,9 @@ function baseUrl() {
 
 export const TICKET_STAGE_LABELS: Record<string, string> = {
   department: "القسم المعني",
-  lead_escalation: "قائد قسمك",
-  ceo_escalation: "الإدارة التنفيذية",
+  lead_escalation: "قائد القسم",
+  ceo_escalation: "المدير التنفيذي",
+  founder_escalation: "الإدارة العليا",
 };
 
 const TICKET_STATUS_LABELS: Record<string, "جديدة" | "قيد المعالجة" | "تم الحل"> = {
@@ -33,30 +35,119 @@ const TICKET_STATUS_LABELS: Record<string, "جديدة" | "قيد المعالج
   resolved: "تم الحل",
 };
 
+/** التذكرة الكاملة بأطرافها — صاحبها (عضو أو حساب إداري) ووجهتها (قسم أو شخص) */
+export type FullTicket = Ticket & {
+  member: Member | null;
+  raisedByUser: User | null;
+  targetDepartment: Department | null;
+  targetUser: User | null;
+  targetMember: Member | null;
+};
+
+export const TICKET_INCLUDE = {
+  member: true,
+  raisedByUser: true,
+  targetDepartment: true,
+  targetUser: true,
+  targetMember: true,
+} as const;
+
+/** اسم صاحب التذكرة وبريده، أياً كان نوع حسابه */
+export function ticketAuthor(ticket: FullTicket) {
+  if (ticket.member) return { name: ticket.member.fullName, email: ticket.member.email };
+  if (ticket.raisedByUser)
+    return { name: ticket.raisedByUser.fullName, email: ticket.raisedByUser.email };
+  return { name: "—", email: "" };
+}
+
+/** الجهة التي وُجِّهت إليها التذكرة ابتداءً، كما تُعرض وتُكتب في الشيت */
+export function ticketTargetLabel(ticket: FullTicket) {
+  if (ticket.targetDepartment) return ticket.targetDepartment.name;
+  if (ticket.targetUser) {
+    const role = ROLE_LABELS[ticket.targetUser.role as keyof typeof ROLE_LABELS] ?? ticket.targetUser.role;
+    return `${ticket.targetUser.fullName} — ${role}`;
+  }
+  if (ticket.targetMember) return `${ticket.targetMember.fullName} — عضو`;
+  return "—";
+}
+
 async function emailsForDepartmentAdmins(departmentId: string) {
-  const admins = await prisma.user.findMany({ where: { role: "department_admin", departmentId } });
+  const admins = await prisma.user.findMany({
+    where: { role: "department_admin", departmentId, isActive: true },
+  });
   return admins.map((a) => a.email);
 }
 
-async function emailsForLeadership() {
-  const leaders = await prisma.user.findMany({
-    where: { role: { in: ["executive", "super_admin"] } },
-  });
-  return leaders.map((l) => l.email);
+/** بريد المدير التنفيذي. إن لم يكن هناك تنفيذي نشط تذهب للإدارة العليا بدلاً
+ *  من أن تضيع التذكرة في الفراغ — التصعيد لا يجوز أن ينتهي عند لا أحد. */
+async function emailsForExecutive() {
+  const execs = await prisma.user.findMany({ where: { role: "executive", isActive: true } });
+  if (execs.length > 0) return execs.map((e) => e.email);
+  return emailsForFounder();
+}
+
+async function emailsForFounder() {
+  const founders = await prisma.user.findMany({ where: { role: "super_admin", isActive: true } });
+  return founders.map((f) => f.email);
+}
+
+/** من يملك التذكرة في مرحلتها الحالية */
+async function recipientsForStage(ticket: FullTicket): Promise<string[]> {
+  switch (ticket.stage) {
+    case "department":
+      if (ticket.targetUser) return [ticket.targetUser.email];
+      if (ticket.targetMember) return [ticket.targetMember.email];
+      return ticket.targetDepartmentId ? emailsForDepartmentAdmins(ticket.targetDepartmentId) : [];
+    case "lead_escalation": {
+      const deptId =
+        ticket.targetMember?.departmentId ??
+        ticket.member?.departmentId ??
+        ticket.raisedByUser?.departmentId ??
+        null;
+      return deptId ? emailsForDepartmentAdmins(deptId) : emailsForExecutive();
+    }
+    case "ceo_escalation":
+      return emailsForExecutive();
+    default:
+      return emailsForFounder();
+  }
+}
+
+/** المرحلة التالية في سلسلة التصعيد.
+ *
+ *  تذكرة موجَّهة لقسم تمرّ بقائد قسم صاحبها قبل التنفيذي. أما الموجَّهة لشخص
+ *  بعينه فتقفز مباشرة للتنفيذي: ليس لها "قسم معنيّ" يُراجَع قبله.
+ *  وتنتهي السلسلة دائماً عند الإدارة العليا — لا تذكرة تموت بلا مسؤول. */
+function nextStage(ticket: FullTicket): "lead_escalation" | "ceo_escalation" | "founder_escalation" | null {
+  if (ticket.stage === "department") {
+    // تذكرة موجَّهة لعضو تُصعَّد لقائد قسمه: هو أول من يُسأل عن تأخّره
+    const hasLeadAbove = Boolean(
+      ticket.targetMember?.departmentId ??
+        (ticket.targetDepartmentId
+          ? (ticket.member?.departmentId ?? ticket.raisedByUser?.departmentId)
+          : null)
+    );
+    if (hasLeadAbove) return "lead_escalation";
+    return "ceo_escalation";
+  }
+  if (ticket.stage === "lead_escalation") return "ceo_escalation";
+  if (ticket.stage === "ceo_escalation") return "founder_escalation";
+  return null;
 }
 
 /** يكتب/يحدّث الصف الثابت الخاص بالتذكرة في الشيت، ويحفظ رقم الصف على التذكرة
  *  أول مرة فقط — كل استدعاء لاحق يحدّث نفس الصف بدل إضافة صف جديد */
-export async function syncTicketSheetRow(ticket: Ticket & { member: Member; targetDepartment: Department }) {
+export async function syncTicketSheetRow(ticket: FullTicket) {
   const resolved = ticket.status === "resolved";
   const isLate = resolved ? ticket.stage !== "department" : new Date() > ticket.stageDueAt;
+  const author = ticketAuthor(ticket);
 
   const result = await upsertTicketRow({
     sheetRow: ticket.sheetRow,
     ticketNumber: ticket.ticketNumber,
-    fullName: ticket.member.fullName,
-    email: ticket.member.email,
-    targetDepartment: ticket.targetDepartment.name,
+    fullName: author.name,
+    email: author.email,
+    targetDepartment: ticketTargetLabel(ticket),
     subject: ticket.subject,
     details: ticket.resolutionNote ?? ticket.description,
     status: TICKET_STATUS_LABELS[ticket.status],
@@ -72,45 +163,63 @@ export async function syncTicketSheetRow(ticket: Ticket & { member: Member; targ
   }
 }
 
-/** يرفع عضو تذكرة جديدة — تبدأ دائماً عند القسم المستهدف بمهلة يومين */
+/** يرفع تذكرة جديدة.
+ *
+ *  صاحبها إما عضو أو حساب إداري، ووجهتها إما قسم كامل أو شخص بعينه. هذا هو
+ *  ما يجعل التذاكر قناة العمل الفعلية: كاتب المحتوى يرفعها للمصمّم باسمه،
+ *  والمصمّم يردّها لمسؤول النشر، وكلٌّ منها له مهلة ومسار تصعيد مكتوب. */
 export async function raiseTicket(opts: {
-  memberId: string;
-  targetDepartmentId: string;
+  memberId?: string;
+  raisedByUserId?: string;
+  targetDepartmentId?: string;
+  targetUserId?: string;
+  targetMemberId?: string;
   subject: string;
   description: string;
 }) {
-  const member = await prisma.member.findUniqueOrThrow({ where: { id: opts.memberId } });
-  const targetDepartment = await prisma.department.findUniqueOrThrow({ where: { id: opts.targetDepartmentId } });
-  const stageDueAt = addDays(new Date(), TICKET_STAGE_DAYS);
+  if (!opts.memberId && !opts.raisedByUserId) throw new Error("التذكرة تحتاج صاحباً");
+  const targets = [opts.targetDepartmentId, opts.targetUserId, opts.targetMemberId].filter(Boolean);
+  if (targets.length === 0) throw new Error("التذكرة تحتاج وجهة");
+  if (targets.length > 1) throw new Error("اختر وجهة واحدة: قسماً أو شخصاً");
 
-  const ticket = await prisma.ticket.create({
+  const stageDueAt = addDays(new Date(), TICKET_STAGE_DAYS);
+  const created = await prisma.ticket.create({
     data: {
       subject: opts.subject,
       description: opts.description,
-      memberId: opts.memberId,
-      targetDepartmentId: opts.targetDepartmentId,
+      memberId: opts.memberId ?? null,
+      raisedByUserId: opts.raisedByUserId ?? null,
+      targetDepartmentId: opts.targetDepartmentId ?? null,
+      targetUserId: opts.targetUserId ?? null,
+      targetMemberId: opts.targetMemberId ?? null,
       stage: "department",
       stageDueAt,
     },
+    include: TICKET_INCLUDE,
   });
 
-  const targetAdmins = await emailsForDepartmentAdmins(opts.targetDepartmentId);
-  await sendTicketCreatedEmail({
-    to: targetAdmins,
-    subject: opts.subject,
-    description: opts.description,
-    memberName: member.fullName,
-    dueDate: stageDueAt,
-    portalUrl: `${baseUrl()}/admin`,
-  });
-  await sendTicketConfirmationEmail({ to: member.email, subject: opts.subject, dueDate: stageDueAt });
+  const author = ticketAuthor(created);
+  const recipients = await recipientsForStage(created);
 
-  await syncTicketSheetRow({ ...ticket, member, targetDepartment });
+  if (recipients.length > 0) {
+    await sendTicketCreatedEmail({
+      to: recipients,
+      subject: opts.subject,
+      description: opts.description,
+      memberName: author.name,
+      dueDate: stageDueAt,
+      portalUrl: `${baseUrl()}/admin/tickets`,
+    });
+  }
+  if (author.email) {
+    await sendTicketConfirmationEmail({ to: author.email, subject: opts.subject, dueDate: stageDueAt });
+  }
 
-  return ticket;
+  await syncTicketSheetRow(created);
+  return created;
 }
 
-/** يحدّث حالة التذكرة (قيد المعالجة / تم الحل) مع ملاحظة — يرسل إشعاراً للعضو عند الحل */
+/** يحدّث حالة التذكرة (قيد المعالجة / تم الحل) مع ملاحظة — يرسل إشعاراً لصاحبها عند الحل */
 export async function respondToTicket(opts: {
   ticketId: string;
   status: "in_progress" | "resolved";
@@ -123,102 +232,125 @@ export async function respondToTicket(opts: {
       resolutionNote: opts.resolutionNote,
       resolvedAt: opts.status === "resolved" ? new Date() : null,
     },
-    include: { member: true, targetDepartment: true },
+    include: TICKET_INCLUDE,
   });
 
   if (opts.status === "resolved") {
-    await sendTicketResolvedEmail({
-      to: ticket.member.email,
-      subject: ticket.subject,
-      resolutionNote: opts.resolutionNote ?? "تم حل التذكرة.",
-    });
+    const author = ticketAuthor(ticket);
+    if (author.email) {
+      await sendTicketResolvedEmail({
+        to: author.email,
+        subject: ticket.subject,
+        resolutionNote: opts.resolutionNote ?? "تم حل التذكرة.",
+      });
+    }
   }
 
   await syncTicketSheetRow(ticket);
-
   return ticket;
 }
 
 /** يُشغَّل عند كل تحميل للوحات — يصعّد أي تذكرة تجاوزت مهلتها دون حل:
- *  القسم (يومان) ← قائد قسم العضو (يومان) ← الإدارة التنفيذية (نهائي) */
+ *  الجهة المعنية (يومان) ← قائد القسم (يومان) ← المدير التنفيذي (يومان)
+ *  ← الإدارة العليا (نهائي). الفاوندر آخر السلسلة لا أولها. */
 export async function sweepTicketEscalation() {
   const overdue = await prisma.ticket.findMany({
     where: {
       status: { in: ["open", "in_progress"] },
-      stage: { in: ["department", "lead_escalation"] },
+      stage: { in: ["department", "lead_escalation", "ceo_escalation"] },
       stageDueAt: { lt: new Date() },
     },
-    include: { member: true, targetDepartment: true },
+    include: TICKET_INCLUDE,
   });
 
   for (const ticket of overdue) {
-    if (ticket.stage === "department") {
-      const nextDue = addDays(new Date(), TICKET_STAGE_DAYS);
-      const updated = await prisma.ticket.update({
-        where: { id: ticket.id },
-        data: { stage: "lead_escalation", stageDueAt: nextDue },
-        include: { member: true, targetDepartment: true },
-      });
+    const next = nextStage(ticket);
+    if (!next) continue;
 
-      if (ticket.member.departmentId) {
-        const leadEmails = await emailsForDepartmentAdmins(ticket.member.departmentId);
-        await sendTicketEscalatedEmail({
-          to: leadEmails,
-          subject: ticket.subject,
-          memberName: ticket.member.fullName,
-          description: ticket.description,
-          stageLabel: TICKET_STAGE_LABELS.lead_escalation,
-          dueDate: nextDue,
-          portalUrl: `${baseUrl()}/admin`,
-        });
-      }
+    // المرحلة الأخيرة بلا مهلة جديدة: ليس بعدها من يُصعَّد إليه
+    const isFinal = next === "founder_escalation";
+    const nextDue = isFinal ? ticket.stageDueAt : addDays(new Date(), TICKET_STAGE_DAYS);
 
-      await syncTicketSheetRow(updated);
-    } else if (ticket.stage === "lead_escalation") {
-      const updated = await prisma.ticket.update({
-        where: { id: ticket.id },
-        data: { stage: "ceo_escalation" },
-        include: { member: true, targetDepartment: true },
-      });
+    const updated = await prisma.ticket.update({
+      where: { id: ticket.id },
+      data: { stage: next, stageDueAt: nextDue },
+      include: TICKET_INCLUDE,
+    });
 
-      const leadershipEmails = await emailsForLeadership();
+    const recipients = await recipientsForStage(updated);
+    if (recipients.length > 0) {
       await sendTicketEscalatedEmail({
-        to: leadershipEmails,
+        to: recipients,
         subject: ticket.subject,
-        memberName: ticket.member.fullName,
+        memberName: ticketAuthor(ticket).name,
         description: ticket.description,
-        stageLabel: TICKET_STAGE_LABELS.ceo_escalation,
-        dueDate: null,
-        portalUrl: `${baseUrl()}/admin`,
+        stageLabel: TICKET_STAGE_LABELS[next],
+        dueDate: isFinal ? null : nextDue,
+        portalUrl: `${baseUrl()}/admin/tickets`,
       });
-
-      await syncTicketSheetRow(updated);
     }
+
+    await syncTicketSheetRow(updated);
   }
 }
 
-/** يرسل مسؤول التشغيل تذكيراً يدوياً للجهة المسؤولة حالياً عن تذكرة لم تُحل بعد */
+/** تذكير يدوي للجهة المسؤولة حالياً عن تذكرة لم تُحل بعد */
 export async function remindTicket(ticketId: string, fromName: string) {
   const ticket = await prisma.ticket.findUniqueOrThrow({
     where: { id: ticketId },
-    include: { member: true, targetDepartment: true },
+    include: TICKET_INCLUDE,
   });
   if (ticket.status === "resolved") return;
 
-  const recipients =
-    ticket.stage === "department"
-      ? await emailsForDepartmentAdmins(ticket.targetDepartmentId)
-      : ticket.stage === "lead_escalation" && ticket.member.departmentId
-        ? await emailsForDepartmentAdmins(ticket.member.departmentId)
-        : await emailsForLeadership();
+  const recipients = await recipientsForStage(ticket);
+  if (recipients.length === 0) return;
 
   await sendTicketReminderEmail({
     to: recipients,
     subject: ticket.subject,
-    memberName: ticket.member.fullName,
+    memberName: ticketAuthor(ticket).name,
     stageLabel: TICKET_STAGE_LABELS[ticket.stage],
     dueDate: ticket.stageDueAt,
     fromName,
-    portalUrl: `${baseUrl()}/admin`,
+    portalUrl: `${baseUrl()}/admin/tickets`,
   });
+}
+
+/** تصعيد يدوي فوري — لمن لا يريد انتظار المهلة.
+ *  متاح لصاحب التذكرة ولمن يملكها الآن، ولا يتجاوز نهاية السلسلة. */
+export async function escalateTicketNow(ticketId: string, byName: string) {
+  const ticket = await prisma.ticket.findUniqueOrThrow({
+    where: { id: ticketId },
+    include: TICKET_INCLUDE,
+  });
+  if (ticket.status === "resolved") return ticket;
+
+  const next = nextStage(ticket);
+  if (!next) return ticket;
+
+  const isFinal = next === "founder_escalation";
+  const updated = await prisma.ticket.update({
+    where: { id: ticket.id },
+    data: {
+      stage: next,
+      stageDueAt: isFinal ? ticket.stageDueAt : addDays(new Date(), TICKET_STAGE_DAYS),
+    },
+    include: TICKET_INCLUDE,
+  });
+
+  const recipients = await recipientsForStage(updated);
+  if (recipients.length > 0) {
+    await sendTicketEscalatedEmail({
+      to: recipients,
+      subject: ticket.subject,
+      memberName: `${ticketAuthor(ticket).name} (صعّدها: ${byName})`,
+      description: ticket.description,
+      stageLabel: TICKET_STAGE_LABELS[next],
+      dueDate: isFinal ? null : updated.stageDueAt,
+      portalUrl: `${baseUrl()}/admin/tickets`,
+    });
+  }
+
+  await syncTicketSheetRow(updated);
+  return updated;
 }

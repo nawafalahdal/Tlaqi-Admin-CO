@@ -22,14 +22,25 @@ export async function raiseTicketAction(
 
   const subject = String(formData.get("subject") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
-  const targetDepartmentId = String(formData.get("targetDepartmentId") ?? "");
+  // الوجهة قيمة واحدة مسبوقة بنوعها: قسم، أو زميل، أو حساب إداري. هذا ما
+  // يجعل مسار العمل الفعلي ممكناً — كاتب المحتوى يرسل للمصمّم باسمه.
+  const target = String(formData.get("target") ?? "");
 
-  if (!subject || !description || !targetDepartmentId) {
+  if (!subject || !description || !target) {
     return { error: "جميع الحقول مطلوبة", success: false };
   }
 
+  const [kind, id] = target.split(":");
+
   try {
-    await raiseTicket({ memberId: session.user.id, targetDepartmentId, subject, description });
+    await raiseTicket({
+      memberId: session.user.id,
+      targetDepartmentId: kind === "dept" ? id : undefined,
+      targetUserId: kind === "user" ? id : undefined,
+      targetMemberId: kind === "member" ? id : undefined,
+      subject,
+      description,
+    });
     revalidatePath("/member");
     return { error: null, success: true };
   } catch (err) {

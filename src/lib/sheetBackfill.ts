@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { appendMemberEvent, appendTestResult } from "@/lib/googleSheets";
 import { syncMemberLifecycleRow, syncAdminAccountRow } from "@/lib/workflow";
-import { syncTicketSheetRow } from "@/lib/tickets";
+import { syncTicketSheetRow, TICKET_INCLUDE } from "@/lib/tickets";
 import { ROLE_LABELS } from "@/lib/testTracks";
 
 /** تعبئة رجعية للشيت بما في قاعدة البيانات أصلاً.
@@ -41,7 +41,7 @@ export async function backfillSheets(opts: { includeAppendOnlyTabs: boolean }) {
 
   // 3) التذاكر — صف ثابت لكل تذكرة
   const tickets = await prisma.ticket.findMany({
-    include: { member: true, targetDepartment: true },
+    include: TICKET_INCLUDE,
     orderBy: { createdAt: "asc" },
   });
   for (const t of tickets) {

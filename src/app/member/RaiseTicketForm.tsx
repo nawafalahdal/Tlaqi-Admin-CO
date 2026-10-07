@@ -6,11 +6,13 @@ import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
 
+export type MemberTicketTarget = { value: string; label: string; group: string };
+
 export function RaiseTicketForm({
-  departments,
+  targets,
   theme,
 }: {
-  departments: { id: string; name: string }[];
+  targets: MemberTicketTarget[];
   theme: ReturnType<typeof themeFromColor>;
 }) {
   const [state, formAction, pending] = useActionState(raiseTicketAction, {
@@ -39,7 +41,7 @@ export function RaiseTicketForm({
       <label className="flex flex-col gap-1.5 text-sm">
         <span className="font-medium text-black/70">{t.member.departmentLabel}</span>
         <select
-          name="targetDepartmentId"
+          name="target"
           required
           defaultValue=""
           className="min-h-11 rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30 bg-white"
@@ -47,10 +49,16 @@ export function RaiseTicketForm({
           <option value="" disabled>
             {t.member.departmentPlaceholder}
           </option>
-          {departments.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
+          {Array.from(new Set(targets.map((o) => o.group))).map((g) => (
+            <optgroup key={g} label={g}>
+              {targets
+                .filter((o) => o.group === g)
+                .map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+            </optgroup>
           ))}
         </select>
       </label>

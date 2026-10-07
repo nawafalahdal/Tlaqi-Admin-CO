@@ -1,13 +1,15 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { sweepTicketEscalation, TICKET_STAGE_LABELS } from "@/lib/tickets";
+import { sweepTicketEscalation, TICKET_STAGE_LABELS, TICKET_INCLUDE, ticketAuthor, ticketTargetLabel } from "@/lib/tickets";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { BackButton } from "@/components/BackButton";
 import { TicketCard } from "./TicketCard";
 import { DataTable } from "@/components/DataTable";
+import { RaiseAdminTicketForm, type TicketTargetOption } from "./RaiseAdminTicketForm";
+import { ROLE_LABELS } from "@/lib/testTracks";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
 
@@ -16,7 +18,9 @@ import { getLocale, getDictionary } from "@/i18n/server";
 export default async function TicketsPage() {
   const session = await auth();
   if (!session) redirect("/login");
-  const allowed = ["super_admin", "executive", "operations_officer"];
+  // قادة الأقسام مشمولون: التذاكر قناة العمل، وحجبها عنهم كان يقطع
+  // القيادة عن أهم مسار تواصل في المنصة
+  const allowed = ["super_admin", "executive", "operations_officer", "department_admin"];
   if (!allowed.includes(session.user.role)) redirect("/admin");
 
   await sweepTicketEscalation();
@@ -25,11 +29,42 @@ export default async function TicketsPage() {
   const tt = t.ticketsPage;
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
 
-  const tickets = await prisma.ticket.findMany({
-    include: { member: true, targetDepartment: true },
-    orderBy: { createdAt: "desc" },
-    take: 200,
-  });
+  const [tickets, departments, people, memberPeople] = await Promise.all([
+    prisma.ticket.findMany({
+      include: TICKET_INCLUDE,
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    }),
+    prisma.department.findMany({ orderBy: { name: "asc" } }),
+    // لا يُوجَّه أحد تذكرةً لنفسه
+    prisma.user.findMany({
+      where: { isActive: true, id: { not: session.user.id } },
+      orderBy: [{ role: "asc" }, { fullName: "asc" }],
+    }),
+    prisma.member.findMany({
+      where: { isActive: true, approvalStatus: "approved" },
+      include: { department: true },
+      orderBy: { fullName: "asc" },
+    }),
+  ]);
+
+  const targets: TicketTargetOption[] = [
+    ...departments.map((d) => ({
+      value: `dept:${d.id}`,
+      label: d.name,
+      group: tt.groupDepartments,
+    })),
+    ...people.map((u) => ({
+      value: `user:${u.id}`,
+      label: `${u.fullName} — ${ROLE_LABELS[u.role as keyof typeof ROLE_LABELS] ?? u.role}`,
+      group: tt.groupLeadership,
+    })),
+    ...memberPeople.map((m) => ({
+      value: `member:${m.id}`,
+      label: m.department ? `${m.fullName} — ${m.department.name}` : m.fullName,
+      group: tt.groupMembers,
+    })),
+  ];
 
   const open = tickets.filter((x) => x.status !== "resolved");
   const closed = tickets.filter((x) => x.status === "resolved");
@@ -48,6 +83,10 @@ export default async function TicketsPage() {
           <h1 className="text-lg font-bold sm:text-xl">{tt.title}</h1>
           <p className="mt-1 text-sm text-black/50">{tt.subtitle}</p>
         </div>
+
+        <Card className="p-4 sm:p-5">
+          <RaiseAdminTicketForm targets={targets} theme={theme} />
+        </Card>
 
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatTile label={tt.statOpen} value={open.length} theme={theme} />
@@ -77,8 +116,8 @@ export default async function TicketsPage() {
                     stage: x.stage,
                     stageDueAt: x.stageDueAt.toISOString(),
                     resolutionNote: x.resolutionNote,
-                    memberName: x.member.fullName,
-                    targetDepartmentName: x.targetDepartment.name,
+                    memberName: ticketAuthor(x).name,
+                    targetDepartmentName: ticketTargetLabel(x),
                   }}
                 />
               ))}
@@ -105,14 +144,16 @@ export default async function TicketsPage() {
               cells: {
                 subject: x.subject,
                 number: `#${x.ticketNumber}`,
-                member: x.member.fullName,
+                member: ticketAuthor(x).name,
                 dept: (
                   <span className="inline-flex items-center gap-1.5 text-black/70">
-                    <span
-                      className="h-2.5 w-2.5 shrink-0 rounded-full"
-                      style={{ background: x.targetDepartment.colorHex }}
-                    />
-                    {x.targetDepartment.name}
+                    {x.targetDepartment && (
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ background: x.targetDepartment.colorHex }}
+                      />
+                    )}
+                    {ticketTargetLabel(x)}
                   </span>
                 ),
                 owner: t.ticketStage.admin[x.stage] ?? TICKET_STAGE_LABELS[x.stage],

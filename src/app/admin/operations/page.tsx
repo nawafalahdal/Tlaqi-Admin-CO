@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { sweepOverdueRequests, sweepExpiredCandidateAccounts } from "@/lib/workflow";
-import { sweepTicketEscalation, TICKET_STAGE_LABELS } from "@/lib/tickets";
+import { sweepTicketEscalation, TICKET_STAGE_LABELS, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE } from "@/lib/tickets";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card, StatusBadge } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
@@ -30,7 +30,7 @@ export default async function OperationsPage() {
   const [tickets, requests, announcements, departments] = await Promise.all([
     prisma.ticket.findMany({
       where: { status: { in: ["open", "in_progress"] } },
-      include: { member: true, targetDepartment: true },
+      include: TICKET_INCLUDE,
       orderBy: { stageDueAt: "asc" },
     }),
     prisma.request.findMany({
@@ -123,7 +123,7 @@ export default async function OperationsPage() {
                     <p className="text-sm font-bold">{t.subject}</p>
                     <p className="mt-1 text-sm text-black/60">{t.description}</p>
                     <p className="mt-2 text-xs text-black/40">
-                      {tOps.from}: {t.member.fullName} — {tOps.to}: {t.targetDepartment.name} —{" "}
+                      {tOps.from}: {ticketAuthor(t).name} — {tOps.to}: {ticketTargetLabel(t)} —{" "}
                       {tOps.dueOn}: {formatDate(t.stageDueAt)}
                     </p>
                     <div className="mt-3 border-t border-black/5 pt-3">

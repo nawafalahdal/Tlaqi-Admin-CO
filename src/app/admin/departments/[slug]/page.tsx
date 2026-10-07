@@ -7,7 +7,7 @@ import {
   sweepOverdueRequests,
   sweepExpiredCandidateAccounts,
 } from "@/lib/workflow";
-import { sweepTicketEscalation } from "@/lib/tickets";
+import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE } from "@/lib/tickets";
 import { TicketCard } from "../../tickets/TicketCard";
 import { themeFromColor } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
@@ -100,7 +100,7 @@ export default async function DepartmentBoardPage({
           { stage: "lead_escalation", member: { departmentId: department.id } },
         ],
       },
-      include: { member: true, targetDepartment: true },
+      include: TICKET_INCLUDE,
       orderBy: { createdAt: "desc" },
     }),
     prisma.member.findMany({
@@ -263,8 +263,8 @@ export default async function DepartmentBoardPage({
                     stage: tk.stage,
                     stageDueAt: tk.stageDueAt.toISOString(),
                     resolutionNote: tk.resolutionNote,
-                    memberName: tk.member.fullName,
-                    targetDepartmentName: tk.targetDepartment.name,
+                    memberName: ticketAuthor(tk).name,
+                    targetDepartmentName: ticketTargetLabel(tk),
                   }}
                 />
               ))}

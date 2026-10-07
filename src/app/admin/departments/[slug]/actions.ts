@@ -172,7 +172,7 @@ export async function respondToTicketAction(
 
   const ticket = await prisma.ticket.findUniqueOrThrow({
     where: { id: ticketId },
-    include: { member: true },
+    include: { member: true, raisedByUser: true },
   });
 
   const allowed =
@@ -180,7 +180,9 @@ export async function respondToTicketAction(
     session.user.role === "executive" ||
     (session.user.role === "department_admin" &&
       (session.user.departmentId === ticket.targetDepartmentId ||
-        session.user.departmentId === ticket.member.departmentId));
+        session.user.departmentId === ticket.member?.departmentId ||
+        session.user.departmentId === ticket.raisedByUser?.departmentId)) ||
+    ticket.targetUserId === session.user.id;
   if (!allowed) throw new Error("غير مصرح لك بهذا الإجراء");
 
   await respondToTicket({ ticketId, status, resolutionNote });
