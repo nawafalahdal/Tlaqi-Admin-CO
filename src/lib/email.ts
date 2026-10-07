@@ -2,7 +2,7 @@ import { Resend } from "resend";
 import { formatDate } from "@/lib/format";
 import { appendEmailLog } from "@/lib/googleSheets";
 import { prisma } from "@/lib/prisma";
-import { wrapEmail, htmlToText } from "@/lib/emailBrand";
+import { wrapEmail, htmlToText, variantForKind } from "@/lib/emailBrand";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FROM = process.env.EMAIL_FROM || "تَـــلاقِ <hello@tlaqiteam.site>";
@@ -59,7 +59,14 @@ async function send(to: string | string[], subject: string, html: string, kind =
   try {
     // الهوية تُضاف هنا لا في كل دالة: متن الرسالة يصف ما حدث، والغلاف
     // يصنع شكلها — فلا تتفرّق الهوية على تسع عشرة دالة ولا تُنسى في واحدة.
-    const wrapped = wrapEmail({ title: subject, bodyHtml: html, preheader: subject });
+    const wrapped = wrapEmail({
+      title: subject,
+      bodyHtml: html,
+      preheader: subject,
+      // التصميم يُشتقّ من وسم النوع الذي تمرّره كل دالة أصلاً، فلا دالة
+      // تختار تصميمها ولا تنساه — وما لا وسم له يأخذ العام
+      variant: variantForKind(kind),
+    });
     await resend.emails.send({
       from: FROM,
       to: recipients,

@@ -5,11 +5,12 @@
   "scripts": {
     "dev": "next dev",
     "postinstall": "prisma generate",
-    "build": "prisma migrate deploy && next build",
+    "build": "tsx scripts/check-email-coverage.ts && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
-    "db:migrate": "prisma migrate dev"
+    "db:migrate": "prisma migrate dev",
+    "check:email": "tsx scripts/check-email-coverage.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

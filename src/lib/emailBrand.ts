@@ -10,9 +10,90 @@ const BRAND = {
   temptress: "#341D2B",
   mahogany: "#C34900",
   beige: "#EEF6DF",
+  greenSheen: "#67C090",
   ink: "#1A1023",
   paper: "#FAF8F4",
 };
+
+/** أنواع الرسائل الأربعة.
+ *
+ *  الهوية واحدة في كل رسالة — الشعار والجملة والتذييل لا تتغيّر — لكن
+ *  نبرتها تتغيّر. التذكرة التي تحتاج إجراءً يجب أن تُعرف من نظرة واحدة في
+ *  صندوق وارد مزدحم، ورسالة الشهادة لا تُرسل بنبرة الإنذار. */
+export type EmailVariant = "default" | "ticket" | "celebration" | "serious";
+
+const VARIANT_STYLE: Record<
+  EmailVariant,
+  { rule: string; badge: string | null; badgeBg: string; badgeColor: string; note: string | null }
+> = {
+  default: {
+    rule: BRAND.mahogany,
+    badge: null,
+    badgeBg: BRAND.mahogany,
+    badgeColor: "#ffffff",
+    note: null,
+  },
+  ticket: {
+    rule: BRAND.mahogany,
+    badge: "تذكرة عمل · تحتاج إجراءً",
+    badgeBg: BRAND.mahogany,
+    badgeColor: "#ffffff",
+    note: "هذه تذكرة في نظام العمل، وليست إشعاراً عابراً. لها مهلة، وإن انقضت دون ردّ تُصعَّد تلقائياً إلى المسؤول الذي يليك.",
+  },
+  celebration: {
+    rule: BRAND.greenSheen,
+    badge: "خبر سار",
+    badgeBg: BRAND.greenSheen,
+    badgeColor: "#10321F",
+    note: null,
+  },
+  serious: {
+    rule: "#8C2F1B",
+    badge: "إشعار رسمي",
+    badgeBg: "#8C2F1B",
+    badgeColor: "#ffffff",
+    note: "هذا الإشعار مُسجَّل في سجلّ الفريق ويمكن الرجوع إليه.",
+  },
+};
+
+/** يربط نوع الرسالة بتصميمها.
+ *
+ *  المفتاح هو الوسم الذي تمرّره كل دالة إرسال أصلاً، فلا تحتاج أي دالة
+ *  أن تعرف شيئاً عن التصميم. وما لا يُذكر هنا يأخذ التصميم العام: رسالة
+ *  بلا هوية مستحيلة لا مستبعدة. */
+const KIND_VARIANT: Record<string, EmailVariant> = {
+  // التذاكر والطلبات — عمل له مهلة
+  "تذكرة جديدة": "ticket",
+  "تأكيد تذكرة": "ticket",
+  "تصعيد تذكرة": "ticket",
+  "حل تذكرة": "ticket",
+  "تذكير تذكرة": "ticket",
+  "تذكير طلب": "ticket",
+  "تكليف اجتماع شرح": "ticket",
+  "اجتماع شرح": "ticket",
+
+  // ما يُفرح
+  "اجتياز الاختبار": "celebration",
+  "الاعتماد النهائي": "celebration",
+  "شهادة إتمام": "celebration",
+  "إعادة فتح الاختبار": "celebration",
+
+  // ما يُسجَّل ويُحاسَب عليه
+  تنبيه: "serious",
+  "إنهاء عضوية": "serious",
+  "عدم اجتياز الاختبار": "serious",
+  "تذكير قبل سقوط المهلة": "serious",
+
+  // العام: الدعوة والدخول والاستعادة والإعلانات
+  دعوة: "default",
+  "بيانات الدخول": "default",
+  "استعادة كلمة المرور": "default",
+  "إعلان عام": "default",
+};
+
+export function variantForKind(kind: string): EmailVariant {
+  return KIND_VARIANT[kind] ?? "default";
+}
 
 export function appBaseUrl() {
   return process.env.APP_BASE_URL || "http://localhost:3000";
@@ -62,7 +143,13 @@ function esc(value: string): string {
 
 /** يغلّف متن الرسالة بالهوية الكاملة: ترويسة بالشعار، ثم المتن، ثم بانر
  *  التواصل والجملة. */
-export function wrapEmail(opts: { title: string; bodyHtml: string; preheader?: string }) {
+export function wrapEmail(opts: {
+  title: string;
+  bodyHtml: string;
+  preheader?: string;
+  variant?: EmailVariant;
+}) {
+  const style = VARIANT_STYLE[opts.variant ?? "default"];
   // اليوزر يُكتب مرة واحدة تحت الأسماء ما دام موحّداً على كل المنصات؛
   // فإن اختلف يوماً، كُتب مع اسم منصّته حتى لا يدلّ سطرٌ واحد على خطأ
   const sameHandle =
@@ -118,13 +205,36 @@ export function wrapEmail(opts: { title: string; bodyHtml: string; preheader?: s
       </td>
     </tr>
 
-    <!-- شريط لوني فاصل -->
-    <tr><td style="height:4px;background:${BRAND.mahogany};font-size:0;line-height:0">&nbsp;</td></tr>
+    <!-- شريط لوني فاصل: لونه يقول نوع الرسالة قبل قراءة حرف منها -->
+    <tr><td style="height:5px;background:${style.rule};font-size:0;line-height:0">&nbsp;</td></tr>
+
+    ${
+      style.badge
+        ? `<tr>
+      <td align="center" style="padding:18px 24px 0">
+        <span style="display:inline-block;background:${style.badgeBg};color:${style.badgeColor};font-family:Tahoma,Arial,sans-serif;font-size:12px;font-weight:bold;letter-spacing:0.5px;padding:8px 18px;border-radius:999px">${esc(style.badge)}</span>
+      </td>
+    </tr>`
+        : ""
+    }
 
     <!-- المتن -->
     <tr>
-      <td style="padding:28px 26px;font-family:Tahoma,Arial,sans-serif;font-size:15px;line-height:1.9;color:${BRAND.ink}" dir="rtl">
-        ${opts.bodyHtml}
+      <td style="padding:${style.badge ? "18px" : "28px"} 26px 26px;font-family:Tahoma,Arial,sans-serif;font-size:15px;line-height:1.9;color:${BRAND.ink}" dir="rtl">
+        ${
+          opts.variant === "ticket"
+            ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+                 <td style="border-right:3px dashed ${BRAND.mahogany};padding-right:16px">${opts.bodyHtml}</td>
+               </tr></table>`
+            : opts.bodyHtml
+        }
+        ${
+          style.note
+            ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:20px">
+                 <tr><td style="background:${BRAND.paper};border-radius:10px;padding:12px 14px;font-size:12px;line-height:1.8;color:rgba(0,0,0,0.5)">${esc(style.note)}</td></tr>
+               </table>`
+            : ""
+        }
       </td>
     </tr>
 
