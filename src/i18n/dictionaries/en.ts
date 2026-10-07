@@ -672,6 +672,9 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
     purgeConfirm: "Delete permanently",
     purgeDone: "The account was deleted and its email freed. The full record is kept in the sheet.",
     working: "Working...",
+    twinLeader: "Also holds an active leadership account under the same name",
+    twinSameEmail: "The same email is tied to an active leadership account",
+    twinHint: "This row is the residue of a completed invitation: the leadership account is the real one, and this row only holds the email. Deleting it here does not touch the leadership account.",
   },
   adminProfile: {
     title: "My details",

@@ -16,6 +16,8 @@ export type StuckCandidate = {
   warningsCount: number;
   reopenCount: number;
   canReopen: boolean;
+  /** هذا الصف يحمل اسم أو بريد حسابٍ قيادي نشط — أي أنه أثر دعوةٍ اكتملت */
+  twin: "name" | "email" | null;
 };
 
 /** بطاقة مرشّح عالق: تُظهر كل ما يُبنى عليه القرار قبل اتخاذه — نتيجته،
@@ -82,6 +84,17 @@ export function StuckCandidateRow({
           {candidate.stage}
         </span>
       </div>
+
+      {/* الاسم المكرّر لا يُفسَّر بالتخمين: إن كان لصاحب الصف حسابٌ قيادي
+          نشط، فهذا الصف أثرُ الدعوة لا شخصٌ ثانٍ — ويُقال له ذلك صريحاً */}
+      {candidate.twin && (
+        <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+          <p className="font-bold">
+            {candidate.twin === "email" ? t.twinSameEmail : t.twinLeader}
+          </p>
+          <p className="mt-1 opacity-85">{t.twinHint}</p>
+        </div>
+      )}
 
       {/* معطيات القرار مجتمعة: لا يُحذف أحد ولا يُعاد اختباره على غير بيّنة */}
       <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-black/5 pt-3 text-xs">

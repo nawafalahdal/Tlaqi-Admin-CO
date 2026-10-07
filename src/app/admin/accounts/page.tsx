@@ -63,6 +63,11 @@ export default async function AccountsPage() {
     }),
   ]);
 
+  // الحسابات القيادية النشطة مفتاحاً للاسم والبريد: بها نُفسّر الاسم
+  // المكرّر في قائمة العالقين بدل أن يُخمّنه من يقرأ
+  const leaderEmails = new Set(accounts.map((a) => a.email.toLowerCase()));
+  const leaderNames = new Set(accounts.map((a) => a.fullName.trim()));
+
   const stuck: StuckCandidate[] = stuckRaw.map((m) => ({
     id: m.id,
     fullName: m.fullName,
@@ -86,6 +91,11 @@ export default async function AccountsPage() {
     reopenCount: m.testReopenCount,
     // الاختبار يُعاد لمن سلّمه فرسب أو رُفض — لا لمن لم يبدأه بعد
     canReopen: m.testStatus !== "not_started" && m.approvalStatus !== "approved",
+    twin: leaderEmails.has(m.email.toLowerCase())
+      ? ("email" as const)
+      : leaderNames.has(m.fullName.trim())
+        ? ("name" as const)
+        : null,
   }));
 
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
