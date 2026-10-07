@@ -26,6 +26,8 @@ export async function publishAnnouncementAction(
     const body = String(formData.get("body") ?? "").trim();
     const audienceRaw = String(formData.get("audience") ?? "everyone");
     const departmentId = String(formData.get("departmentId") ?? "").trim() || null;
+    // البثّ بالبريد قرار صريح في النموذج، لا افتراضاً صامتاً
+    const sendEmail = formData.get("sendEmail") === "on";
 
     if (!title || !body) return { error: "العنوان والنص مطلوبان", success: false };
     if (!AUDIENCES.includes(audienceRaw as AnnouncementAudience)) {
@@ -43,6 +45,7 @@ export async function publishAnnouncementAction(
       departmentId,
       authorId: session.user.id,
       authorName: session.user.name ?? "—",
+      sendEmail,
     });
 
     revalidatePath("/admin");

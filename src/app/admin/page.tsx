@@ -79,6 +79,9 @@ export default async function AdminPage() {
   const openRequests = requests.filter((r) => r.status !== "done").length;
 
   const quickLinks = [
+    ...(isSuperAdmin || session.user.role === "executive"
+      ? [{ href: "/admin/departments", title: dict.deptAdmin.title, desc: dict.deptAdmin.subtitle }]
+      : []),
     {
       href: "/admin/invites",
       title: ti.quickInvites,

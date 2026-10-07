@@ -106,6 +106,17 @@ export function AnnouncementComposer({
         )}
       </div>
 
+      {/* البريد يصل لمن لا يفتح المنصة اليوم — ولذلك هو اختيار لا افتراض */}
+      <label className="flex items-start gap-2.5 rounded-xl bg-black/[0.03] px-3.5 py-3 text-sm">
+        <input type="checkbox" name="sendEmail" className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>
+          <span className="font-medium text-black/75">{t.sendEmailLabel}</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-black/45">
+            {t.sendEmailHint}
+          </span>
+        </span>
+      </label>
+
       {state.error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>
       )}

@@ -442,3 +442,34 @@ export async function sendTestReopenedEmail(opts: {
     "إعادة فتح الاختبار"
   );
 }
+
+/** يبثّ إعلاناً إلى بريد جمهوره.
+ *
+ *  يُرسَل نسخةً واحدةً لكل مستلم (لا دفعة واحدة في حقل "إلى") حتى لا يرى
+ *  أحدٌ عناوين البقية: إعلان داخلي لا يجوز أن يكشف دليل بريد الفريق. */
+export async function sendAnnouncementEmail(opts: {
+  recipients: string[];
+  title: string;
+  body: string;
+  authorName: string;
+  audienceLabel: string;
+  portalUrl: string;
+}) {
+  let delivered = 0;
+  for (const to of opts.recipients) {
+    const result = await send(
+      to,
+      `إعلان: ${opts.title}`,
+      `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+        <p style="color:#666;font-size:13px;margin:0 0 6px">إعلان موجَّه إلى: ${esc(opts.audienceLabel)}</p>
+        <h2 style="margin:0 0 10px;color:#341D2B">${esc(opts.title)}</h2>
+        <div style="white-space:pre-wrap;font-size:15px;line-height:1.8">${esc(opts.body)}</div>
+        <p style="color:#666;font-size:13px;margin-top:18px">نشره: ${esc(opts.authorName)}</p>
+        <p><a href="${opts.portalUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">فتح المنصة</a></p>
+      </div>`,
+      "إعلان عام"
+    );
+    if (!result.skipped) delivered++;
+  }
+  return delivered;
+}
