@@ -127,6 +127,14 @@ model User {
   sheetRow            Int?
   passwordChangedAt   DateTime?
 
+  // بيانات صاحب الحساب الإداري — نفس ما يسجّله العضو قبل اختباره.
+  // الفاوندر والتنفيذي إداريان قبل أن يكونا لقبين، فلهما سجلّ كغيرهما.
+  phone              String?
+  jobTitle           String?
+  specialization     String?
+  section            String?
+  profileCompletedAt DateTime?
+
   invitesIssued   Invite[] @relation("InvitedBy")
   ticketsRaised   Ticket[] @relation("TicketRaisedBy")
   ticketsAssigned Ticket[] @relation("TicketTargetUser")

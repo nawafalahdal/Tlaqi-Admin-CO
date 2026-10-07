@@ -23,6 +23,17 @@ export async function HeaderActions({ color }: { color: string }) {
           {t.common.twoFactor}
         </Link>
       )}
+      {/* قادة الأقسام ومسؤول التشغيل لا يمرّون بلوحة /admin إطلاقاً،
+          فرابط البيانات يلزم أن يكون في الترويسة لا فيها وحدها */}
+      {session && session.user.role !== "member" && (
+        <Link
+          href="/admin/profile"
+          className="rounded-lg px-3 py-1.5 text-xs font-semibold opacity-90 hover:opacity-100"
+          style={{ color, border: `1px solid ${color}55` }}
+        >
+          {t.adminProfile.title}
+        </Link>
+      )}
       <Link
         href="/change-password"
         className="rounded-lg px-3 py-1.5 text-xs font-semibold opacity-90 hover:opacity-100"

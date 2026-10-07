@@ -33,6 +33,11 @@ export default async function AdminPage() {
   await sweepTicketEscalation();
   await sweepExpiredCandidateAccounts();
 
+  const me = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { profileCompletedAt: true },
+  });
+
   const [departments, leadershipQueue, memberQueue, requests, escalatedTickets, announcements] =
     await Promise.all([
       prisma.department.findMany({ orderBy: { name: "asc" } }),
@@ -83,6 +88,7 @@ export default async function AdminPage() {
   const openRequests = requests.filter((r) => r.status !== "done").length;
 
   const quickLinks = [
+    { href: "/admin/profile", title: dict.adminProfile.title, desc: dict.adminProfile.subtitle },
     ...(isSuperAdmin || session.user.role === "executive"
       ? [{ href: "/admin/departments", title: dict.deptAdmin.title, desc: dict.deptAdmin.subtitle }]
       : []),
@@ -139,6 +145,23 @@ export default async function AdminPage() {
       </AppHeader>
 
       <main className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-6 sm:px-5 sm:py-8">
+        {/* اللقب لا يُغني عن السجلّ: من يقود الفريق جزءٌ منه */}
+        {me && !me.profileCompletedAt && (
+          <Card className="border-r-4 p-4 sm:p-5" style={{ borderRightColor: theme.accentDark }}>
+            <h2 className="text-sm font-bold">{dict.adminProfile.bannerTitle}</h2>
+            <p className="mt-1 text-xs leading-relaxed text-black/55">
+              {dict.adminProfile.bannerBody}
+            </p>
+            <Link
+              href="/admin/profile"
+              className="mt-3 inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-semibold text-white"
+              style={{ background: theme.accentDark }}
+            >
+              {dict.adminProfile.bannerCta}
+            </Link>
+          </Card>
+        )}
+
         {/* نبض التشغيل — أول ما يراه المستخدم */}
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatTile label={t.statEscalated} value={escalatedTickets.length} theme={theme} />

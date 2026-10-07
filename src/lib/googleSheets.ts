@@ -237,6 +237,11 @@ export async function upsertAdminAccountRow(row: {
   email: string;
   roleLabel: string;
   departmentName: string | null;
+  phone: string | null;
+  jobTitle: string | null;
+  specialization: string | null;
+  section: string | null;
+  profileCompletedAt: Date | null;
   totpEnabled: boolean;
   isActive: boolean;
   createdAt: Date;
@@ -249,6 +254,11 @@ export async function upsertAdminAccountRow(row: {
     row.email,
     row.roleLabel,
     row.departmentName ?? "—",
+    row.phone ?? "—",
+    row.jobTitle ?? "—",
+    row.specialization ?? "—",
+    row.section ?? "—",
+    row.profileCompletedAt ? formatSheetDate(row.profileCompletedAt) : "لم تُستكمل",
     row.totpEnabled ? "مُفعّل" : "غير مُفعّل",
     row.isActive ? "نشط" : "مُنحّى",
     formatSheetDate(row.createdAt),
@@ -299,6 +309,11 @@ const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: numb
       "البريد الإلكتروني",
       "الصفة",
       "القسم",
+      "رقم الجوال",
+      "المسمى الوظيفي",
+      "التخصص",
+      "القسم الفرعي (Section)",
+      "تاريخ استكمال البيانات",
       "التحقق بخطوتين",
       "الحالة",
       "تاريخ إنشاء الحساب",
@@ -306,7 +321,7 @@ const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: numb
       "تاريخ التنحية",
       "سبب التنحية",
     ],
-    widths: [170, 240, 150, 150, 140, 110, 170, 180, 160, 240],
+    widths: [170, 240, 150, 150, 130, 160, 160, 170, 180, 140, 110, 170, 180, 160, 240],
   },
   "الأعضاء — دورة الحياة": {
     title: "تَـــلاقِ — دورة حياة الأعضاء (صف ثابت لكل عضو)",

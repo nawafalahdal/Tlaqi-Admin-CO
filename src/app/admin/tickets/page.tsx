@@ -9,7 +9,7 @@ import { BackButton } from "@/components/BackButton";
 import { TicketCard } from "./TicketCard";
 import { DataTable } from "@/components/DataTable";
 import { RaiseAdminTicketForm, type TicketTargetOption } from "./RaiseAdminTicketForm";
-import { ROLE_LABELS } from "@/lib/testTracks";
+import { ROLE_LABELS, accountRoleLabel } from "@/lib/testTracks";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
 
@@ -57,7 +57,7 @@ export default async function TicketsPage() {
     })),
     ...people.map((u) => ({
       value: `user:${u.id}`,
-      label: `${u.fullName} — ${ROLE_LABELS[u.role as keyof typeof ROLE_LABELS] ?? u.role}`,
+      label: `${u.fullName} — ${accountRoleLabel(u.role)}`,
       group: tt.groupLeadership,
     })),
     ...memberPeople.map((m) => ({

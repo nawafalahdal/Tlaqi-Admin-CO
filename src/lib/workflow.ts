@@ -16,7 +16,7 @@ import {
 } from "@/lib/email";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { generateTempPassword, hashPassword } from "@/lib/credentials";
-import { scoreAnswers, ROLE_LABELS } from "@/lib/testTracks";
+import { scoreAnswers, ROLE_LABELS, accountRoleLabel } from "@/lib/testTracks";
 
 
 /** تسمية القسم أو الصفة كما تظهر في عمود "القسم / الصفة" بالسجل الحي.
@@ -148,8 +148,13 @@ export async function syncAdminAccountRow(userId: string) {
     sheetRow: user.sheetRow,
     fullName: user.fullName,
     email: user.email,
-    roleLabel: ROLE_LABELS[user.role as keyof typeof ROLE_LABELS] ?? user.role,
+    roleLabel: accountRoleLabel(user.role),
     departmentName: user.department?.name ?? null,
+    phone: user.phone,
+    jobTitle: user.jobTitle,
+    specialization: user.specialization,
+    section: user.section,
+    profileCompletedAt: user.profileCompletedAt,
     totpEnabled: user.totpEnabled,
     isActive: user.isActive,
     createdAt: user.createdAt,
@@ -604,7 +609,7 @@ export async function resetUserCredentials(
     fullName: user.fullName,
     email: user.email,
     event: "إعادة تعيين كلمة المرور",
-    roleOrDepartment: ROLE_LABELS[user.role as keyof typeof ROLE_LABELS] ?? user.role,
+    roleOrDepartment: accountRoleLabel(user.role),
     details: performedByName ? `نفّذه: ${performedByName}` : "",
     at: new Date(),
   });
@@ -881,7 +886,7 @@ export async function removeLeadershipUser(opts: {
     fullName: user.fullName,
     email: user.email,
     event: "تنحية حساب قيادي",
-    roleOrDepartment: ROLE_LABELS[user.role as keyof typeof ROLE_LABELS] ?? user.role,
+    roleOrDepartment: accountRoleLabel(user.role),
     details: `السبب: ${opts.reason} — نفّذه: ${opts.performedByName}`,
     at: new Date(),
   });

@@ -59,6 +59,21 @@ export const ROLE_LABELS: Record<InviteTargetRole, string> = {
   executive: "الإدارة التنفيذية",
 };
 
+/** مسمّيات حسابات الدخول.
+ *
+ *  ROLE_LABELS يغطّي أدوار الدعوات فقط، ولا دعوة تُصدر للفاوندر — فكان
+ *  مسمّاه يظهر خاماً (super_admin) في الشيت وفي كل موضع يُسمّي صاحب حساب.
+ *  هذا الجدول يغطّي أدوار الحسابات كلها. */
+export const ACCOUNT_ROLE_LABELS: Record<string, string> = {
+  ...ROLE_LABELS,
+  super_admin: "الإدارة العليا",
+};
+
+/** مسمّى صاحب حساب أياً كان دوره — بلا خام يتسرّب إلى الواجهة */
+export function accountRoleLabel(role: string) {
+  return ACCOUNT_ROLE_LABELS[role] ?? role;
+}
+
 /** يحدد من يملك صلاحية تعديل أسئلة بنك اختبار معيّن، تطبيقاً لتسلسل الحوكمة:
  *  الفاونڋر يحرر اختبار التنفيذيين، التنفيذي يحرر اختبار القادة ومسؤول
  *  التشغيل، وأدمن كل قسم يحرر اختبار أعضاء قسمه فقط */

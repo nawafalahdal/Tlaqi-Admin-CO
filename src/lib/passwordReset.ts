@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { clearFailedAttempts } from "@/lib/loginAttempts";
-import { ROLE_LABELS } from "@/lib/testTracks";
+import { ROLE_LABELS, accountRoleLabel } from "@/lib/testTracks";
 
 export const RESET_TOKEN_MINUTES = 30;
 
@@ -31,7 +31,7 @@ export async function requestPasswordReset(rawEmail: string) {
 
   // الحساب المُنحّى، والمرشّح الذي أُسقط أو رُفض، لا يُستعاد لهم شيء
   const account = user?.isActive
-    ? { fullName: user.fullName, scope: ROLE_LABELS[user.role as keyof typeof ROLE_LABELS] ?? user.role }
+    ? { fullName: user.fullName, scope: accountRoleLabel(user.role) }
     : member && member.isActive && member.approvalStatus !== "rejected" && member.passwordHash
       ? { fullName: member.fullName, scope: "عضو" }
       : null;
@@ -124,7 +124,7 @@ export async function consumeResetToken(token: string, newPassword: string) {
   await appendMemberEvent({
     fullName: name,
     email,
-    roleOrDepartment: user ? (ROLE_LABELS[user.role as keyof typeof ROLE_LABELS] ?? user.role) : "عضو",
+    roleOrDepartment: user ? (accountRoleLabel(user.role)) : "عضو",
     event: "تغيير كلمة المرور بالبريد",
     details: "عيّنها صاحب الحساب بنفسه عبر رابط الاستعادة",
     at: new Date(),

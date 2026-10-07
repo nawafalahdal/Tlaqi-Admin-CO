@@ -8,7 +8,7 @@ import {
   sendTicketReminderEmail,
 } from "@/lib/email";
 import { upsertTicketRow } from "@/lib/googleSheets";
-import { ROLE_LABELS } from "@/lib/testTracks";
+import { ROLE_LABELS, accountRoleLabel } from "@/lib/testTracks";
 
 export const TICKET_STAGE_DAYS = 2;
 
@@ -64,7 +64,7 @@ export function ticketAuthor(ticket: FullTicket) {
 export function ticketTargetLabel(ticket: FullTicket) {
   if (ticket.targetDepartment) return ticket.targetDepartment.name;
   if (ticket.targetUser) {
-    const role = ROLE_LABELS[ticket.targetUser.role as keyof typeof ROLE_LABELS] ?? ticket.targetUser.role;
+    const role = accountRoleLabel(ticket.targetUser.role);
     return `${ticket.targetUser.fullName} — ${role}`;
   }
   if (ticket.targetMember) return `${ticket.targetMember.fullName} — عضو`;

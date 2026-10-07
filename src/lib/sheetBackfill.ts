@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { appendMemberEvent, appendTestResult } from "@/lib/googleSheets";
 import { syncMemberLifecycleRow, syncAdminAccountRow } from "@/lib/workflow";
 import { syncTicketSheetRow, TICKET_INCLUDE } from "@/lib/tickets";
-import { ROLE_LABELS } from "@/lib/testTracks";
+import { ROLE_LABELS, accountRoleLabel } from "@/lib/testTracks";
 
 /** تعبئة رجعية للشيت بما في قاعدة البيانات أصلاً.
  *
@@ -114,7 +114,7 @@ export async function backfillSheets(opts: { includeAppendOnlyTabs: boolean }) {
     events.push({
       fullName: u.fullName,
       email: u.email,
-      scope: u.department?.name ?? (ROLE_LABELS[u.role as keyof typeof ROLE_LABELS] ?? u.role),
+      scope: u.department?.name ?? (accountRoleLabel(u.role)),
       event: "تنحية حساب قيادي",
       details: u.removalReason ?? "",
       at: u.removedAt!,
