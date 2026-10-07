@@ -63,15 +63,29 @@ function esc(value: string): string {
 /** يغلّف متن الرسالة بالهوية الكاملة: ترويسة بالشعار، ثم المتن، ثم بانر
  *  التواصل والجملة. */
 export function wrapEmail(opts: { title: string; bodyHtml: string; preheader?: string }) {
+  // اليوزر يُكتب مرة واحدة تحت الأسماء ما دام موحّداً على كل المنصات؛
+  // فإن اختلف يوماً، كُتب مع اسم منصّته حتى لا يدلّ سطرٌ واحد على خطأ
+  const sameHandle =
+    SOCIAL_LINKS.length > 0 && SOCIAL_LINKS.every((s) => s.handle === SOCIAL_LINKS[0].handle);
+
   const social =
     SOCIAL_LINKS.length === 0
       ? ""
       : `<tr>
-          <td align="center" style="background:${BRAND.temptress};padding:0 20px 20px">
-            ${SOCIAL_LINKS.map(
-              (s) =>
-                `<a href="${s.url}${esc(s.handle)}" style="display:inline-block;margin:4px 4px;padding:9px 16px;background:${BRAND.mahogany};border-radius:999px;color:#ffffff;font-size:13px;font-weight:bold;text-decoration:none;font-family:Tahoma,Arial,sans-serif">${esc(s.label)} · @${esc(s.handle)}</a>`
-            ).join("")}
+          <td align="center" dir="ltr" style="background:${BRAND.temptress};padding:0 20px 16px;white-space:nowrap">
+            <span style="font-family:Tahoma,Arial,sans-serif;font-size:12px;color:${BRAND.beige}">
+              ${SOCIAL_LINKS.map(
+                (s) =>
+                  `<a href="${s.url}${esc(s.handle)}" style="color:${BRAND.beige};text-decoration:none;font-weight:bold">${esc(s.label)}${sameHandle ? "" : ` @${esc(s.handle)}`}</a>`
+              ).join(
+                `<span style="color:${BRAND.mahogany};padding:0 8px">&bull;</span>`
+              )}
+            </span>
+            ${
+              sameHandle
+                ? `<div style="font-family:Tahoma,Arial,sans-serif;font-size:11px;color:rgba(238,246,223,0.55);margin-top:5px">@${esc(SOCIAL_LINKS[0].handle)}</div>`
+                : ""
+            }
           </td>
         </tr>`;
 
