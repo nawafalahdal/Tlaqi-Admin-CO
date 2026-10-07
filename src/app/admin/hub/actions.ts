@@ -81,7 +81,7 @@ export async function deleteAnnouncementAction(id: string): Promise<{ error: str
     if (!session) return { error: "يجب تسجيل الدخول" };
 
     const announcement = await prisma.announcement.findUniqueOrThrow({ where: { id } });
-    // الفاونڈر يحذف أي إعلان؛ غيره يحذف إعلانه هو فقط
+    // المؤسس يحذف أي إعلان؛ غيره يحذف إعلانه هو فقط
     const allowed =
       session.user.role === "super_admin" ||
       (canPublishAnnouncement(session.user.role) && announcement.authorId === session.user.id);
@@ -97,7 +97,7 @@ export async function deleteAnnouncementAction(id: string): Promise<{ error: str
   }
 }
 
-/** يرفع القيادة (فاونڈر/تنفيذي/مسؤول تشغيل) طلباً لقسم معيّن — بخلاف الطلبات
+/** يرفع القيادة (فاوندر/تنفيذي/مسؤول تشغيل) طلباً لقسم معيّن — بخلاف الطلبات
  *  التي يُنشئها النظام تلقائياً (بانر ترحيبي، اجتماع شرح بعد الرسوب) */
 export async function createLeadershipRequestAction(
   _prevState: { error: string | null; success: boolean },

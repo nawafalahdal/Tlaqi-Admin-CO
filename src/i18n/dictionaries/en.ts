@@ -152,7 +152,7 @@ export const en: Dictionary = {
   },
   admin: {
     approvedNotice: "{name} has been approved — they sign in with the password they chose at first login",
-    founderRole: "Founder — Senior management",
+    founderRole: "Founder",
     ceoRole: "Executive management (CEO)",
     createExecTitle: "Create an executive (CEO) account",
     createExecSubtitle: "Gets the right to create department lead accounts — cannot create another executive account",
@@ -666,10 +666,11 @@ export const en: Dictionary = {
     completedAt: "Details completed on",
     notCompleted: "Not completed yet",
     identityNote:
-      "Your name, email and role belong to your identity on the platform and are changed from the accounts page, not here.",
+      "Your email is your login identity and is not changed here \u2014 changing it separates the account from its owner. Your name, however, you write below.",
     formTitle: "Your details",
     formHint: "They go into the \u201cAdministrative accounts\u201d sheet tab the moment you save them, exactly as members\u2019 details do.",
     jobTitleHint: "e.g. Founder, Chief Executive, Marketing Lead",
+    nameHint: "Your name as you want it shown on the platform and in the team record",
     optional: "optional",
     submit: "Save my details",
     saved: "Your details were saved and recorded in the sheet.",

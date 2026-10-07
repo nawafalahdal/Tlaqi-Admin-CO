@@ -29,7 +29,7 @@ export function MemberRoster({
 }: {
   members: RosterMember[];
   theme: ReturnType<typeof themeFromColor>;
-  /** صار العضو يستعيد كلمته بنفسه عبر بريده؛ التعيين اليدوي للفاونڈر وحده */
+  /** صار العضو يستعيد كلمته بنفسه عبر بريده؛ التعيين اليدوي للفاوندر وحده */
   canReset?: boolean;
 }) {
   const [openFor, setOpenFor] = useState<string | null>(null);

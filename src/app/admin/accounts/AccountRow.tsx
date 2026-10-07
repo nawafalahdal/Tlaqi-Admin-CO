@@ -14,7 +14,7 @@ export function AccountRow({
 }: {
   account: { id: string; fullName: string; email: string; role: string; departmentName: string | null };
   theme: ReturnType<typeof themeFromColor>;
-  /** الفاونڈر وحده يرى التنحية — وهي الطريق الوحيد لتفريغ منصب فردي */
+  /** المؤسس وحده يرى التنحية — وهي الطريق الوحيد لتفريغ منصب فردي */
   canRemove?: boolean;
 }) {
   const [open, setOpen] = useState(false);

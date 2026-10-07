@@ -46,7 +46,6 @@ export default async function AdminProfilePage() {
         {/* الهوية: تُعرض ولا تُعدَّل من هنا */}
         <Card className="p-4 sm:p-5">
           <dl className="grid gap-3 sm:grid-cols-2">
-            <Row label={tp.name} value={user.fullName} />
             <Row label={tp.email} value={user.email} ltr />
             <Row label={tp.role} value={roleLabel} />
             <Row label={tp.department} value={user.department?.name ?? "—"} />
@@ -68,6 +67,7 @@ export default async function AdminProfilePage() {
           <AdminProfileForm
             theme={theme}
             defaults={{
+              fullName: user.fullName,
               phone: user.phone ?? "",
               jobTitle: user.jobTitle ?? "",
               specialization: user.specialization ?? "",

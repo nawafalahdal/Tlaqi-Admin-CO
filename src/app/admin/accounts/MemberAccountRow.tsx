@@ -17,7 +17,7 @@ export function MemberAccountRow({
   theme: ReturnType<typeof themeFromColor>;
   /** حساب أسقطته مهلة الـ24 ساعة — نفس الإجراء يُحييه، فيختلف النص فقط */
   lapsed?: boolean;
-  /** التعيين اليدوي صار شبكة أمان للفاونڈر وحده بعد إتاحة الاستعادة الذاتية */
+  /** التعيين اليدوي صار شبكة أمان للفاوندر وحده بعد إتاحة الاستعادة الذاتية */
   canReset?: boolean;
 }) {
   const t = useTranslations();

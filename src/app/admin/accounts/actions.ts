@@ -11,7 +11,7 @@ import {
 import { safeErrorMessage } from "@/lib/safeError";
 import { revalidatePath } from "next/cache";
 
-/** إعادة تعيين بيانات دخول حساب إداري (قائد قسم / تنفيذي) — الفاونڈر يملك هذا
+/** إعادة تعيين بيانات دخول حساب إداري (قائد قسم / تنفيذي) — المؤسس يملك هذا
  *  لأي حساب، والتنفيذي يملكه فقط لحسابات قادة الأقسام (لا لحساب تنفيذي آخر ولا لنفسه) */
 export async function resetUserCredentialsAction(
   userId: string,
@@ -23,10 +23,10 @@ export async function resetUserCredentialsAction(
   const target = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
   // صار لكل شخص أن يستعيد كلمته بنفسه عبر بريده، فلم يعد تعيينُها يدوياً
-  // صلاحيةً تشغيلية بل شبكة أمان أخيرة: تبقى للفاونڈر وحده. حصرُها يقلّل
+  // صلاحيةً تشغيلية بل شبكة أمان أخيرة: تبقى للفاوندر وحده. حصرُها يقلّل
   // عدد من يستطيع انتحال حساب غيره من أربعة أدوار إلى واحد.
   if (session.user.role !== "super_admin") {
-    return { error: "استعادة كلمة المرور صارت ذاتية عبر البريد — وتعيينها يدوياً خاص بالفاونڈر" };
+    return { error: "استعادة كلمة المرور صارت ذاتية عبر البريد — وتعيينها يدوياً خاص بالمؤسس" };
   }
 
   const trimmedEmail = newEmail.trim().toLowerCase();
@@ -43,7 +43,7 @@ export async function resetUserCredentialsAction(
   }
 }
 
-/** تنحية حساب قيادي — الفاونڈر وحده. هذه هي الطريقة الوحيدة لتفريغ منصب
+/** تنحية حساب قيادي — المؤسس وحده. هذه هي الطريقة الوحيدة لتفريغ منصب
  *  فردي (تنفيذي / مسؤول تشغيل / قائد قسم) قبل تعيين بديل، لأن المنصب
  *  لا يقبل شاغلَين. */
 export async function removeLeadershipUserAction(
@@ -53,7 +53,7 @@ export async function removeLeadershipUserAction(
   const session = await auth();
   if (!session) return { error: "يجب تسجيل الدخول", success: false };
   if (session.user.role !== "super_admin") {
-    return { error: "تنحية الحسابات القيادية خاصة بالفاونڈر فقط", success: false };
+    return { error: "تنحية الحسابات القيادية خاصة بالمؤسس فقط", success: false };
   }
 
   const trimmed = reason.trim();
@@ -64,7 +64,7 @@ export async function removeLeadershipUserAction(
       userId,
       reason: trimmed,
       performedById: session.user.id,
-      performedByName: session.user.name ?? "الفاونڈر",
+      performedByName: session.user.name ?? "المؤسس",
     });
     revalidatePath("/admin/accounts");
     revalidatePath("/admin/invites");

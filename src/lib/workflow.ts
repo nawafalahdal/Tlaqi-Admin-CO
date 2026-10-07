@@ -865,7 +865,7 @@ export async function assertRoleSeatAvailable(targetRole: string, departmentId: 
 }
 
 /** تنحية حساب قيادي: تُعطّله وتُفرِغ منصبه لمن بعده، دون حذف سجله.
- *  الفاونڈر وحده يملكها، ولا تطال حساب فاونڈر آخر ولا حسابه هو. */
+ *  المؤسس وحده يملكها، ولا تطال حساب فاوندر آخر ولا حسابه هو. */
 export async function removeLeadershipUser(opts: {
   userId: string;
   reason: string;
@@ -874,7 +874,7 @@ export async function removeLeadershipUser(opts: {
 }) {
   const target = await prisma.user.findUniqueOrThrow({ where: { id: opts.userId } });
   if (target.id === opts.performedById) throw new Error("لا يمكنك تنحية حسابك أنت");
-  if (target.role === "super_admin") throw new Error("لا يمكن تنحية حساب الفاونڈر");
+  if (target.role === "super_admin") throw new Error("لا يمكن تنحية حساب المؤسس");
   if (!target.isActive) throw new Error("هذا الحساب مُنحّى بالفعل");
 
   const user = await prisma.user.update({

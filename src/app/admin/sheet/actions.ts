@@ -10,7 +10,7 @@ export type BackfillState = {
   counts: { lifecycle: number; adminAccounts: number; tickets: number; testResults: number; events: number } | null;
 };
 
-/** تشغيل التعبئة الرجعية — الفاونڈر وحده، لأنها تكتب عشرات الأسطر في ملف
+/** تشغيل التعبئة الرجعية — المؤسس وحده، لأنها تكتب عشرات الأسطر في ملف
  *  حيّ يقرأه الفريق، ولا يصح أن تُشغَّل بالخطأ. */
 export async function backfillSheetsAction(
   _prev: BackfillState,
@@ -18,7 +18,7 @@ export async function backfillSheetsAction(
 ): Promise<BackfillState> {
   const session = await auth();
   if (!session || session.user.role !== "super_admin") {
-    return { error: "هذا الإجراء خاص بالفاونڈر فقط", counts: null };
+    return { error: "هذا الإجراء خاص بالمؤسس فقط", counts: null };
   }
 
   try {
@@ -33,12 +33,12 @@ export async function backfillSheetsAction(
 
 export type PrepareState = { error: string | null; prepared: string[] | null };
 
-/** تجهيز القوالب الأربعة منسّقةً قبل وصول أي بيانات — الفاونڈر وحده.
+/** تجهيز القوالب الأربعة منسّقةً قبل وصول أي بيانات — المؤسس وحده.
  *  آمن للتكرار: لا يُنشئ تبويباً قائماً ولا يمس تنسيقه ولا بياناته. */
 export async function prepareTabsAction(): Promise<PrepareState> {
   const session = await auth();
   if (!session || session.user.role !== "super_admin") {
-    return { error: "هذا الإجراء خاص بالفاونڈر فقط", prepared: null };
+    return { error: "هذا الإجراء خاص بالمؤسس فقط", prepared: null };
   }
   try {
     return { error: null, prepared: await prepareAllTabs() };

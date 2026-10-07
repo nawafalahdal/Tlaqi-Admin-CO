@@ -5,8 +5,8 @@ import type { Session } from "next-auth";
 /** يحدد بنك الأسئلة الصحيح حسب الدور المستهدف للدعوة:
  *  عضو قسم ← اختبار ذلك القسم (يملكه أدمن القسم)
  *  قائد قسم ← اختبار القادة الموحّد (يملكه التنفيذي)
- *  مسؤول تشغيل ← اختبار موحّد (يملكه الفاونڈر أو التنفيذي)
- *  تنفيذي ← اختبار التنفيذيين (يملكه الفاونڈر فقط) */
+ *  مسؤول تشغيل ← اختبار موحّد (يملكه المؤسس أو التنفيذي)
+ *  تنفيذي ← اختبار التنفيذيين (يملكه المؤسس فقط) */
 export async function getTrackForTarget(targetRole: InviteTargetRole, departmentId: string | null) {
   if (targetRole === "member") {
     if (!departmentId) throw new Error("دعوة عضو تتطلب قسماً");
@@ -66,7 +66,7 @@ export const ROLE_LABELS: Record<InviteTargetRole, string> = {
  *  هذا الجدول يغطّي أدوار الحسابات كلها. */
 export const ACCOUNT_ROLE_LABELS: Record<string, string> = {
   ...ROLE_LABELS,
-  super_admin: "الإدارة العليا",
+  super_admin: "المؤسس",
 };
 
 /** مسمّى صاحب حساب أياً كان دوره — بلا خام يتسرّب إلى الواجهة */

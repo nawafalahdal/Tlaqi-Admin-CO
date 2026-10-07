@@ -388,7 +388,7 @@ const OPERATIONS_QUESTIONS: Q[] = [
       "تصديق الرد والانتظار بلا حد زمني جديد",
       "إغلاق المتابعة لأن الأدمن أكّد شفهياً",
       "تثبيت موعد متابعة قصير وواضح، وتصعيدها إذا لم تتغيّر الحالة الفعلية بالنظام خلاله",
-      "تصعيدها فوراً للفاونڈر متجاهلاً رد الأدمن",
+      "تصعيدها فوراً للفاوندر متجاهلاً رد الأدمن",
     ],
     correctIndex: 2,
   },
@@ -494,7 +494,7 @@ async function main() {
       where: { email: FOUNDER_EMAIL },
       update: {},
       create: {
-        fullName: "الفاونڈر",
+        fullName: process.env.FOUNDER_NAME || "المؤسس",
         email: FOUNDER_EMAIL,
         passwordHash: founderPassword,
         role: "super_admin",
@@ -504,7 +504,7 @@ async function main() {
   }
 
   console.log("Seed complete.");
-  console.log(`حساب الفاونڈر: ${FOUNDER_EMAIL} / Tlaqi@2026 (غيّرها فوراً)`);
+  console.log(`حساب المؤسس: ${FOUNDER_EMAIL} / Tlaqi@2026 (غيّرها فوراً)`);
   console.log("كل الحسابات الأخرى (تنفيذي، قادة أقسام، أعضاء) تُنشأ الآن حصراً عبر دورة دعوة/اختبار/اعتماد — لا بذور تجريبية لها بعد الآن.");
 }
 

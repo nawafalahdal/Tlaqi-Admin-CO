@@ -15,7 +15,7 @@ import { safeErrorMessage } from "@/lib/safeError";
 import { revalidatePath } from "next/cache";
 
 /** حوكمة صارمة: إصدار دعوة عضو داخل قسم معيّن هو حصراً من صلاحية أدمن ذلك
- *  القسم — حتى الفاونڈر نفسه لا يملك هذا الإجراء مباشرة */
+ *  القسم — حتى المؤسس نفسه لا يملك هذا الإجراء مباشرة */
 export async function createMemberInviteAction(
   _prevState: { error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } },
   formData: FormData
@@ -83,7 +83,7 @@ export async function issueWarningAction(
 }
 
 /** إعادة تعيين بيانات دخول عضو (كلمة مرور جديدة، وبريد جديد اختيارياً) عند
- *  نسيانه أو أي إشكالية — متاح لأدمن القسم المعني أو الفاونڈر/التنفيذي */
+ *  نسيانه أو أي إشكالية — متاح لأدمن القسم المعني أو المؤسس/التنفيذي */
 export async function resetMemberCredentialsAction(
   memberId: string,
   newEmail: string
@@ -92,9 +92,9 @@ export async function resetMemberCredentialsAction(
   if (!session) return { error: "يجب تسجيل الدخول" };
 
   const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
-  // الاستعادة صارت ذاتية عبر البريد؛ وتعيينها يدوياً شبكة أمان للفاونڈر وحده
+  // الاستعادة صارت ذاتية عبر البريد؛ وتعيينها يدوياً شبكة أمان للفاوندر وحده
   if (session.user.role !== "super_admin") {
-    return { error: "استعادة كلمة المرور صارت ذاتية عبر البريد — وتعيينها يدوياً خاص بالفاونڈر" };
+    return { error: "استعادة كلمة المرور صارت ذاتية عبر البريد — وتعيينها يدوياً خاص بالمؤسس" };
   }
 
   const trimmedEmail = newEmail.trim().toLowerCase();
@@ -112,7 +112,7 @@ export async function resetMemberCredentialsAction(
 }
 
 /** إنهاء عضوية يدوي (استقالة أو قرار إداري) بسبب يكتبه الأدمن — متاح لأدمن
- *  القسم المعني أو الفاونڈر/التنفيذي، بخلاف الاستبعاد التلقائي بـ3 تنبيهات */
+ *  القسم المعني أو المؤسس/التنفيذي، بخلاف الاستبعاد التلقائي بـ3 تنبيهات */
 export async function markMemberExitedAction(
   _prevState: { error: string | null; success: boolean },
   formData: FormData
@@ -139,7 +139,7 @@ export async function markMemberExitedAction(
   }
 }
 
-/** إصدار شهادة إتمام لعضو — قرار يدوي من أدمن القسم أو الفاونڈر/التنفيذي */
+/** إصدار شهادة إتمام لعضو — قرار يدوي من أدمن القسم أو المؤسس/التنفيذي */
 export async function issueCertificateAction(memberId: string): Promise<{ error: string | null }> {
   const session = await auth();
   if (!session) return { error: "يجب تسجيل الدخول" };
@@ -161,7 +161,7 @@ export async function issueCertificateAction(memberId: string): Promise<{ error:
 }
 
 /** يرد أدمن القسم (المستهدف أصلاً أو قائد قسم العضو بعد التصعيد) على تذكرة —
- *  الفاونڈر/التنفيذي مصرَّح لهما دائماً */
+ *  المؤسس/التنفيذي مصرَّح لهما دائماً */
 export async function respondToTicketAction(
   ticketId: string,
   status: "in_progress" | "resolved",

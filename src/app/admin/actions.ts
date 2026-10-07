@@ -27,7 +27,7 @@ function canManageDepartment(session: Session, departmentId: string | null) {
   return session.user.role === "department_admin" && session.user.departmentId === departmentId;
 }
 
-/** الفاونڈر فقط يُصدر دعوة لحساب تنفيذي (CEO) جديد */
+/** المؤسس فقط يُصدر دعوة لحساب تنفيذي (CEO) جديد */
 export async function createExecutiveInviteAction(
   _prevState: { error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } },
   formData: FormData
@@ -35,7 +35,7 @@ export async function createExecutiveInviteAction(
   try {
     const session = await requireSession();
     if (session.user.role !== "super_admin") {
-      return { error: "هذا الإجراء خاص بالفاونڈر فقط", success: false };
+      return { error: "هذا الإجراء خاص بالمؤسس فقط", success: false };
     }
 
     const fullName = String(formData.get("fullName") ?? "").trim();
@@ -59,7 +59,7 @@ export async function createExecutiveInviteAction(
   }
 }
 
-/** الفاونڈر أو التنفيذي يُصدر دعوة لحساب قائد قسم جديد — لا يمكن إضافة عضو داخل
+/** المؤسس أو التنفيذي يُصدر دعوة لحساب قائد قسم جديد — لا يمكن إضافة عضو داخل
  *  القسم مباشرة من هنا، فقط حساب قيادي (حوكمة صارمة بالتسلسل) */
 export async function createDeptAdminInviteAction(
   _prevState: { error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } },
@@ -68,7 +68,7 @@ export async function createDeptAdminInviteAction(
   try {
     const session = await requireSession();
     if (session.user.role !== "super_admin" && session.user.role !== "executive") {
-      return { error: "هذا الإجراء خاص بالفاونڈر أو التنفيذي فقط", success: false };
+      return { error: "هذا الإجراء خاص بالمؤسس أو التنفيذي فقط", success: false };
     }
 
     const fullName = String(formData.get("fullName") ?? "").trim();
@@ -93,7 +93,7 @@ export async function createDeptAdminInviteAction(
   }
 }
 
-/** الفاونڈر أو التنفيذي يُصدر دعوة لحساب مسؤول تشغيل — اطّلاع على كل
+/** المؤسس أو التنفيذي يُصدر دعوة لحساب مسؤول تشغيل — اطّلاع على كل
  *  التذاكر والطلبات عبر كل الأقسام وإرسال تذكيرات، بدون صلاحية حل التذاكر */
 export async function createOperationsOfficerInviteAction(
   _prevState: { error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } },
@@ -102,7 +102,7 @@ export async function createOperationsOfficerInviteAction(
   try {
     const session = await requireSession();
     if (session.user.role !== "super_admin" && session.user.role !== "executive") {
-      return { error: "هذا الإجراء خاص بالفاونڈر أو التنفيذي فقط", success: false };
+      return { error: "هذا الإجراء خاص بالمؤسس أو التنفيذي فقط", success: false };
     }
 
     const fullName = String(formData.get("fullName") ?? "").trim();

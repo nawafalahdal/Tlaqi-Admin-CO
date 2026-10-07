@@ -10,7 +10,13 @@ export function AdminProfileForm({
   defaults,
   theme,
 }: {
-  defaults: { phone: string; jobTitle: string; specialization: string; section: string };
+  defaults: {
+    fullName: string;
+    phone: string;
+    jobTitle: string;
+    specialization: string;
+    section: string;
+  };
   theme: ReturnType<typeof themeFromColor>;
 }) {
   const dict = useTranslations();
@@ -23,6 +29,7 @@ export function AdminProfileForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
+      <Field label={t.fullName} name="fullName" defaultValue={defaults.fullName} required hint={tp.nameHint} />
       <Field label={t.phone} name="phone" defaultValue={defaults.phone} required dir="ltr" />
       <Field
         label={t.jobTitle}
