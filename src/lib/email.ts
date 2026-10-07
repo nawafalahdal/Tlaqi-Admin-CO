@@ -420,3 +420,25 @@ export async function sendPasswordResetEmail(opts: {
     "استعادة كلمة المرور"
   );
 }
+
+/** يُرسَل عند إعادة فتح الاختبار بعد اجتماع الشرح — فرصة ثانية صريحة لا صامتة */
+export async function sendTestReopenedEmail(opts: {
+  to: string;
+  fullName: string;
+  roleLabel: string;
+  loginUrl: string;
+  hoursValid: number;
+}) {
+  return send(
+    opts.to,
+    "أُعيد فتح اختبار القبول لك — تَـــلاقِ",
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>مرحباً ${esc(opts.fullName)}،</p>
+      <p>بعد اجتماع الشرح، أُعيد فتح اختبار القبول لموقع <strong>${esc(opts.roleLabel)}</strong>.</p>
+      <p>ادخل بالحساب نفسه وابدأ الاختبار. المهلة <strong>${opts.hoursValid} ساعة</strong> من الآن.</p>
+      <p><a href="${opts.loginUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">فتح المنصة</a></p>
+      <p style="color:#666;font-size:13px">إن لم تدخل خلال المهلة يُغلق الحساب تلقائياً.</p>
+    </div>`,
+    "إعادة فتح الاختبار"
+  );
+}

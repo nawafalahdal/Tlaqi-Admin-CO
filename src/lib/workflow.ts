@@ -12,6 +12,7 @@ import {
   sendExitEmail,
   sendCertificateEmail,
   sendRequestReminderEmail,
+  sendTestReopenedEmail,
 } from "@/lib/email";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { generateTempPassword, hashPassword } from "@/lib/credentials";
@@ -109,6 +110,9 @@ export async function syncMemberLifecycleRow(memberId: string) {
     departmentName: member.department?.name ?? "—",
     roleLabel: ROLE_LABELS[member.invite.targetRole] ?? member.invite.targetRole,
     stage: memberStage(member),
+    specialization: member.specialization,
+    section: member.section,
+    profileCompletedAt: member.profileCompletedAt,
     phone: member.phone,
     jobTitle: member.jobTitle,
     createdAt: member.createdAt,
@@ -923,4 +927,138 @@ export async function remindExpiringCandidates() {
     sent++;
   }
   return sent;
+}
+
+/** يعيد فتح اختبار القبول لمرشّح لم يجتزه.
+ *
+ *  لا يُعاد الفتح بضغطة مجرّدة: الرسوب قرار مُسجَّل، ونقضُه يحتاج سبباً
+ *  مكتوباً — اجتماع الشرح. فيُطلب تأكيد انعقاده وتُحفظ ملاحظته، ويُحسب
+ *  عدد مرات الإعادة حتى لا تتحوّل الاستثناءات إلى قاعدة صامتة.
+ *
+ *  وتُعاد مهلة الـ24 ساعة من الآن: الرمز القديم مضى زمنه. */
+export async function reopenCandidateTest(opts: {
+  memberId: string;
+  meetingHeld: boolean;
+  note?: string;
+  performedByName: string;
+}) {
+  if (!opts.meetingHeld) {
+    throw new Error("لا يُعاد فتح الاختبار قبل تأكيد انعقاد اجتماع الشرح");
+  }
+
+  const current = await prisma.member.findUniqueOrThrow({
+    where: { id: opts.memberId },
+    include: { department: true, invite: true },
+  });
+
+  if (current.approvalStatus === "approved") {
+    throw new Error("هذا الحساب معتمد بالفعل — لا اختبار يُعاد له");
+  }
+  if (current.testStatus === "not_started") {
+    throw new Error("الاختبار مفتوح أصلاً ولم يُسلَّم بعد");
+  }
+
+  const member = await prisma.member.update({
+    where: { id: opts.memberId },
+    data: {
+      testStatus: "not_started",
+      testScore: null,
+      approvalStatus: "pending_review",
+      decidedAt: null,
+      isActive: true,
+      terminatedAt: null,
+      exitReason: null,
+      firstLoginAt: null,
+      credentialsIssuedAt: new Date(),
+      testReopenCount: { increment: 1 },
+      testReopenedAt: new Date(),
+      testReopenNote: opts.note?.trim() || "أُعيد الفتح بعد اجتماع الشرح",
+    },
+    include: { department: true, invite: true },
+  });
+
+  // الدعوة تعود صالحة أيضاً، وإلا بقي الحساب مفتوحاً ودعوته منتهية
+  await prisma.invite.update({ where: { id: member.inviteId }, data: { status: "used" } });
+
+  await sendTestReopenedEmail({
+    to: member.email,
+    fullName: member.fullName,
+    roleLabel: member.department?.name ?? (ROLE_LABELS[member.invite.targetRole] ?? ""),
+    loginUrl: `${baseUrl()}/login`,
+    hoursValid: CANDIDATE_WINDOW_HOURS,
+  });
+
+  await appendMemberEvent({
+    fullName: member.fullName,
+    email: member.email,
+    roleOrDepartment: await memberScope(member),
+    event: "إعادة فتح الاختبار",
+    details: `المحاولة رقم ${member.testReopenCount + 1} — ${member.testReopenNote} — نفّذه: ${opts.performedByName}`,
+    at: new Date(),
+  });
+
+  await syncMemberLifecycleRow(member.id);
+  return member;
+}
+
+/** حذف نهائي لمرشّح عالق — الملاذ الأخير.
+ *
+ *  المنصة لا تحذف شيئاً عادةً: الحوكمة تعني إثبات أن حساباً صدر ولمن
+ *  ومتى وكيف انتهى. لكن قيد البريد الفريد يعني أن مرشّحاً راسباً أو
+ *  عالقاً يحجز بريده إلى الأبد، فلا يُدعى صاحبه مرة أخرى.
+ *
+ *  فالحلّ: يُكتب السجل كاملاً في الشيت أولاً — وهو السجل الدائم — ثم
+ *  يُحذف الصف من القاعدة. لا شيء يضيع، والبريد يتحرّر.
+ *
+ *  ويُشترط كتابة البريد كاملاً: الحذف لا يقع بنقرة في المكان الخطأ. */
+export async function purgeCandidate(opts: {
+  memberId: string;
+  confirmEmail: string;
+  reason: string;
+  performedByName: string;
+}) {
+  const member = await prisma.member.findUniqueOrThrow({
+    where: { id: opts.memberId },
+    include: { department: true, invite: true, warnings: true },
+  });
+
+  if (opts.confirmEmail.trim().toLowerCase() !== member.email.toLowerCase()) {
+    throw new Error("البريد المكتوب لا يطابق بريد الحساب — لم يُحذف شيء");
+  }
+  if (member.approvalStatus === "approved" && member.isActive) {
+    throw new Error("هذا عضو معتمد نشط — أنهِ عضويته أولاً، فالحذف ليس طريق الاستبعاد");
+  }
+
+  const scope = await memberScope(member);
+
+  // السجل يُختم في الشيت قبل الحذف لا بعده: بعد الحذف لا يبقى ما يُكتب
+  await syncMemberLifecycleRow(member.id);
+  await appendMemberEvent({
+    fullName: member.fullName,
+    email: member.email,
+    roleOrDepartment: scope,
+    event: "حذف نهائي من قاعدة البيانات",
+    details:
+      `السبب: ${opts.reason} — التنبيهات: ${member.warningsCount} — ` +
+      `نتيجة الاختبار: ${member.testScore === null ? "لم يختبر" : `${member.testScore}%`} — ` +
+      `نفّذه: ${opts.performedByName}. السجل محفوظ هنا والبريد تحرّر لدعوة جديدة.`,
+    at: new Date(),
+  });
+
+  // التذاكر لا تُحذف: هي سجل عمل يخص أطرافاً أخرى، فيُفكّ ارتباطها فقط
+  await prisma.ticket.updateMany({ where: { memberId: member.id }, data: { memberId: null } });
+  await prisma.ticket.updateMany({
+    where: { targetMemberId: member.id },
+    data: { targetMemberId: null },
+  });
+  await prisma.request.updateMany({
+    where: { linkedMemberId: member.id },
+    data: { linkedMemberId: null },
+  });
+  await prisma.testAttempt.deleteMany({ where: { memberId: member.id } });
+  await prisma.memberWarning.deleteMany({ where: { memberId: member.id } });
+  await prisma.member.delete({ where: { id: member.id } });
+  await prisma.invite.delete({ where: { id: member.inviteId } });
+
+  return { email: member.email, fullName: member.fullName, warningsCount: member.warningsCount };
 }

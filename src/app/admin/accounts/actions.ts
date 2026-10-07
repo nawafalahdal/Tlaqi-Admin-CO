@@ -2,7 +2,12 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { removeLeadershipUser, resetUserCredentials } from "@/lib/workflow";
+import {
+  removeLeadershipUser,
+  resetUserCredentials,
+  reopenCandidateTest,
+  purgeCandidate,
+} from "@/lib/workflow";
 import { safeErrorMessage } from "@/lib/safeError";
 import { revalidatePath } from "next/cache";
 
@@ -66,5 +71,73 @@ export async function removeLeadershipUserAction(
     return { error: null, success: true };
   } catch (err) {
     return { error: safeErrorMessage(err), success: false };
+  }
+}
+
+/** إعادة فتح اختبار مرشّح لم يجتزه.
+ *
+ *  الفاوندر والتنفيذي لأي مرشّح، وقائد القسم لمرشّحي قسمه وحدهم — هذا هو
+ *  معنى "ولكلٍّ بصلاحياته": من يملك اعتماد الشخص يملك إعادة اختباره. */
+export async function reopenCandidateTestAction(
+  memberId: string,
+  meetingHeld: boolean,
+  note: string
+): Promise<{ error: string | null; done?: boolean }> {
+  const session = await auth();
+  if (!session) return { error: "يجب تسجيل الدخول" };
+
+  const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
+
+  const allowed =
+    session.user.role === "super_admin" ||
+    session.user.role === "executive" ||
+    (session.user.role === "department_admin" &&
+      session.user.departmentId === member.departmentId);
+  if (!allowed) return { error: "غير مصرح لك بإعادة فتح هذا الاختبار" };
+
+  try {
+    await reopenCandidateTest({
+      memberId,
+      meetingHeld,
+      note,
+      performedByName: session.user.name ?? "—",
+    });
+    revalidatePath("/admin/accounts");
+    revalidatePath("/admin/members");
+    revalidatePath("/admin");
+    return { error: null, done: true };
+  } catch (err) {
+    return { error: safeErrorMessage(err) };
+  }
+}
+
+/** حذف نهائي لمرشّح عالق — الفاوندر وحده، وبكتابة البريد كاملاً.
+ *  يُستدعى حين يحجز مرشّح راسب أو عالق منصباً أو بريداً، فلا تمكن دعوة
+ *  غيره ولا دعوته هو من جديد. */
+export async function purgeCandidateAction(
+  memberId: string,
+  confirmEmail: string,
+  reason: string
+): Promise<{ error: string | null; done?: boolean; email?: string }> {
+  const session = await auth();
+  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (session.user.role !== "super_admin") {
+    return { error: "الحذف النهائي خاص بالفاوندر" };
+  }
+  if (!reason.trim()) return { error: "اكتب سبب الحذف — يُسجَّل في السجل" };
+
+  try {
+    const result = await purgeCandidate({
+      memberId,
+      confirmEmail,
+      reason: reason.trim(),
+      performedByName: session.user.name ?? "—",
+    });
+    revalidatePath("/admin/accounts");
+    revalidatePath("/admin/members");
+    revalidatePath("/admin");
+    return { error: null, done: true, email: result.email };
+  } catch (err) {
+    return { error: safeErrorMessage(err) };
   }
 }

@@ -6,6 +6,7 @@ import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { AccountRow } from "./AccountRow";
 import { MemberAccountRow } from "./MemberAccountRow";
+import { StuckCandidateRow, type StuckCandidate } from "./StuckCandidateRow";
 import { BackButton } from "@/components/BackButton";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { CANDIDATE_EXPIRY_REASON, sweepExpiredCandidateAccounts } from "@/lib/workflow";
@@ -21,7 +22,7 @@ export default async function AccountsPage() {
 
   await sweepExpiredCandidateAccounts();
 
-  const [accounts, members, removedUsers, lapsed] = await Promise.all([
+  const [accounts, members, removedUsers, lapsed, stuckRaw] = await Promise.all([
     prisma.user.findMany({
       where: {
         isActive: true,
@@ -52,7 +53,40 @@ export default async function AccountsPage() {
       orderBy: { terminatedAt: "desc" },
       take: 30,
     }),
+    // كل من أُنشئ له حساب ولم يُعتمد: راسب، أو ساقط المهلة، أو لم يُسلّم بعد.
+    // هؤلاء هم من يحجزون المناصب والبُرُد دون أن يظهروا في أي قائمة عاملة.
+    prisma.member.findMany({
+      where: { approvalStatus: { not: "approved" } },
+      include: { department: true, invite: true },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
   ]);
+
+  const stuck: StuckCandidate[] = stuckRaw.map((m) => ({
+    id: m.id,
+    fullName: m.fullName,
+    email: m.email,
+    scope: m.department?.name ?? (ROLE_LABELS[m.invite.targetRole] ?? "—"),
+    stage: !m.isActive
+      ? m.exitReason === CANDIDATE_EXPIRY_REASON
+        ? t.membersPage.stageLapsed
+        : t.membersPage.stageStopped
+      : m.approvalStatus === "rejected"
+        ? t.membersPage.stageRejected
+        : m.testStatus === "failed"
+          ? t.membersPage.stageFailed
+          : m.testStatus === "passed"
+            ? t.membersPage.stageAwaitingApproval
+            : m.firstLoginAt
+              ? t.membersPage.stageTesting
+              : t.membersPage.stageNotLoggedIn,
+    testScore: m.testScore,
+    warningsCount: m.warningsCount,
+    reopenCount: m.testReopenCount,
+    // الاختبار يُعاد لمن سلّمه فرسب أو رُفض — لا لمن لم يبدأه بعد
+    canReopen: m.testStatus !== "not_started" && m.approvalStatus !== "approved",
+  }));
 
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
 
@@ -177,6 +211,26 @@ export default async function AccountsPage() {
             </div>
           </>
         )}
+
+        {/* المرشّحون العالقون — من هنا تُفكّ العُقَد التي تحجز المناصب والبُرُد */}
+        <section>
+          <h2 className="mb-1 mt-10 text-lg font-bold">{t.stuck.sectionTitle}</h2>
+          <p className="mb-4 text-sm text-black/50">{t.stuck.sectionHint}</p>
+          {stuck.length === 0 ? (
+            <Card className="p-8 text-center text-sm text-black/40">{t.stuck.empty}</Card>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {stuck.map((c) => (
+                <StuckCandidateRow
+                  key={c.id}
+                  candidate={c}
+                  canPurge={isSuperAdmin}
+                  theme={theme}
+                />
+              ))}
+            </div>
+          )}
+        </section>
 
         {lapsed.length > 0 && (
           <>

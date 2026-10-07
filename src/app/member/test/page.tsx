@@ -25,6 +25,8 @@ export default async function MemberTestPage() {
 
   if (member.approvalStatus === "approved") redirect("/member");
   if (member.testStatus !== "not_started") redirect("/member/pending");
+  // لا اختبار قبل تسجيل البيانات: من يرسب بعدها يبقى سجله كاملاً
+  if (!member.profileCompletedAt) redirect("/member/welcome");
 
   const t = getDictionary(await getLocale());
   const theme = themeFromColor(member.department?.colorHex ?? BRAND.temptress);

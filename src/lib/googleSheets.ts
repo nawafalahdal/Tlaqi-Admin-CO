@@ -176,6 +176,9 @@ export async function upsertMemberLifecycleRow(row: {
   phone: string | null;
   jobTitle: string | null;
   stage: string;
+  specialization: string | null;
+  section: string | null;
+  profileCompletedAt: Date | null;
   createdAt: Date;
   credentialsIssuedAt: Date | null;
   firstLoginAt: Date | null;
@@ -205,6 +208,9 @@ export async function upsertMemberLifecycleRow(row: {
     row.stage,
     row.phone ?? "—",
     row.jobTitle ?? "—",
+    row.specialization ?? "—",
+    row.section ?? "—",
+    row.profileCompletedAt ? formatSheetDate(row.profileCompletedAt) : "لم تُستكمل",
     formatSheetDate(row.createdAt),
     row.credentialsIssuedAt ? formatSheetDate(row.credentialsIssuedAt) : "—",
     row.firstLoginAt ? formatSheetDate(row.firstLoginAt) : "لم يدخل بعد",
@@ -312,6 +318,9 @@ const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: numb
       "المرحلة الحالية",
       "رقم الجوال",
       "المسمى الوظيفي",
+      "التخصص",
+      "القسم الفرعي (Section)",
+      "تاريخ استكمال البيانات",
       "تاريخ إنشاء الحساب",
       "تاريخ تسليم بيانات الدخول",
       "أول دخول",
@@ -327,7 +336,7 @@ const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: numb
       "سبب التوقف",
       "عدد التنبيهات",
     ],
-    widths: [160, 220, 150, 140, 190, 130, 150, 170, 180, 160, 110, 110, 160, 140, 160, 150, 200, 110, 160, 220, 100],
+    widths: [160, 220, 150, 140, 190, 130, 150, 160, 170, 180, 170, 180, 160, 110, 110, 160, 140, 160, 150, 200, 110, 160, 220, 100],
   },
 };
 
