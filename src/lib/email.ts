@@ -496,3 +496,33 @@ export async function sendAnnouncementEmail(opts: {
   }
   return delivered;
 }
+
+/** رمز الدخول لمرة واحدة.
+ *
+ *  الرمز يُعرض كبيراً مفرّق الخانات: هذا ما يُقرأ من شاشة الجوال في ثانية
+ *  ويُنسخ بلا خطأ. ولا يحمل البريد رابطاً للدخول إطلاقاً — رسالةٌ فيها
+ *  رمزٌ ورابطٌ معاً هي بالضبط شكل رسائل التصيّد. */
+export async function sendLoginCodeEmail(opts: {
+  to: string;
+  fullName: string;
+  code: string;
+  minutesValid: number;
+}) {
+  const spaced = opts.code.split("").join("&nbsp;&nbsp;");
+  return send(
+    opts.to,
+    `رمز دخولك: ${opts.code} — تَـــلاقِ`,
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>مرحباً ${esc(opts.fullName)}،</p>
+      <p>وصلنا طلب دخول إلى حسابك. أدخل الرمز التالي في الصفحة لإكمال الدخول:</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:22px 0">
+        <tr><td align="center" style="background:#EEF6DF;border-radius:14px;padding:22px 16px">
+          <div dir="ltr" style="font-family:'Courier New',Consolas,monospace;font-size:38px;font-weight:bold;letter-spacing:4px;color:#341D2B">${spaced}</div>
+          <div style="font-size:12px;color:#6b6b6b;margin-top:10px">صالح ${opts.minutesValid} دقائق فقط</div>
+        </td></tr>
+      </table>
+      <p style="color:#777;font-size:13px">الرمز يُستخدم مرة واحدة، ويُبطَل إن طلبت رمزاً جديداً.</p>
+    </div>`,
+    "رمز الدخول"
+  );
+}

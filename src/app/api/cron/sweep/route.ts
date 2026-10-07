@@ -5,6 +5,7 @@ import {
   sweepOverdueRequests,
 } from "@/lib/workflow";
 import { sweepTicketEscalation } from "@/lib/tickets";
+import { purgeExpiredLoginCodes } from "@/lib/loginCodes";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,8 @@ export async function GET(request: Request) {
   const expiredAccounts = await sweepExpiredCandidateAccounts();
   await sweepOverdueRequests();
   await sweepTicketEscalation();
+  // رموز الدخول قصيرة العمر وكثيرة، فلا تُترك تتراكم في الجدول
+  const purgedCodes = await purgeExpiredLoginCodes();
 
-  return NextResponse.json({ ok: true, reminded, expiredAccounts });
+  return NextResponse.json({ ok: true, reminded, expiredAccounts, purgedCodes });
 }

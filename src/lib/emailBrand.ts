@@ -20,7 +20,7 @@ const BRAND = {
  *  الهوية واحدة في كل رسالة — الشعار والجملة والتذييل لا تتغيّر — لكن
  *  نبرتها تتغيّر. التذكرة التي تحتاج إجراءً يجب أن تُعرف من نظرة واحدة في
  *  صندوق وارد مزدحم، ورسالة الشهادة لا تُرسل بنبرة الإنذار. */
-export type EmailVariant = "default" | "ticket" | "celebration" | "serious";
+export type EmailVariant = "default" | "ticket" | "celebration" | "serious" | "security";
 
 const VARIANT_STYLE: Record<
   EmailVariant,
@@ -54,6 +54,15 @@ const VARIANT_STYLE: Record<
     badgeColor: "#ffffff",
     note: "هذا الإشعار مُسجَّل في سجلّ الفريق ويمكن الرجوع إليه.",
   },
+  security: {
+    rule: BRAND.temptress,
+    badge: "رمز دخول لمرة واحدة",
+    badgeBg: BRAND.temptress,
+    badgeColor: BRAND.beige,
+    // التحذير المضاد للتصيّد: أكثر ما يُسرق به رمز الدخول أن يتصل أحد
+    // بصاحبه منتحلاً صفة الفريق ويطلبه منه
+    note: "لا تشارك هذا الرمز مع أحد مهما كان. فريق تَـــلاقِ لن يطلبه منك أبداً — لا بمكالمة ولا برسالة. إن لم تكن أنت من حاول الدخول، غيّر كلمة مرورك فوراً.",
+  },
 };
 
 /** يربط نوع الرسالة بتصميمها.
@@ -83,6 +92,9 @@ const KIND_VARIANT: Record<string, EmailVariant> = {
   "إنهاء عضوية": "serious",
   "عدم اجتياز الاختبار": "serious",
   "تذكير قبل سقوط المهلة": "serious",
+
+  // الأمن
+  "رمز الدخول": "security",
 
   // العام: الدعوة والدخول والاستعادة والإعلانات
   دعوة: "default",

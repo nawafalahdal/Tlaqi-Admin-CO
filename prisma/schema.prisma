@@ -357,3 +357,18 @@ model EmailLog {
   @@index([createdAt])
   @@index([recipient])
 }
+
+/// رمز الدخول لمرة واحدة. يُرسَل إلى بريد صاحب الحساب بعد صحّة كلمة
+/// المرور، فلا يكفي معرفةُ الكلمة وحدها للدخول: يلزم الوصول إلى البريد.
+model LoginCode {
+  id        String   @id @default(cuid())
+  email     String
+  codeHash  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([expiresAt])
+}

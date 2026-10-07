@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { isLockedOut, recordFailedAttempt, clearFailedAttempts } from "@/lib/loginAttempts";
 import { verifyTotpCode } from "@/lib/totp";
+import { consumeLoginCode } from "@/lib/loginCodes";
 import { candidateWindowExpired, markFirstLogin } from "@/lib/workflow";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -15,12 +16,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         email: { label: "البريد الإلكتروني", type: "email" },
         password: { label: "كلمة المرور", type: "password" },
         totp: { label: "رمز التحقق", type: "text" },
+        loginCode: { label: "رمز الدخول المُرسَل بالبريد", type: "text" },
       },
       authorize: async (credentials) => {
         const email = (credentials?.email as string | undefined)?.toLowerCase().trim();
         const password = credentials?.password as string | undefined;
         const totp = credentials?.totp as string | undefined;
+        const loginCode = credentials?.loginCode as string | undefined;
         if (!email || !password) return null;
+
+        /** التحقّق من رمز البريد.
+         *
+         *  يُستدعى بعد صحّة كلمة المرور فقط: استهلاك الرمز قبل التحقّق من
+         *  الكلمة يتيح لمن يعرف البريد وحده أن يُحرق رموز صاحبه ويمنعه من
+         *  الدخول. ومن فعّل التحقّق بخطوتين يُعفى — عاملان يكفيان، وطلب
+         *  ثالث يرهق بلا زيادة أمان حقيقية. */
+        const codeAccepted = async (totpEnabled: boolean) => {
+          if (totpEnabled) return true;
+          if (!loginCode) return false;
+          const result = await consumeLoginCode(email, loginCode);
+          return result.ok;
+        };
 
         // مقاومة التخمين وحشو بيانات الاعتماد: قفل مؤقت بعد محاولات فاشلة متتالية
         if (await isLockedOut(email)) return null;
@@ -36,6 +52,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               await recordFailedAttempt(email);
               return null;
             }
+          } else if (!(await codeAccepted(false))) {
+            await recordFailedAttempt(email);
+            return null;
           }
           await clearFailedAttempts(email);
           return {
@@ -75,6 +94,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           member.passwordHash &&
           (await bcrypt.compare(password, member.passwordHash))
         ) {
+          // الأعضاء لا يملكون التحقّق بخطوتين، فرمز البريد هو عاملهم الثاني
+          if (!(await codeAccepted(false))) {
+            await recordFailedAttempt(email);
+            return null;
+          }
           await clearFailedAttempts(email);
           await markFirstLogin(member.id);
           return {
