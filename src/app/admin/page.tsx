@@ -3,13 +3,14 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { sweepOverdueRequests, sweepExpiredCandidateAccounts } from "@/lib/workflow";
-import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE } from "@/lib/tickets";
+import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, ticketVisibilityWhere } from "@/lib/tickets";
 import { announcementsForSession, canPublishAnnouncement } from "@/lib/announcements";
 import { TicketCard } from "./tickets/TicketCard";
 import { themeFromColor, SUPER_ADMIN_THEME, BRAND } from "@/lib/brand";
 import { AppHeader, Card, StatusBadge } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { DataTable } from "@/components/DataTable";
+import { TicketBoard } from "@/components/TicketBoard";
 import { ApprovalQueue } from "./ApprovalQueue";
 import { AnnouncementComposer } from "./hub/AnnouncementComposer";
 import { AnnouncementList } from "./hub/AnnouncementList";
@@ -76,6 +77,13 @@ export default async function AdminPage() {
       }),
       announcementsForSession(session, 8),
     ]);
+
+  const boardTickets = await prisma.ticket.findMany({
+    where: ticketVisibilityWhere(session),
+    include: TICKET_INCLUDE,
+    orderBy: { stageDueAt: "asc" },
+    take: 60,
+  });
 
   const dict = getDictionary(await getLocale());
   const t = dict.hub;
@@ -196,7 +204,10 @@ export default async function AdminPage() {
           </Card>
         )}
 
-        {/* نبض التشغيل — أول ما يراه المستخدم */}
+        {/* التذاكر أولاً: هي قناة العمل، فمكانها صدر اللوحة */}
+        <TicketBoard tickets={boardTickets} theme={theme} viewerId={session.user.id} />
+
+        {/* نبض التشغيل */}
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatTile label={t.statEscalated} value={escalatedTickets.length} theme={theme} />
           <StatTile label={t.statPending} value={pendingCount} theme={theme} />

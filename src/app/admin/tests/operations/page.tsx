@@ -12,7 +12,10 @@ import { getLocale, getDictionary } from "@/i18n/server";
 export default async function OperationsTestPage() {
   const session = await auth();
   if (!session) redirect("/login");
-  if (session.user.role !== "super_admin" && session.user.role !== "executive") redirect("/admin");
+  // بنك أسئلة مسؤول التشغيل يملكه المدير التنفيذي: هو من يقود هذه الطبقة
+  // ويُحاسَب على اختيارها. والمؤسس لا يملكه — ملكيته له تجعل التنفيذي
+  // منفّذاً لا مسؤولاً، وتُفرغ تسلسل المسؤولية من معناه.
+  if (session.user.role !== "executive") redirect("/admin");
 
   const t = getDictionary(await getLocale());
 
@@ -27,7 +30,7 @@ export default async function OperationsTestPage() {
     <div className="min-h-screen bg-[#FAF8F4]">
       <AppHeader
         theme={theme}
-        roleName={session.user.role === "super_admin" ? t.admin.founderRole : t.admin.ceoRole}
+        roleName={t.admin.ceoRole}
         userName={session.user.name ?? ""}
       >
         <HeaderActions color={theme.text} />

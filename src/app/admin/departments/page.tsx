@@ -9,6 +9,7 @@ import { BackButton } from "@/components/BackButton";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { canCreateDepartment } from "@/lib/departments";
 import { NewDepartmentForm } from "./NewDepartmentForm";
+import { DepartmentColor } from "./DepartmentColor";
 
 /** فهرس الأقسام وإنشاء قسم جديد.
  *
@@ -54,13 +55,16 @@ export default async function DepartmentsIndexPage() {
           </Card>
         )}
 
+        {/* حدّ الصلاحية مكتوب لا مفترَض */}
+        <Card className="p-4 text-xs leading-relaxed text-black/50">{td.scopeNote}</Card>
+
         <section className="flex flex-col gap-3">
           {departments.map((d) => {
             const memberTrack = d.testTracks.find((tr) => tr.scope === "department_member");
             const questionCount = memberTrack?._count.questions ?? 0;
             return (
-              <Link key={d.id} href={`/admin/departments/${d.slug}`} className="block">
-                <Card className="flex items-center gap-4 p-4 transition-shadow hover:shadow-md">
+              <Card key={d.id} className="p-4">
+                <div className="flex items-start gap-4">
                   <span
                     className="h-11 w-11 shrink-0 rounded-2xl"
                     style={{ background: d.colorHex }}
@@ -76,15 +80,13 @@ export default async function DepartmentsIndexPage() {
                       <p className="mt-1 text-xs font-semibold text-[#9A2E1C]">{td.emptyTrack}</p>
                     )}
                   </div>
-                  <span
-                    className="shrink-0 text-lg font-bold ltr:-scale-x-100"
-                    style={{ color: theme.accentDark }}
-                    aria-hidden
-                  >
-                    ←
-                  </span>
-                </Card>
-              </Link>
+                </div>
+                {canCreate && (
+                  <div className="mt-3 border-t border-black/5 pt-3">
+                    <DepartmentColor departmentId={d.id} current={d.colorHex} />
+                  </div>
+                )}
+              </Card>
             );
           })}
         </section>

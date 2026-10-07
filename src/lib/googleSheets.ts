@@ -456,6 +456,61 @@ async function ensureTab(
   const meta = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID! });
   const existing = meta.data.sheets?.find((s) => s.properties?.title === tabName);
 
+  // التبويب الموجود يُفحص: هل ترويسته هي ترويسة اليوم؟
+  //
+  // كلما أُضيف عمود صارت الصفوف تحمل قيماً أكثر من عناوينها، فتُقرأ كل
+  // قيمة تحت عنوان ليس عنوانها — وهذا ما رآه صاحب المنصة: المسمى
+  // الوظيفي تحت عمود آخر، وتاريخ الإنشاء مكان الصفة. العلاج ألا ينتظر
+  // الملف من يضغط زراً: يُصلح نفسه عند أول كتابة بعد أي تغيير.
+  if (existing && !opts.refresh && spec) {
+    const sheetId = existing.properties?.sheetId;
+    let headersMatch = true;
+    try {
+      const head = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID!,
+        range: `'${tabName}'!A2:${columnLetter(spec.headers.length)}2`,
+      });
+      const current = (head.data.values?.[0] ?? []) as string[];
+      headersMatch =
+        current.length === spec.headers.length &&
+        spec.headers.every((h, i) => current[i] === h);
+    } catch {
+      headersMatch = true; // تعذّرت القراءة: لا نَفترض خللاً ولا نُفسد صفاً
+    }
+
+    if (headersMatch || sheetId === undefined || sheetId === null) {
+      ensuredTabs.add(tabName);
+      return;
+    }
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID!,
+      range: `'${tabName}'!A1:${columnLetter(spec.headers.length)}2`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [
+          [spec.title, ...Array(spec.headers.length - 1).fill("")],
+          spec.headers,
+        ],
+      },
+    });
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID!,
+      requestBody: {
+        requests: spec.widths.map((pixelSize, i) => ({
+          updateDimensionProperties: {
+            range: { sheetId, dimension: "COLUMNS" as const, startIndex: i, endIndex: i + 1 },
+            properties: { pixelSize },
+            fields: "pixelSize",
+          },
+        })),
+      },
+    });
+    console.warn(`[google-sheets] أُصلحت ترويسة "${tabName}" لتطابق الأعمدة الحالية`);
+    ensuredTabs.add(tabName);
+    return;
+  }
+
   if (existing && !opts.refresh) {
     ensuredTabs.add(tabName);
     return;

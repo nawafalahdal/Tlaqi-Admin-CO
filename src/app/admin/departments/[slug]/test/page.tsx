@@ -18,10 +18,16 @@ export default async function DepartmentTestPage({
   const session = await auth();
   if (!session) redirect("/login");
 
+  // لوحة القسم لقائده وحده.
+  //
+  // المؤسس والتنفيذي يملكان الهيكل: إنشاء القسم ولونه ودعوة قائده،
+  // وتصلهما تذاكره إن تأخّرت. أما عمله اليومي وبيانات أعضائه وبنك
+  // أسئلته فملك قائده — والاطّلاع عليه بلا سبب رقابةٌ لا تُحاسِب أحداً
+  // وتُفرغ ملكية القائد من معناها.
   const isSuperAdmin = session.user.role === "super_admin";
   const isExecutive = session.user.role === "executive";
   const isOwnDept = session.user.role === "department_admin" && session.user.departmentSlug === slug;
-  if (!isSuperAdmin && !isExecutive && !isOwnDept) redirect("/admin");
+  if (!isOwnDept) redirect(isSuperAdmin || isExecutive ? "/admin/departments" : "/admin");
 
   const department = await prisma.department.findUnique({ where: { slug } });
   if (!department) notFound();

@@ -14,6 +14,7 @@ import { AnnouncementComposer } from "../hub/AnnouncementComposer";
 import { AnnouncementList } from "../hub/AnnouncementList";
 import { RaiseAdminTicketForm, type TicketTargetOption } from "../tickets/RaiseAdminTicketForm";
 import { accountRoleLabel } from "@/lib/testTracks";
+import { TicketBoard } from "@/components/TicketBoard";
 
 function isOverdue(dueAt: Date) {
   return Date.now() > dueAt.getTime();
@@ -112,6 +113,8 @@ export default async function OperationsPage() {
             }))}
           />
         </section>
+
+        <TicketBoard tickets={tickets} theme={theme} viewerId={session.user.id} />
 
         {canPublish && (
           <section>

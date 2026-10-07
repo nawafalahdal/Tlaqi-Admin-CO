@@ -38,6 +38,9 @@ function brandFill(tile: string, color: string) {
 
 const FILL = {
   temptress: () => brandFill("/brand/bg-temptress.png", BRAND.temptress),
+  card: () => brandFill("/brand/bg-card.png", "#ffffff"),
+  paper: () => brandFill("/brand/bg-paper.png", BRAND.paper),
+  beige: () => brandFill("/brand/bg-beige.png", BRAND.beige),
   mahogany: () => brandFill("/brand/bg-mahogany.png", BRAND.mahogany),
   alert: () => brandFill("/brand/bg-alert.png", "#8C2F1B"),
   green: () => brandFill("/brand/bg-green.png", BRAND.greenSheen),
@@ -240,14 +243,14 @@ export function wrapEmail(opts: {
 </style>
 <title>${esc(opts.title)}</title>
 </head>
-<body style="margin:0;padding:0;background:${BRAND.paper};">
+<body bgcolor="${BRAND.paper}" style="margin:0;padding:0;${FILL.paper()};">
 <!-- السطر الذي يسبق فتح الرسالة في صندوق الوارد: يُخفى داخلها -->
 <div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(opts.preheader ?? opts.title)}</div>
 
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${BRAND.paper};padding:24px 12px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BRAND.paper}" style="${FILL.paper()};padding:24px 12px">
 <tr><td align="center">
 
-  <table role="presentation" class="tq-card" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid rgba(0,0,0,0.06)">
+  <table role="presentation" class="tq-card" bgcolor="#ffffff" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;${FILL.card()};border-radius:18px;overflow:hidden;border:1px solid rgba(0,0,0,0.06)">
 
     <!-- الترويسة: الشعار -->
     <tr>
@@ -268,7 +271,7 @@ export function wrapEmail(opts: {
     ${
       style.badge
         ? `<tr>
-      <td align="center" style="padding:18px 24px 0">
+      <td align="center" bgcolor="#ffffff" style="${FILL.card()};padding:18px 24px 0">
         <span style="display:inline-block;${style.badgeFill};color:${style.badgeColor};font-family:Tahoma,Arial,sans-serif;font-size:12px;font-weight:bold;letter-spacing:0.5px;padding:8px 18px;border-radius:999px">${esc(style.badge)}</span>
       </td>
     </tr>`
@@ -277,7 +280,7 @@ export function wrapEmail(opts: {
 
     <!-- المتن -->
     <tr>
-      <td class="tq-ink" style="padding:${style.badge ? "18px" : "28px"} 26px 26px;font-family:Tahoma,Arial,sans-serif;font-size:15px;line-height:1.9;color:${BRAND.ink}" dir="rtl">
+      <td class="tq-ink" bgcolor="#ffffff" style="${FILL.card()};padding:${style.badge ? "18px" : "28px"} 26px 26px;font-family:Tahoma,Arial,sans-serif;font-size:15px;line-height:1.9;color:${BRAND.ink}" dir="rtl">
         ${
           opts.variant === "ticket"
             ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
@@ -288,7 +291,7 @@ export function wrapEmail(opts: {
         ${
           style.note
             ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:20px">
-                 <tr><td style="background:${BRAND.paper};border-radius:10px;padding:12px 14px;font-size:12px;line-height:1.8;color:rgba(0,0,0,0.5)">${esc(style.note)}</td></tr>
+                 <tr><td bgcolor="${BRAND.paper}" style="${FILL.paper()};border-radius:10px;padding:12px 14px;font-size:12px;line-height:1.8;color:#5a5560">${esc(style.note)}</td></tr>
                </table>`
             : ""
         }

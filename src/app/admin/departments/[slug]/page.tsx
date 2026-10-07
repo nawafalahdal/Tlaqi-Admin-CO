@@ -23,6 +23,7 @@ import Link from "next/link";
 import { announcementsForSession } from "@/lib/announcements";
 import { AnnouncementList } from "../../hub/AnnouncementList";
 import { CandidateWindow } from "@/components/CandidateWindow";
+import { TicketBoard } from "@/components/TicketBoard";
 
 function isCertificateEligible(decidedAt: Date | null) {
   if (!decidedAt) return false;
@@ -46,10 +47,16 @@ export default async function DepartmentBoardPage({
     { status: "done", label: t.deptBoard.columnDone },
   ];
 
+  // لوحة القسم لقائده وحده.
+  //
+  // المؤسس والتنفيذي يملكان الهيكل: إنشاء القسم ولونه ودعوة قائده،
+  // وتصلهما تذاكره إن تأخّرت. أما عمله اليومي وبيانات أعضائه وبنك
+  // أسئلته فملك قائده — والاطّلاع عليه بلا سبب رقابةٌ لا تُحاسِب أحداً
+  // وتُفرغ ملكية القائد من معناها.
   const isSuperAdmin = session.user.role === "super_admin";
   const isExecutive = session.user.role === "executive";
   const isOwnDept = session.user.role === "department_admin" && session.user.departmentSlug === slug;
-  if (!isSuperAdmin && !isExecutive && !isOwnDept) redirect("/admin");
+  if (!isOwnDept) redirect(isSuperAdmin || isExecutive ? "/admin/departments" : "/admin");
 
   const department = await prisma.department.findUnique({ where: { slug } });
   if (!department) notFound();
@@ -246,6 +253,8 @@ export default async function DepartmentBoardPage({
             }))}
           />
         </section>
+
+        <TicketBoard tickets={tickets} theme={theme} viewerId={session.user.id} />
 
         <section>
           <h2 className="mb-4 text-lg font-bold">{t.deptBoard.ticketsTitle} ({tickets.length})</h2>
