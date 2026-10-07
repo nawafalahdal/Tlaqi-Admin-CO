@@ -26,7 +26,7 @@ function assetUrl(path: string) {
 
 /** الجملة التي تُذيَّل بها كل رسالة. تُضبط من البيئة ليُغيّرها صاحب
  *  المنصة دون نشر جديد. */
-export const TAGLINE = process.env.BRAND_TAGLINE || "نلتقي… فنصنع";
+export const TAGLINE = process.env.BRAND_TAGLINE || "نلتقي · نفكّر · نصنع";
 
 /** حسابات التواصل. تُقرأ من البيئة لأنها تتغيّر ولا يصحّ تخمينها:
  *  رابط حساب خاطئ في بريد رسمي أسوأ من غياب الرابط. الصفّ كله لا يُرسم
@@ -80,11 +80,14 @@ export function wrapEmail(opts: { title: string; bodyHtml: string; preheader?: s
 
     <!-- الترويسة: الشعار -->
     <tr>
-      <td align="center" style="background:${BRAND.temptress};padding:26px 24px">
-        <img src="${assetUrl("/brand/symbol.png")}" width="56" height="56" alt="تَـــلاقِ"
-             style="display:block;border:0;border-radius:50%;margin:0 auto 10px">
-        <div style="font-family:Tahoma,Arial,sans-serif;font-size:21px;font-weight:bold;color:${BRAND.beige};letter-spacing:1px">تَـــلاقِ</div>
-        <div style="font-family:Tahoma,Arial,sans-serif;font-size:12px;color:rgba(238,246,223,0.65);margin-top:4px">${esc(TAGLINE)}</div>
+      <td align="center" style="background:${BRAND.temptress};padding:28px 24px 24px">
+        <!-- الشعار الكامل بخلفية شفافة: كُتب اسمه بالبيج، فيظهر على
+             الداكن وحده. الأبعاد مثبّتة في الوسم لأن عملاء البريد
+             يرسمون قبل تحميل الصورة، فبدونها يقفز التخطيط. -->
+        <img src="${assetUrl("/brand/lockup-on-dark.png")}" width="220" height="65"
+             alt="تَـــلاقِ — TLAQI"
+             style="display:block;border:0;margin:0 auto 12px;max-width:220px;height:auto">
+        <div style="font-family:Tahoma,Arial,sans-serif;font-size:13px;color:rgba(238,246,223,0.72);letter-spacing:0.5px">${esc(TAGLINE)}</div>
       </td>
     </tr>
 
@@ -101,8 +104,8 @@ export function wrapEmail(opts: { title: string; bodyHtml: string; preheader?: s
     <!-- البانر: الجملة وحسابات التواصل -->
     <tr>
       <td align="center" style="background:${BRAND.temptress};padding:22px 24px 8px">
-        <div style="font-family:Tahoma,Arial,sans-serif;font-size:17px;font-weight:bold;color:${BRAND.beige}">${esc(TAGLINE)}</div>
-        <div style="font-family:Tahoma,Arial,sans-serif;font-size:12px;color:rgba(238,246,223,0.6);margin:6px 0 16px">منصة تَـــلاقِ الداخلية</div>
+        <div style="font-family:Tahoma,Arial,sans-serif;font-size:19px;font-weight:bold;color:${BRAND.beige};letter-spacing:1px">${esc(TAGLINE)}</div>
+        <div style="font-family:Tahoma,Arial,sans-serif;font-size:12px;color:rgba(238,246,223,0.6);margin:8px 0 16px">منصة تَـــلاقِ الداخلية</div>
       </td>
     </tr>
     ${social}
