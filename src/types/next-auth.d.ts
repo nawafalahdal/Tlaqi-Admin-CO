@@ -18,6 +18,8 @@ declare module "@auth/core/types" {
   }
 
   interface User {
+    /** اختار صاحبها "أبقني مسجّلاً" — يُحوَّل إلى مدّة الجلسة في jwt */
+    remember?: boolean;
     role: SessionRole;
     departmentId: string | null;
     departmentSlug: string | null;
@@ -27,6 +29,9 @@ declare module "@auth/core/types" {
 
 declare module "@auth/core/jwt" {
   interface JWT {
+    remember?: boolean;
+    /** اللحظة التي تنتهي عندها الجلسة بالمللي ثانية */
+    sessionExpiry?: number;
     role: SessionRole;
     departmentId: string | null;
     departmentSlug: string | null;

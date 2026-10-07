@@ -122,10 +122,11 @@ export async function loginAction(
   const password = String(formData.get("password") ?? "");
   const totp = String(formData.get("totp") ?? "");
   const loginCode = String(formData.get("loginCode") ?? "");
+  const remember = formData.get("remember") === "on" ? "on" : "";
   const callbackUrl = safeRedirectPath(String(formData.get("callbackUrl") ?? "/admin"));
 
   try {
-    await signIn("credentials", { email, password, totp, loginCode, redirectTo: callbackUrl });
+    await signIn("credentials", { email, password, totp, loginCode, remember, redirectTo: callbackUrl });
     return { error: null };
   } catch (err) {
     if (err instanceof AuthError) {

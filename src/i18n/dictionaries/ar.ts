@@ -82,6 +82,9 @@ export const ar = {
     other: "أخرى",
   },
   login: {
+    rememberLabel: "أبقني مسجّلاً على هذا الجهاز",
+    rememberHint: "بدونه تنتهي جلستك بعد ساعتين من آخر نشاط. لا تفعّله على جهاز مشترك.",
+    sessionExpired: "انتهت جلستك — سجّل دخولك من جديد",
     continue: "متابعة",
     sendingCode: "جارِ إرسال الرمز...",
     codeTitle: "أرسلنا رمزاً إلى بريدك",

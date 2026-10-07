@@ -116,6 +116,18 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         />
       </label>
 
+      {/* الاختيار في الخطوة الثانية لا الأولى: هنا يكتمل الدخول فعلاً،
+          ووضعه في الأولى يجعله يُنسى بين الخطوتين */}
+      <label className="flex items-start gap-2.5 rounded-xl bg-black/[0.03] px-3.5 py-3 text-sm">
+        <input type="checkbox" name="remember" className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>
+          <span className="font-medium text-black/75">{t.login.rememberLabel}</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-black/45">
+            {t.login.rememberHint}
+          </span>
+        </span>
+      </label>
+
       {step2.error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{step2.error}</p>
       )}

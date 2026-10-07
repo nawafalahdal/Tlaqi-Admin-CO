@@ -71,7 +71,13 @@ export function HeaderShell({
         <div
           className="border-t px-4 pb-4 pt-3 sm:hidden"
           style={{ borderColor }}
-          onClick={() => setOpen(false)}
+          // تُغلق القائمة عند الضغط على رابط فقط — لا على أي ضغطة.
+          // إغلاقها عند كل ضغطة كان يُزيل زر الخروج من الصفحة قبل أن
+          // يُرسَل نموذجه، فلا يقع الخروج أصلاً: الروابط تنجو لأنها
+          // تنتقل فوراً، والنموذج يُلغى بإزالته.
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest("a")) setOpen(false);
+          }}
         >
           <div className="mb-3" style={{ color: textColor }}>
             <p className="text-sm font-semibold leading-tight">{userName}</p>

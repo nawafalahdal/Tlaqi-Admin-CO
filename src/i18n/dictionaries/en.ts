@@ -85,6 +85,9 @@ export const en: Dictionary = {
     other: "Other",
   },
   login: {
+    rememberLabel: "Keep me signed in on this device",
+    rememberHint: "Without it your session ends two hours after your last activity. Do not enable it on a shared device.",
+    sessionExpired: "Your session has ended \u2014 please sign in again",
     continue: "Continue",
     sendingCode: "Sending the code...",
     codeTitle: "We sent a code to your email",
