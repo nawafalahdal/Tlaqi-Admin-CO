@@ -171,7 +171,7 @@ export function wrapEmail(opts: {
     SOCIAL_LINKS.length === 0
       ? ""
       : `<tr>
-          <td align="center" dir="ltr" style="background:${BRAND.temptress};padding:0 20px 16px;white-space:nowrap">
+          <td align="center" dir="ltr" class="tq-dark" style="background:${BRAND.temptress};padding:0 20px 16px;white-space:nowrap">
             <span style="font-family:Tahoma,Arial,sans-serif;font-size:12px;color:${BRAND.beige}">
               ${SOCIAL_LINKS.map(
                 (s) =>
@@ -193,6 +193,21 @@ export function wrapEmail(opts: {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- إعلان دعم الوضع الداكن.
+     بدونه يقلب Gmail ألوان الرسالة كلها بنفسه: الترويسة الداكنة تصير
+     وردية والبيج يصير زيتونياً — وهو ما كان يحدث فعلاً. هذا الإعلان
+     يقول للعميل إن الرسالة تتدبّر ألوانها، فيكفّ عن فرض انقلابه. -->
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<style>
+  :root { color-scheme: light dark; supported-color-schemes: light dark; }
+  /* Outlook.com يضع هاتين السمتين على عناصره عند الوضع الداكن، فنثبّت
+     ألواننا تحتهما صراحةً بدل أن يُعاد حسابها */
+  [data-ogsc] .tq-dark, [data-ogsb] .tq-dark { background:${BRAND.temptress} !important; }
+  [data-ogsc] .tq-on-dark { color:${BRAND.beige} !important; }
+  [data-ogsc] .tq-card, [data-ogsb] .tq-card { background:#ffffff !important; }
+  [data-ogsc] .tq-ink { color:${BRAND.ink} !important; }
+</style>
 <title>${esc(opts.title)}</title>
 </head>
 <body style="margin:0;padding:0;background:${BRAND.paper};">
@@ -202,18 +217,18 @@ export function wrapEmail(opts: {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${BRAND.paper};padding:24px 12px">
 <tr><td align="center">
 
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid rgba(0,0,0,0.06)">
+  <table role="presentation" class="tq-card" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid rgba(0,0,0,0.06)">
 
     <!-- الترويسة: الشعار -->
     <tr>
-      <td align="center" style="background:${BRAND.temptress};padding:28px 24px 24px">
+      <td align="center" class="tq-dark" style="background:${BRAND.temptress};padding:22px 24px 18px">
         <!-- الشعار الكامل بخلفية شفافة: كُتب اسمه بالبيج، فيظهر على
              الداكن وحده. الأبعاد مثبّتة في الوسم لأن عملاء البريد
              يرسمون قبل تحميل الصورة، فبدونها يقفز التخطيط. -->
-        <img src="${assetUrl("/brand/lockup-on-dark.png")}" width="220" height="65"
+        <img src="${assetUrl("/brand/lockup-on-dark.png")}" width="178" height="52"
              alt="تَـــلاقِ — TLAQI"
-             style="display:block;border:0;margin:0 auto 12px;max-width:220px;height:auto">
-        <div style="font-family:Tahoma,Arial,sans-serif;font-size:13px;color:rgba(238,246,223,0.72);letter-spacing:0.5px">${esc(TAGLINE)}</div>
+             style="display:block;border:0;margin:0 auto 9px;max-width:178px;height:auto">
+        <div class="tq-on-dark" style="font-family:Tahoma,Arial,sans-serif;font-size:13px;color:rgba(238,246,223,0.72);letter-spacing:0.5px">${esc(TAGLINE)}</div>
       </td>
     </tr>
 
@@ -232,7 +247,7 @@ export function wrapEmail(opts: {
 
     <!-- المتن -->
     <tr>
-      <td style="padding:${style.badge ? "18px" : "28px"} 26px 26px;font-family:Tahoma,Arial,sans-serif;font-size:15px;line-height:1.9;color:${BRAND.ink}" dir="rtl">
+      <td class="tq-ink" style="padding:${style.badge ? "18px" : "28px"} 26px 26px;font-family:Tahoma,Arial,sans-serif;font-size:15px;line-height:1.9;color:${BRAND.ink}" dir="rtl">
         ${
           opts.variant === "ticket"
             ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
@@ -252,14 +267,13 @@ export function wrapEmail(opts: {
 
     <!-- البانر: الجملة وحسابات التواصل -->
     <tr>
-      <td align="center" style="background:${BRAND.temptress};padding:22px 24px 8px">
-        <div style="font-family:Tahoma,Arial,sans-serif;font-size:19px;font-weight:bold;color:${BRAND.beige};letter-spacing:1px">${esc(TAGLINE)}</div>
-        <div style="font-family:Tahoma,Arial,sans-serif;font-size:12px;color:rgba(238,246,223,0.6);margin:8px 0 16px">منصة تَـــلاقِ الداخلية</div>
+      <td align="center" class="tq-dark" style="background:${BRAND.temptress};padding:18px 24px 12px">
+        <div class="tq-on-dark" style="font-family:Tahoma,Arial,sans-serif;font-size:15px;font-weight:bold;color:${BRAND.beige};letter-spacing:1px">${esc(TAGLINE)}</div>
       </td>
     </tr>
     ${social}
     <tr>
-      <td align="center" style="background:${BRAND.temptress};padding:0 24px 22px">
+      <td align="center" class="tq-dark" style="background:${BRAND.temptress};padding:0 24px 22px">
         <a href="${appBaseUrl()}" style="font-family:Tahoma,Arial,sans-serif;font-size:12px;color:rgba(238,246,223,0.75);text-decoration:none">${esc(appBaseUrl().replace(/^https?:\/\//, ""))}</a>
       </td>
     </tr>

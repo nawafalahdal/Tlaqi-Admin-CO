@@ -508,20 +508,27 @@ export async function sendLoginCodeEmail(opts: {
   code: string;
   minutesValid: number;
 }) {
-  const spaced = opts.code.split("").join("&nbsp;&nbsp;");
+  // الخانات في خلايا منفصلة لا بمسافات: الفراغات المتتابعة تتمدّد عشوائياً
+  // بحسب العميل فتتباعد الأرقام حتى يصعب قراءتها رقماً واحداً
+  const cells = opts.code
+    .split("")
+    .map(
+      (d) =>
+        `<td align="center" style="padding:0 3px"><div style="width:42px;height:54px;line-height:54px;background:#ffffff;border:1px solid rgba(52,29,43,0.14);border-radius:10px;font-family:'Courier New',Consolas,monospace;font-size:28px;font-weight:bold;color:#341D2B">${d}</div></td>`
+    )
+    .join("");
+
   return send(
     opts.to,
     `رمز دخولك: ${opts.code} — تَـــلاقِ`,
     `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
       <p>مرحباً ${esc(opts.fullName)}،</p>
-      <p>وصلنا طلب دخول إلى حسابك. أدخل الرمز التالي في الصفحة لإكمال الدخول:</p>
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin:22px 0">
-        <tr><td align="center" style="background:#EEF6DF;border-radius:14px;padding:22px 16px">
-          <div dir="ltr" style="font-family:'Courier New',Consolas,monospace;font-size:38px;font-weight:bold;letter-spacing:4px;color:#341D2B">${spaced}</div>
-          <div style="font-size:12px;color:#6b6b6b;margin-top:10px">صالح ${opts.minutesValid} دقائق فقط</div>
-        </td></tr>
+      <p>وصلنا طلب دخول إلى حسابك. أدخل الرمز التالي لإكمال الدخول:</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" dir="ltr" style="margin:20px auto 10px">
+        <tr>${cells}</tr>
       </table>
-      <p style="color:#777;font-size:13px">الرمز يُستخدم مرة واحدة، ويُبطَل إن طلبت رمزاً جديداً.</p>
+      <p align="center" style="font-size:12px;color:#8a8a8a;margin:0 0 20px">صالح ${opts.minutesValid} دقائق · يُستخدم مرة واحدة</p>
+      <p style="color:#8a8a8a;font-size:13px;margin:0">إن طلبت رمزاً جديداً بطل هذا فوراً.</p>
     </div>`,
     "رمز الدخول"
   );
