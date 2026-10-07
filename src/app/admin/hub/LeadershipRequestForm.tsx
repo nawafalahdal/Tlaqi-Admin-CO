@@ -8,6 +8,24 @@ import type { themeFromColor } from "@/lib/brand";
 
 type Dept = { id: string; name: string };
 
+/** نفس ترتيب الخادم حرفاً بحرف: قائمة تعرض نوعاً يرفضه التحقق تُنتج خطأً
+ *  لا يفهمه المستخدم. */
+const LEADERSHIP_REQUEST_TYPES = [
+  "dept_contact",
+  "content_writing",
+  "design_work",
+  "custom_design",
+  "publishing",
+  "tech_support",
+  "hr_support",
+  "equipment",
+  "budget_approval",
+  "meeting",
+  "escalate_to_executive",
+  "escalate_to_founder",
+  "other",
+] as const;
+
 export function LeadershipRequestForm({
   departments,
   theme,
@@ -49,9 +67,11 @@ export function LeadershipRequestForm({
             defaultValue="dept_contact"
             className="min-h-11 rounded-xl border border-black/10 bg-white px-3.5 text-sm outline-none focus:border-black/30"
           >
-            <option value="dept_contact">{dict.requestType.dept_contact}</option>
-            <option value="custom_design">{dict.requestType.custom_design}</option>
-            <option value="meeting">{dict.requestType.meeting}</option>
+            {LEADERSHIP_REQUEST_TYPES.map((key) => (
+              <option key={key} value={key}>
+                {dict.requestType[key]}
+              </option>
+            ))}
           </select>
         </label>
 

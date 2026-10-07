@@ -9,7 +9,24 @@ import { revalidatePath } from "next/cache";
 import type { AnnouncementAudience, RequestType } from "@prisma/client";
 
 const AUDIENCES: AnnouncementAudience[] = ["everyone", "leadership", "department"];
-const LEADERSHIP_REQUEST_TYPES: RequestType[] = ["custom_design", "dept_contact", "meeting"];
+/** ما يصحّ أن ترفعه القيادة كطلب بين الأقسام.
+ *  «بانر ترحيبي» ليس منها: تُنشئه المنصة تلقائياً عند الاعتماد، فرفعه
+ *  يدوياً يُنتج طلباً مكرراً بلا عضو مرتبط. */
+const LEADERSHIP_REQUEST_TYPES: RequestType[] = [
+  "dept_contact",
+  "content_writing",
+  "design_work",
+  "custom_design",
+  "publishing",
+  "tech_support",
+  "hr_support",
+  "equipment",
+  "budget_approval",
+  "meeting",
+  "escalate_to_executive",
+  "escalate_to_founder",
+  "other",
+];
 
 export async function publishAnnouncementAction(
   _prevState: { error: string | null; success: boolean },
