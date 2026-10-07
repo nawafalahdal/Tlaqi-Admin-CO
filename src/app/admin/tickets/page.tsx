@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { sweepTicketEscalation, TICKET_STAGE_LABELS, TICKET_INCLUDE, ticketAuthor, ticketTargetLabel, ticketVisibilityWhere } from "@/lib/tickets";
+import { sweepTicketEscalation, TICKET_STAGE_LABELS, TICKET_INCLUDE, ticketAuthor, ticketTargetLabel, ticketVisibilityWhere, canRespondToTicket } from "@/lib/tickets";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
@@ -108,6 +108,10 @@ export default async function TicketsPage() {
                 <TicketCard
                   key={x.id}
                   theme={theme}
+                  // الشاشة تعكس القاعدة نفسها التي يفرضها الخادم: من لا
+                  // يملك الردّ لا يُعرض له زرّه أصلاً، فلا يُخطئ ثم يُمنع
+                  readOnly={!canRespondToTicket(x, session)}
+                  mine={x.raisedByUserId === session.user.id}
                   ticket={{
                     id: x.id,
                     ticketNumber: x.ticketNumber,

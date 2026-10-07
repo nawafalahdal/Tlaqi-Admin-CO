@@ -199,6 +199,7 @@ requestsHint: "ما تُنشئه المنصة وحدها: البانر التر�
     markInProgress: "قيد المعالجة",
     markResolved: "تم الحل",
     respondButton: "الرد على التذكرة",
+    authorCannotClose: "هذه تذكرة رفعتَها أنت — وإغلاقها إقرارٌ بأن الطرف الآخر أجاب، فلا تُغلق إلا منه. لك أن تصعّدها إن تأخّرت.",
   },
   deptBoard: {
     openInvitesTitle: "حسابات لم تبدأ الاختبار",

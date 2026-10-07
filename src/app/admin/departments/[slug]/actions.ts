@@ -9,7 +9,7 @@ import {
   markMemberExited,
   issueCertificate,
 } from "@/lib/workflow";
-import { respondToTicket } from "@/lib/tickets";
+import { respondToTicket, canRespondToTicket } from "@/lib/tickets";
 import { getTrackForTarget } from "@/lib/testTracks";
 import { safeErrorMessage } from "@/lib/safeError";
 import { revalidatePath } from "next/cache";
@@ -172,18 +172,11 @@ export async function respondToTicketAction(
 
   const ticket = await prisma.ticket.findUniqueOrThrow({
     where: { id: ticketId },
-    include: { member: true, raisedByUser: true },
+    include: { member: true, raisedByUser: true, targetMember: true },
   });
 
-  const allowed =
-    session.user.role === "super_admin" ||
-    session.user.role === "executive" ||
-    (session.user.role === "department_admin" &&
-      (session.user.departmentId === ticket.targetDepartmentId ||
-        session.user.departmentId === ticket.member?.departmentId ||
-        session.user.departmentId === ticket.raisedByUser?.departmentId)) ||
-    ticket.targetUserId === session.user.id;
-  if (!allowed) throw new Error("غير مصرح لك بهذا الإجراء");
+  // قاعدة واحدة تحكم الردّ في كل الشاشات — ومنها أن صاحب التذكرة لا يُغلقها
+  if (!canRespondToTicket(ticket, session)) throw new Error("غير مصرح لك بهذا الإجراء");
 
   await respondToTicket({ ticketId, status, resolutionNote });
   revalidatePath("/admin/departments");

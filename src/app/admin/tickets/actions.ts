@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { raiseTicket, escalateTicketNow, respondToTicket } from "@/lib/tickets";
+import { raiseTicket, escalateTicketNow, respondToTicket, canRespondToTicket } from "@/lib/tickets";
 import { safeErrorMessage } from "@/lib/safeError";
 
 const TICKET_ROLES = ["super_admin", "executive", "operations_officer", "department_admin"];
@@ -73,18 +73,8 @@ export async function respondToTicketAction(
     include: { member: true, raisedByUser: true, targetMember: true },
   });
 
-  // قائد القسم يتصرّف في تذاكر قسمه أو الموجَّهة إليه شخصياً فقط
-  const allowed =
-    session.user.role === "super_admin" ||
-    session.user.role === "executive" ||
-    session.user.role === "operations_officer" ||
-    ticket.targetUserId === session.user.id ||
-    (session.user.role === "department_admin" &&
-      (session.user.departmentId === ticket.targetDepartmentId ||
-        session.user.departmentId === ticket.targetMember?.departmentId ||
-        session.user.departmentId === ticket.member?.departmentId ||
-        session.user.departmentId === ticket.raisedByUser?.departmentId));
-  if (!allowed) throw new Error("غير مصرح لك بهذا الإجراء");
+  // الردّ لصاحب المرحلة الحالية وحده، ولا يردّ أحد على تذكرة رفعها بنفسه
+  if (!canRespondToTicket(ticket, session)) throw new Error("غير مصرح لك بهذا الإجراء");
 
   await respondToTicket({ ticketId, status, resolutionNote });
   revalidatePath("/admin/tickets");

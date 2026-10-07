@@ -27,20 +27,22 @@ function assetUrl(path: string) {
 
 /** خلفية بلون الهوية مرسومة كصورة لا كلون.
  *
- *  Gmail على الجوال يعكس ألوان الخلفيات في الوضع الداكن ويتجاهل إعلان
- *  color-scheme، فكانت ترويسة تَـــلاقِ الداكنة تصير وردية. والصور لا
- *  يعكسها أي عميل — ولهذا بقي الشعار نفسه سليماً بينما انقلب ما حوله.
- *  فتُرسم ألوان الهوية بصورة مربّعة صلبة تتكرّر، ويبقى اللون المكتوب
- *  خلفها لمن لا يحمّل الصور. */
+ *  Gmail على الجوال يعكس الألوان في الوضع الداكن ويتجاهل color-scheme،
+ *  لكنه لا يعكس الصور. وهنا الفخّ الذي وقعنا فيه: إن ثُبِّتت الخلفية
+ *  صورةً وبقي النص فوقها لوناً، عُكس النصّ وحده — فصار فاتحاً على فاتح،
+ *  أو داكناً على داكن، واختفى.
+ *
+ *  فالقاعدة: لا تُثبَّت الخلفية صورةً إلا حيث لا نصّ حيّ أصلاً. ما فيه
+ *  نصّ يُترك لوناً، فيُعكس مع نصّه معاً ويبقى التباين قائماً في الوضعين.
+ *  ولهذا لم يبقَ من الصور إلا الشريط اللوني الفاصل (لا نصّ فيه)
+ *  والترويسة (شعارها وجملتها مرسومان داخل الصورة نفسها). */
 function brandFill(tile: string, color: string) {
   return `background-color:${color};background-image:url('${assetUrl(tile)}');background-repeat:repeat;background-size:8px 8px`;
 }
 
-const FILL = {
+/** الشريط الفاصل وحده — ولهذا لم يبقَ هنا إلا ألوان النبرة الأربعة */
+const RULE_FILL = {
   temptress: () => brandFill("/brand/bg-temptress.png", BRAND.temptress),
-  card: () => brandFill("/brand/bg-card.png", "#ffffff"),
-  paper: () => brandFill("/brand/bg-paper.png", BRAND.paper),
-  beige: () => brandFill("/brand/bg-beige.png", BRAND.beige),
   mahogany: () => brandFill("/brand/bg-mahogany.png", BRAND.mahogany),
   alert: () => brandFill("/brand/bg-alert.png", "#8C2F1B"),
   green: () => brandFill("/brand/bg-green.png", BRAND.greenSheen),
@@ -59,48 +61,48 @@ const VARIANT_STYLE: Record<
     rule: string;
     ruleFill: string;
     badge: string | null;
-    badgeFill: string;
+    badgeBg: string;
     badgeColor: string;
     note: string | null;
   }
 > = {
   default: {
     rule: BRAND.mahogany,
-    ruleFill: FILL.mahogany(),
+    ruleFill: RULE_FILL.mahogany(),
     badge: null,
-    badgeFill: FILL.mahogany(),
+    badgeBg: BRAND.mahogany,
     badgeColor: "#ffffff",
     note: null,
   },
   ticket: {
     rule: BRAND.mahogany,
-    ruleFill: FILL.mahogany(),
+    ruleFill: RULE_FILL.mahogany(),
     badge: "تذكرة عمل · تحتاج إجراءً",
-    badgeFill: FILL.mahogany(),
+    badgeBg: BRAND.mahogany,
     badgeColor: "#ffffff",
     note: "هذه تذكرة في نظام العمل، وليست إشعاراً عابراً. لها مهلة، وإن انقضت دون ردّ تُصعَّد تلقائياً إلى المسؤول الذي يليك.",
   },
   celebration: {
     rule: BRAND.greenSheen,
-    ruleFill: FILL.green(),
+    ruleFill: RULE_FILL.green(),
     badge: "خبر سار",
-    badgeFill: FILL.green(),
+    badgeBg: BRAND.greenSheen,
     badgeColor: "#10321F",
     note: null,
   },
   serious: {
     rule: "#8C2F1B",
-    ruleFill: FILL.alert(),
+    ruleFill: RULE_FILL.alert(),
     badge: "إشعار رسمي",
-    badgeFill: FILL.alert(),
+    badgeBg: "#8C2F1B",
     badgeColor: "#ffffff",
     note: "هذا الإشعار مُسجَّل في سجلّ الفريق ويمكن الرجوع إليه.",
   },
   security: {
     rule: BRAND.temptress,
-    ruleFill: FILL.temptress(),
+    ruleFill: RULE_FILL.temptress(),
     badge: "رمز دخول لمرة واحدة",
-    badgeFill: FILL.temptress(),
+    badgeBg: BRAND.temptress,
     badgeColor: BRAND.beige,
     // التحذير المضاد للتصيّد: أكثر ما يُسرق به رمز الدخول أن يتصل أحد
     // بصاحبه منتحلاً صفة الفريق ويطلبه منه
@@ -204,18 +206,18 @@ export function wrapEmail(opts: {
     SOCIAL_LINKS.length === 0
       ? ""
       : `<tr>
-          <td align="center" dir="ltr" class="tq-dark" bgcolor="${BRAND.temptress}" style="${FILL.temptress()};padding:0 20px 16px;white-space:nowrap">
-            <span style="font-family:Tahoma,Arial,sans-serif;font-size:12px;color:${BRAND.beige}">
+          <td align="center" dir="ltr" bgcolor="${BRAND.beige}" style="background-color:${BRAND.beige};padding:0 20px 16px;white-space:nowrap">
+            <span style="font-family:Tahoma,Arial,sans-serif;font-size:12px;color:${BRAND.ink}">
               ${SOCIAL_LINKS.map(
                 (s) =>
-                  `<a href="${s.url}${esc(s.handle)}" style="color:${BRAND.beige};text-decoration:none;font-weight:bold">${esc(s.label)}${sameHandle ? "" : ` @${esc(s.handle)}`}</a>`
+                  `<a href="${s.url}${esc(s.handle)}" style="color:#8C3600;text-decoration:none;font-weight:bold">${esc(s.label)}${sameHandle ? "" : ` @${esc(s.handle)}`}</a>`
               ).join(
-                `<span style="color:${BRAND.mahogany};padding:0 8px">&bull;</span>`
+                `<span style="color:rgba(26,16,35,0.35);padding:0 8px">&bull;</span>`
               )}
             </span>
             ${
               sameHandle
-                ? `<div style="font-family:Tahoma,Arial,sans-serif;font-size:11px;color:rgba(238,246,223,0.55);margin-top:5px">@${esc(SOCIAL_LINKS[0].handle)}</div>`
+                ? `<div style="font-family:Tahoma,Arial,sans-serif;font-size:11px;color:rgba(26,16,35,0.55);margin-top:5px">@${esc(SOCIAL_LINKS[0].handle)}</div>`
                 : ""
             }
           </td>
@@ -226,53 +228,53 @@ export function wrapEmail(opts: {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<!-- إعلان دعم الوضع الداكن.
-     بدونه يقلب Gmail ألوان الرسالة كلها بنفسه: الترويسة الداكنة تصير
-     وردية والبيج يصير زيتونياً — وهو ما كان يحدث فعلاً. هذا الإعلان
-     يقول للعميل إن الرسالة تتدبّر ألوانها، فيكفّ عن فرض انقلابه. -->
+<!-- الوضع الداكن.
+     الإعلان وحده لا يكفي: Gmail على الجوال يتجاهله ويقلب الألوان. وما
+     لا يُقلب هو الصور. فالهوية التي يجب أن تبقى كما هي (الترويسة) صارت
+     صورةً واحدة بشعارها وجملتها، وكل ما فيه نصّ حيّ تُرك لوناً ليُقلب
+     مع نصّه معاً — فيبقى مقروءاً في الوضعين بدل أن يختفي أحدهما. -->
 <meta name="color-scheme" content="light dark">
 <meta name="supported-color-schemes" content="light dark">
 <style>
   :root { color-scheme: light dark; supported-color-schemes: light dark; }
-  /* Outlook.com يضع هاتين السمتين على عناصره عند الوضع الداكن، فنثبّت
-     ألواننا تحتهما صراحةً بدل أن يُعاد حسابها */
-  [data-ogsc] .tq-dark, [data-ogsb] .tq-dark { background:${BRAND.temptress} !important; }
-  [data-ogsc] .tq-on-dark { color:${BRAND.beige} !important; }
+  /* Outlook.com يضع هاتين السمتين عند الوضع الداكن، فنثبّت تحتهما
+     الزوج كاملاً — الخلفية ولون نصّها معاً، لا أحدهما */
   [data-ogsc] .tq-card, [data-ogsb] .tq-card { background:#ffffff !important; }
   [data-ogsc] .tq-ink { color:${BRAND.ink} !important; }
+  [data-ogsc] .tq-foot, [data-ogsb] .tq-foot { background:${BRAND.beige} !important; }
+  [data-ogsc] .tq-on-foot { color:${BRAND.ink} !important; }
 </style>
 <title>${esc(opts.title)}</title>
 </head>
-<body bgcolor="${BRAND.paper}" style="margin:0;padding:0;${FILL.paper()};">
+<body bgcolor="${BRAND.paper}" style="margin:0;padding:0;background-color:${BRAND.paper};">
 <!-- السطر الذي يسبق فتح الرسالة في صندوق الوارد: يُخفى داخلها -->
 <div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(opts.preheader ?? opts.title)}</div>
 
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BRAND.paper}" style="${FILL.paper()};padding:24px 12px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BRAND.paper}" style="background-color:${BRAND.paper};padding:24px 12px">
 <tr><td align="center">
 
-  <table role="presentation" class="tq-card" bgcolor="#ffffff" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;${FILL.card()};border-radius:18px;overflow:hidden;border:1px solid rgba(0,0,0,0.06)">
+  <table role="presentation" class="tq-card" bgcolor="#ffffff" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background-color:#ffffff;border-radius:18px;overflow:hidden;border:1px solid rgba(0,0,0,0.06)">
 
-    <!-- الترويسة: الشعار -->
+    <!-- الترويسة صورةً واحدة: الخلفية والشعار والجملة مرسومة داخلها.
+         لا نصّ حيّ فيها، فلا شيء يَقلبه الوضع الداكن — وهذه هي الطريقة
+         الوحيدة التي تبقى بها هوية تَـــلاقِ كما هي في كل عميل بريد. -->
     <tr>
-      <td align="center" class="tq-dark" bgcolor="${BRAND.temptress}" style="${FILL.temptress()};padding:22px 24px 18px">
-        <!-- الشعار الكامل بخلفية شفافة: كُتب اسمه بالبيج، فيظهر على
-             الداكن وحده. الأبعاد مثبّتة في الوسم لأن عملاء البريد
-             يرسمون قبل تحميل الصورة، فبدونها يقفز التخطيط. -->
-        <img src="${assetUrl("/brand/lockup-on-dark.png")}" width="178" height="52"
-             alt="تَـــلاقِ — TLAQI"
-             style="display:block;border:0;margin:0 auto 9px;max-width:178px;height:auto">
-        <div class="tq-on-dark" style="font-family:Tahoma,Arial,sans-serif;font-size:13px;color:rgba(238,246,223,0.72);letter-spacing:0.5px">${esc(TAGLINE)}</div>
+      <td align="center" bgcolor="${BRAND.temptress}" style="background-color:${BRAND.temptress};font-size:0;line-height:0">
+        <img src="${assetUrl("/brand/email-header.png")}" width="600" height="127"
+             alt="تَـــلاقِ — TLAQI · ${esc(TAGLINE)}"
+             style="display:block;border:0;width:100%;max-width:600px;height:auto">
       </td>
     </tr>
 
-    <!-- شريط لوني فاصل: لونه يقول نوع الرسالة قبل قراءة حرف منها -->
+    <!-- شريط لوني فاصل: لونه يقول نوع الرسالة قبل قراءة حرف منها.
+         ولأنه بلا نصّ، تُثبَّت صورته بأمان فلا ينقلب. -->
     <tr><td style="height:5px;${style.ruleFill};font-size:0;line-height:0">&nbsp;</td></tr>
 
     ${
       style.badge
         ? `<tr>
-      <td align="center" bgcolor="#ffffff" style="${FILL.card()};padding:18px 24px 0">
-        <span style="display:inline-block;${style.badgeFill};color:${style.badgeColor};font-family:Tahoma,Arial,sans-serif;font-size:12px;font-weight:bold;letter-spacing:0.5px;padding:8px 18px;border-radius:999px">${esc(style.badge)}</span>
+      <td align="center" bgcolor="#ffffff" style="background-color:#ffffff;padding:18px 24px 0">
+        <span style="display:inline-block;background-color:${style.badgeBg};color:${style.badgeColor};font-family:Tahoma,Arial,sans-serif;font-size:12px;font-weight:bold;letter-spacing:0.5px;padding:8px 18px;border-radius:999px">${esc(style.badge)}</span>
       </td>
     </tr>`
         : ""
@@ -280,7 +282,7 @@ export function wrapEmail(opts: {
 
     <!-- المتن -->
     <tr>
-      <td class="tq-ink" bgcolor="#ffffff" style="${FILL.card()};padding:${style.badge ? "18px" : "28px"} 26px 26px;font-family:Tahoma,Arial,sans-serif;font-size:15px;line-height:1.9;color:${BRAND.ink}" dir="rtl">
+      <td class="tq-ink" bgcolor="#ffffff" style="background-color:#ffffff;padding:${style.badge ? "18px" : "28px"} 26px 26px;font-family:Tahoma,Arial,sans-serif;font-size:15px;line-height:1.9;color:${BRAND.ink}" dir="rtl">
         ${
           opts.variant === "ticket"
             ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
@@ -291,28 +293,29 @@ export function wrapEmail(opts: {
         ${
           style.note
             ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:20px">
-                 <tr><td bgcolor="${BRAND.paper}" style="${FILL.paper()};border-radius:10px;padding:12px 14px;font-size:12px;line-height:1.8;color:#5a5560">${esc(style.note)}</td></tr>
+                 <tr><td bgcolor="${BRAND.paper}" style="background-color:${BRAND.paper};border-radius:10px;padding:12px 14px;font-size:12px;line-height:1.8;color:#3D3745;border:1px solid rgba(0,0,0,0.07)">${esc(style.note)}</td></tr>
                </table>`
             : ""
         }
       </td>
     </tr>
 
-    <!-- البانر: الجملة وحسابات التواصل -->
+    <!-- التذييل: بيج بنصّ داكن. اللون هنا لا يُثبَّت صورةً لأن فيه نصّاً
+         وروابط حيّة — فيُقلب هو ونصّه معاً، ويبقى مقروءاً. -->
     <tr>
-      <td align="center" class="tq-dark" bgcolor="${BRAND.temptress}" style="${FILL.temptress()};padding:18px 24px 12px">
-        <div class="tq-on-dark" style="font-family:Tahoma,Arial,sans-serif;font-size:15px;font-weight:bold;color:${BRAND.beige};letter-spacing:1px">${esc(TAGLINE)}</div>
+      <td align="center" class="tq-foot" bgcolor="${BRAND.beige}" style="background-color:${BRAND.beige};padding:18px 24px 12px;border-top:1px solid rgba(0,0,0,0.06)">
+        <div class="tq-on-foot" style="font-family:Tahoma,Arial,sans-serif;font-size:15px;font-weight:bold;color:${BRAND.ink};letter-spacing:1px">${esc(TAGLINE)}</div>
       </td>
     </tr>
     ${social}
     <tr>
-      <td align="center" class="tq-dark" bgcolor="${BRAND.temptress}" style="${FILL.temptress()};padding:0 24px 22px">
-        <a href="${appBaseUrl()}" style="font-family:Tahoma,Arial,sans-serif;font-size:12px;color:rgba(238,246,223,0.75);text-decoration:none">${esc(appBaseUrl().replace(/^https?:\/\//, ""))}</a>
+      <td align="center" class="tq-foot" bgcolor="${BRAND.beige}" style="background-color:${BRAND.beige};padding:0 24px 22px">
+        <a href="${appBaseUrl()}" style="font-family:Tahoma,Arial,sans-serif;font-size:12px;color:rgba(26,16,35,0.65);text-decoration:none">${esc(appBaseUrl().replace(/^https?:\/\//, ""))}</a>
       </td>
     </tr>
   </table>
 
-  <div style="max-width:600px;margin:14px auto 0;font-family:Tahoma,Arial,sans-serif;font-size:11px;line-height:1.8;color:rgba(0,0,0,0.38);text-align:center">
+  <div style="max-width:600px;margin:14px auto 0;font-family:Tahoma,Arial,sans-serif;font-size:11px;line-height:1.8;color:rgba(0,0,0,0.45);text-align:center">
     هذه رسالة آلية من منصة تَـــلاقِ الداخلية، أُرسلت إليك لأن لك حساباً فيها.<br>
     إن وصلتك بالخطأ فتجاهلها ولا تشارك محتواها.
   </div>

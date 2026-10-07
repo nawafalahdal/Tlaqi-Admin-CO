@@ -30,10 +30,13 @@ export function TicketCard({
   ticket,
   theme,
   readOnly = false,
+  mine = false,
 }: {
   ticket: TicketData;
   theme: ReturnType<typeof themeFromColor>;
   readOnly?: boolean;
+  /** رفعتَها أنت — فتُقرأ ولا تُغلق من هنا */
+  mine?: boolean;
 }) {
   const [responding, setResponding] = useState(false);
   const [note, setNote] = useState("");
@@ -79,6 +82,14 @@ export function TicketCard({
       {ticket.resolutionNote && (
         <p className="mt-2 rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700">
           {t.ticketCard.reply}: {ticket.resolutionNote}
+        </p>
+      )}
+
+      {/* من رفع التذكرة لا يُغلقها: تُقال له العلّة صراحةً بدل أن يختفي
+          الزرّ بلا سبب، فالقاعدة حوكمة لا عطل */}
+      {mine && ticket.status !== "resolved" && (
+        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+          {t.ticketCard.authorCannotClose}
         </p>
       )}
 

@@ -202,6 +202,7 @@ requestsHint: "What the platform creates on its own: the welcome banner on appro
     markInProgress: "In progress",
     markResolved: "Resolved",
     respondButton: "Respond to ticket",
+    authorCannotClose: "You raised this ticket \u2014 closing it certifies that the other side answered, so only they can close it. You may escalate it if it is late.",
   },
   deptBoard: {
     openInvitesTitle: "Accounts yet to start the test",

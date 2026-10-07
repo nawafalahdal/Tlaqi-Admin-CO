@@ -396,3 +396,56 @@ export function ticketVisibilityWhere(session: {
   // التنفيذي ومسؤول التشغيل: لا قيد
   return {};
 }
+
+/** من يملك الردّ على التذكرة وإغلاقها.
+ *
+ *  **القاعدة الحاكمة: من رفع التذكرة لا يُغلقها.** التذكرة سؤالٌ موجَّه
+ *  إلى طرف، وإغلاقها إقرارٌ بأن الطرف أجاب. فإن أغلقها صاحبها صار
+ *  السائل والمجيب واحداً، وفقدت التذكرة معناها كأداة مساءلة — وهذا ما
+ *  كان يحدث: المؤسس يرفع تذكرة للمدير التنفيذي ثم يردّ عليها ويقفلها
+ *  بنفسه، فلا يبقى في السجل أثرٌ لأن التنفيذي لم يُجب.
+ *
+ *  ومن يملكها هو صاحب المرحلة الحالية وحدها — نفس من يصله إشعارها في
+ *  `recipientsForStage`. فلا الرتبة وحدها تكفي: المؤسس لا يُغلق تذكرة
+ *  داخل قسم لم تصعّد إليه، والتنفيذي لا يُغلق ما لم يصل إليه بعد. */
+export function canRespondToTicket(
+  ticket: {
+    raisedByUserId: string | null;
+    targetUserId: string | null;
+    targetDepartmentId: string | null;
+    stage: string;
+    targetMember?: { departmentId: string | null } | null;
+    member?: { departmentId: string | null } | null;
+    raisedByUser?: { departmentId: string | null } | null;
+  },
+  session: { user: { id: string; role: string; departmentId?: string | null } }
+): boolean {
+  const { id, role, departmentId } = session.user;
+
+  // صاحب التذكرة لا يردّ على نفسه مهما علت رتبته
+  if (ticket.raisedByUserId === id) return false;
+
+  switch (ticket.stage) {
+    case "department":
+      // الموجَّهة لشخص بعينه: هو وحده. والموجَّهة لقسم: قادته.
+      if (ticket.targetUserId) return ticket.targetUserId === id;
+      if (ticket.targetDepartmentId) {
+        return role === "department_admin" && departmentId === ticket.targetDepartmentId;
+      }
+      return false;
+    case "lead_escalation": {
+      const deptId =
+        ticket.targetMember?.departmentId ??
+        ticket.member?.departmentId ??
+        ticket.raisedByUser?.departmentId ??
+        null;
+      // بلا قسم فوقها، تؤول للتنفيذي كما في سلسلة التصعيد نفسها
+      if (!deptId) return role === "executive";
+      return role === "department_admin" && departmentId === deptId;
+    }
+    case "ceo_escalation":
+      return role === "executive";
+    default:
+      return role === "super_admin";
+  }
+}
