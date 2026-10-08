@@ -578,22 +578,21 @@ export async function sendLoginCodeEmail(opts: {
   );
 }
 
-/** صفٌّ في بطاقة البيانات: ما لا قيمة له لا يُرسم أصلاً بدل أن يظهر فارغاً */
+/** صفٌّ في بطاقة البيانات: ما لا قيمة له لا يُرسم أصلاً بدل أن يظهر فارغاً.
+ *
+ *  الفاصلة بين العنوان وقيمته على يمين القيمة لا يسارها: الجدول عربي،
+ *  فالعنوان يمينٌ والقيمة يسارُه، وحافّتها المواجهة له هي اليمنى. ووضعُها
+ *  يساراً كان يبدو سليماً في كل صف إلا الأطول — حيث يملأ العنوان عمودَه
+ *  فتلتصق القيمة به: «التخصصإدارة أعمال». */
 function factRow(label: string, value: string | null | undefined): string {
   if (!value || !value.trim()) return "";
   return `<tr>
     <td style="padding:7px 0;font-size:13px;color:rgba(26,16,35,0.55);white-space:nowrap">${esc(label)}</td>
-    <td style="padding:7px 0 7px 14px;font-size:14px;font-weight:bold;color:#1A1023">${esc(value)}</td>
+    <td style="padding:7px 14px 7px 0;font-size:14px;font-weight:bold;color:#1A1023">${esc(value)}</td>
   </tr>`;
 }
 
-/** البريد الترحيبي — أول رسالة شخصية تصل من المنصة.
- *
- *  ليست إشعاراً: هي الموضع الوحيد الذي يقرأ فيه الواحد اسمه ومهمته كما
- *  سُجِّلت، فيعرف أن له مكاناً مُثبَتاً لا مجرّد حساب. ولهذا تبدأ بالشكر
- *  قبل كل شيء، وتُظهر بياناته كما هي عندنا ليصحّحها إن أخطأنا. */
-export async function sendWelcomeEmail(opts: {
-  to: string;
+export type WelcomeEmailOpts = {
   fullName: string;
   roleLabel: string;
   jobTitle?: string | null;
@@ -601,7 +600,13 @@ export async function sendWelcomeEmail(opts: {
   section?: string | null;
   departmentName?: string | null;
   portalUrl: string;
-}) {
+};
+
+/** متن البريد الترحيبي.
+ *
+ *  مفصولٌ عن الإرسال ليُعايَن كما يُرسَل بالضبط: قالبٌ يُراجَع بنسخةٍ
+ *  مكتوبة بيدٍ أخرى يُراجَع شيئاً غير الذي يصل الناس. */
+export function welcomeEmailBody(opts: WelcomeEmailOpts): string {
   const facts = [
     factRow("الاسم", opts.fullName),
     factRow("الصفة", opts.roleLabel),
@@ -611,10 +616,7 @@ export async function sendWelcomeEmail(opts: {
     factRow("الشعبة", opts.section),
   ].join("");
 
-  return send(
-    opts.to,
-    `أهلاً بك في تَـــلاقِ، ${opts.fullName}`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+  return `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
       <p style="font-size:17px;font-weight:bold;margin:0 0 14px">شكراً لك، ${esc(opts.fullName)}.</p>
       <p style="margin:0 0 16px">شكراً أنك اخترت أن يكون وقتك معنا. تَـــلاقِ ليست منصةً تُدار من بعيد — هي فريقٌ يلتقي ويفكّر ويصنع، وأنت منه الآن.</p>
       <p style="margin:0 0 6px">هذا سجلّك كما هو عندنا:</p>
@@ -626,9 +628,20 @@ export async function sendWelcomeEmail(opts: {
       <p style="margin:0 0 16px">كل ما تحتاجه — تذاكرك، إعلانات الفريق، بياناتك — في مكان واحد:</p>
       <p style="margin:0 0 20px"><a href="${opts.portalUrl}" style="display:inline-block;background:#341D2B;color:#EEF6DF;text-decoration:none;font-weight:bold;font-size:14px;padding:12px 26px;border-radius:999px">ادخل إلى منصّتك</a></p>
       <p style="margin:0;font-size:13px;color:rgba(26,16,35,0.6)">نحن سعداء بك. وإن احتجت شيئاً، ارفع تذكرة — هي قناتنا الرسمية، ولها مهلة يُحاسَب عليها من يتأخّر.</p>
-    </div>`,
-    "ترحيب"
-  );
+    </div>`;
+}
+
+export function welcomeEmailSubject(fullName: string) {
+  return `أهلاً بك في تَـــلاقِ، ${fullName}`;
+}
+
+/** البريد الترحيبي — أول رسالة شخصية تصل من المنصة.
+ *
+ *  ليست إشعاراً: هي الموضع الوحيد الذي يقرأ فيه الواحد اسمه ومهمته كما
+ *  سُجِّلت، فيعرف أن له مكاناً مُثبَتاً لا مجرّد حساب. ولهذا تبدأ بالشكر
+ *  قبل كل شيء، وتُظهر بياناته كما هي عندنا ليصحّحها إن أخطأنا. */
+export async function sendWelcomeEmail(opts: WelcomeEmailOpts & { to: string }) {
+  return send(opts.to, welcomeEmailSubject(opts.fullName), welcomeEmailBody(opts), "ترحيب");
 }
 
 /** دعوة المشاركة — تصل بعد الترحيب مباشرة.
