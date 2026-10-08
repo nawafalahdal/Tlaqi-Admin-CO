@@ -20,8 +20,10 @@ import { MemberRoster } from "./MemberRoster";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
 import Link from "next/link";
-import { announcementsForSession } from "@/lib/announcements";
+
 import { AnnouncementList } from "../../hub/AnnouncementList";
+import { AnnouncementComposer } from "../../hub/AnnouncementComposer";
+import { announcementsForSession, announcementPowers } from "@/lib/announcements";
 import { CandidateWindow } from "@/components/CandidateWindow";
 import { TicketBoard } from "@/components/TicketBoard";
 
@@ -136,17 +138,31 @@ export default async function DepartmentBoardPage({
 
       <main className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-6 sm:px-5 sm:py-8">
         <section>
-          <h2 className="mb-3 text-base font-bold sm:text-lg">{t.hub.announcementsTitle}</h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-base font-bold sm:text-lg">{t.hub.announcementsTitle}</h2>
+            {/* القسم يخاطب أهله بنفسه: «تفاعلوا مع هذا المنشور»، «اختبار
+                المنصة اليوم». إمرارُ ذلك بالقيادة يُبطئه بلا فائدة
+                ويُشغلها بما ليس لها. */}
+            <AnnouncementComposer
+              departments={[{ id: department.id, name: department.name }]}
+              theme={theme}
+              powers={announcementPowers(session)}
+            />
+          </div>
           <AnnouncementList
-            canDelete={false}
+            viewerId={session.user.id}
             announcements={announcements.map((a) => ({
               id: a.id,
               title: a.title,
               body: a.body,
               audience: a.audience,
               departmentName: a.department?.name ?? null,
+              authorId: a.authorId,
               authorName: a.authorName,
               createdAt: a.createdAt.toISOString(),
+              meetingUrl: a.meetingUrl,
+              linkUrl: a.linkUrl,
+              linkLabel: a.linkLabel,
             }))}
           />
         </section>

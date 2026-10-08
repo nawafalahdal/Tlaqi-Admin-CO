@@ -118,15 +118,19 @@ export default async function MemberPortalPage() {
         <section>
           <h2 className="mb-3 text-base font-bold sm:text-lg">{t.hub.announcementsTitle}</h2>
           <AnnouncementList
-            canDelete={false}
+            viewerId={null}
             announcements={announcements.map((a) => ({
               id: a.id,
               title: a.title,
               body: a.body,
               audience: a.audience,
               departmentName: a.department?.name ?? null,
+              authorId: a.authorId,
               authorName: a.authorName,
               createdAt: a.createdAt.toISOString(),
+              meetingUrl: a.meetingUrl,
+              linkUrl: a.linkUrl,
+              linkLabel: a.linkLabel,
             }))}
           />
         </section>

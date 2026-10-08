@@ -2,7 +2,13 @@
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { canPublishAnnouncement, publishAnnouncement } from "@/lib/announcements";
+import {
+  canPublishAnnouncement,
+  publishAnnouncement,
+  announcementPowers,
+  isLeadership,
+} from "@/lib/announcements";
+import { isSafeHttpUrl } from "@/lib/calendar";
 import { safeErrorMessage } from "@/lib/safeError";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { revalidatePath } from "next/cache";
@@ -39,10 +45,13 @@ export async function publishAnnouncementAction(
       return { error: "غير مصرح لك بنشر الإعلانات", success: false };
     }
 
+    const powers = announcementPowers(session);
     const title = String(formData.get("title") ?? "").trim();
     const body = String(formData.get("body") ?? "").trim();
     const audienceRaw = String(formData.get("audience") ?? "everyone");
-    const departmentId = String(formData.get("departmentId") ?? "").trim() || null;
+    const meetingUrl = String(formData.get("meetingUrl") ?? "").trim();
+    const linkUrl = String(formData.get("linkUrl") ?? "").trim();
+    const linkLabel = String(formData.get("linkLabel") ?? "").trim();
     // البثّ بالبريد قرار صريح في النموذج، لا افتراضاً صامتاً
     const sendEmail = formData.get("sendEmail") === "on";
 
@@ -51,8 +60,29 @@ export async function publishAnnouncementAction(
       return { error: "جمهور غير صالح", success: false };
     }
     const audience = audienceRaw as AnnouncementAudience;
+    // الجمهور يُفحص بما يملكه صاحب الجلسة لا بما أرسله النموذج: قائد
+    // القسم لا يُخاطب الفريق كلّه ولو عُدّل الحقل من المتصفح
+    if (!powers.audiences.includes(audience)) {
+      return { error: "لا تملك مخاطبة هذا الجمهور", success: false };
+    }
+
+    // قائد القسم مربوط بقسمه: تُفرض الوجهة من الجلسة لا من النموذج
+    const departmentId =
+      powers.lockedDepartmentId ?? (String(formData.get("departmentId") ?? "").trim() || null);
     if (audience === "department" && !departmentId) {
       return { error: "اختر القسم المستهدف", success: false };
+    }
+
+    if (meetingUrl && !powers.canAttachMeeting) {
+      return { error: "رابط الاجتماع للإدارة العليا وحدها", success: false };
+    }
+    // نصٌّ ليس رابطاً في موضع يُنقر يُربك قارئه، ويفتح باب إدراج ما لا
+    // نريده في بريد يحمل اسمنا
+    if (meetingUrl && !isSafeHttpUrl(meetingUrl)) {
+      return { error: "رابط الاجتماع غير صالح — يبدأ بـ https://", success: false };
+    }
+    if (linkUrl && !isSafeHttpUrl(linkUrl)) {
+      return { error: "الرابط المرفق غير صالح — يبدأ بـ https://", success: false };
     }
 
     await publishAnnouncement({
@@ -63,6 +93,9 @@ export async function publishAnnouncementAction(
       authorId: session.user.id,
       authorName: session.user.name ?? "—",
       sendEmail,
+      meetingUrl: meetingUrl || null,
+      linkUrl: linkUrl || null,
+      linkLabel: linkLabel || null,
     });
 
     revalidatePath("/admin");
@@ -106,7 +139,8 @@ export async function createLeadershipRequestAction(
   try {
     const session = await auth();
     if (!session) return { error: "يجب تسجيل الدخول", success: false };
-    if (!canPublishAnnouncement(session.user.role)) {
+    // رفع الطلبات على الأقسام للقيادة من فوقها، لا لقائد قسمٍ على قسم جاره
+    if (!isLeadership(session.user.role)) {
       return { error: "غير مصرح لك برفع طلب للأقسام", success: false };
     }
 

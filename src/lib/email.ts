@@ -477,7 +477,19 @@ export async function sendAnnouncementEmail(opts: {
   authorName: string;
   audienceLabel: string;
   portalUrl: string;
+  meetingUrl?: string | null;
+  linkUrl?: string | null;
+  linkLabel?: string | null;
 }) {
+  // الاجتماع أبرز من الرابط العام: من يفتح إعلان اجتماع يبحث عن رابطه
+  // أولاً، فيُعطى زرّاً لا سطراً يُقرأ
+  const meetingBlock = opts.meetingUrl
+    ? `<p style="margin:0 0 14px"><a href="${esc(opts.meetingUrl)}" style="display:inline-block;background:#341D2B;color:#EEF6DF;text-decoration:none;font-weight:bold;font-size:14px;padding:12px 26px;border-radius:999px">انضم إلى الاجتماع</a></p>`
+    : "";
+  const linkBlock = opts.linkUrl
+    ? `<p style="margin:0 0 14px;font-size:14px">${esc(opts.linkLabel || "الرابط")}: <a href="${esc(opts.linkUrl)}" style="color:#8C3600;font-weight:bold" dir="ltr">${esc(opts.linkUrl)}</a></p>`
+    : "";
+
   let delivered = 0;
   for (const to of opts.recipients) {
     const result = await send(
@@ -486,7 +498,9 @@ export async function sendAnnouncementEmail(opts: {
       `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
         <p style="color:#666;font-size:13px;margin:0 0 6px">إعلان موجَّه إلى: ${esc(opts.audienceLabel)}</p>
         <h2 style="margin:0 0 10px;color:#341D2B">${esc(opts.title)}</h2>
-        <div style="white-space:pre-wrap;font-size:15px;line-height:1.8">${esc(opts.body)}</div>
+        <div style="white-space:pre-wrap;font-size:15px;line-height:1.8;margin-bottom:16px">${esc(opts.body)}</div>
+        ${meetingBlock}
+        ${linkBlock}
         <p style="color:#666;font-size:13px;margin-top:18px">نشره: ${esc(opts.authorName)}</p>
         <p><a href="${opts.portalUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">فتح المنصة</a></p>
       </div>`,

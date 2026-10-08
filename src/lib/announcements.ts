@@ -4,9 +4,73 @@ import { sendAnnouncementEmail } from "@/lib/email";
 import type { AnnouncementAudience } from "@prisma/client";
 import type { Session } from "next-auth";
 
-/** الأدوار التي تملك نشر إعلان — القيادة فقط، لا الأعضاء ولا قادة الأقسام */
+/** الأدوار التي تملك نشر إعلان.
+ *
+ *  صار قادة الأقسام منهم: القسم يحتاج أن يخاطب أهله — «تفاعلوا مع هذا
+ *  المنشور»، «اختبار المنصة اليوم» — ومرور ذلك بالقيادة يُبطئه بلا فائدة
+ *  ويُشغل القيادة بما ليس لها. لكن صلاحيته محدودة بقسمه كما في
+ *  `announcementPowers`: يُخاطب أهله لا الفريق كلّه. */
 export function canPublishAnnouncement(role: string) {
+  return (
+    role === "super_admin" ||
+    role === "executive" ||
+    role === "operations_officer" ||
+    role === "department_admin"
+  );
+}
+
+/** ما يملكه صاحب الجلسة في الإعلانات بالضبط.
+ *
+ *  الصلاحية ليست «ينشر أو لا ينشر»: من ينشر، ولمن، وهل يضع رابط اجتماع.
+ *  جمعُها في موضع واحد يمنع أن تتفرّق على النموذج والإجراء فتختلفا —
+ *  وهو ما يجعل زرّاً يظهر لمن يُرفض طلبه. */
+/** القيادة التي تُخاطب الأقسام من فوقها — لا قادة الأقسام أنفسهم.
+ *
+ *  كان رفع الطلبات بين الأقسام يستعمل `canPublishAnnouncement`، فلمّا
+ *  دخل قادة الأقسام في النشر كانوا سيرثون معه رفع الطلبات على الأقسام
+ *  الأخرى. الصلاحيتان مختلفتان ويجب أن تُكتبا مختلفتين. */
+export function isLeadership(role: string) {
   return role === "super_admin" || role === "executive" || role === "operations_officer";
+}
+
+export function announcementPowers(session: {
+  user: { role: string; departmentId?: string | null };
+}): {
+  canPublish: boolean;
+  audiences: AnnouncementAudience[];
+  /** قائد القسم مربوط بقسمه: لا يختار الوجهة أصلاً */
+  lockedDepartmentId: string | null;
+  /** رابط الاجتماع للإدارة العليا وحدها: من يدعو الفريق لاجتماع هو من
+   *  يملك عَقده. ومسؤول التشغيل ينفّذ الاجتماعات ولا يدعو إليها. */
+  canAttachMeeting: boolean;
+} {
+  const { role, departmentId } = session.user;
+
+  if (role === "super_admin" || role === "executive") {
+    return {
+      canPublish: true,
+      audiences: ["everyone", "leadership", "department"],
+      lockedDepartmentId: null,
+      canAttachMeeting: true,
+    };
+  }
+  if (role === "operations_officer") {
+    return {
+      canPublish: true,
+      audiences: ["everyone", "leadership", "department"],
+      lockedDepartmentId: null,
+      canAttachMeeting: false,
+    };
+  }
+  if (role === "department_admin" && departmentId) {
+    return {
+      canPublish: true,
+      audiences: ["department"],
+      lockedDepartmentId: departmentId,
+      canAttachMeeting: false,
+    };
+  }
+  return { canPublish: false, audiences: [], lockedDepartmentId: null, canAttachMeeting: false };
 }
 
 export async function publishAnnouncement(opts: {
@@ -17,6 +81,9 @@ export async function publishAnnouncement(opts: {
   authorId: string;
   authorName: string;
   sendEmail?: boolean;
+  meetingUrl?: string | null;
+  linkUrl?: string | null;
+  linkLabel?: string | null;
 }) {
   const announcement = await prisma.announcement.create({
     data: {
@@ -26,6 +93,9 @@ export async function publishAnnouncement(opts: {
       departmentId: opts.audience === "department" ? opts.departmentId : null,
       authorId: opts.authorId,
       authorName: opts.authorName,
+      meetingUrl: opts.meetingUrl || null,
+      linkUrl: opts.linkUrl || null,
+      linkLabel: opts.linkLabel || null,
     },
     include: { department: true },
   });
@@ -48,6 +118,11 @@ export async function publishAnnouncement(opts: {
     delivered = await sendAnnouncementEmail({
       recipients,
       title: opts.title,
+      // الروابط تُرسل مع البريد أيضاً: إعلان اجتماع يصل بلا رابطه
+      // يُجبر صاحبه على فتح المنصة لينسخه — وهو ما أردنا تجنّبه بالبريد
+      meetingUrl: opts.meetingUrl || null,
+      linkUrl: opts.linkUrl || null,
+      linkLabel: opts.linkLabel || null,
       body: opts.body,
       authorName: opts.authorName,
       audienceLabel,

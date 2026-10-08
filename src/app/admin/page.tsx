@@ -4,7 +4,11 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { sweepOverdueRequests, sweepExpiredCandidateAccounts } from "@/lib/workflow";
 import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, ticketVisibilityWhere } from "@/lib/tickets";
-import { announcementsForSession, canPublishAnnouncement } from "@/lib/announcements";
+import {
+  announcementsForSession,
+  canPublishAnnouncement,
+  announcementPowers,
+} from "@/lib/announcements";
 import { TicketCard } from "./tickets/TicketCard";
 import { themeFromColor, SUPER_ADMIN_THEME, BRAND } from "@/lib/brand";
 import { AppHeader, Card, StatusBadge } from "@/components/ui";
@@ -91,6 +95,9 @@ export default async function AdminPage() {
   const ta = dict.admin;
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
   const canPublish = canPublishAnnouncement(session.user.role);
+  // نفس الدالة التي تفرض الصلاحية في الخادم تُغذّي النموذج، فلا يظهر
+  // خيارٌ يُرفض عند الإرسال
+  const annPowers = announcementPowers(session);
   const deptOptions = departments.map((d) => ({ id: d.id, name: d.name }));
 
   const pendingCount = leadershipQueue.length + memberQueue.length;
@@ -231,18 +238,23 @@ export default async function AdminPage() {
                 {t.announcementsHint}
               </p>
             </div>
-            {canPublish && <AnnouncementComposer departments={deptOptions} theme={theme} />}
+            {canPublish && <AnnouncementComposer departments={deptOptions} theme={theme} powers={annPowers} />}
           </div>
           <AnnouncementList
-            canDelete={canPublish}
+            viewerId={session.user.id}
+            viewerIsFounder={isSuperAdmin}
             announcements={announcements.map((a) => ({
               id: a.id,
               title: a.title,
               body: a.body,
               audience: a.audience,
               departmentName: a.department?.name ?? null,
+              authorId: a.authorId,
               authorName: a.authorName,
               createdAt: a.createdAt.toISOString(),
+              meetingUrl: a.meetingUrl,
+              linkUrl: a.linkUrl,
+              linkLabel: a.linkLabel,
             }))}
           />
         </section>

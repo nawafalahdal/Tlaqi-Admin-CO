@@ -9,7 +9,11 @@ import { HeaderActions } from "@/components/HeaderActions";
 import { formatDate } from "@/lib/format";
 import { ReminderButton } from "./ReminderButton";
 import { getLocale, getDictionary } from "@/i18n/server";
-import { announcementsForSession, canPublishAnnouncement } from "@/lib/announcements";
+import {
+  announcementsForSession,
+  canPublishAnnouncement,
+  announcementPowers,
+} from "@/lib/announcements";
 import { AnnouncementComposer } from "../hub/AnnouncementComposer";
 import { AnnouncementList } from "../hub/AnnouncementList";
 import { RaiseAdminTicketForm, type TicketTargetOption } from "../tickets/RaiseAdminTicketForm";
@@ -83,6 +87,9 @@ export default async function OperationsPage() {
 
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
   const canPublish = canPublishAnnouncement(session.user.role);
+  // نفس الدالة التي تفرض الصلاحية في الخادم تُغذّي النموذج، فلا يظهر
+  // خيارٌ يُرفض عند الإرسال
+  const annPowers = announcementPowers(session);
   const deptOptions = departments.map((d) => ({ id: d.id, name: d.name }));
 
   return (
@@ -98,18 +105,22 @@ export default async function OperationsPage() {
               <h2 className="text-base font-bold sm:text-lg">{tHub.announcementsTitle}</h2>
               <p className="text-xs text-black/40">{tHub.announcementsHintReader}</p>
             </div>
-            {canPublish && <AnnouncementComposer departments={deptOptions} theme={theme} />}
+            {canPublish && <AnnouncementComposer departments={deptOptions} theme={theme} powers={annPowers} />}
           </div>
           <AnnouncementList
-            canDelete={canPublish}
+            viewerId={session.user.id}
             announcements={announcements.map((a) => ({
               id: a.id,
               title: a.title,
               body: a.body,
               audience: a.audience,
               departmentName: a.department?.name ?? null,
+              authorId: a.authorId,
               authorName: a.authorName,
               createdAt: a.createdAt.toISOString(),
+              meetingUrl: a.meetingUrl,
+              linkUrl: a.linkUrl,
+              linkLabel: a.linkLabel,
             }))}
           />
         </section>

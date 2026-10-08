@@ -3,6 +3,7 @@ import { Card } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import { TICKET_STAGE_LABELS, ticketAuthor, ticketTargetLabel, type FullTicket } from "@/lib/tickets";
 import { getLocale, getDictionary } from "@/i18n/server";
+import { googleCalendarUrl } from "@/lib/calendar";
 import type { themeFromColor } from "@/lib/brand";
 
 /** لوحة التذاكر الدائمة.
@@ -87,8 +88,25 @@ export async function TicketBoard({
                     >
                       {tb.openTicket}
                     </Link>
-                    {/* موعد التذكرة يُضاف لأي تقويم بملف واحد — بلا ربط
-                        حساب ولا منح المنصة وصولاً إلى تقويم أحد */}
+                    {/* تقويم جوجل أولاً لأن تعامل الفريق معه دائم: يفتح
+                        نموذج الحدث جاهزاً فيُحفظ بضغطة. وملفّ .ics إلى
+                        جانبه لتقويم آبل وأوتلوك ولمن ليس مسجَّلاً دخوله.
+                        وكلاهما حدثٌ يُضاف بيد صاحبه، لا مزامنة ولا وصول
+                        من المنصة إلى تقويم أحد. */}
+                    <a
+                      href={googleCalendarUrl({
+                        title: `تذكرة #${x.ticketNumber}: ${x.subject}`,
+                        details: `${x.description}\n\nمن: ${ticketAuthor(x).name}\nإلى: ${ticketTargetLabel(x)}\nالمرحلة: ${TICKET_STAGE_LABELS[x.stage]}`,
+                        start: new Date(x.stageDueAt.getTime() - 3600_000),
+                        end: x.stageDueAt,
+                      })}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-lg px-2.5 py-1 text-xs font-semibold text-white"
+                      style={{ background: theme.accentDark }}
+                    >
+                      {tb.addToGoogle}
+                    </a>
                     <a
                       href={`/api/tickets/${x.id}/calendar`}
                       className="rounded-lg border border-black/10 px-2.5 py-1 text-xs font-semibold text-black/60 hover:bg-black/[0.03]"

@@ -12,16 +12,26 @@ type Announcement = {
   body: string;
   audience: string;
   departmentName: string | null;
+  authorId: string;
   authorName: string;
   createdAt: string;
+  meetingUrl?: string | null;
+  linkUrl?: string | null;
+  linkLabel?: string | null;
 };
 
+/** الحذف يتبع نفس قاعدة الخادم: المؤسس يحذف أي إعلان، وغيره يحذف
+ *  إعلانه وحده. وكان يُمرَّر علماً واحداً للقائمة كلها، فيظهر الزرّ على
+ *  إعلانات غيره ثم يُرفض — وعدٌ كاذب يتكرّر مع كل ضغطة. */
 export function AnnouncementList({
   announcements,
-  canDelete,
+  viewerId,
+  viewerIsFounder = false,
 }: {
   announcements: Announcement[];
-  canDelete: boolean;
+  /** معرّف القارئ — null للعضو: لا يحذف شيئاً أصلاً */
+  viewerId: string | null;
+  viewerIsFounder?: boolean;
 }) {
   const t = useTranslations().hub;
   const [pending, startTransition] = useTransition();
@@ -50,11 +60,39 @@ export function AnnouncementList({
             </span>
           </div>
           <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-black/70">{a.body}</p>
+
+          {/* الرابط زرٌّ لا سطرٌ يُنسخ: من يقرأ إعلان اجتماع يريد الدخول
+              إليه، ومن يقرأ طلب تفاعل يريد فتح المنشور */}
+          {(a.meetingUrl || a.linkUrl) && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {a.meetingUrl && (
+                <a
+                  href={a.meetingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-11 items-center rounded-xl bg-[#341D2B] px-4 text-sm font-semibold text-[#EEF6DF]"
+                >
+                  {t.joinMeeting}
+                </a>
+              )}
+              {a.linkUrl && (
+                <a
+                  href={a.linkUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-11 items-center rounded-xl border border-black/10 px-4 text-sm font-semibold text-black/70 hover:bg-black/[0.03]"
+                >
+                  {a.linkLabel?.trim() || t.openLink}
+                </a>
+              )}
+            </div>
+          )}
+
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-black/40">
             <span>{a.authorName}</span>
             <span aria-hidden>•</span>
             <span>{formatDate(new Date(a.createdAt))}</span>
-            {canDelete && (
+            {(viewerIsFounder || (viewerId !== null && a.authorId === viewerId)) && (
               <button
                 type="button"
                 disabled={pending}
