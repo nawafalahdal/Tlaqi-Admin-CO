@@ -3,6 +3,7 @@ import {
   remindExpiringCandidates,
   sweepExpiredCandidateAccounts,
   sweepOverdueRequests,
+  nudgeMissingTwoFactor,
 } from "@/lib/workflow";
 import { sweepTicketEscalation } from "@/lib/tickets";
 import { purgeExpiredLoginCodes } from "@/lib/loginCodes";
@@ -35,6 +36,8 @@ export async function GET(request: Request) {
   await sweepTicketEscalation();
   // رموز الدخول قصيرة العمر وكثيرة، فلا تُترك تتراكم في الجدول
   const purgedCodes = await purgeExpiredLoginCodes();
+  // الحماية تُذكَّر لا تُفترض: من لم يفعّل طريقه الثاني يُنبَّه دورياً
+  const totpNudged = await nudgeMissingTwoFactor();
 
-  return NextResponse.json({ ok: true, reminded, expiredAccounts, purgedCodes });
+  return NextResponse.json({ ok: true, reminded, expiredAccounts, purgedCodes, totpNudged });
 }

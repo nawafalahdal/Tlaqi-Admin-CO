@@ -7,6 +7,9 @@ import { HeaderActions } from "@/components/HeaderActions";
 import { LogoLockup } from "@/components/Logo";
 import { WarningCard } from "./WarningCard";
 import { MyTicketCard } from "./MyTicketCard";
+import { WelcomeMailCard } from "@/components/WelcomeMailCard";
+import { SecurityGuidance } from "@/components/SecurityGuidance";
+import { formatDate } from "@/lib/format";
 import { RaiseTicketForm } from "./RaiseTicketForm";
 import { sweepTicketEscalation } from "@/lib/tickets";
 import { getLocale, getDictionary } from "@/i18n/server";
@@ -100,6 +103,16 @@ export default async function MemberPortalPage() {
             <p className="text-lg font-bold">{member.department?.name ?? t.member.departmentFallback}</p>
             {member.jobTitle && <p className="text-sm text-black/50">{member.jobTitle}</p>}
           </Card>
+        </section>
+
+        {/* البريد الترحيبي وشروط الحماية للجميع — العضو كالقائد في هذا */}
+        <section className="flex flex-col gap-4">
+          <WelcomeMailCard
+            theme={theme}
+            sentAt={member.welcomeEmailSentAt ? formatDate(member.welcomeEmailSentAt) : null}
+            count={member.welcomeEmailCount}
+          />
+          <SecurityGuidance theme={theme} totpEnabled={null} />
         </section>
 
         <section>

@@ -9,6 +9,8 @@ import { getLocale, getDictionary } from "@/i18n/server";
 import { ROLE_LABELS, accountRoleLabel } from "@/lib/testTracks";
 import { formatDate } from "@/lib/format";
 import { AdminProfileForm } from "./ProfileForm";
+import { WelcomeMailCard } from "@/components/WelcomeMailCard";
+import { SecurityGuidance } from "@/components/SecurityGuidance";
 
 /** بيانات صاحب الحساب الإداري.
  *
@@ -60,6 +62,16 @@ export default async function AdminProfilePage() {
           </dl>
           <p className="mt-3 border-t border-black/5 pt-3 text-xs text-black/40">{tp.identityNote}</p>
         </Card>
+
+        {/* البريد الترحيبي ودليل الحماية: كلاهما يخصّ صاحب الحساب وحده،
+            فموضعهما صفحته لا صفحة من يديره */}
+        <WelcomeMailCard
+          theme={theme}
+          sentAt={user.welcomeEmailSentAt ? formatDate(user.welcomeEmailSentAt) : null}
+          count={user.welcomeEmailCount}
+        />
+
+        <SecurityGuidance theme={theme} totpEnabled={user.totpEnabled} />
 
         <Card className="p-4 sm:p-5">
           <h2 className="text-base font-bold">{tp.formTitle}</h2>

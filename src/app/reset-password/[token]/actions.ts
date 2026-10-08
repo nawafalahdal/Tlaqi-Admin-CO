@@ -2,6 +2,7 @@
 
 import { consumeResetToken } from "@/lib/passwordReset";
 import { safeErrorMessage } from "@/lib/safeError";
+import { passwordProblem } from "@/lib/passwordPolicy";
 
 export async function resetPasswordAction(
   _prev: { error: string | null; done: boolean },
@@ -11,9 +12,8 @@ export async function resetPasswordAction(
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirm") ?? "");
 
-  if (password.length < 8) {
-    return { error: "كلمة المرور يجب أن تكون 8 أحرف على الأقل", done: false };
-  }
+  const weak = passwordProblem(password);
+  if (weak) return { error: weak, done: false };
   if (password !== confirm) {
     return { error: "كلمتا المرور غير متطابقتين", done: false };
   }

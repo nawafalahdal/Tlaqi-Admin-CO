@@ -533,3 +533,154 @@ export async function sendLoginCodeEmail(opts: {
     "رمز الدخول"
   );
 }
+
+/** صفٌّ في بطاقة البيانات: ما لا قيمة له لا يُرسم أصلاً بدل أن يظهر فارغاً */
+function factRow(label: string, value: string | null | undefined): string {
+  if (!value || !value.trim()) return "";
+  return `<tr>
+    <td style="padding:7px 0;font-size:13px;color:rgba(26,16,35,0.55);white-space:nowrap">${esc(label)}</td>
+    <td style="padding:7px 0 7px 14px;font-size:14px;font-weight:bold;color:#1A1023">${esc(value)}</td>
+  </tr>`;
+}
+
+/** البريد الترحيبي — أول رسالة شخصية تصل من المنصة.
+ *
+ *  ليست إشعاراً: هي الموضع الوحيد الذي يقرأ فيه الواحد اسمه ومهمته كما
+ *  سُجِّلت، فيعرف أن له مكاناً مُثبَتاً لا مجرّد حساب. ولهذا تبدأ بالشكر
+ *  قبل كل شيء، وتُظهر بياناته كما هي عندنا ليصحّحها إن أخطأنا. */
+export async function sendWelcomeEmail(opts: {
+  to: string;
+  fullName: string;
+  roleLabel: string;
+  jobTitle?: string | null;
+  specialization?: string | null;
+  section?: string | null;
+  departmentName?: string | null;
+  portalUrl: string;
+}) {
+  const facts = [
+    factRow("الاسم", opts.fullName),
+    factRow("الصفة", opts.roleLabel),
+    factRow("المهمة", opts.jobTitle),
+    factRow("القسم", opts.departmentName),
+    factRow("التخصص", opts.specialization),
+    factRow("الشعبة", opts.section),
+  ].join("");
+
+  return send(
+    opts.to,
+    `أهلاً بك في تَـــلاقِ، ${opts.fullName}`,
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p style="font-size:17px;font-weight:bold;margin:0 0 14px">شكراً لك، ${esc(opts.fullName)}.</p>
+      <p style="margin:0 0 16px">شكراً أنك اخترت أن يكون وقتك معنا. تَـــلاقِ ليست منصةً تُدار من بعيد — هي فريقٌ يلتقي ويفكّر ويصنع، وأنت منه الآن.</p>
+      <p style="margin:0 0 6px">هذا سجلّك كما هو عندنا:</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 20px;border:1px solid rgba(52,29,43,0.12);border-radius:12px;background:#FAF8F4">
+        <tr><td style="padding:10px 16px">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0">${facts}</table>
+        </td></tr>
+      </table>
+      <p style="margin:0 0 16px">كل ما تحتاجه — تذاكرك، إعلانات الفريق، بياناتك — في مكان واحد:</p>
+      <p style="margin:0 0 20px"><a href="${opts.portalUrl}" style="display:inline-block;background:#341D2B;color:#EEF6DF;text-decoration:none;font-weight:bold;font-size:14px;padding:12px 26px;border-radius:999px">ادخل إلى منصّتك</a></p>
+      <p style="margin:0;font-size:13px;color:rgba(26,16,35,0.6)">نحن سعداء بك. وإن احتجت شيئاً، ارفع تذكرة — هي قناتنا الرسمية، ولها مهلة يُحاسَب عليها من يتأخّر.</p>
+    </div>`,
+    "ترحيب"
+  );
+}
+
+/** دعوة المشاركة — تصل بعد الترحيب مباشرة.
+ *
+ *  الانضمام خبرٌ يفرح به صاحبه، والفريق يكبر بمن يراه. فتُعطى له الأدوات
+ *  جاهزة (الحسابات، الوسم، نصٌّ يُنسخ) بدل أن يُطلب منه أن يجتهد. */
+export async function sendShareInvitationEmail(opts: {
+  to: string;
+  fullName: string;
+  roleLabel: string;
+  handles: { label: string; handle: string; url: string }[];
+  hashtag: string;
+  suggestedPost: string;
+}) {
+  const accounts = opts.handles
+    .map(
+      (h) =>
+        `<li style="margin-bottom:6px"><b>${esc(h.label)}</b> — <a href="${h.url}${esc(h.handle)}" style="color:#8C3600;text-decoration:none" dir="ltr">@${esc(h.handle)}</a></li>`
+    )
+    .join("");
+
+  return send(
+    opts.to,
+    `شاركنا الخبر — انضمامك إلى تَـــلاقِ`,
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>مرحباً ${esc(opts.fullName)}،</p>
+      <p style="margin:0 0 16px">وصلتك رسالة الترحيب، وسُجِّل انضمامك رسمياً. إن أحببت أن تشارك الخبر، هذه عدّتك جاهزة — ولا شيء منها إلزامي.</p>
+
+      <p style="margin:0 0 6px;font-weight:bold;font-size:14px">١ · اذكرنا في منشورك</p>
+      <ul style="margin:0 0 16px;padding-right:20px;font-size:14px">${accounts}</ul>
+
+      <p style="margin:0 0 6px;font-weight:bold;font-size:14px">٢ · استخدم الوسم</p>
+      <p style="margin:0 0 16px"><span dir="ltr" style="display:inline-block;background:#EEF6DF;color:#1A1023;font-weight:bold;padding:7px 16px;border-radius:999px;font-size:14px">${esc(opts.hashtag)}</span></p>
+
+      <p style="margin:0 0 6px;font-weight:bold;font-size:14px">٣ · نصٌّ جاهز إن أردت</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px;border-right:3px solid #67C090;background:#FAF8F4;border-radius:0 10px 10px 0">
+        <tr><td style="padding:12px 16px;font-size:14px;line-height:1.9;color:#1A1023">${esc(opts.suggestedPost)}</td></tr>
+      </table>
+
+      <p style="margin:0;font-size:13px;color:rgba(26,16,35,0.6)">اكتبه بأسلوبك إن شئت — الأهم أن يكون صادقاً، لا منسوخاً.</p>
+    </div>`,
+    "دعوة للمشاركة"
+  );
+}
+
+/** رسالة الختام — آخر ما يصل صاحبها من المنصة على الإطلاق.
+ *
+ *  التجربة لا تُقفل بانقطاع الرسائل فجأة: تُقفل بشكرٍ مكتوب وشهادةٍ
+ *  سُلِّمت ووداعٍ صُنع. وبعدها يتوقّف البريد تماماً — فالاحترام أن
+ *  نَكُفّ عن المراسلة لا أن نستمر بها بلا سبب. */
+export async function sendFarewellEmail(opts: {
+  to: string;
+  fullName: string;
+  roleLabel: string;
+  departmentName?: string | null;
+  joinDate: Date;
+  endDate: Date;
+}) {
+  return send(
+    opts.to,
+    `شكراً لك، ${opts.fullName} — ختام تجربتك مع تَـــلاقِ`,
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p style="font-size:17px;font-weight:bold;margin:0 0 14px">شكراً لك، ${esc(opts.fullName)}.</p>
+      <p style="margin:0 0 16px">انتهت رحلتك معنا رسمياً، وسُلِّمت شهادتك. ما قدّمته لم يذهب: هو جزء ممّا بناه الفريق، ويبقى في سجلّنا باسمك.</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;border:1px solid rgba(52,29,43,0.12);border-radius:12px;background:#FAF8F4">
+        <tr><td style="padding:10px 16px">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+            ${factRow("الصفة", opts.roleLabel)}
+            ${factRow("القسم", opts.departmentName)}
+            ${factRow("من", formatDate(opts.joinDate))}
+            ${factRow("إلى", formatDate(opts.endDate))}
+          </table>
+        </td></tr>
+      </table>
+      <p style="margin:0;font-size:13px;color:rgba(26,16,35,0.6)">ولأن التجربة انتهت، لن تصلك منّا رسائل بعد اليوم. دمت بخير.</p>
+    </div>`,
+    "ختام التجربة"
+  );
+}
+
+/** تذكير بتفعيل التحقق الثنائي — يتكرّر كل أسبوعين لمن لم يفعّله. */
+export async function sendTotpNudgeEmail(opts: {
+  to: string;
+  fullName: string;
+  securityUrl: string;
+}) {
+  return send(
+    opts.to,
+    "طريق دخولك الثاني لم يُفعَّل بعد — تَـــلاقِ",
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>مرحباً ${esc(opts.fullName)}،</p>
+      <p style="margin:0 0 16px">دخولك إلى المنصة معلّق ببريدك وحده. إن تعذّر الوصول إليه يوماً — عطلٌ، أو تأخّر رمز، أو فقدان للحساب — فلا طريق ثانياً لك.</p>
+      <p style="margin:0 0 16px">التحقق الثنائي يحلّ هذا: تُفعّله مرة، فتدخل بعدها برمز تطبيق المصادقة <b>أو</b> برمز البريد، أيّهما توفّر. والتفعيل يستغرق دقيقة.</p>
+      <p style="margin:0 0 20px"><a href="${opts.securityUrl}" style="display:inline-block;background:#341D2B;color:#EEF6DF;text-decoration:none;font-weight:bold;font-size:14px;padding:12px 26px;border-radius:999px">فعّله الآن</a></p>
+      <p style="margin:0;font-size:13px;color:rgba(26,16,35,0.6)">يصلك هذا التذكير كل أسبوعين ما دام غير مُفعَّل، ويتوقّف من تلقائه بمجرد تفعيله.</p>
+    </div>`,
+    "تذكير التحقق الثنائي"
+  );
+}

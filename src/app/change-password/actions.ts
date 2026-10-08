@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { auth, signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { clearFailedAttempts } from "@/lib/loginAttempts";
+import { passwordProblem } from "@/lib/passwordPolicy";
 
 export async function changePasswordAction(
   _prevState: { error: string | null },
@@ -16,9 +17,9 @@ export async function changePasswordAction(
   const newPassword = String(formData.get("newPassword") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
 
-  if (newPassword.length < 8) {
-    return { error: "كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل" };
-  }
+  // القاعدة واحدة في كل مسار يضع كلمة مرور، والرفض يُسمّي ما نقص
+  const weak = passwordProblem(newPassword);
+  if (weak) return { error: weak };
   if (newPassword !== confirmPassword) {
     return { error: "كلمتا المرور غير متطابقتين" };
   }

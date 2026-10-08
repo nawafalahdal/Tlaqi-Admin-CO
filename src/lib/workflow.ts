@@ -13,6 +13,7 @@ import {
   sendCertificateEmail,
   sendRequestReminderEmail,
   sendTestReopenedEmail,
+  sendTotpNudgeEmail,
 } from "@/lib/email";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { generateTempPassword, hashPassword } from "@/lib/credentials";
@@ -1066,4 +1067,42 @@ export async function purgeCandidate(opts: {
   await prisma.invite.delete({ where: { id: member.inviteId } });
 
   return { email: member.email, fullName: member.fullName, warningsCount: member.warningsCount };
+}
+
+/** مهلة تكرار تذكير التحقق الثنائي — أسبوعان.
+ *  يومياً يُزعج، وشهرياً يُنسى. */
+const TOTP_NUDGE_DAYS = 14;
+
+/** يذكّر الحسابات الإدارية التي لم تفعّل التحقق الثنائي.
+ *
+ *  التذكير يتكرّر ما دام غير مفعّل ويتوقّف من تلقائه بالتفعيل — لا حاجة
+ *  لأن يُلغيه أحد. و`totpNudgedAt` يمنع تكراره كل يوم: من ذُكِّر أمس
+ *  لا يُذكَّر اليوم. والحسابات المُنحّاة خارج النطاق أصلاً. */
+export async function nudgeMissingTwoFactor(): Promise<number> {
+  const cutoff = new Date(Date.now() - TOTP_NUDGE_DAYS * 24 * 60 * 60 * 1000);
+  const due = await prisma.user.findMany({
+    where: {
+      isActive: true,
+      totpEnabled: false,
+      OR: [{ totpNudgedAt: null }, { totpNudgedAt: { lt: cutoff } }],
+    },
+    select: { id: true, email: true, fullName: true },
+  });
+
+  const securityUrl = `${process.env.APP_BASE_URL || "http://localhost:3000"}/admin/security`;
+  let sent = 0;
+  for (const user of due) {
+    const res = await sendTotpNudgeEmail({
+      to: user.email,
+      fullName: user.fullName,
+      securityUrl,
+    });
+    // الختم يُكتب على المحاولة الناجحة وحدها: بريدٌ لم يخرج لا يُعدّ
+    // تذكيراً، وختمه يحجب صاحبه أسبوعين عن تذكير لم يصله
+    if (!res.skipped) {
+      await prisma.user.update({ where: { id: user.id }, data: { totpNudgedAt: new Date() } });
+      sent += 1;
+    }
+  }
+  return sent;
 }

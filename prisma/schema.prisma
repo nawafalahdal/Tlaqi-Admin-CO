@@ -93,6 +93,11 @@ model Department {
   colorHex  String
   createdAt DateTime @default(now())
 
+  /// قسم استثنائي لا يُدار كبقية الأقسام: أعضاؤه (ممثل قانوني، مستشار،
+  /// جهة خارجية) يتبعون الإدارة العليا وحدها، ولا تُوجَّه إليهم تذاكر
+  /// الأقسام ولا تصلهم إعلاناتها. وجوده بعلم الإدارة العليا لا بإدارتها.
+  leadershipOnly Boolean @default(false)
+
   admins        User[]
   invites       Invite[]
   members       Member[]
@@ -124,8 +129,8 @@ model User {
 
   // رقم صفه الثابت في تبويب "الحسابات الإدارية" — يُحفظ أول مرة فقط ليُحدَّث
   // الصف نفسه بعدها بدل تكديس صف جديد عند كل تغيّر
-  sheetRow            Int?
-  passwordChangedAt   DateTime?
+  sheetRow          Int?
+  passwordChangedAt DateTime?
 
   // بيانات صاحب الحساب الإداري — نفس ما يسجّله العضو قبل اختباره.
   // الفاوندر والتنفيذي إداريان قبل أن يكونا لقبين، فلهما سجلّ كغيرهما.
@@ -134,6 +139,12 @@ model User {
   specialization     String?
   section            String?
   profileCompletedAt DateTime?
+
+  // البريد الترحيبي: متى وصله، وكم مرة أُعيد إرساله بطلبه
+  welcomeEmailSentAt DateTime?
+  welcomeEmailCount  Int       @default(0)
+  // آخر مرة نُبّه فيها لتفعيل التحقق الثنائي — حتى لا يتكرّر كل يوم
+  totpNudgedAt       DateTime?
 
   invitesIssued   Invite[] @relation("InvitedBy")
   ticketsRaised   Ticket[] @relation("TicketRaisedBy")
@@ -199,9 +210,24 @@ model Member {
   profileCompletedAt DateTime?
 
   // إعادة فتح الاختبار بعد عدم الاجتياز: من أعادها، ومتى، وعلى أي أساس
-  testReopenCount  Int       @default(0)
-  testReopenedAt   DateTime?
-  testReopenNote   String?
+  testReopenCount Int       @default(0)
+  testReopenedAt  DateTime?
+  testReopenNote  String?
+
+  // البريد الترحيبي: متى وصله، وكم مرة أُعيد إرساله بطلبه
+  welcomeEmailSentAt DateTime?
+  welcomeEmailCount  Int       @default(0)
+
+  // حوكمة التنحي: لا ينتهي أحد فجأة ولا يبقى معلّقاً بلا تاريخ.
+  // يُنحّيه قائده، فيتوقّف عمله ويُحدَّد تاريخ انتهائه، ثم لا تُغلق
+  // تجربته حتى تُسلَّم شهادته ويُصمَّم وداعه — ويُسجَّل كل ذلك بتاريخه.
+  stepDownAt          DateTime?
+  stepDownByName      String?
+  endDate             DateTime?
+  farewellDesignAt    DateTime?
+  // إغلاق التجربة: تُرسل رسالة الشكر الأخيرة، ولا يصله بعدها بريد أبداً
+  offboardingClosedAt DateTime?
+  noFurtherEmail      Boolean   @default(false)
 
   testAttempts    TestAttempt[]
   requests        Request[]       @relation("LinkedMemberRequests")
@@ -291,6 +317,8 @@ model Ticket {
   targetUser         User?        @relation("TicketTargetUser", fields: [targetUserId], references: [id])
   targetMemberId     String?
   targetMember       Member?      @relation("TicketTargetMember", fields: [targetMemberId], references: [id])
+  /// رابط مرفق اختياري — منشور، ملف، أو اجتماع يخصّ التذكرة
+  linkUrl            String?
   status             TicketStatus @default(open)
   stage              TicketStage  @default(department)
   stageDueAt         DateTime
@@ -322,9 +350,19 @@ model Announcement {
   createdAt    DateTime             @default(now())
   pinnedUntil  DateTime?
 
+  /// رابط اجتماع (Google Meet وغيره) — الإدارة العليا وحدها تضعه
+  meetingUrl String?
+  /// رابط مرفق عام: منشور يُطلب التفاعل معه، نموذج، أو مستند
+  linkUrl    String?
+  linkLabel  String?
+
   // هل نُسخ الإعلان إلى بريد الجميع، لا على المنصة وحدها
-  sentByEmail    Boolean @default(false)
-  emailRecipients Int    @default(0)
+  sentByEmail     Boolean @default(false)
+  emailRecipients Int     @default(0)
+
+  // الإعلانات تُقرأ دائماً بالأحدث أولاً — الفهرس مصرَّح به هنا لأنه
+  // أُنشئ يدوياً من قبل ولم يكن في المخطط، فكاد يُسقَط عند أول ترحيل
+  @@index([createdAt(sort: Desc)])
 }
 
 /// يمنع هجمات التخمين وحشو بيانات الاعتماد — يتتبع محاولات الدخول الفاشلة لكل
@@ -369,13 +407,13 @@ model EmailLog {
 /// رمز الدخول لمرة واحدة. يُرسَل إلى بريد صاحب الحساب بعد صحّة كلمة
 /// المرور، فلا يكفي معرفةُ الكلمة وحدها للدخول: يلزم الوصول إلى البريد.
 model LoginCode {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   email     String
   codeHash  String
   expiresAt DateTime
   usedAt    DateTime?
-  attempts  Int      @default(0)
-  createdAt DateTime @default(now())
+  attempts  Int       @default(0)
+  createdAt DateTime  @default(now())
 
   @@index([email])
   @@index([expiresAt])

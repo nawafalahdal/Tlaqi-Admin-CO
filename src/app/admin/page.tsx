@@ -153,16 +153,23 @@ export default async function AdminPage() {
           },
         ]
       : []),
-    {
-      href: "/admin/tests/leads",
-      title: ta.leadTestTitle,
-      desc: ta.leadTestHint,
-    },
-    {
-      href: "/admin/tests/operations",
-      title: ti.opsTestTitle,
-      desc: ti.opsTestHint,
-    },
+    // بنكا أسئلة قادة الأقسام ومسؤول التشغيل يملكهما المدير التنفيذي
+    // وحده — هو من يقود هاتين الطبقتين ويُحاسَب على اختيارهما. ولا تُعرض
+    // للمؤسس حتى كرابط: صفحةٌ تُحجب ورابطٌ يبقى ظاهراً وعدٌ كاذب.
+    ...(isSuperAdmin
+      ? []
+      : [
+          {
+            href: "/admin/tests/leads",
+            title: ta.leadTestTitle,
+            desc: ta.leadTestHint,
+          },
+          {
+            href: "/admin/tests/operations",
+            title: ti.opsTestTitle,
+            desc: ti.opsTestHint,
+          },
+        ]),
   ];
 
   // السجلات مفصولة عن الإدارة: هذه صفحات قراءة ومراجعة، وتلك صفحات إجراء.

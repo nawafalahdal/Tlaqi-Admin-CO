@@ -53,7 +53,15 @@ const RULE_FILL = {
  *  الهوية واحدة في كل رسالة — الشعار والجملة والتذييل لا تتغيّر — لكن
  *  نبرتها تتغيّر. التذكرة التي تحتاج إجراءً يجب أن تُعرف من نظرة واحدة في
  *  صندوق وارد مزدحم، ورسالة الشهادة لا تُرسل بنبرة الإنذار. */
-export type EmailVariant = "default" | "ticket" | "celebration" | "serious" | "security";
+export type EmailVariant =
+  | "default"
+  | "ticket"
+  | "celebration"
+  | "serious"
+  | "security"
+  | "welcome"
+  | "share"
+  | "farewell";
 
 const VARIANT_STYLE: Record<
   EmailVariant,
@@ -98,6 +106,30 @@ const VARIANT_STYLE: Record<
     badgeColor: "#ffffff",
     note: "هذا الإشعار مُسجَّل في سجلّ الفريق ويمكن الرجوع إليه.",
   },
+  welcome: {
+    rule: BRAND.mahogany,
+    ruleFill: RULE_FILL.mahogany(),
+    badge: "أهلاً بك في تَـــلاقِ",
+    badgeBg: BRAND.mahogany,
+    badgeColor: "#ffffff",
+    note: "احتفظ بهذه الرسالة: فيها بياناتك كما سُجِّلت عندنا. إن وجدت فيها خطأً، صحّحه من صفحة «بياناتي» داخل المنصة.",
+  },
+  share: {
+    rule: BRAND.greenSheen,
+    ruleFill: RULE_FILL.green(),
+    badge: "شاركنا الخبر",
+    badgeBg: BRAND.greenSheen,
+    badgeColor: "#10321F",
+    note: null,
+  },
+  farewell: {
+    rule: BRAND.temptress,
+    ruleFill: RULE_FILL.temptress(),
+    badge: "شكراً لِما قدّمت",
+    badgeBg: BRAND.temptress,
+    badgeColor: BRAND.beige,
+    note: "هذه آخر رسالة تصلك من المنصة. سجلّك محفوظ عندنا، وبابنا مفتوح إن عدت.",
+  },
   security: {
     rule: BRAND.temptress,
     ruleFill: RULE_FILL.temptress(),
@@ -138,8 +170,14 @@ const KIND_VARIANT: Record<string, EmailVariant> = {
   "عدم اجتياز الاختبار": "serious",
   "تذكير قبل سقوط المهلة": "serious",
 
+  // الانضمام والوداع
+  "ترحيب": "welcome",
+  "دعوة للمشاركة": "share",
+  "ختام التجربة": "farewell",
+
   // الأمن
   "رمز الدخول": "security",
+  "تذكير التحقق الثنائي": "security",
 
   // العام: الدعوة والدخول والاستعادة والإعلانات
   دعوة: "default",
