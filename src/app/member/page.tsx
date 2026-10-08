@@ -9,6 +9,7 @@ import { WarningCard } from "./WarningCard";
 import { MyTicketCard } from "./MyTicketCard";
 import { WelcomeMailCard } from "@/components/WelcomeMailCard";
 import { SecurityGuidance } from "@/components/SecurityGuidance";
+import { GovernanceCharter } from "@/components/GovernanceCharter";
 import { formatDate } from "@/lib/format";
 import { RaiseTicketForm } from "./RaiseTicketForm";
 import { sweepTicketEscalation } from "@/lib/tickets";
@@ -113,6 +114,7 @@ export default async function MemberPortalPage() {
             count={member.welcomeEmailCount}
           />
           <SecurityGuidance theme={theme} totpEnabled={null} />
+          <GovernanceCharter theme={theme} />
         </section>
 
         <section>

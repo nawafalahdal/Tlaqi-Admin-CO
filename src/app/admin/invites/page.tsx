@@ -111,6 +111,9 @@ export default async function AdminInvitesPage() {
           </section>
         )}
 
+        {/* مسؤول التشغيل ذراع التنفيذي: بنك أسئلته له، ودعوته له.
+            ودعوةُ المؤسس له تجعل التنفيذي مسؤولاً عمّن لم يَختَره. */}
+        {!isSuperAdmin && (
         <section>
           <h2 className="mb-1 text-base font-bold sm:text-lg">{t.createOpsTitle}</h2>
           <p className="mb-3 text-sm text-black/50">
@@ -128,6 +131,7 @@ export default async function AdminInvitesPage() {
             </Card>
           )}
         </section>
+        )}
 
         <section>
           <h2 className="mb-1 text-base font-bold sm:text-lg">{ta.createLeadTitle}</h2>

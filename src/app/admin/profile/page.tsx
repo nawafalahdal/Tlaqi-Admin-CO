@@ -11,6 +11,7 @@ import { formatDate } from "@/lib/format";
 import { AdminProfileForm } from "./ProfileForm";
 import { WelcomeMailCard } from "@/components/WelcomeMailCard";
 import { SecurityGuidance } from "@/components/SecurityGuidance";
+import { GovernanceCharter } from "@/components/GovernanceCharter";
 
 /** بيانات صاحب الحساب الإداري.
  *
@@ -72,6 +73,8 @@ export default async function AdminProfilePage() {
         />
 
         <SecurityGuidance theme={theme} totpEnabled={user.totpEnabled} />
+
+        <GovernanceCharter theme={theme} />
 
         <Card className="p-4 sm:p-5">
           <h2 className="text-base font-bold">{tp.formTitle}</h2>

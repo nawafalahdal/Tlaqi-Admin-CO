@@ -93,16 +93,21 @@ export async function createDeptAdminInviteAction(
   }
 }
 
-/** المؤسس أو التنفيذي يُصدر دعوة لحساب مسؤول تشغيل — اطّلاع على كل
- *  التذاكر والطلبات عبر كل الأقسام وإرسال تذكيرات، بدون صلاحية حل التذاكر */
+/** المدير التنفيذي يُصدر دعوة حساب مسؤول التشغيل — اطّلاع على كل التذاكر
+ *  والطلبات عبر كل الأقسام وإرسال تذكيرات، بدون صلاحية حل التذاكر.
+ *
+ *  ودعوته للتنفيذي وحده كما أن بنك أسئلته له: مسؤول التشغيل ذراع التنفيذي
+ *  في التشغيل اليومي، ومن يملك اختياره يجب أن يملك محاسبته. ودعوةُ المؤسس
+ *  له تجعل التنفيذي مسؤولاً عمّن لم يَختَره.
+ */
 export async function createOperationsOfficerInviteAction(
   _prevState: { error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } },
   formData: FormData
 ): Promise<{ error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } }> {
   try {
     const session = await requireSession();
-    if (session.user.role !== "super_admin" && session.user.role !== "executive") {
-      return { error: "هذا الإجراء خاص بالمؤسس أو التنفيذي فقط", success: false };
+    if (session.user.role !== "executive") {
+      return { error: "دعوة مسؤول التشغيل خاصة بالمدير التنفيذي", success: false };
     }
 
     const fullName = String(formData.get("fullName") ?? "").trim();
