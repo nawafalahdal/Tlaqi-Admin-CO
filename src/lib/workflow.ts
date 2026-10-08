@@ -130,6 +130,13 @@ export async function syncMemberLifecycleRow(memberId: string) {
     terminatedAt: member.terminatedAt,
     exitReason: member.exitReason,
     warningsCount: member.warningsCount,
+    welcomeEmailSentAt: member.welcomeEmailSentAt,
+    welcomeEmailCount: member.welcomeEmailCount,
+    stepDownAt: member.stepDownAt,
+    stepDownByName: member.stepDownByName,
+    endDate: member.endDate,
+    farewellDesignAt: member.farewellDesignAt,
+    offboardingClosedAt: member.offboardingClosedAt,
   });
 
   if (!member.sheetRow && result.sheetRow) {

@@ -193,6 +193,13 @@ export async function upsertMemberLifecycleRow(row: {
   terminatedAt: Date | null;
   exitReason: string | null;
   warningsCount: number;
+  welcomeEmailSentAt: Date | null;
+  welcomeEmailCount: number;
+  stepDownAt: Date | null;
+  stepDownByName: string | null;
+  endDate: Date | null;
+  farewellDesignAt: Date | null;
+  offboardingClosedAt: Date | null;
 }) {
   const TEST_VERDICT: Record<string, string> = {
     passed: "ناجح",
@@ -225,6 +232,18 @@ export async function upsertMemberLifecycleRow(row: {
     row.terminatedAt ? formatSheetDate(row.terminatedAt) : "—",
     row.exitReason ?? "—",
     row.warningsCount,
+    row.welcomeEmailSentAt
+      ? `وصل — ${formatSheetDate(row.welcomeEmailSentAt)}${row.welcomeEmailCount > 1 ? ` (${row.welcomeEmailCount} مرات)` : ""}`
+      : "لم يُرسل",
+    row.stepDownAt ? formatSheetDate(row.stepDownAt) : "—",
+    row.stepDownByName ?? "—",
+    row.endDate ? formatSheetDate(row.endDate) : "—",
+    row.farewellDesignAt ? `نعم — ${formatSheetDate(row.farewellDesignAt)}` : "—",
+    row.offboardingClosedAt
+      ? `اكتمل — ${formatSheetDate(row.offboardingClosedAt)}`
+      : row.stepDownAt
+        ? "قيد الختام"
+        : "—",
   ]);
 }
 
@@ -350,8 +369,14 @@ const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: numb
       "تاريخ التوقف",
       "سبب التوقف",
       "عدد التنبيهات",
+      "البريد الترحيبي",
+      "تاريخ التنحي",
+      "نفّذ التنحية",
+      "تاريخ الانتهاء",
+      "تصميم الوداع",
+      "ختام التجربة",
     ],
-    widths: [160, 220, 150, 140, 190, 130, 150, 160, 170, 180, 170, 180, 160, 110, 110, 160, 140, 160, 150, 200, 110, 160, 220, 100],
+    widths: [160, 220, 150, 140, 190, 130, 150, 160, 170, 180, 170, 180, 160, 110, 110, 160, 140, 160, 150, 200, 110, 160, 220, 100, 180, 160, 160, 160, 170, 200],
   },
 };
 

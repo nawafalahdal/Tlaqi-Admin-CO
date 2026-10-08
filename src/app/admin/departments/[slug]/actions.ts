@@ -11,7 +11,14 @@ import {
 } from "@/lib/workflow";
 import { respondToTicket, canRespondToTicket } from "@/lib/tickets";
 import { getTrackForTarget } from "@/lib/testTracks";
+import type { Session } from "next-auth";
 import { safeErrorMessage } from "@/lib/safeError";
+import {
+  stepDownMember,
+  markCertificateShared,
+  markFarewellDesigned,
+  closeOffboarding,
+} from "@/lib/offboarding";
 import { revalidatePath } from "next/cache";
 
 /** حوكمة صارمة: إصدار دعوة عضو داخل قسم معيّن هو حصراً من صلاحية أدمن ذلك
@@ -181,4 +188,101 @@ export async function respondToTicketAction(
   await respondToTicket({ ticketId, status, resolutionNote });
   revalidatePath("/admin/departments");
   revalidatePath("/admin");
+}
+
+/** من يملك إجراءات الخروج على عضو: قائد قسمه، أو الإدارة العليا.
+ *  القاعدة نفسها المستعملة في التنبيه وإنهاء العضوية — تُكتب مرة. */
+async function canManageMemberExit(
+  session: Session | null,
+  memberId: string
+): Promise<boolean> {
+  if (!session) return false;
+  const member = await prisma.member.findUnique({
+    where: { id: memberId },
+    select: { departmentId: true },
+  });
+  if (!member) return false;
+  return (
+    session.user.role === "super_admin" ||
+    session.user.role === "executive" ||
+    (session.user.role === "department_admin" &&
+      session.user.departmentId === member.departmentId)
+  );
+}
+
+/** تنحية عضو عن منصبه: يتوقّف عمله ويُحدَّد تاريخ انتهائه.
+ *  التجربة لا تُغلق هنا — تبقى مفتوحة حتى الشهادة والوداع. */
+export async function stepDownMemberAction(
+  _prev: { error: string | null; success: boolean },
+  formData: FormData
+): Promise<{ error: string | null; success: boolean }> {
+  try {
+    const session = await auth();
+    if (!session) return { error: "يجب تسجيل الدخول", success: false };
+
+    const memberId = String(formData.get("memberId") ?? "");
+    const reason = String(formData.get("reason") ?? "").trim();
+    const endDateRaw = String(formData.get("endDate") ?? "").trim();
+
+    if (!(await canManageMemberExit(session, memberId))) {
+      return { error: "غير مصرح لك بهذا الإجراء", success: false };
+    }
+    if (!reason) return { error: "اكتب سبب التنحي — يُسجَّل في السجل الحي", success: false };
+    if (!endDateRaw) return { error: "حدّد تاريخ الانتهاء", success: false };
+
+    const endDate = new Date(`${endDateRaw}T00:00:00`);
+    if (Number.isNaN(endDate.getTime())) return { error: "تاريخ غير صالح", success: false };
+
+    const res = await stepDownMember({
+      memberId,
+      byName: session.user.name ?? "—",
+      reason,
+      endDate,
+    });
+    if (!res.ok) return { error: res.reason, success: false };
+
+    revalidatePath("/admin/departments");
+    revalidatePath("/admin");
+    return { error: null, success: true };
+  } catch (err) {
+    return { error: safeErrorMessage(err), success: false };
+  }
+}
+
+/** تعليم خطوة من خطوتَي الختام: الشهادة أو تصميم الوداع */
+export async function markOffboardingStepAction(
+  memberId: string,
+  step: "certificate" | "farewell"
+): Promise<{ error: string | null }> {
+  const session = await auth();
+  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!(await canManageMemberExit(session, memberId))) {
+    return { error: "غير مصرح لك بهذا الإجراء" };
+  }
+  try {
+    const byName = session.user.name ?? "—";
+    if (step === "certificate") await markCertificateShared(memberId, byName);
+    else await markFarewellDesigned(memberId, byName);
+    revalidatePath("/admin/departments");
+    return { error: null };
+  } catch (err) {
+    return { error: safeErrorMessage(err) };
+  }
+}
+
+/** إغلاق التجربة نهائياً — بعد الشهادة والوداع معاً.
+ *  تُرسل رسالة الشكر ولا يصل صاحبها بريد من المنصة بعدها أبداً. */
+export async function closeOffboardingAction(
+  memberId: string
+): Promise<{ error: string | null }> {
+  const session = await auth();
+  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!(await canManageMemberExit(session, memberId))) {
+    return { error: "غير مصرح لك بهذا الإجراء" };
+  }
+  const res = await closeOffboarding(memberId, session.user.name ?? "—");
+  if (!res.ok) return { error: res.reason };
+  revalidatePath("/admin/departments");
+  revalidatePath("/admin");
+  return { error: null };
 }

@@ -17,6 +17,7 @@ import { NeedsMeetingRow } from "./NeedsMeetingRow";
 import { RequestCard } from "./RequestCard";
 import { MemberInviteForm } from "./MemberInviteForm";
 import { MemberRoster } from "./MemberRoster";
+import { OffboardingPanel } from "./OffboardingPanel";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
 import Link from "next/link";
@@ -67,7 +68,16 @@ export default async function DepartmentBoardPage({
   await sweepTicketEscalation();
   await sweepExpiredCandidateAccounts();
 
-  const [approvalQueue, needsMeeting, requests, activeMembers, tickets, openInvites, announcements] = await Promise.all([
+  const [
+    approvalQueue,
+    needsMeeting,
+    requests,
+    activeMembers,
+    tickets,
+    openInvites,
+    announcements,
+    exiting,
+  ] = await Promise.all([
     prisma.member.findMany({
       where: {
         departmentId: department.id,
@@ -126,6 +136,16 @@ export default async function DepartmentBoardPage({
       orderBy: { createdAt: "desc" },
     }),
     announcementsForSession(session, 6),
+    // من بدأ خروجه ولم يكتمل ختامه — ويبقى معروضاً بعد الإغلاق مرةً
+    // أخيرة ليُرى أن التجربة أُنهيت كما ينبغي لا أنها انقطعت
+    prisma.member.findMany({
+      where: {
+        departmentId: department.id,
+        OR: [{ stepDownAt: { not: null } }, { warningsCount: { gte: 3 } }],
+      },
+      orderBy: [{ offboardingClosedAt: "asc" }, { stepDownAt: "desc" }],
+      take: 30,
+    }),
   ]);
 
   const theme = themeFromColor(department.colorHex);
@@ -268,6 +288,37 @@ export default async function DepartmentBoardPage({
               certificateEligible: isCertificateEligible(m.decidedAt),
             }))}
           />
+        </section>
+
+        {/* الخروج قسمٌ قائم بذاته: من بدأ خروجه لا يختفي من اللوحة حتى
+            يكتمل ختامه — شهادةً ووداعاً ورسالةَ شكر */}
+        <section>
+          <h2 className="mb-1 text-base font-bold sm:text-lg">{t.offboarding.sectionTitle}</h2>
+          <p className="mb-3 text-sm text-black/50">{t.offboarding.sectionHint}</p>
+          {exiting.length === 0 ? (
+            <Card className="p-8 text-center text-sm text-black/40">{t.offboarding.empty}</Card>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {exiting.map((m) => (
+                <OffboardingPanel
+                  key={m.id}
+                  theme={theme}
+                  member={{
+                    id: m.id,
+                    fullName: m.fullName,
+                    email: m.email,
+                    warningsCount: m.warningsCount,
+                    stepDownAt: m.stepDownAt ? formatDate(m.stepDownAt) : null,
+                    stepDownByName: m.stepDownByName,
+                    endDate: m.endDate ? formatDate(m.endDate) : null,
+                    certificateAt: m.certificateIssuedAt ? formatDate(m.certificateIssuedAt) : null,
+                    farewellAt: m.farewellDesignAt ? formatDate(m.farewellDesignAt) : null,
+                    closedAt: m.offboardingClosedAt ? formatDate(m.offboardingClosedAt) : null,
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </section>
 
         <TicketBoard tickets={tickets} theme={theme} viewerId={session.user.id} />

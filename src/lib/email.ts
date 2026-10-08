@@ -44,8 +44,36 @@ async function logEmail(
   }
 }
 
+/** من أُغلقت تجربته لا يُراسَل بعدها أبداً.
+ *
+ *  الوعد قُطع في رسالة الوداع («هذه آخر رسالة تصلك»)، وحفظُه لا يصحّ أن
+ *  يكون مسؤولية عشرين دالة إرسال: تُنسى في واحدة فيُخلَف الوعد. فيُفحص
+ *  هنا، في المَخنَق الوحيد الذي تمرّ منه كل رسالة — إعلاناً كانت أو
+ *  تنبيهاً أو رمز دخول.
+ *
+ *  والفشل لا يُسكِت البريد: لو تعذّر الوصول للقاعدة مضت الرسالة. منعُ
+ *  كل بريد الفريق لأن استعلاماً تعثّر أسوأ من رسالة تصل من لا يريدها. */
+async function withoutClosedRecipients(recipients: string[]): Promise<string[]> {
+  try {
+    const closed = await prisma.member.findMany({
+      where: { email: { in: recipients }, noFurtherEmail: true },
+      select: { email: true },
+    });
+    if (closed.length === 0) return recipients;
+    const blocked = new Set(closed.map((m) => m.email.toLowerCase()));
+    return recipients.filter((r) => !blocked.has(r.toLowerCase()));
+  } catch (err) {
+    console.error("تعذّر فحص قائمة من أُغلقت تجربتهم:", err);
+    return recipients;
+  }
+}
+
 async function send(to: string | string[], subject: string, html: string, kind = "عام") {
-  const recipients = Array.isArray(to) ? to.filter(Boolean) : [to].filter(Boolean);
+  const all = Array.isArray(to) ? to.filter(Boolean) : [to].filter(Boolean);
+  if (all.length === 0) return { skipped: true };
+
+  // رسالة الوداع نفسها تمرّ قبل أن يُرفع العلم، فلا تحجب نفسها
+  const recipients = await withoutClosedRecipients(all);
   if (recipients.length === 0) return { skipped: true };
 
   if (!resend) {
