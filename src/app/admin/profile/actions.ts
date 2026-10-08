@@ -82,6 +82,23 @@ export async function resendWelcomeAction(): Promise<{ error: string | null; sen
   const session = await auth();
   if (!session) return { error: "يجب تسجيل الدخول", sent: false };
 
+  // بطاقة الانضمام تصل مرة واحدة: لحظة الاعتماد. وهذا الزرّ شبكة أمان
+  // لمن لم تصله أصلاً، لا وسيلة لإعادة إرسالها متى شاء — فإن كانت وصلت
+  // رُفض الطلب هنا أيضاً، لا في الواجهة وحدها.
+  const already =
+    session.user.role === "member"
+      ? await prisma.member.findUnique({
+          where: { id: session.user.id },
+          select: { welcomeEmailSentAt: true },
+        })
+      : await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { welcomeEmailSentAt: true },
+        });
+  if (already?.welcomeEmailSentAt) {
+    return { error: "بطاقة الانضمام وصلتك بالفعل — تُرسل مرة واحدة فقط", sent: false };
+  }
+
   const result =
     session.user.role === "member"
       ? await sendWelcomePack({ kind: "member", id: session.user.id })

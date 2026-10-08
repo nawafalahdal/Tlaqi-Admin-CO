@@ -232,9 +232,10 @@ export async function upsertMemberLifecycleRow(row: {
     row.terminatedAt ? formatSheetDate(row.terminatedAt) : "—",
     row.exitReason ?? "—",
     row.warningsCount,
+    // علامة صحّ صريحة: العمود يُقرأ بالمسح لا بالقراءة
     row.welcomeEmailSentAt
-      ? `وصل — ${formatSheetDate(row.welcomeEmailSentAt)}${row.welcomeEmailCount > 1 ? ` (${row.welcomeEmailCount} مرات)` : ""}`
-      : "لم يُرسل",
+      ? `✓ وصلت — ${formatSheetDate(row.welcomeEmailSentAt)}`
+      : "لم تصل بعد",
     row.stepDownAt ? formatSheetDate(row.stepDownAt) : "—",
     row.stepDownByName ?? "—",
     row.endDate ? formatSheetDate(row.endDate) : "—",
@@ -267,6 +268,7 @@ export async function upsertAdminAccountRow(row: {
   passwordChangedAt: Date | null;
   removedAt: Date | null;
   removalReason: string | null;
+  welcomeEmailSentAt: Date | null;
 }) {
   return upsertRow("الحسابات الإدارية", row.sheetRow, [
     row.fullName,
@@ -284,6 +286,7 @@ export async function upsertAdminAccountRow(row: {
     row.passwordChangedAt ? formatSheetDate(row.passwordChangedAt) : "—",
     row.removedAt ? formatSheetDate(row.removedAt) : "—",
     row.removalReason ?? "—",
+    row.welcomeEmailSentAt ? `✓ وصلت — ${formatSheetDate(row.welcomeEmailSentAt)}` : "لم تصل بعد",
   ]);
 }
 
@@ -339,8 +342,9 @@ const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: numb
       "آخر تغيير لكلمة المرور",
       "تاريخ التنحية",
       "سبب التنحية",
+      "بطاقة الانضمام",
     ],
-    widths: [170, 240, 150, 150, 130, 160, 160, 170, 180, 140, 110, 170, 180, 160, 240],
+    widths: [170, 240, 150, 150, 130, 160, 160, 170, 180, 140, 110, 170, 180, 160, 240, 190],
   },
   "الأعضاء — دورة الحياة": {
     title: "تَـــلاقِ — دورة حياة الأعضاء (صف ثابت لكل عضو)",
@@ -369,7 +373,7 @@ const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: numb
       "تاريخ التوقف",
       "سبب التوقف",
       "عدد التنبيهات",
-      "البريد الترحيبي",
+      "بطاقة الانضمام",
       "تاريخ التنحي",
       "نفّذ التنحية",
       "تاريخ الانتهاء",

@@ -111,7 +111,6 @@ export default async function MemberPortalPage() {
           <WelcomeMailCard
             theme={theme}
             sentAt={member.welcomeEmailSentAt ? formatDate(member.welcomeEmailSentAt) : null}
-            count={member.welcomeEmailCount}
           />
           <SecurityGuidance theme={theme} totpEnabled={null} />
           <GovernanceCharter theme={theme} />

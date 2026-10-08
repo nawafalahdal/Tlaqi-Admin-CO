@@ -43,6 +43,12 @@ export function ExecutiveInviteForm() {
         <Field label={t.leadershipInvite.fullName} name="fullName" placeholder={t.leadershipInvite.execFullNamePlaceholder} />
         <Field label={t.leadershipInvite.email} name="email" type="email" placeholder="candidate@email.com" dir="ltr" />
       </div>
+      <Field
+        label={t.leadershipInvite.jobTitle}
+        name="jobTitle"
+        placeholder={t.leadershipInvite.jobTitlePlaceholder}
+        hint={t.leadershipInvite.jobTitleHint}
+      />
       {state.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>}
       <div>
         <Button type="submit" theme={theme} disabled={pending}>
@@ -84,6 +90,12 @@ export function DeptAdminInviteForm({ departments }: { departments: Dept[] }) {
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label={t.leadershipInvite.fullName} name="fullName" placeholder={t.leadershipInvite.leadFullNamePlaceholder} />
         <Field label={t.leadershipInvite.email} name="email" type="email" placeholder="candidate@email.com" dir="ltr" />
+        <Field
+          label={t.leadershipInvite.jobTitle}
+          name="jobTitle"
+          placeholder={t.leadershipInvite.jobTitlePlaceholder}
+          hint={t.leadershipInvite.jobTitleHint}
+        />
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium text-black/70">{t.leadershipInvite.department}</span>
           <select
@@ -155,6 +167,12 @@ export function OperationsOfficerInviteForm() {
           dir="ltr"
         />
       </div>
+      <Field
+        label={t.leadershipInvite.jobTitle}
+        name="jobTitle"
+        placeholder={t.leadershipInvite.jobTitlePlaceholder}
+        hint={t.leadershipInvite.jobTitleHint}
+      />
       {state.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>}
       <div>
         <Button type="submit" theme={theme} disabled={pending}>
@@ -171,12 +189,15 @@ function Field({
   type = "text",
   placeholder,
   dir,
+  hint,
 }: {
   label: string;
   name: string;
   type?: string;
   placeholder?: string;
   dir?: "ltr" | "rtl";
+  /** سطر يشرح لماذا يُملأ الحقل — الحقل الذي لا يُشرح يُملأ بأي شيء */
+  hint?: string;
 }) {
   return (
     <label className="flex flex-col gap-1.5 text-sm">
@@ -189,6 +210,7 @@ function Field({
         dir={dir}
         className="min-h-11 rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
       />
+      {hint && <span className="text-xs leading-relaxed text-black/45">{hint}</span>}
     </label>
   );
 }

@@ -168,6 +168,7 @@ export async function syncAdminAccountRow(userId: string) {
     passwordChangedAt: user.passwordChangedAt,
     removedAt: user.removedAt,
     removalReason: user.removalReason,
+    welcomeEmailSentAt: user.welcomeEmailSentAt,
   });
 
   if (!user.sheetRow && result.sheetRow) {
@@ -336,7 +337,12 @@ export async function approveMember(memberId: string) {
     await assertRoleSeatAvailable(member.invite.targetRole, member.departmentId);
 
     // تُنقل كلمة المرور التي اختارها بنفسه إلى الحساب الإداري الجديد، ثم
-    // يُفرَّغ hash حساب المرشّح حتى لا يبقى لشخص واحد مَدخلان
+    // يُفرَّغ hash حساب المرشّح حتى لا يبقى لشخص واحد مَدخلان.
+    //
+    // وتُنقل معها بياناته كلها — المسمى الذي حدّدته الإدارة الداعية،
+    // وجواله وتخصصه وشعبته وتاريخ استكمالها. كانت تُترك خلفه فيُولَد
+    // الحساب الإداري فارغاً، فتظهر بطاقة انضمامه بلا مهمة ولا فريق،
+    // ويُطالَب باستكمال بيانات استكملها قبل اختباره.
     const createdUser: { id: string } = await prisma.user.create({
       data: {
         fullName: member.fullName,
@@ -345,6 +351,11 @@ export async function approveMember(memberId: string) {
         mustChangePassword: member.mustChangePassword,
         role,
         departmentId: role === "department_admin" ? member.departmentId : null,
+        phone: member.phone,
+        jobTitle: member.jobTitle,
+        specialization: member.specialization,
+        section: member.section,
+        profileCompletedAt: member.profileCompletedAt,
       },
     });
     await prisma.member.update({

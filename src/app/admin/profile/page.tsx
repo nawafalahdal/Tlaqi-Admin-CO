@@ -69,7 +69,6 @@ export default async function AdminProfilePage() {
         <WelcomeMailCard
           theme={theme}
           sentAt={user.welcomeEmailSentAt ? formatDate(user.welcomeEmailSentAt) : null}
-          count={user.welcomeEmailCount}
         />
 
         <SecurityGuidance theme={theme} totpEnabled={user.totpEnabled} />

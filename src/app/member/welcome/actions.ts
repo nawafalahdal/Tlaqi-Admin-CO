@@ -23,11 +23,12 @@ export async function saveCandidateProfileAction(
   const fullName = String(formData.get("fullName") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
   const specialization = String(formData.get("specialization") ?? "").trim();
-  const jobTitle = String(formData.get("jobTitle") ?? "").trim();
   const section = String(formData.get("section") ?? "").trim();
+  // المسمى الوظيفي لا يُقرأ من النموذج ولو أُرسل: حدّدته الإدارة الداعية
+  // وهو محفوظ على السجل. قبولُه من هنا يعني أن يسمّي كلٌّ نفسه بما يشاء.
 
-  if (!fullName || !phone || !specialization || !jobTitle) {
-    return { error: "الاسم ورقم الجوال والتخصص والمسمى الوظيفي مطلوبة" };
+  if (!fullName || !phone || !specialization) {
+    return { error: "الاسم ورقم الجوال والتخصص مطلوبة" };
   }
 
   try {
@@ -37,7 +38,6 @@ export async function saveCandidateProfileAction(
         fullName,
         phone,
         specialization,
-        jobTitle,
         section: section || null,
         profileCompletedAt: new Date(),
       },
@@ -50,7 +50,7 @@ export async function saveCandidateProfileAction(
       roleOrDepartment:
         member.department?.name ?? (ROLE_LABELS[member.invite.targetRole] ?? "—"),
       event: "استكمال البيانات قبل الاختبار",
-      details: `التخصص: ${specialization} — المسمى: ${jobTitle}${section ? ` — Section: ${section}` : ""}`,
+      details: `التخصص: ${specialization} — المسمى: ${member.jobTitle ?? "—"}${section ? ` — Section: ${section}` : ""}`,
       at: new Date(),
     });
 

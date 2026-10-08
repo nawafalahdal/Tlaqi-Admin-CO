@@ -40,12 +40,16 @@ export async function createExecutiveInviteAction(
 
     const fullName = String(formData.get("fullName") ?? "").trim();
     const email = String(formData.get("email") ?? "").trim().toLowerCase();
-    if (!fullName || !email) return { error: "جميع الحقول مطلوبة", success: false };
+    // المسمى الوظيفي تحدّده الإدارة الداعية لا المرشّح: هي من تعرف
+    // لماذا دعته وبأي صفة، وتركه له يجعل كل واحد يسمّي نفسه بما يشاء
+    const jobTitle = String(formData.get("jobTitle") ?? "").trim();
+    if (!fullName || !email || !jobTitle) return { error: "جميع الحقول مطلوبة", success: false };
 
     const track = await getTrackForTarget("executive", null);
     const { tempPassword } = await createCandidateAccount({
       fullName,
       email,
+      jobTitle,
       targetRole: "executive",
       departmentId: null,
       testTrackId: track.id,
@@ -73,13 +77,19 @@ export async function createDeptAdminInviteAction(
 
     const fullName = String(formData.get("fullName") ?? "").trim();
     const email = String(formData.get("email") ?? "").trim().toLowerCase();
+    // المسمى الوظيفي تحدّده الإدارة الداعية لا المرشّح: هي من تعرف
+    // لماذا دعته وبأي صفة، وتركه له يجعل كل واحد يسمّي نفسه بما يشاء
+    const jobTitle = String(formData.get("jobTitle") ?? "").trim();
     const departmentId = String(formData.get("departmentId") ?? "");
-    if (!fullName || !email || !departmentId) return { error: "جميع الحقول مطلوبة", success: false };
+    if (!fullName || !email || !departmentId || !jobTitle) {
+      return { error: "جميع الحقول مطلوبة", success: false };
+    }
 
     const track = await getTrackForTarget("department_admin", null);
     const { tempPassword } = await createCandidateAccount({
       fullName,
       email,
+      jobTitle,
       targetRole: "department_admin",
       departmentId: departmentId,
       testTrackId: track.id,
@@ -112,12 +122,16 @@ export async function createOperationsOfficerInviteAction(
 
     const fullName = String(formData.get("fullName") ?? "").trim();
     const email = String(formData.get("email") ?? "").trim().toLowerCase();
-    if (!fullName || !email) return { error: "جميع الحقول مطلوبة", success: false };
+    // المسمى الوظيفي تحدّده الإدارة الداعية لا المرشّح: هي من تعرف
+    // لماذا دعته وبأي صفة، وتركه له يجعل كل واحد يسمّي نفسه بما يشاء
+    const jobTitle = String(formData.get("jobTitle") ?? "").trim();
+    if (!fullName || !email || !jobTitle) return { error: "جميع الحقول مطلوبة", success: false };
 
     const track = await getTrackForTarget("operations_officer", null);
     const { tempPassword } = await createCandidateAccount({
       fullName,
       email,
+      jobTitle,
       targetRole: "operations_officer",
       departmentId: null,
       testTrackId: track.id,

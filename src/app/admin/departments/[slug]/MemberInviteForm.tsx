@@ -67,9 +67,13 @@ export function MemberInviteForm({
           <span className="font-medium text-black/70">{t.memberInviteForm.jobTitle}</span>
           <input
             name="jobTitle"
+            required
             placeholder={t.memberInviteForm.jobTitlePlaceholder}
             className="min-h-11 rounded-xl border border-black/10 px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
           />
+          <span className="text-xs leading-relaxed text-black/45">
+            {t.leadershipInvite.jobTitleHint}
+          </span>
         </label>
       </div>
 

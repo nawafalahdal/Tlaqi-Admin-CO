@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { sendWelcomeEmail } from "@/lib/email";
 import { accountRoleLabel } from "@/lib/testTracks";
+import { syncAdminAccountRow, syncMemberLifecycleRow } from "@/lib/workflow";
 import { SOCIAL_LINKS, appBaseUrl } from "@/lib/emailBrand";
 
 /** الوسم الرسمي. يُضبط من البيئة ليُغيَّر دون نشر جديد. */
@@ -63,11 +64,14 @@ export async function sendWelcomePack(
     await appendMemberEvent({
       fullName: user.fullName,
       email: user.email,
-      event: "وصول البريد الترحيبي",
-      details: `أُرسل الترحيب — المرة ${user.welcomeEmailCount + 1}`,
+      event: "وصول بطاقة الانضمام",
+      details: "✓ وصلت بطاقة الانضمام",
       roleOrDepartment: user.department?.name ?? roleLabel,
       at,
     });
+    // الصفّ الثابت يُحدَّث فوراً: السجل الحي يُثبت الحدث، والصفّ يُظهر
+    // الحالة. ومن يفتح الشيت يقرأ الحالة قبل أن يبحث في السجل.
+    await syncAdminAccountRow(user.id);
 
     return { ok: true, to: user.email };
   }
@@ -106,11 +110,12 @@ export async function sendWelcomePack(
   await appendMemberEvent({
     fullName: member.fullName,
     email: member.email,
-    event: "وصول البريد الترحيبي",
-    details: `أُرسل الترحيب — المرة ${member.welcomeEmailCount + 1}`,
+    event: "وصول بطاقة الانضمام",
+    details: "✓ وصلت بطاقة الانضمام",
     roleOrDepartment: member.department?.name ?? roleLabel,
     at,
   });
+  await syncMemberLifecycleRow(member.id);
 
   return { ok: true, to: member.email };
 }

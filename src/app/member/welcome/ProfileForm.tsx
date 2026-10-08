@@ -33,7 +33,18 @@ export function ProfileForm({
       </label>
       <Field label={t.phone} name="phone" defaultValue={defaults.phone} required dir="ltr" />
       <Field label={t.specialization} name="specialization" required hint={t.specializationHint} />
-      <Field label={t.jobTitle} name="jobTitle" defaultValue={defaults.jobTitle} required hint={t.jobTitleHint} />
+      {/* المسمى تحدّده الإدارة الداعية، فيُعرض ولا يُكتب: تركه للمرشّح
+          يجعل كل واحد يسمّي نفسه بما يشاء، ويختلف ما في السجل عمّا في
+          الدعوة. وإن كان خطأً فالتصحيح من الإدارة لا منه. */}
+      <label className="flex flex-col gap-1.5 text-sm">
+        <span className="font-medium text-black/70">{t.jobTitle}</span>
+        <input
+          value={defaults.jobTitle}
+          readOnly
+          className="min-h-11 cursor-not-allowed rounded-xl border border-black/10 bg-black/[0.04] px-3.5 text-sm text-black/50 outline-none"
+        />
+        <span className="text-xs text-black/40">{t.jobTitleLocked}</span>
+      </label>
       <Field label={t.section} name="section" hint={t.sectionHint} />
 
       {state.error && (

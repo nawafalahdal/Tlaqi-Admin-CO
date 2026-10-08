@@ -42,14 +42,17 @@ export async function createMemberInviteAction(
     const fullName = String(formData.get("fullName") ?? "").trim();
     const email = String(formData.get("email") ?? "").trim().toLowerCase();
     const jobTitle = String(formData.get("jobTitle") ?? "").trim();
-    if (!fullName || !email) return { error: "الاسم والبريد مطلوبان", success: false };
+    // المسمى تحدّده الإدارة الداعية لا المرشّح: هي من تعرف لماذا دعته
+    if (!fullName || !email || !jobTitle) {
+      return { error: "الاسم والبريد والمسمى الوظيفي مطلوبة", success: false };
+    }
 
     const track = await getTrackForTarget("member", departmentId);
 
     const { tempPassword } = await createCandidateAccount({
       fullName,
       email,
-      jobTitle: jobTitle || null,
+      jobTitle,
       targetRole: "member",
       departmentId,
       testTrackId: track.id,
