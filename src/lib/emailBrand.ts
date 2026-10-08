@@ -200,6 +200,9 @@ export const TAGLINE = process.env.BRAND_TAGLINE || "نلتقي · نفكّر ·
  *  دون نشر، وأي منصة يُفرَّغ يوزرها تختفي من الصفّ من تلقاء نفسها. */
 const UNIFIED_HANDLE = "tlaqisa";
 
+/** المعرّف الموحّد كما يُكتب في القوالب */
+export const SOCIAL_HANDLE = UNIFIED_HANDLE;
+
 export const SOCIAL_LINKS: { label: string; handle: string; url: string }[] = [
   { label: "X", handle: process.env.SOCIAL_X ?? UNIFIED_HANDLE, url: "https://x.com/" },
   {

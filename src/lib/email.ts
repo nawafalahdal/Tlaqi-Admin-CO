@@ -1,8 +1,10 @@
+import { readFileSync } from "fs";
+import { join } from "path";
 import { Resend } from "resend";
 import { formatDate } from "@/lib/format";
 import { appendEmailLog } from "@/lib/googleSheets";
 import { prisma } from "@/lib/prisma";
-import { wrapEmail, htmlToText, variantForKind } from "@/lib/emailBrand";
+import { wrapEmail, htmlToText, variantForKind, appBaseUrl, SOCIAL_HANDLE } from "@/lib/emailBrand";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FROM = process.env.EMAIL_FROM || "تَـــلاقِ <hello@tlaqiteam.site>";
@@ -113,6 +115,46 @@ async function send(
       text: htmlToText(html),
       headers: {
         // يمنع تجميع الرسائل المتتابعة في خيط واحد عند Gmail
+        "X-Entity-Ref-ID": `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      },
+    });
+    await logEmail(recipients, kind, subject, "أُرسلت");
+    return { skipped: false };
+  } catch (err) {
+    console.error("فشل إرسال البريد:", err);
+    await logEmail(recipients, kind, subject, "فشل الإرسال");
+    return { skipped: true, error: true };
+  }
+}
+
+/** يُرسل رسالة مبنيّة كاملةً، بلا غلاف.
+ *
+ *  أكثر الرسائل متنٌ يلفّه `send` بهوية المنصة. وبعضها — كقالب الترحيب
+ *  الرسمي — وثيقة HTML قائمة بذاتها لها ترويستها وتذييلها، فلفّها يُنتج
+ *  رسالةً بترويستين. وما عدا الغلاف يبقى كما هو: فحص من أُغلقت تجربته،
+ *  والنسخة النصّية، والتسجيل في السجلّ.
+ */
+async function sendPrebuilt(to: string | string[], subject: string, html: string, kind: string) {
+  const all = Array.isArray(to) ? to.filter(Boolean) : [to].filter(Boolean);
+  if (all.length === 0) return { skipped: true };
+  const recipients = await withoutClosedRecipients(all);
+  if (recipients.length === 0) return { skipped: true };
+
+  if (!resend) {
+    console.warn(
+      `[email:disabled] لم يُضبط RESEND_API_KEY — تم تجاهل إرسال بريد بعنوان "${subject}" إلى: ${recipients.join(", ")}`
+    );
+    await logEmail(recipients, kind, subject, "لم تُرسل (البريد معطّل)");
+    return { skipped: true };
+  }
+  try {
+    await resend.emails.send({
+      from: FROM,
+      to: recipients,
+      subject,
+      html,
+      text: htmlToText(html),
+      headers: {
         "X-Entity-Ref-ID": `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       },
     });
@@ -586,114 +628,40 @@ export type WelcomeEmailOpts = {
   occasion?: "approved" | "resend";
 };
 
-/** بطاقة العضوية — تُصوَّر وتُنشر.
+/** قالب الترحيب الرسمي — يُقرأ من `src/emails/welcome.html`.
  *
- *  أول ما يفعله من يُعتمد أن يصوّر الخبر وينشره، فإن كانت الرسالة فقراتٍ
- *  متراصّة خرجت الصورة باهتة. فالبطاقة مستقلّة بنفسها: تُقصّ وحدها
- *  فتبقى مفهومة، وحدٌّ سميك يُغني عن قصٍّ دقيق.
+ *  القالب ملفّ HTML قائم بذاته لا نصّ داخل الكود، لسببين: يُفتح في
+ *  المتصفّح ويُراجَع كما يُرسل بالضبط، ويُسلَّم لأي نظام إرسال آخر دون
+ *  أن يُنتزع من بين سطور TypeScript.
  *
- *  **ولونها فاتح لا داكن، وهذا مقصود.** فيها اسمٌ متغيّر فلا تُرسم صورةً
- *  كالترويسة، وما بقي نصّاً حيّاً يقلبه Gmail مع خلفيته. فالداكنة تنقلب
- *  وردية — وهو ما رُفض — أما الفاتحة فتنقلب داكناً زيتونياً داخل الهوية. */
-function membershipCard(opts: {
-  fullName: string;
-  roleLabel: string;
-  departmentName?: string | null;
-  joinedAt?: Date | null;
-}): string {
-  const chips = [opts.roleLabel, opts.departmentName]
-    .filter((v): v is string => Boolean(v && v.trim()))
-    .map(
-      (v) =>
-        `<span style="display:inline-block;background:#341D2B;color:#EEF6DF;font-size:13px;font-weight:bold;padding:7px 18px;border-radius:999px;margin:0 3px 6px">${esc(v)}</span>`
-    )
-    .join("");
+ *  ولأنه القالب الرسمي الدائم، تبديل المتغيّرات وحده يكفي لتخصيصه — لا
+ *  تُلمس بنيته عند كل مستقبِل. */
+const WELCOME_TEMPLATE_PATH = join(process.cwd(), "src/emails/welcome.html");
 
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px">
-    <tr><td align="center" bgcolor="#EEF6DF" style="background-color:#EEF6DF;border:2px solid #341D2B;border-radius:18px;padding:32px 24px">
-      <div style="font-family:Tahoma,Arial,sans-serif;font-size:32px;font-weight:bold;line-height:1.4;color:#1A1023;margin:0 0 6px">${esc(opts.fullName)}</div>
-      <div style="margin:14px 0 4px">${chips}</div>
-      ${
-        opts.joinedAt
-          ? `<div style="font-family:Tahoma,Arial,sans-serif;font-size:12px;color:rgba(26,16,35,0.5);margin-top:10px">عضوٌ منذ ${esc(formatDate(opts.joinedAt))}</div>`
-          : ""
-      }
-    </td></tr>
-  </table>`;
+let welcomeTemplateCache: string | null = null;
+
+function welcomeTemplate(): string {
+  // يُقرأ مرة واحدة لكل نسخة من الخادم: ملفٌّ ثابت لا داعي لقراءته مع
+  // كل رسالة. وفي التطوير يُعاد تحميل الوحدة مع كل تعديل فيُقرأ من جديد.
+  if (welcomeTemplateCache === null) {
+    welcomeTemplateCache = readFileSync(WELCOME_TEMPLATE_PATH, "utf8");
+  }
+  return welcomeTemplateCache;
 }
 
-/** متن رسالة الانضمام.
+/** يملأ متغيّرات القالب.
  *
- *  رسالة واحدة تقوم مقام ثلاث: تُعلن الاعتماد، وتُرحّب، وتحمل عدّة
- *  المشاركة. كانت ثلاث رسائل تصل متتابعة في دقائق — وثلاثُ رسائل عن
- *  حدثٍ واحد تُقرأ أولاها وتُهمل الباقي، وتستهلك حصّة الإرسال بلا طائل.
- *
- *  ومفصولٌ عن الإرسال ليُعايَن كما يُرسَل بالضبط: قالبٌ يُراجَع بنسخةٍ
- *  مكتوبة بيدٍ أخرى يُراجَع شيئاً غير الذي يصل الناس. */
-export function welcomeEmailBody(opts: WelcomeEmailOpts): string {
-  const approved = opts.occasion !== "resend";
-  const facts = [
-    factRow("المهمة", opts.jobTitle),
-    factRow("التخصص", opts.specialization),
-    factRow("الشعبة", opts.section),
-  ].join("");
-
-  const accounts = (opts.handles ?? [])
-    .map(
-      (h) =>
-        `<a href="${h.url}${esc(h.handle)}" style="display:inline-block;color:#8C3600;text-decoration:none;font-weight:bold;font-size:13px;padding:0 7px" dir="ltr">${esc(h.label)}</a>`
-    )
-    .join(`<span style="color:rgba(26,16,35,0.3)">·</span>`);
-
-  const shareBlock =
-    accounts || opts.hashtag
-      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 0">
-          <tr><td bgcolor="#FAF8F4" style="background-color:#FAF8F4;border:1px solid rgba(52,29,43,0.14);border-radius:12px;padding:16px 18px">
-            <p style="margin:0 0 6px;font-size:14px;font-weight:bold;color:#1A1023">شاركنا الخبر</p>
-            <p style="margin:0 0 12px;font-size:13px;line-height:1.9;color:rgba(26,16,35,0.65)">صوّر البطاقة أعلاه وانشرها — واذكرنا معك.</p>
-            ${accounts ? `<p style="margin:0 0 10px">${accounts}</p>` : ""}
-            ${
-              opts.hashtag
-                ? `<p style="margin:0"><span style="display:inline-block;background:#341D2B;color:#EEF6DF;font-weight:bold;padding:7px 18px;border-radius:999px;font-size:13px">${esc(opts.hashtag)}</span></p>`
-                : ""
-            }
-          </td></tr>
-        </table>`
-      : "";
-
-  return `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      ${membershipCard({
-        fullName: opts.fullName,
-        roleLabel: opts.roleLabel,
-        departmentName: opts.departmentName,
-        joinedAt: opts.joinedAt,
-      })}
-
-      <p style="margin:0 0 18px;font-size:17px;line-height:2;color:#1A1023;text-align:center">${
-        approved
-          ? "أنت اليوم جزءٌ من هذه المنظومة — لا اسماً في قائمة.<br>ما تصنعه هنا يُرى، وما تحتاجه يُسمع."
-          : "هذه نسخةٌ من بطاقتك، أرسلناها بطلبك.<br>مكانك بيننا مُثبَت كما هو."
-      }</p>
-
-      ${
-        facts
-          ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px;border:1px solid rgba(52,29,43,0.12);border-radius:12px;background:#FAF8F4">
-        <tr><td style="padding:12px 18px">
-          <table role="presentation" cellpadding="0" cellspacing="0" border="0">${facts}</table>
-        </td></tr>
-      </table>`
-          : ""
-      }
-
-      <p style="margin:0 0 22px;text-align:center"><a href="${opts.portalUrl}" style="display:inline-block;background:#341D2B;color:#EEF6DF;text-decoration:none;font-weight:bold;font-size:15px;padding:14px 34px;border-radius:999px">ادخل إلى منصّتك</a></p>
-
-      <p style="margin:0;font-size:13px;line-height:1.9;color:rgba(26,16,35,0.6)">${
-        approved
-          ? "تدخل بنفس كلمة المرور التي اخترتها — لم يُصدر لك رمز جديد. وإن احتجت شيئاً، ارفع تذكرة: هي قناتنا الرسمية."
-          : "وإن احتجت شيئاً، ارفع تذكرة — هي قناتنا الرسمية."
-      }</p>
-      ${shareBlock}
-    </div>`;
+ *  كل قيمة تُهرَّب قبل الإدراج: الاسم والصفة يكتبهما بشر، ووضعُهما في
+ *  HTML بلا تهريب يفتح باب وسمٍ مدسوس في بريدٍ يحمل اسمنا. وما لا قيمة
+ *  له يُكتب شَرطةً بدل أن يظهر `{{team}}` كما هو لمن لا فريق له. */
+function fillTemplate(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_m, key: string) => {
+    const value = vars[key];
+    if (value === undefined) return "—";
+    // الروابط لا تُهرَّب كنصّ: هي سمات href، وتهريب & يكسر معاملاتها.
+    // وهي من عندنا لا من المستخدم، ويُتحقّق منها عند الضبط.
+    return key.endsWith("_url") || key === "asset_base" ? value : esc(value);
+  });
 }
 
 export function welcomeEmailSubject(fullName: string, occasion: "approved" | "resend" = "approved") {
@@ -708,20 +676,34 @@ export function welcomeEmailSubject(fullName: string, occasion: "approved" | "re
  *
  *  هي الموضع الوحيد الذي يقرأ فيه الواحد اسمه ومهمته كما سُجِّلت، فيعرف
  *  أن له مكاناً مُثبَتاً لا مجرّد حساب. */
-export const WELCOME_HERO = {
-  src: "/brand/email-hero-welcome.png",
-  width: 600,
-  height: 291,
-  alt: "أهلاً بك في عائلة تَـــلاقِ",
-};
+/** يبني الرسالة كاملةً من القالب الرسمي.
+ *
+ *  لا تمرّ على `wrapEmail`: القالب غلافٌ كامل بترويسته وتذييله، ولفّه
+ *  بغلافٍ ثانٍ يُنتج رسالةً بترويستين. */
+export function renderWelcomeEmail(opts: WelcomeEmailOpts): string {
+  const base = appBaseUrl();
+  const firstName = opts.fullName.trim().split(/\s+/)[0] || opts.fullName;
+  return fillTemplate(welcomeTemplate(), {
+    first_name: firstName,
+    full_name: opts.fullName,
+    role: opts.roleLabel,
+    team: opts.departmentName?.trim() || opts.jobTitle?.trim() || "—",
+    join_date: opts.joinedAt ? formatDate(opts.joinedAt) : "—",
+    portal_url: opts.portalUrl,
+    asset_base: base,
+    handle: `@${SOCIAL_HANDLE}`,
+    x_url: `https://x.com/${SOCIAL_HANDLE}`,
+    instagram_url: `https://instagram.com/${SOCIAL_HANDLE}`,
+    linkedin_url: `https://linkedin.com/company/${SOCIAL_HANDLE}`,
+  });
+}
 
 export async function sendWelcomeEmail(opts: WelcomeEmailOpts & { to: string }) {
-  return send(
+  return sendPrebuilt(
     opts.to,
     welcomeEmailSubject(opts.fullName, opts.occasion ?? "approved"),
-    welcomeEmailBody(opts),
-    "ترحيب",
-    WELCOME_HERO
+    renderWelcomeEmail(opts),
+    "ترحيب"
   );
 }
 
