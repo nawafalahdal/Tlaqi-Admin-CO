@@ -233,18 +233,6 @@ export async function sendTicketCreatedEmail(opts: {
   );
 }
 
-export async function sendTicketConfirmationEmail(opts: { to: string; subject: string; dueDate: Date }) {
-  return send(
-    opts.to,
-    `تم استلام تذكرتك: ${opts.subject}`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>تم رفع تذكرتك بنجاح: <strong>${esc(opts.subject)}</strong>.</p>
-      <p>سيتم الرد خلال يومين (قبل ${formatDate(opts.dueDate)})، وإذا لم يحدث ذلك تتصعّد تلقائياً للمستوى التالي — نظامنا صارم وواضح.</p>
-    </div>`,
-    "تأكيد تذكرة"
-  );
-}
-
 export async function sendTicketEscalatedEmail(opts: {
   to: string | string[];
   subject: string;
@@ -434,25 +422,6 @@ export async function sendWindowReminderEmail(opts: {
 }
 
 /** إشعار الاعتماد النهائي — يُغلق دائرة الانتظار */
-export async function sendApprovedEmail(opts: {
-  to: string;
-  fullName: string;
-  roleLabel: string;
-  loginUrl: string;
-}) {
-  return send(
-    opts.to,
-    "تم اعتمادك في تَـــلاقِ",
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>مرحباً ${esc(opts.fullName)}،</p>
-      <p style="font-size:17px"><strong>تم اعتمادك رسمياً بصفة ${esc(opts.roleLabel)}.</strong></p>
-      <p>بوابتك مفتوحة الآن — ادخل <strong>بنفس كلمة المرور التي اخترتها</strong> عند أول دخول.</p>
-      <p><a href="${opts.loginUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">فتح المنصة</a></p>
-    </div>`,
-    "الاعتماد النهائي"
-  );
-}
-
 /** رابط استعادة كلمة المرور — صالح لمدة محدودة ولمرة واحدة */
 export async function sendPasswordResetEmail(opts: {
   to: string;
@@ -600,90 +569,148 @@ export type WelcomeEmailOpts = {
   section?: string | null;
   departmentName?: string | null;
   portalUrl: string;
+  joinedAt?: Date | null;
+  /** عدّة المشاركة — تُدرَج داخل الرسالة نفسها لا في رسالة ثانية */
+  handles?: { label: string; handle: string; url: string }[];
+  hashtag?: string;
+  /** `approved`: تصل لحظة الاعتماد فتُعلنه. `resend`: يطلبها صاحبها لأنها
+   *  ضاعت منه، فلا تُعلن خبراً قديماً وكأنه جديد. */
+  occasion?: "approved" | "resend";
 };
+
+/** بطاقة العضوية — قلب الرسالة، ومصمَّمة لتُصوَّر وتُنشر.
+ *
+ *  أول ما يفعله من يُعتمد أن يلتقط صورة للخبر وينشره. فإن كانت الرسالة
+ *  فقراتٍ متراصّة خرجت الصورة باهتة ولم تُنشر. فالبطاقة مستقلّة بنفسها:
+ *  تُقصّ وحدها فتبقى مفهومة — فيها الاسم كبيراً والصفة والتاريخ، وحدٌّ
+ *  سميك يُغني عن قصٍّ دقيق.
+ *
+ *  **ولونها فاتح لا داكن، وهذا مقصود.** البطاقة فيها اسمٌ متغيّر، فلا
+ *  يمكن رسمها صورةً كالترويسة. وما بقي نصّاً حيّاً يقلبه Gmail في الوضع
+ *  الداكن مع خلفيته: فلو كانت داكنة لانقلبت وردية — وهو ما رُفض من قبل.
+ *  أما الفاتحة فتنقلب إلى داكنٍ زيتوني يبقى داخل الهوية. فالاختيار بين
+ *  وردي في نصف الحالات وداكنٍ على لوننا، لا بين داكن ودائم. */
+function membershipCard(opts: {
+  fullName: string;
+  roleLabel: string;
+  departmentName?: string | null;
+  joinedAt?: Date | null;
+}): string {
+  const chips = [opts.roleLabel, opts.departmentName]
+    .filter((v): v is string => Boolean(v && v.trim()))
+    .map(
+      (v) =>
+        `<span style="display:inline-block;background:#341D2B;color:#EEF6DF;font-size:13px;font-weight:bold;padding:7px 18px;border-radius:999px;margin:0 3px 6px">${esc(v)}</span>`
+    )
+    .join("");
+
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px">
+    <tr><td align="center" bgcolor="#EEF6DF" style="background-color:#EEF6DF;border:2px solid #341D2B;border-radius:18px;padding:30px 24px">
+      <div style="font-family:Tahoma,Arial,sans-serif;font-size:13px;font-weight:bold;letter-spacing:3px;color:#C34900">تهانينا</div>
+      <div style="font-family:Tahoma,Arial,sans-serif;font-size:28px;font-weight:bold;line-height:1.4;color:#1A1023;margin:10px 0 4px">${esc(opts.fullName)}</div>
+      <div style="font-family:Tahoma,Arial,sans-serif;font-size:15px;line-height:1.8;color:rgba(26,16,35,0.72);margin:0 0 16px">أنت الآن أحد أعضاء عائلة تَـــلاقِ</div>
+      <div style="margin:0 0 4px">${chips}</div>
+      ${
+        opts.joinedAt
+          ? `<div style="font-family:Tahoma,Arial,sans-serif;font-size:12px;color:rgba(26,16,35,0.5);margin-top:8px">عضوٌ منذ ${esc(formatDate(opts.joinedAt))}</div>`
+          : ""
+      }
+      <div style="font-family:Tahoma,Arial,sans-serif;font-size:12px;font-weight:bold;letter-spacing:1px;color:rgba(26,16,35,0.45);margin-top:18px">نلتقي · نفكّر · نصنع</div>
+    </td></tr>
+  </table>`;
+}
 
 /** متن البريد الترحيبي.
  *
- *  مفصولٌ عن الإرسال ليُعايَن كما يُرسَل بالضبط: قالبٌ يُراجَع بنسخةٍ
+ *  رسالة واحدة تقوم مقام ثلاث: تُعلن الاعتماد، وتُرحّب، وتحمل عدّة
+ *  المشاركة. كانت ثلاث رسائل تصل متتابعة في دقائق — وثلاثُ رسائل عن
+ *  حدثٍ واحد تُقرأ أولاها وتُهمل الباقي، وتستهلك حصّة الإرسال بلا طائل.
+ *
+ *  ومفصولٌ عن الإرسال ليُعايَن كما يُرسَل بالضبط: قالبٌ يُراجَع بنسخةٍ
  *  مكتوبة بيدٍ أخرى يُراجَع شيئاً غير الذي يصل الناس. */
 export function welcomeEmailBody(opts: WelcomeEmailOpts): string {
+  const approved = opts.occasion !== "resend";
   const facts = [
-    factRow("الاسم", opts.fullName),
-    factRow("الصفة", opts.roleLabel),
     factRow("المهمة", opts.jobTitle),
-    factRow("القسم", opts.departmentName),
     factRow("التخصص", opts.specialization),
     factRow("الشعبة", opts.section),
   ].join("");
 
+  const accounts = (opts.handles ?? [])
+    .map(
+      (h) =>
+        `<a href="${h.url}${esc(h.handle)}" style="display:inline-block;color:#8C3600;text-decoration:none;font-weight:bold;font-size:13px;padding:0 7px" dir="ltr">${esc(h.label)}</a>`
+    )
+    .join(`<span style="color:rgba(26,16,35,0.3)">·</span>`);
+
+  const shareBlock =
+    accounts || opts.hashtag
+      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 0">
+          <tr><td bgcolor="#FAF8F4" style="background-color:#FAF8F4;border:1px solid rgba(52,29,43,0.14);border-radius:12px;padding:16px 18px">
+            <p style="margin:0 0 6px;font-size:14px;font-weight:bold;color:#1A1023">شاركنا الخبر</p>
+            <p style="margin:0 0 12px;font-size:13px;line-height:1.9;color:rgba(26,16,35,0.65)">صوّر البطاقة أعلاه وانشرها إن أحببت — واذكرنا معك. ولا شيء من هذا إلزامي.</p>
+            ${accounts ? `<p style="margin:0 0 10px">${accounts}</p>` : ""}
+            ${
+              opts.hashtag
+                ? `<p style="margin:0"><span style="display:inline-block;background:#341D2B;color:#EEF6DF;font-weight:bold;padding:7px 18px;border-radius:999px;font-size:13px">${esc(opts.hashtag)}</span></p>`
+                : ""
+            }
+          </td></tr>
+        </table>`
+      : "";
+
   return `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p style="font-size:17px;font-weight:bold;margin:0 0 14px">شكراً لك، ${esc(opts.fullName)}.</p>
-      <p style="margin:0 0 16px">شكراً أنك اخترت أن يكون وقتك معنا. تَـــلاقِ ليست منصةً تُدار من بعيد — هي فريقٌ يلتقي ويفكّر ويصنع، وأنت منه الآن.</p>
-      <p style="margin:0 0 6px">هذا سجلّك كما هو عندنا:</p>
+      ${membershipCard({
+        fullName: opts.fullName,
+        roleLabel: opts.roleLabel,
+        departmentName: opts.departmentName,
+        joinedAt: opts.joinedAt,
+      })}
+
+      <p style="margin:0 0 16px">${
+        approved
+          ? "اعتُمدت رسمياً، وصار لك مكانٌ مُثبَت بيننا. شكراً أنك اخترت أن يكون وقتك معنا — تَـــلاقِ ليست منصةً تُدار من بعيد، هي فريقٌ يلتقي ويفكّر ويصنع، وأنت منه الآن."
+          : "هذه نسخةٌ من بطاقتك ورسالة ترحيبك، أرسلناها بطلبك. مكانك بيننا مُثبَت كما هو."
+      }</p>
+
+      ${
+        facts
+          ? `<p style="margin:0 0 6px">وهذا سجلّك كما هو عندنا:</p>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 20px;border:1px solid rgba(52,29,43,0.12);border-radius:12px;background:#FAF8F4">
         <tr><td style="padding:10px 16px">
           <table role="presentation" cellpadding="0" cellspacing="0" border="0">${facts}</table>
         </td></tr>
-      </table>
+      </table>`
+          : ""
+      }
+
       <p style="margin:0 0 16px">كل ما تحتاجه — تذاكرك، إعلانات الفريق، بياناتك — في مكان واحد:</p>
       <p style="margin:0 0 20px"><a href="${opts.portalUrl}" style="display:inline-block;background:#341D2B;color:#EEF6DF;text-decoration:none;font-weight:bold;font-size:14px;padding:12px 26px;border-radius:999px">ادخل إلى منصّتك</a></p>
-      <p style="margin:0;font-size:13px;color:rgba(26,16,35,0.6)">نحن سعداء بك. وإن احتجت شيئاً، ارفع تذكرة — هي قناتنا الرسمية، ولها مهلة يُحاسَب عليها من يتأخّر.</p>
+      <p style="margin:0;font-size:13px;color:rgba(26,16,35,0.6)">${
+        approved
+          ? "تدخل بنفس كلمة المرور التي اخترتها — لم يُصدر لك رمز جديد. وإن احتجت شيئاً، ارفع تذكرة: هي قناتنا الرسمية، ولها مهلة يُحاسَب عليها من يتأخّر."
+          : "وإن احتجت شيئاً، ارفع تذكرة — هي قناتنا الرسمية، ولها مهلة يُحاسَب عليها من يتأخّر."
+      }</p>
+      ${shareBlock}
     </div>`;
 }
 
-export function welcomeEmailSubject(fullName: string) {
-  return `أهلاً بك في تَـــلاقِ، ${fullName}`;
+export function welcomeEmailSubject(fullName: string, occasion: "approved" | "resend" = "approved") {
+  return occasion === "approved"
+    ? `تهانينا ${fullName} — اعتُمدت في تَـــلاقِ`
+    : `بطاقتك في تَـــلاقِ، ${fullName}`;
 }
 
-/** البريد الترحيبي — أول رسالة شخصية تصل من المنصة.
+/** رسالة الانضمام — تُعلن الاعتماد وتُرحّب وتحمل عدّة المشاركة معاً.
  *
- *  ليست إشعاراً: هي الموضع الوحيد الذي يقرأ فيه الواحد اسمه ومهمته كما
- *  سُجِّلت، فيعرف أن له مكاناً مُثبَتاً لا مجرّد حساب. ولهذا تبدأ بالشكر
- *  قبل كل شيء، وتُظهر بياناته كما هي عندنا ليصحّحها إن أخطأنا. */
+ *  هي الموضع الوحيد الذي يقرأ فيه الواحد اسمه ومهمته كما سُجِّلت، فيعرف
+ *  أن له مكاناً مُثبَتاً لا مجرّد حساب. */
 export async function sendWelcomeEmail(opts: WelcomeEmailOpts & { to: string }) {
-  return send(opts.to, welcomeEmailSubject(opts.fullName), welcomeEmailBody(opts), "ترحيب");
-}
-
-/** دعوة المشاركة — تصل بعد الترحيب مباشرة.
- *
- *  الانضمام خبرٌ يفرح به صاحبه، والفريق يكبر بمن يراه. فتُعطى له الأدوات
- *  جاهزة (الحسابات، الوسم، نصٌّ يُنسخ) بدل أن يُطلب منه أن يجتهد. */
-export async function sendShareInvitationEmail(opts: {
-  to: string;
-  fullName: string;
-  roleLabel: string;
-  handles: { label: string; handle: string; url: string }[];
-  hashtag: string;
-  suggestedPost: string;
-}) {
-  const accounts = opts.handles
-    .map(
-      (h) =>
-        `<li style="margin-bottom:6px"><b>${esc(h.label)}</b> — <a href="${h.url}${esc(h.handle)}" style="color:#8C3600;text-decoration:none" dir="ltr">@${esc(h.handle)}</a></li>`
-    )
-    .join("");
-
   return send(
     opts.to,
-    `شاركنا الخبر — انضمامك إلى تَـــلاقِ`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>مرحباً ${esc(opts.fullName)}،</p>
-      <p style="margin:0 0 16px">وصلتك رسالة الترحيب، وسُجِّل انضمامك رسمياً. إن أحببت أن تشارك الخبر، هذه عدّتك جاهزة — ولا شيء منها إلزامي.</p>
-
-      <p style="margin:0 0 6px;font-weight:bold;font-size:14px">١ · اذكرنا في منشورك</p>
-      <ul style="margin:0 0 16px;padding-right:20px;font-size:14px">${accounts}</ul>
-
-      <p style="margin:0 0 6px;font-weight:bold;font-size:14px">٢ · استخدم الوسم</p>
-      <p style="margin:0 0 16px"><span dir="ltr" style="display:inline-block;background:#EEF6DF;color:#1A1023;font-weight:bold;padding:7px 16px;border-radius:999px;font-size:14px">${esc(opts.hashtag)}</span></p>
-
-      <p style="margin:0 0 6px;font-weight:bold;font-size:14px">٣ · نصٌّ جاهز إن أردت</p>
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px;border-right:3px solid #67C090;background:#FAF8F4;border-radius:0 10px 10px 0">
-        <tr><td style="padding:12px 16px;font-size:14px;line-height:1.9;color:#1A1023">${esc(opts.suggestedPost)}</td></tr>
-      </table>
-
-      <p style="margin:0;font-size:13px;color:rgba(26,16,35,0.6)">اكتبه بأسلوبك إن شئت — الأهم أن يكون صادقاً، لا منسوخاً.</p>
-    </div>`,
-    "دعوة للمشاركة"
+    welcomeEmailSubject(opts.fullName, opts.occasion ?? "approved"),
+    welcomeEmailBody(opts),
+    "ترحيب"
   );
 }
 

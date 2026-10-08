@@ -6,7 +6,6 @@ import {
   sendTestPassedEmail,
   sendTestFailedEmail,
   sendMeetingOwnerEmail,
-  sendApprovedEmail,
   sendWindowReminderEmail,
   sendWarningEmail,
   sendExitEmail,
@@ -297,6 +296,9 @@ export async function approveMember(memberId: string) {
   // إنشاء حسابه وغيّره بنفسه قبل الاختبار، فيدخل بعد الاعتماد بنفس كلمته.
   // توليد رمز ثانٍ هنا كان يعني بيانات دخول مزدوجة لشخص واحد، وإرباكاً في
   // تسليمها يدوياً.
+  // يُملأ حين يُرقَّى المرشّح إلى حساب إداري
+  let promotedUserId: string | null = null;
+
   if (member.invite.targetRole === "member") {
     await appendApprovedMember({
       fullName: member.fullName,
@@ -335,7 +337,7 @@ export async function approveMember(memberId: string) {
 
     // تُنقل كلمة المرور التي اختارها بنفسه إلى الحساب الإداري الجديد، ثم
     // يُفرَّغ hash حساب المرشّح حتى لا يبقى لشخص واحد مَدخلان
-    const createdUser = await prisma.user.create({
+    const createdUser: { id: string } = await prisma.user.create({
       data: {
         fullName: member.fullName,
         email: member.email,
@@ -362,21 +364,29 @@ export async function approveMember(memberId: string) {
     // وصف المرشّح في تبويب الأعضاء يُغلق على حالته الأخيرة
     await syncAdminAccountRow(createdUser.id);
     await syncMemberLifecycleRow(member.id);
+    promotedUserId = createdUser.id;
   }
 
-  await sendApprovedEmail({
-    to: member.email,
-    fullName: member.fullName,
-    roleLabel: member.department?.name ?? (ROLE_LABELS[member.invite.targetRole] ?? ""),
-    loginUrl: `${baseUrl()}/login`,
-  });
+  // رسالة واحدة تُعلن الاعتماد وتُرحّب وتحمل عدّة المشاركة. كانت ثلاثاً
+  // تصل متتابعة في دقائق عن حدثٍ واحد — تُقرأ أولاها ويُهمل الباقي.
+  // والاستيراد داخل الدالة لأن `welcome` يستورد من هذا الملف،
+  // واستيرادهما المتبادل في الأعلى يُدوّر الاعتماد.
+  // من رُقِّي إلى حساب إداري تُكتب بطاقته على حسابه الجديد لا على صفّ
+  // المرشّح: صفحته هي التي يقرأ فيها «وصلتك بتاريخ كذا»
+  const { sendWelcomePack } = await import("@/lib/welcome");
+  const welcomed = await sendWelcomePack(
+    promotedUserId ? { kind: "user", id: promotedUserId } : { kind: "member", id: member.id },
+    "approved"
+  );
 
   await appendMemberEvent({
     fullName: member.fullName,
     email: member.email,
     event: "اعتماد نهائي",
     roleOrDepartment: await memberScope(member),
-    details: "يدخل بنفس كلمة المرور التي اختارها — لم يُصدر رمز جديد",
+    details:
+      "يدخل بنفس كلمة المرور التي اختارها — لم يُصدر رمز جديد" +
+      (welcomed.ok ? " — وصلته بطاقة الانضمام" : " — تعذّر إرسال بطاقة الانضمام"),
     at: new Date(),
   });
 

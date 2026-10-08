@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 import type { Ticket, Member, Department, User } from "@prisma/client";
 import {
   sendTicketCreatedEmail,
-  sendTicketConfirmationEmail,
   sendTicketEscalatedEmail,
   sendTicketResolvedEmail,
   sendTicketReminderEmail,
@@ -215,9 +214,8 @@ export async function raiseTicket(opts: {
       linkUrl: created.linkUrl,
     });
   }
-  if (author.email) {
-    await sendTicketConfirmationEmail({ to: author.email, subject: opts.subject, dueDate: stageDueAt });
-  }
+  // لا تأكيد لصاحب التذكرة: رآه على الشاشة لحظة رفعها، وتكراره بريداً
+  // يستهلك حصّة الإرسال في إخبار أحدٍ بما يعلمه
 
   await syncTicketSheetRow(created);
   return created;

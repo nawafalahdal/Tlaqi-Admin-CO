@@ -109,7 +109,9 @@ const VARIANT_STYLE: Record<
   welcome: {
     rule: BRAND.mahogany,
     ruleFill: RULE_FILL.mahogany(),
-    badge: "أهلاً بك في تَـــلاقِ",
+    // لا وسم: بطاقة العضوية تحت الترويسة هي بطلة الرسالة، ووسمٌ فوقها
+    // يقول «أهلاً بك» يسبقها إلى معناها فيُضعف أثرها
+    badge: null,
     badgeBg: BRAND.mahogany,
     badgeColor: "#ffffff",
     note: "احتفظ بهذه الرسالة: فيها بياناتك كما سُجِّلت عندنا. إن وجدت فيها خطأً، صحّحه من صفحة «بياناتي» داخل المنصة.",
@@ -150,7 +152,6 @@ const VARIANT_STYLE: Record<
 const KIND_VARIANT: Record<string, EmailVariant> = {
   // التذاكر والطلبات — عمل له مهلة
   "تذكرة جديدة": "ticket",
-  "تأكيد تذكرة": "ticket",
   "تصعيد تذكرة": "ticket",
   "حل تذكرة": "ticket",
   "تذكير تذكرة": "ticket",
@@ -160,7 +161,6 @@ const KIND_VARIANT: Record<string, EmailVariant> = {
 
   // ما يُفرح
   "اجتياز الاختبار": "celebration",
-  "الاعتماد النهائي": "celebration",
   "شهادة إتمام": "celebration",
   "إعادة فتح الاختبار": "celebration",
 
@@ -172,7 +172,6 @@ const KIND_VARIANT: Record<string, EmailVariant> = {
 
   // الانضمام والوداع
   "ترحيب": "welcome",
-  "دعوة للمشاركة": "share",
   "ختام التجربة": "farewell",
 
   // الأمن
