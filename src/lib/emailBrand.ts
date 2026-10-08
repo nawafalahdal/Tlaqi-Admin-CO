@@ -232,6 +232,13 @@ export function wrapEmail(opts: {
   bodyHtml: string;
   preheader?: string;
   variant?: EmailVariant;
+  /** ترويسة بديلة لهذه الرسالة وحدها.
+   *
+   *  الخط العربي العريض لا يصل في البريد: Gmail يُسقط @font-face، فتُرسم
+   *  العناوين الكبيرة بخط النظام — وهو قبيح في الأحجام الكبيرة. والحلّ
+   *  أن يُرسم العنوان الثابت صورةً بخط الهوية نفسه. ولأنه ثابت لا
+   *  متغيّر، يصلح أن يكون صورة؛ ولأنه صورة، لا يقلبه الوضع الداكن. */
+  hero?: { src: string; width: number; height: number; alt: string };
 }) {
   const style = VARIANT_STYLE[opts.variant ?? "default"];
   // اليوزر يُكتب مرة واحدة تحت الأسماء ما دام موحّداً على كل المنصات؛
@@ -297,8 +304,8 @@ export function wrapEmail(opts: {
          الوحيدة التي تبقى بها هوية تَـــلاقِ كما هي في كل عميل بريد. -->
     <tr>
       <td align="center" bgcolor="${BRAND.temptress}" style="background-color:${BRAND.temptress};font-size:0;line-height:0">
-        <img src="${assetUrl("/brand/email-header.png")}" width="600" height="127"
-             alt="تَـــلاقِ — TLAQI · ${esc(TAGLINE)}"
+        <img src="${assetUrl(opts.hero?.src ?? "/brand/email-header.png")}" width="${opts.hero?.width ?? 600}" height="${opts.hero?.height ?? 127}"
+             alt="${esc(opts.hero?.alt ?? `تَـــلاقِ — TLAQI · ${TAGLINE}`)}"
              style="display:block;border:0;width:100%;max-width:600px;height:auto">
       </td>
     </tr>

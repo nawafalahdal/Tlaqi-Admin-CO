@@ -68,7 +68,14 @@ async function withoutClosedRecipients(recipients: string[]): Promise<string[]> 
   }
 }
 
-async function send(to: string | string[], subject: string, html: string, kind = "عام") {
+async function send(
+  to: string | string[],
+  subject: string,
+  html: string,
+  kind = "عام",
+  /** ترويسة بديلة لهذه الرسالة — تمرّ كما هي إلى الغلاف */
+  hero?: { src: string; width: number; height: number; alt: string }
+) {
   const all = Array.isArray(to) ? to.filter(Boolean) : [to].filter(Boolean);
   if (all.length === 0) return { skipped: true };
 
@@ -94,6 +101,7 @@ async function send(to: string | string[], subject: string, html: string, kind =
       // التصميم يُشتقّ من وسم النوع الذي تمرّره كل دالة أصلاً، فلا دالة
       // تختار تصميمها ولا تنساه — وما لا وسم له يأخذ العام
       variant: variantForKind(kind),
+      hero,
     });
     await resend.emails.send({
       from: FROM,
@@ -578,18 +586,15 @@ export type WelcomeEmailOpts = {
   occasion?: "approved" | "resend";
 };
 
-/** بطاقة العضوية — قلب الرسالة، ومصمَّمة لتُصوَّر وتُنشر.
+/** بطاقة العضوية — تُصوَّر وتُنشر.
  *
- *  أول ما يفعله من يُعتمد أن يلتقط صورة للخبر وينشره. فإن كانت الرسالة
- *  فقراتٍ متراصّة خرجت الصورة باهتة ولم تُنشر. فالبطاقة مستقلّة بنفسها:
- *  تُقصّ وحدها فتبقى مفهومة — فيها الاسم كبيراً والصفة والتاريخ، وحدٌّ
- *  سميك يُغني عن قصٍّ دقيق.
+ *  أول ما يفعله من يُعتمد أن يصوّر الخبر وينشره، فإن كانت الرسالة فقراتٍ
+ *  متراصّة خرجت الصورة باهتة. فالبطاقة مستقلّة بنفسها: تُقصّ وحدها
+ *  فتبقى مفهومة، وحدٌّ سميك يُغني عن قصٍّ دقيق.
  *
- *  **ولونها فاتح لا داكن، وهذا مقصود.** البطاقة فيها اسمٌ متغيّر، فلا
- *  يمكن رسمها صورةً كالترويسة. وما بقي نصّاً حيّاً يقلبه Gmail في الوضع
- *  الداكن مع خلفيته: فلو كانت داكنة لانقلبت وردية — وهو ما رُفض من قبل.
- *  أما الفاتحة فتنقلب إلى داكنٍ زيتوني يبقى داخل الهوية. فالاختيار بين
- *  وردي في نصف الحالات وداكنٍ على لوننا، لا بين داكن ودائم. */
+ *  **ولونها فاتح لا داكن، وهذا مقصود.** فيها اسمٌ متغيّر فلا تُرسم صورةً
+ *  كالترويسة، وما بقي نصّاً حيّاً يقلبه Gmail مع خلفيته. فالداكنة تنقلب
+ *  وردية — وهو ما رُفض — أما الفاتحة فتنقلب داكناً زيتونياً داخل الهوية. */
 function membershipCard(opts: {
   fullName: string;
   roleLabel: string;
@@ -604,23 +609,20 @@ function membershipCard(opts: {
     )
     .join("");
 
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px">
-    <tr><td align="center" bgcolor="#EEF6DF" style="background-color:#EEF6DF;border:2px solid #341D2B;border-radius:18px;padding:30px 24px">
-      <div style="font-family:Tahoma,Arial,sans-serif;font-size:13px;font-weight:bold;letter-spacing:3px;color:#C34900">تهانينا</div>
-      <div style="font-family:Tahoma,Arial,sans-serif;font-size:28px;font-weight:bold;line-height:1.4;color:#1A1023;margin:10px 0 4px">${esc(opts.fullName)}</div>
-      <div style="font-family:Tahoma,Arial,sans-serif;font-size:15px;line-height:1.8;color:rgba(26,16,35,0.72);margin:0 0 16px">أنت الآن أحد أعضاء عائلة تَـــلاقِ</div>
-      <div style="margin:0 0 4px">${chips}</div>
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px">
+    <tr><td align="center" bgcolor="#EEF6DF" style="background-color:#EEF6DF;border:2px solid #341D2B;border-radius:18px;padding:32px 24px">
+      <div style="font-family:Tahoma,Arial,sans-serif;font-size:32px;font-weight:bold;line-height:1.4;color:#1A1023;margin:0 0 6px">${esc(opts.fullName)}</div>
+      <div style="margin:14px 0 4px">${chips}</div>
       ${
         opts.joinedAt
-          ? `<div style="font-family:Tahoma,Arial,sans-serif;font-size:12px;color:rgba(26,16,35,0.5);margin-top:8px">عضوٌ منذ ${esc(formatDate(opts.joinedAt))}</div>`
+          ? `<div style="font-family:Tahoma,Arial,sans-serif;font-size:12px;color:rgba(26,16,35,0.5);margin-top:10px">عضوٌ منذ ${esc(formatDate(opts.joinedAt))}</div>`
           : ""
       }
-      <div style="font-family:Tahoma,Arial,sans-serif;font-size:12px;font-weight:bold;letter-spacing:1px;color:rgba(26,16,35,0.45);margin-top:18px">نلتقي · نفكّر · نصنع</div>
     </td></tr>
   </table>`;
 }
 
-/** متن البريد الترحيبي.
+/** متن رسالة الانضمام.
  *
  *  رسالة واحدة تقوم مقام ثلاث: تُعلن الاعتماد، وتُرحّب، وتحمل عدّة
  *  المشاركة. كانت ثلاث رسائل تصل متتابعة في دقائق — وثلاثُ رسائل عن
@@ -648,7 +650,7 @@ export function welcomeEmailBody(opts: WelcomeEmailOpts): string {
       ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 0">
           <tr><td bgcolor="#FAF8F4" style="background-color:#FAF8F4;border:1px solid rgba(52,29,43,0.14);border-radius:12px;padding:16px 18px">
             <p style="margin:0 0 6px;font-size:14px;font-weight:bold;color:#1A1023">شاركنا الخبر</p>
-            <p style="margin:0 0 12px;font-size:13px;line-height:1.9;color:rgba(26,16,35,0.65)">صوّر البطاقة أعلاه وانشرها إن أحببت — واذكرنا معك. ولا شيء من هذا إلزامي.</p>
+            <p style="margin:0 0 12px;font-size:13px;line-height:1.9;color:rgba(26,16,35,0.65)">صوّر البطاقة أعلاه وانشرها — واذكرنا معك.</p>
             ${accounts ? `<p style="margin:0 0 10px">${accounts}</p>` : ""}
             ${
               opts.hashtag
@@ -667,37 +669,38 @@ export function welcomeEmailBody(opts: WelcomeEmailOpts): string {
         joinedAt: opts.joinedAt,
       })}
 
-      <p style="margin:0 0 16px">${
+      <p style="margin:0 0 18px;font-size:17px;line-height:2;color:#1A1023;text-align:center">${
         approved
-          ? "اعتُمدت رسمياً، وصار لك مكانٌ مُثبَت بيننا. شكراً أنك اخترت أن يكون وقتك معنا — تَـــلاقِ ليست منصةً تُدار من بعيد، هي فريقٌ يلتقي ويفكّر ويصنع، وأنت منه الآن."
-          : "هذه نسخةٌ من بطاقتك ورسالة ترحيبك، أرسلناها بطلبك. مكانك بيننا مُثبَت كما هو."
+          ? "أنت اليوم جزءٌ من هذه المنظومة — لا اسماً في قائمة.<br>ما تصنعه هنا يُرى، وما تحتاجه يُسمع."
+          : "هذه نسخةٌ من بطاقتك، أرسلناها بطلبك.<br>مكانك بيننا مُثبَت كما هو."
       }</p>
 
       ${
         facts
-          ? `<p style="margin:0 0 6px">وهذا سجلّك كما هو عندنا:</p>
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 20px;border:1px solid rgba(52,29,43,0.12);border-radius:12px;background:#FAF8F4">
-        <tr><td style="padding:10px 16px">
+          ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px;border:1px solid rgba(52,29,43,0.12);border-radius:12px;background:#FAF8F4">
+        <tr><td style="padding:12px 18px">
           <table role="presentation" cellpadding="0" cellspacing="0" border="0">${facts}</table>
         </td></tr>
       </table>`
           : ""
       }
 
-      <p style="margin:0 0 16px">كل ما تحتاجه — تذاكرك، إعلانات الفريق، بياناتك — في مكان واحد:</p>
-      <p style="margin:0 0 20px"><a href="${opts.portalUrl}" style="display:inline-block;background:#341D2B;color:#EEF6DF;text-decoration:none;font-weight:bold;font-size:14px;padding:12px 26px;border-radius:999px">ادخل إلى منصّتك</a></p>
-      <p style="margin:0;font-size:13px;color:rgba(26,16,35,0.6)">${
+      <p style="margin:0 0 22px;text-align:center"><a href="${opts.portalUrl}" style="display:inline-block;background:#341D2B;color:#EEF6DF;text-decoration:none;font-weight:bold;font-size:15px;padding:14px 34px;border-radius:999px">ادخل إلى منصّتك</a></p>
+
+      <p style="margin:0;font-size:13px;line-height:1.9;color:rgba(26,16,35,0.6)">${
         approved
-          ? "تدخل بنفس كلمة المرور التي اخترتها — لم يُصدر لك رمز جديد. وإن احتجت شيئاً، ارفع تذكرة: هي قناتنا الرسمية، ولها مهلة يُحاسَب عليها من يتأخّر."
-          : "وإن احتجت شيئاً، ارفع تذكرة — هي قناتنا الرسمية، ولها مهلة يُحاسَب عليها من يتأخّر."
+          ? "تدخل بنفس كلمة المرور التي اخترتها — لم يُصدر لك رمز جديد. وإن احتجت شيئاً، ارفع تذكرة: هي قناتنا الرسمية."
+          : "وإن احتجت شيئاً، ارفع تذكرة — هي قناتنا الرسمية."
       }</p>
       ${shareBlock}
     </div>`;
 }
 
 export function welcomeEmailSubject(fullName: string, occasion: "approved" | "resend" = "approved") {
+  // العنوان يقول ما تقوله الترويسة: من يرى «أهلاً بك» في صندوقه ثم يفتح
+  // فيجد العبارة نفسها كبيرةً يشعر برسالة واحدة لا باثنتين
   return occasion === "approved"
-    ? `تهانينا ${fullName} — اعتُمدت في تَـــلاقِ`
+    ? `أهلاً بك في عائلة تَـــلاقِ، ${fullName}!`
     : `بطاقتك في تَـــلاقِ، ${fullName}`;
 }
 
@@ -705,12 +708,20 @@ export function welcomeEmailSubject(fullName: string, occasion: "approved" | "re
  *
  *  هي الموضع الوحيد الذي يقرأ فيه الواحد اسمه ومهمته كما سُجِّلت، فيعرف
  *  أن له مكاناً مُثبَتاً لا مجرّد حساب. */
+export const WELCOME_HERO = {
+  src: "/brand/email-hero-welcome.png",
+  width: 600,
+  height: 291,
+  alt: "أهلاً بك في عائلة تَـــلاقِ",
+};
+
 export async function sendWelcomeEmail(opts: WelcomeEmailOpts & { to: string }) {
   return send(
     opts.to,
     welcomeEmailSubject(opts.fullName, opts.occasion ?? "approved"),
     welcomeEmailBody(opts),
-    "ترحيب"
+    "ترحيب",
+    WELCOME_HERO
   );
 }
 
