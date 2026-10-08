@@ -22,6 +22,7 @@ type TicketData = {
   stage: string;
   stageDueAt: string;
   resolutionNote: string | null;
+  linkUrl: string | null;
   memberName: string;
   targetDepartmentName: string;
 };
@@ -75,6 +76,16 @@ export function TicketCard({
       </div>
       <p className="text-sm font-bold">{ticket.subject}</p>
       <p className="mt-1 text-sm text-black/60">{ticket.description}</p>
+      {ticket.linkUrl && (
+        <a
+          href={ticket.linkUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-flex min-h-11 items-center rounded-xl border border-black/10 px-3.5 text-xs font-semibold text-black/70 hover:bg-black/[0.03]"
+        >
+          {t.ticketCard.openLink}
+        </a>
+      )}
       <p className="mt-2 text-xs text-black/40">
         {t.ticketCard.from}: {ticket.memberName} — {t.ticketCard.to}: {ticket.targetDepartmentName}
       </p>

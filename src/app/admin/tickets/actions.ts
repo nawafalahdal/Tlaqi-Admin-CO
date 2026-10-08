@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { raiseTicket, escalateTicketNow, respondToTicket, canRespondToTicket } from "@/lib/tickets";
 import { safeErrorMessage } from "@/lib/safeError";
+import { isSafeHttpUrl } from "@/lib/calendar";
 
 const TICKET_ROLES = ["super_admin", "executive", "operations_officer", "department_admin"];
 
@@ -22,9 +23,14 @@ export async function raiseAdminTicketAction(
   const subject = String(formData.get("subject") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const target = String(formData.get("target") ?? "");
+  const linkUrl = String(formData.get("linkUrl") ?? "").trim();
 
   if (!subject || !description) return { error: "الموضوع والتفاصيل مطلوبان", success: false };
   if (!target) return { error: "اختر وجهة التذكرة", success: false };
+  // نصٌّ ليس رابطاً في موضع يُنقر يُربك قارئه
+  if (linkUrl && !isSafeHttpUrl(linkUrl)) {
+    return { error: "الرابط المرفق غير صالح — يبدأ بـ https://", success: false };
+  }
 
   // الوجهة تصل كقيمة واحدة مسبوقة بنوعها، فلا يحتمل النموذج وجهتين معاً
   const [kind, id] = target.split(":");
@@ -37,6 +43,7 @@ export async function raiseAdminTicketAction(
       targetMemberId: kind === "member" ? id : undefined,
       subject,
       description,
+      linkUrl: linkUrl || null,
     });
     revalidatePath("/admin/tickets");
     revalidatePath("/admin");

@@ -343,6 +343,7 @@ export default async function DepartmentBoardPage({
                     stage: tk.stage,
                     stageDueAt: tk.stageDueAt.toISOString(),
                     resolutionNote: tk.resolutionNote,
+                    linkUrl: tk.linkUrl,
                     memberName: ticketAuthor(tk).name,
                     targetDepartmentName: ticketTargetLabel(tk),
                   }}

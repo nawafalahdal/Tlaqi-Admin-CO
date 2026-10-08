@@ -176,6 +176,8 @@ export async function raiseTicket(opts: {
   targetMemberId?: string;
   subject: string;
   description: string;
+  /** رابط مرفق اختياري — منشور أو ملف أو اجتماع يخصّ التذكرة */
+  linkUrl?: string | null;
 }) {
   if (!opts.memberId && !opts.raisedByUserId) throw new Error("التذكرة تحتاج صاحباً");
   const targets = [opts.targetDepartmentId, opts.targetUserId, opts.targetMemberId].filter(Boolean);
@@ -192,6 +194,7 @@ export async function raiseTicket(opts: {
       targetDepartmentId: opts.targetDepartmentId ?? null,
       targetUserId: opts.targetUserId ?? null,
       targetMemberId: opts.targetMemberId ?? null,
+      linkUrl: opts.linkUrl || null,
       stage: "department",
       stageDueAt,
     },
@@ -209,6 +212,7 @@ export async function raiseTicket(opts: {
       memberName: author.name,
       dueDate: stageDueAt,
       portalUrl: `${baseUrl()}/admin/tickets`,
+      linkUrl: created.linkUrl,
     });
   }
   if (author.email) {

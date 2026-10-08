@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { isLeadership } from "@/lib/announcements";
 import { sweepTicketEscalation, TICKET_STAGE_LABELS, TICKET_INCLUDE, ticketAuthor, ticketTargetLabel, ticketVisibilityWhere, canRespondToTicket } from "@/lib/tickets";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
@@ -50,7 +51,11 @@ export default async function TicketsPage() {
   ]);
 
   const targets: TicketTargetOption[] = [
-    ...departments.map((d) => ({
+    // القسم الاستثنائي لا يُوجَّه إليه إلا من الإدارة العليا: أعضاؤه
+    // جهات تواصل تتبعها، لا قسمٌ يُراسَل من كل أحد
+    ...departments
+      .filter((d) => !d.leadershipOnly || isLeadership(session.user.role))
+      .map((d) => ({
       value: `dept:${d.id}`,
       label: d.name,
       group: tt.groupDepartments,
@@ -121,6 +126,7 @@ export default async function TicketsPage() {
                     stage: x.stage,
                     stageDueAt: x.stageDueAt.toISOString(),
                     resolutionNote: x.resolutionNote,
+                    linkUrl: x.linkUrl,
                     memberName: ticketAuthor(x).name,
                     targetDepartmentName: ticketTargetLabel(x),
                   }}

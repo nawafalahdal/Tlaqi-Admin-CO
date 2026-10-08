@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { isLeadership } from "@/lib/announcements";
 import { sweepOverdueRequests, sweepExpiredCandidateAccounts } from "@/lib/workflow";
 import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, ticketVisibilityWhere } from "@/lib/tickets";
 import {
@@ -119,7 +120,11 @@ export default async function AdminPage() {
   ]);
 
   const ticketTargets: TicketTargetOption[] = [
-    ...departments.map((d) => ({
+    // القسم الاستثنائي لا يُوجَّه إليه إلا من الإدارة العليا: أعضاؤه
+    // جهات تواصل تتبعها، لا قسمٌ يُراسَل من كل أحد
+    ...departments
+      .filter((d) => !d.leadershipOnly || isLeadership(session.user.role))
+      .map((d) => ({
       value: `dept:${d.id}`,
       label: d.name,
       group: dict.ticketsPage.groupDepartments,
@@ -286,6 +291,7 @@ export default async function AdminPage() {
                     stage: t.stage,
                     stageDueAt: t.stageDueAt.toISOString(),
                     resolutionNote: t.resolutionNote,
+                    linkUrl: t.linkUrl,
                     memberName: ticketAuthor(t).name,
                     targetDepartmentName: ticketTargetLabel(t),
                   }}

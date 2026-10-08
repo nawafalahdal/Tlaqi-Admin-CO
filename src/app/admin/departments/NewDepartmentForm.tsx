@@ -28,10 +28,14 @@ export function NewDepartmentForm({ theme }: { theme: ReturnType<typeof themeFro
   const [open, setOpen] = useState(false);
   const [color, setColor] = useState(SWATCHES[0]);
   const [handledSuccess, setHandledSuccess] = useState(false);
+  const [leadershipOnly, setLeadershipOnly] = useState(false);
 
   if (state.success !== handledSuccess) {
     setHandledSuccess(state.success);
-    if (state.success) setOpen(false);
+    if (state.success) {
+      setOpen(false);
+      setLeadershipOnly(false);
+    }
   }
 
   if (!open) {
@@ -98,7 +102,27 @@ export function NewDepartmentForm({ theme }: { theme: ReturnType<typeof themeFro
         {t.preview}
       </div>
 
-      <p className="text-xs leading-relaxed text-black/45">{t.trackNote}</p>
+      {/* القسم الاستثنائي: ممثل قانوني أو مستشار أو جهة خارجية تتبع
+          الإدارة العليا. ليس فريق عملٍ يُدار بتذاكر القسم وإعلاناته. */}
+      <label className="flex items-start gap-2.5 rounded-xl bg-black/[0.03] px-3.5 py-3 text-sm">
+        <input
+          type="checkbox"
+          name="leadershipOnly"
+          checked={leadershipOnly}
+          onChange={(e) => setLeadershipOnly(e.target.checked)}
+          className="mt-0.5 h-4 w-4 shrink-0"
+        />
+        <span>
+          <span className="font-medium text-black/75">{t.leadershipOnlyLabel}</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-black/45">
+            {t.leadershipOnlyHint}
+          </span>
+        </span>
+      </label>
+
+      <p className="text-xs leading-relaxed text-black/45">
+        {leadershipOnly ? t.trackNoteExceptional : t.trackNote}
+      </p>
 
       {state.error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>

@@ -71,12 +71,21 @@ export default async function DepartmentsIndexPage() {
                     aria-hidden
                   />
                   <div className="min-w-0 flex-1">
-                    <h2 className="text-sm font-bold">{d.name}</h2>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-sm font-bold">{d.name}</h2>
+                      {d.leadershipOnly && (
+                        <span className="rounded-full bg-[#341D2B] px-2.5 py-0.5 text-[11px] font-bold text-[#EEF6DF]">
+                          {td.exceptionalBadge}
+                        </span>
+                      )}
+                    </div>
                     <p className="mt-0.5 text-xs text-black/45">
-                      {td.membersCount}: {d._count.members} · {td.leadsCount}: {d._count.admins} ·{" "}
-                      {td.questionsCount}: {questionCount}
+                      {td.membersCount}: {d._count.members} · {td.leadsCount}: {d._count.admins}
+                      {/* القسم الاستثنائي بلا بنك أسئلة، فعرض عدّاده صفراً
+                          يوحي بنقصٍ ليس فيه */}
+                      {!d.leadershipOnly && ` · ${td.questionsCount}: ${questionCount}`}
                     </p>
-                    {questionCount === 0 && (
+                    {questionCount === 0 && !d.leadershipOnly && (
                       <p className="mt-1 text-xs font-semibold text-[#9A2E1C]">{td.emptyTrack}</p>
                     )}
                   </div>

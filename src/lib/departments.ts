@@ -44,6 +44,10 @@ export async function createDepartment(opts: {
   name: string;
   colorHex: string;
   createdByName: string;
+  /** قسم استثنائي يتبع الإدارة العليا: ممثل قانوني، مستشار، جهة خارجية.
+   *  أعضاؤه ليسوا فريق عملٍ يُدار بتذاكر القسم وإعلاناته، بل جهات تواصل
+   *  وترتيبٍ تخصّ الإدارة العليا وحدها. */
+  leadershipOnly?: boolean;
 }) {
   const name = opts.name.trim();
   const colorHex = opts.colorHex.trim();
@@ -56,20 +60,27 @@ export async function createDepartment(opts: {
 
   const slug = await uniqueSlug(slugify(name));
 
+  const leadershipOnly = Boolean(opts.leadershipOnly);
   const department = await prisma.department.create({
-    data: { name, slug, colorHex },
+    data: { name, slug, colorHex, leadershipOnly },
   });
 
-  await prisma.testTrack.create({
-    data: { scope: "department_member", departmentId: department.id },
-  });
+  // القسم الاستثنائي لا يُدعى إليه باختبار: من يُضاف إليه يُختار لا
+  // يُمتحَن. فلا بنك أسئلة له — وبنكٌ فارغ لا يُستعمل أبداً عبءٌ لا فائدة فيه.
+  if (!leadershipOnly) {
+    await prisma.testTrack.create({
+      data: { scope: "department_member", departmentId: department.id },
+    });
+  }
 
   await appendMemberEvent({
     fullName: opts.createdByName,
     email: "",
     roleOrDepartment: name,
-    event: "إنشاء قسم جديد",
-    details: `اللون: ${colorHex} — المعرّف: ${slug} — أُنشئ معه بنك أسئلة فارغ لأعضائه`,
+    event: leadershipOnly ? "إنشاء قسم استثنائي (الإدارة العليا)" : "إنشاء قسم جديد",
+    details: leadershipOnly
+      ? `اللون: ${colorHex} — المعرّف: ${slug} — قسم استثنائي يتبع الإدارة العليا، بلا بنك أسئلة`
+      : `اللون: ${colorHex} — المعرّف: ${slug} — أُنشئ معه بنك أسئلة فارغ لأعضائه`,
     at: new Date(),
   });
 

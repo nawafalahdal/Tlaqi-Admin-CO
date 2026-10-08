@@ -216,6 +216,7 @@ export async function sendTicketCreatedEmail(opts: {
   memberName: string;
   dueDate: Date;
   portalUrl: string;
+  linkUrl?: string | null;
 }) {
   return send(
     opts.to,
@@ -224,6 +225,7 @@ export async function sendTicketCreatedEmail(opts: {
       <p>رفع العضو <strong>${esc(opts.memberName)}</strong> تذكرة جديدة:</p>
       <p><strong>${esc(opts.subject)}</strong></p>
       <p>${esc(opts.description)}</p>
+      ${opts.linkUrl ? `<p style="font-size:14px">الرابط المرفق: <a href="${esc(opts.linkUrl)}" style="color:#8C3600;font-weight:bold" dir="ltr">${esc(opts.linkUrl)}</a></p>` : ""}
       <p>المهلة للرد: ${formatDate(opts.dueDate)} — إذا لم يُستجب خلالها تتصعّد التذكرة تلقائياً.</p>
       <p><a href="${opts.portalUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">فتح المنصة</a></p>
     </div>`,

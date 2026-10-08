@@ -19,9 +19,21 @@ export async function createDepartmentAction(
 
   const name = String(formData.get("name") ?? "");
   const colorHex = String(formData.get("colorHex") ?? "");
+  const leadershipOnly = formData.get("leadershipOnly") === "on";
+
+  // القسم الاستثنائي يتبع الإدارة العليا، فإنشاؤه بيدها وحدها —
+  // ومسؤول التشغيل خارجها هنا
+  if (leadershipOnly && session.user.role !== "super_admin" && session.user.role !== "executive") {
+    return { error: "القسم الاستثنائي يُنشئه المؤسس أو المدير التنفيذي", success: false };
+  }
 
   try {
-    await createDepartment({ name, colorHex, createdByName: session.user.name ?? "—" });
+    await createDepartment({
+      name,
+      colorHex,
+      leadershipOnly,
+      createdByName: session.user.name ?? "—",
+    });
     revalidatePath("/admin/departments");
     revalidatePath("/admin");
     return { error: null, success: true };
