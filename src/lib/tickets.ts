@@ -221,23 +221,64 @@ export async function raiseTicket(opts: {
   return created;
 }
 
-/** يحدّث حالة التذكرة (قيد المعالجة / تم الحل) مع ملاحظة — يرسل إشعاراً لصاحبها عند الحل */
+/** يحدّث حالة التذكرة (قيد المعالجة / تم الحل) مع ملاحظة.
+ *
+ *  **القاعدة التي تُحكَم بالقاعدة لا بالتطبيق:** الإغلاق يُكتب بـ
+ *  `updateMany` مشروطاً بأن التذكرة ليست مُغلقة أصلاً. فالضغطتان
+ *  المتسارعتان على «تم الحل» — أو نقرتان على زرٍّ بطيء — تمرّان على
+ *  الشرط مرّةً واحدة: الثانية تُصيب صفراً من الصفوف فلا تُرسل رسالةً
+ *  ثانية ولا تَكتب `resolvedAt` جديداً فوق القديم. ولو كان الحرس في
+ *  التطبيق («اقرأ ثم تحقّق ثم اكتب») لمرّت الاثنتان معاً.
+ *
+ *  **وإعادة الفتح لا تقع ضمناً:** كانت `status: "in_progress"` على
+ *  تذكرةٍ مُغلقة تُعيد فتحها وتمسح `resolvedAt` بلا إذنٍ ولا أثر. فصارت
+ *  تُرفض إلا بـ`reopen: true` صريحة، وتُسجَّل بعدّادها وتاريخها. */
 export async function respondToTicket(opts: {
   ticketId: string;
   status: "in_progress" | "resolved";
   resolutionNote?: string;
-}) {
-  const ticket = await prisma.ticket.update({
+  /** من يُجري التصرّف — يُنسَب إليه الإغلاق في السجل */
+  actorUserId?: string | null;
+  /** إعادة فتح تذكرةٍ مُغلقة: تصرّفٌ صريح لا أثرٌ جانبي */
+  reopen?: boolean;
+}): Promise<
+  | { ok: true; ticket: FullTicket; changed: boolean }
+  | { ok: false; reason: string }
+> {
+  const before = await prisma.ticket.findUnique({
     where: { id: opts.ticketId },
-    data: {
-      status: opts.status,
-      resolutionNote: opts.resolutionNote,
-      resolvedAt: opts.status === "resolved" ? new Date() : null,
-    },
     include: TICKET_INCLUDE,
   });
+  if (!before) return { ok: false, reason: "التذكرة غير موجودة" };
+
+  const alreadyResolved = before.status === "resolved";
 
   if (opts.status === "resolved") {
+    // الشرط في `where`: الصفّ المُغلق لا يُطابَق، فلا يُكتب ولا يُراسَل
+    const at = new Date();
+    const written = await prisma.ticket.updateMany({
+      where: { id: opts.ticketId, status: { not: "resolved" } },
+      data: {
+        status: "resolved",
+        resolutionNote: opts.resolutionNote,
+        resolvedAt: at,
+        resolvedByUserId: opts.actorUserId ?? null,
+      },
+    });
+
+    const ticket = await prisma.ticket.findUniqueOrThrow({
+      where: { id: opts.ticketId },
+      include: TICKET_INCLUDE,
+    });
+
+    if (written.count === 0) {
+      // كانت مُغلقة: نُطابق الشيت على الحالة الحقيقية ولا نُرسل شيئاً
+      await syncTicketSheetRow(ticket);
+      return { ok: true, ticket, changed: false };
+    }
+
+    // إشعار الحل يذهب لصاحبها — ومن رفعها هو من يُخبَر بحلّها، فاوندراً
+    // كان أو عضواً. وهذا ليس «بريداً تشغيلياً للفاوندر»: هو صاحب الطلب.
     const author = ticketAuthor(ticket);
     if (author.email) {
       await sendTicketResolvedEmail({
@@ -246,10 +287,38 @@ export async function respondToTicket(opts: {
         resolutionNote: opts.resolutionNote ?? "تم حل التذكرة.",
       });
     }
+
+    await syncTicketSheetRow(ticket);
+    return { ok: true, ticket, changed: true };
   }
 
+  // «قيد المعالجة» على تذكرةٍ مُغلقة = إعادة فتح، ولا تمرّ ضمناً
+  if (alreadyResolved && !opts.reopen) {
+    return { ok: false, reason: "التذكرة مُغلقة — إعادة الفتح تحتاج إجراءً صريحاً" };
+  }
+
+  const ticket = await prisma.ticket.update({
+    where: { id: opts.ticketId },
+    data: {
+      status: "in_progress",
+      resolutionNote: opts.resolutionNote,
+      ...(alreadyResolved
+        ? {
+            // تُمحى ختوم الإغلاق لأنها لم تعد صحيحة، ويُسجَّل أن فتحاً وقع
+            resolvedAt: null,
+            resolvedByUserId: null,
+            reopenCount: { increment: 1 },
+            reopenedAt: new Date(),
+            // وتعود مهلتها من اليوم: مهلةٌ انقضت وهي مُغلقة ليست تأخّراً
+            stageDueAt: addDays(new Date(), TICKET_STAGE_DAYS),
+          }
+        : {}),
+    },
+    include: TICKET_INCLUDE,
+  });
+
   await syncTicketSheetRow(ticket);
-  return ticket;
+  return { ok: true, ticket, changed: true };
 }
 
 /** يُشغَّل عند كل تحميل للوحات — يصعّد أي تذكرة تجاوزت مهلتها دون حل:
@@ -273,11 +342,43 @@ export async function sweepTicketEscalation() {
     const isFinal = next === "founder_escalation";
     const nextDue = isFinal ? ticket.stageDueAt : addDays(new Date(), TICKET_STAGE_DAYS);
 
-    const updated = await prisma.ticket.update({
-      where: { id: ticket.id },
+    // **هذا الشرط هو إصلاح العطب الذي أبلغت عنه.** كان التصعيد
+    // `update` بالمعرّف وحده. وبين `findMany` أعلى الدالة وهذه السطور
+    // تمرّ انتظاراتٌ طويلة — جمعُ المستلمين، ثم إرسال بريدٍ قد يأخذ
+    // ثوانٍ لكل تذكرة. فمن أغلق المدير التنفيذي أو الفاوندر تذكرتَه
+    // في تلك الثواني، كان الكنس يُصعّدها بعد إغلاقها: يُقدّم `stage`
+    // ويُجدّد `stageDueAt`.
+    //
+    // والضرر ليس في المرحلة وحدها: `syncTicketSheetRow` يحسب
+    // `isLate = resolved ? stage !== "department" : ...`. فتذكرةٌ
+    // أُغلقت في موعدها عند القسم تُقرأ في الإكسل **متأخّرة** و
+    // «أُغلقت في الوقت = لا» بعد أن يُقدّم الكنس مرحلتها. وهذا هو
+    // عَرَضُ «تذكرة أغلقها الفاوندر تظهر متأخّرة أو غير محلولة».
+    //
+    // فصار الشرط في `where` لا في الذاكرة: لا تُصعَّد إلا إن كانت
+    // **ما تزال** مفتوحة وما تزال في مرحلتها وما تزال متأخّرة. وإن
+    // تبدّل شيء من ذلك أصابت صفراً وتُركت وشأنها.
+    const advanced = await prisma.ticket.updateMany({
+      where: {
+        id: ticket.id,
+        status: { in: ["open", "in_progress"] },
+        stage: ticket.stage,
+        stageDueAt: { lt: new Date() },
+      },
       data: { stage: next, stageDueAt: nextDue },
+    });
+    if (advanced.count === 0) continue;
+
+    const updated = await prisma.ticket.findUniqueOrThrow({
+      where: { id: ticket.id },
       include: TICKET_INCLUDE,
     });
+    // حارسٌ ثانٍ قبل البريد: الإغلاق قد يقع بين الكتابة والإرسال أيضاً،
+    // ورسالة «تأخّرت تذكرتك» عن تذكرةٍ مُغلقة لا يُصلحها شيء بعد وصولها
+    if (updated.status === "resolved") {
+      await syncTicketSheetRow(updated);
+      continue;
+    }
 
     const recipients = await recipientsForStage(updated);
     if (recipients.length > 0) {

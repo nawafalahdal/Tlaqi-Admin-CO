@@ -149,6 +149,7 @@ model User {
   invitesIssued   Invite[] @relation("InvitedBy")
   ticketsRaised   Ticket[] @relation("TicketRaisedBy")
   ticketsAssigned Ticket[] @relation("TicketTargetUser")
+  ticketsResolved Ticket[] @relation("TicketResolvedBy")
 }
 
 /// دعوة مقفلة بالاسم والإيميل — لا تسجيل عام. targetRole يحدد المسار:
@@ -338,9 +339,18 @@ model Ticket {
   stageDueAt         DateTime
   resolutionNote     String?
   resolvedAt         DateTime?
+  /// من أغلقها — الإغلاق تصرّفٌ يُنسَب لصاحبه، لا حدثٌ بلا فاعل
+  resolvedByUserId   String?
+  resolvedByUser     User?        @relation("TicketResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+  /// إعادة الفتح: لا تقع إلا بتصرّفٍ صريح مُصرَّح به، ويُسجَّل كم مرّة
+  reopenCount        Int          @default(0)
+  reopenedAt         DateTime?
   sheetRow           Int?
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
+
+  // الكنس يسأل: من تأخّر وما يزال مفتوحاً؟ فيُجاب بفهرسٍ لا بمسحٍ كامل
+  @@index([status, stageDueAt])
 }
 
 /// جمهور الإعلان — يحدد من يراه على لوحته

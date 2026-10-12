@@ -83,7 +83,13 @@ export async function respondToTicketAction(
   // الردّ لصاحب المرحلة الحالية وحده، ولا يردّ أحد على تذكرة رفعها بنفسه
   if (!canRespondToTicket(ticket, session)) throw new Error("غير مصرح لك بهذا الإجراء");
 
-  await respondToTicket({ ticketId, status, resolutionNote });
+  const res = await respondToTicket({
+    ticketId,
+    status,
+    resolutionNote,
+    actorUserId: session.user.id,
+  });
+  if (!res.ok) throw new Error(res.reason);
   revalidatePath("/admin/tickets");
   revalidatePath("/admin");
 }

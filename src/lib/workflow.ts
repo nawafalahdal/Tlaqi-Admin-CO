@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/prisma";
+import { approverFor } from "@/lib/notify";
 import { clearFailedAttempts } from "@/lib/loginAttempts";
 import { appendApprovedMember, appendMemberEvent, appendTestResult, upsertMemberLifecycleRow, upsertAdminAccountRow } from "@/lib/googleSheets";
 import {
   sendCredentialsEmail,
-  sendTestPassedEmail,
+  sendAwaitingApprovalEmail,
   sendTestFailedEmail,
   sendMeetingOwnerEmail,
   sendWindowReminderEmail,
@@ -232,12 +233,24 @@ export async function submitTestAttempt(opts: { memberId: string; answers: Recor
   const roleLabel = ROLE_LABELS[updated.invite.targetRole] ?? updated.invite.targetRole;
 
   if (passed) {
-    await sendTestPassedEmail({
-      to: updated.email,
-      fullName: updated.fullName,
-      score,
-      roleLabel: updated.department?.name ?? roleLabel,
-    });
+    // **لا بريد للمرشّح هنا.** كان يصله «اجتزتَ الاختبار» وهو يقرأ
+    // نتيجته على الشاشة في اللحظة نفسها، ثم ينتظر الاعتماد بلا خبر —
+    // فيُراسَل مرّتين (نتيجة ثم اعتماد) وإحداهما تُخبره بما يعلم.
+    // والخبر الحقيقي هو الاعتماد، وله بطاقة الانضمام.
+    //
+    // والبريد الذي كان **ناقصاً** هو هذا: من يملك الاعتماد لا يعلم أن
+    // طلباً ينتظره. فصار يُخبَر هو — وحده — ليفعل ما لا يفعله غيره.
+    const approver = await approverFor(updated.departmentId);
+    if (approver.to.length > 0) {
+      await sendAwaitingApprovalEmail({
+        to: approver.to,
+        candidateName: updated.fullName,
+        candidateEmail: updated.email,
+        score,
+        scopeLabel: updated.department?.name ?? roleLabel,
+        portalUrl: `${baseUrl()}/admin`,
+      });
+    }
   } else if (updated.departmentId) {
     // الرسوب ليس نهاية الطريق: يُفتح طلب اجتماع شرح للقسم، ويُبلَّغ الطرفان
     // — المرشّح ليعرف خطوته التالية، والقسم لأنه من ينفّذ الاجتماع

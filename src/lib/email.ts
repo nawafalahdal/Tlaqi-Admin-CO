@@ -476,25 +476,43 @@ export async function sendMeetingReminderEmail(opts: {
 
 /** تهنئة فور اجتياز الاختبار — تُطمئن المرشّح أن نتيجته وصلت القيادة،
  *  فلا يبقى في فراغ بين الاختبار والقرار */
-export async function sendTestPassedEmail(opts: {
-  to: string;
-  fullName: string;
+/** «طلبٌ ينتظر اعتمادك» — للمعتمِد المختصّ وحده.
+ *
+ *  هذا هو البريد الذي كان ناقصاً: المرشّح كان يُراسَل بنتيجته (وهو
+ *  يقرأها على الشاشة)، ومن يملك اعتماده لا يُراسَل أصلاً — فيبقى الطلب
+ *  معلّقاً حتى يفتح أحدٌ اللوحة مصادفةً. فانعكس الأمر: يُخبَر من يفعل،
+ *  ولا يُخبَر من ينتظر. */
+export async function sendAwaitingApprovalEmail(opts: {
+  to: string | string[];
+  candidateName: string;
+  candidateEmail: string;
   score: number;
-  roleLabel: string;
+  scopeLabel: string;
+  portalUrl: string;
 }) {
   return send(
     opts.to,
-    `مبروك — اجتزت اختبار القبول (${opts.score}%)`,
+    `طلب انضمام ينتظر اعتمادك: ${opts.candidateName}`,
     `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>مرحباً ${esc(opts.fullName)}،</p>
-      <p style="font-size:17px"><strong>مبروك! اجتزت اختبار القبول بنتيجة ${opts.score}%.</strong></p>
-      <p>تقدّمت لصفة <strong>${esc(opts.roleLabel)}</strong>، ونتيجتك وصلت القيادة للاعتماد النهائي.</p>
-      <p>بمجرد اعتمادك تُفتح لك بوابتك كاملة <strong>بنفس كلمة المرور التي اخترتها</strong> — لن يُرسل لك رمز جديد.</p>
-      <p style="color:#777;font-size:12px">سيصلك إشعار فور صدور القرار.</p>
+      <p>أكمل مرشّحٌ تسجيله واجتاز اختباره، وينتظر اعتمادك:</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+        ${factRow("الاسم", opts.candidateName)}
+        ${factRow("البريد", opts.candidateEmail)}
+        ${factRow("الجهة", opts.scopeLabel)}
+        ${factRow("النتيجة", `${opts.score}%`)}
+      </table>
+      <p>لا تصل المرشّحَ رسالةُ ترحيبٍ حتى تعتمده — فالاعتماد هو ما يُنشئ حسابه.</p>
+      <p style="margin:22px 0">
+        <a href="${esc(opts.portalUrl)}"
+           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
+          افتح قائمة الاعتماد
+        </a>
+      </p>
     </div>`,
-    "اجتياز الاختبار"
+    "طلب ينتظر الاعتماد"
   );
 }
+
 
 /** إشعار عدم الاجتياز — يُصاغ كخطوة تالية لا كرفض: اجتماع شرح مجدول */
 export async function sendTestFailedEmail(opts: {
