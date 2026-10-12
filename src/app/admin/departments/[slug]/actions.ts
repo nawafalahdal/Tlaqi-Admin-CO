@@ -162,9 +162,10 @@ export async function issueCertificateAction(memberId: string): Promise<{ error:
   if (!allowed) return { error: "غير مصرح لك بهذا الإجراء" };
 
   try {
-    await issueCertificate(memberId);
+    const res = await issueCertificate(memberId);
     revalidatePath(`/admin/departments`);
-    return { error: null };
+    // صدرت الشهادة وتعذّر بريدها: يُقال صريحاً ليُعاد الضغط، لا يُقال «تمّ»
+    return { error: res.ok ? null : res.reason };
   } catch (err) {
     return { error: safeErrorMessage(err) };
   }

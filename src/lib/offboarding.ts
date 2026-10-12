@@ -3,6 +3,8 @@ import { appendMemberEvent } from "@/lib/googleSheets";
 import { sendExitEmail, sendCertificateEmail, sendFarewellEmail } from "@/lib/email";
 import { syncMemberLifecycleRow } from "@/lib/workflow";
 import { accountRoleLabel } from "@/lib/testTracks";
+import { certificateFor, certificateUrl } from "@/lib/certificate";
+import { appBaseUrl } from "@/lib/emailBrand";
 
 /** حوكمة التنحي.
  *
@@ -90,27 +92,68 @@ export async function stepDownMember(opts: {
   return { ok: true };
 }
 
-/** تسليم شهادة الإنهاء — خطوة من خطوتين قبل إغلاق التجربة */
-export async function markCertificateShared(memberId: string, byName: string) {
-  const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
-  if (member.certificateIssuedAt) return { ok: true as const };
+/** إصدار شهادة الإنهاء وتسليمها — خطوة من خطوتين قبل إغلاق التجربة.
+ *
+ *  والإصدار والتسليم حدثان لا حدث. كانت الدالة تختم `certificateIssuedAt`
+ *  ثم تُرسل، وترجع فوراً لو كان الختم موجوداً: فإن فشل البريد بقيت
+ *  الشهادة «مُسلَّمة» في السجل ولم تصل أبداً، ولا سبيل لإعادة المحاولة.
+ *
+ *  فصار الإصدار مرّةً واحدة — فلا تُصدَر شهادتان لمسيرةٍ واحدة ولا
+ *  يتبدّل رابطُها — والتسليم يُعاد ما لم ينجح. */
+export async function markCertificateShared(
+  memberId: string,
+  byName: string
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const member = await prisma.member.findUniqueOrThrow({
+    where: { id: memberId },
+    include: { department: true, invite: true },
+  });
+  // سُلِّمت ووصلت: لا إصدار ثانٍ ولا رسالة ثانية
+  if (member.certificateSentAt) return { ok: true };
 
   const at = new Date();
-  await prisma.member.update({
-    where: { id: memberId },
-    data: { certificateIssuedAt: at },
+  const issuedAt = member.certificateIssuedAt ?? at;
+  if (!member.certificateIssuedAt) {
+    await prisma.member.update({ where: { id: memberId }, data: { certificateIssuedAt: issuedAt } });
+  }
+
+  // الشهادة تُقرأ من السجل بعد الختم: الختم هو ما يجعلها موجودة أصلاً
+  const data = await certificateFor(memberId);
+  const sent = await sendCertificateEmail({
+    to: member.email,
+    fullName: member.fullName,
+    roleLabel: accountRoleLabel(member.invite.targetRole),
+    departmentName: member.department?.name ?? null,
+    mission: member.jobTitle,
+    period: data?.period ?? null,
+    certificateUrl: certificateUrl(memberId, appBaseUrl()),
   });
-  await sendCertificateEmail({ to: member.email, fullName: member.fullName });
+
+  if (sent.skipped) {
+    // الشهادة صدرت ورابطها يعمل، لكنها لم تصل — فتُعاد المحاولة لاحقاً
+    await appendMemberEvent({
+      fullName: member.fullName,
+      email: member.email,
+      event: "تعذّر تسليم الشهادة",
+      roleOrDepartment: await scopeOf(member),
+      details: `صدرت الشهادة ولم يصل بريدها — تُعاد المحاولة. سجّلها ${byName}`,
+      at,
+    });
+    await syncMemberLifecycleRow(memberId);
+    return { ok: false, reason: "صدرت الشهادة ولم يصل بريدها — أعد المحاولة" };
+  }
+
+  await prisma.member.update({ where: { id: memberId }, data: { certificateSentAt: at } });
   await appendMemberEvent({
     fullName: member.fullName,
     email: member.email,
     event: "تسليم شهادة الإنهاء",
     roleOrDepartment: await scopeOf(member),
-    details: `سجّلها ${byName}`,
+    details: `وصلت برابطها الموقَّع — سجّلها ${byName}`,
     at,
   });
   await syncMemberLifecycleRow(memberId);
-  return { ok: true as const };
+  return { ok: true };
 }
 
 /** تصميم الوداع — الخطوة الثانية. لا يرسل بريداً: هو عملٌ يُنجَز خارج

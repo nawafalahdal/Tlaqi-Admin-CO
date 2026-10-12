@@ -248,13 +248,45 @@ export async function sendExitEmail(opts: { to: string; fullName: string; reason
   );
 }
 
-export async function sendCertificateEmail(opts: { to: string; fullName: string }) {
+/** شهادة الشكر والتقدير — تصل برابطها لا بخبرها.
+ *
+ *  كانت الرسالة تُعلن «أُصدرت لك شهادة» ثم تنتهي: خبرٌ بلا شهادة. وصاحبها
+ *  خرج من الفريق وحسابه مُعطَّل، فلا يستطيع الدخول ليقرأها. فالرابط
+ *  الموقَّع هو الشهادة نفسها — يُفتح بلا تسجيل دخول، ويُطبَع PDF بضغطة.
+ *
+ *  والرسالة تذكر مدّته وقسمه ومهمته من السجل الرسمي: الشهادة وثيقةٌ،
+ *  ومن يقرأ بريدها يجب أن يرى ما فيها قبل أن يفتحها. */
+export async function sendCertificateEmail(opts: {
+  to: string;
+  fullName: string;
+  roleLabel?: string | null;
+  departmentName?: string | null;
+  mission?: string | null;
+  period?: { start: Date; end: Date } | null;
+  certificateUrl: string;
+}) {
+  const facts: [string, string][] = [];
+  if (opts.roleLabel?.trim()) facts.push(["الصفة", opts.roleLabel.trim()]);
+  if (opts.mission?.trim()) facts.push(["المهمة", opts.mission.trim()]);
+  if (opts.departmentName?.trim()) facts.push(["القسم", opts.departmentName.trim()]);
+  if (opts.period) {
+    facts.push(["المدّة", `${formatDate(opts.period.start)} — ${formatDate(opts.period.end)}`]);
+  }
+
   return send(
     opts.to,
-    "شهادة إتمام — تَـــلاقِ",
+    "شهادة شكر وتقدير — تَـــلاقِ",
     `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
       <p>مرحباً ${esc(opts.fullName)}،</p>
-      <p>يسعدنا إبلاغك بإصدار شهادة إتمام لك تقديراً لمسيرتك في منصة تَـــلاقِ.</p>
+      <p>تقديراً لمسيرتك في منصة تَـــلاقِ، صدرت لك شهادة شكر وتقدير موقَّعة.</p>
+      ${facts.length ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:18px 0">${facts.map(([k, v]) => factRow(k, v)).join("")}</table>` : ""}
+      <p style="margin:22px 0">
+        <a href="${esc(opts.certificateUrl)}"
+           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
+          اعرض شهادتك واحفظها PDF
+        </a>
+      </p>
+      <p style="font-size:13px;color:#6B6B6B">الرابط خاصٌّ بك ويعمل بلا تسجيل دخول — فاحفظ الشهادة عندك.</p>
     </div>`,
     "شهادة إتمام"
   );

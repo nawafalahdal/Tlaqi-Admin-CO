@@ -505,31 +505,15 @@ export async function markMemberExited(memberId: string, reason: string) {
   return member;
 }
 
-/** إصدار شهادة إتمام لعضو — عملية يدوية يقررها الأدمن، غير مربوطة بالضرورة
- *  بإكمال 3 أشهر (تظهر كتوصية بالعمود المجاور بالشيت لكن القرار للأدمن) */
+/** إصدار شهادة إتمام لعضو — عملية يدوية يقررها الأدمن.
+ *
+ *  ولا تُصدرها بنفسها: كان هنا مسارٌ ثانٍ يختم `certificateIssuedAt`
+ *  ويُرسل بريداً خاصاً به، إلى جانب مسار التنحي. ومسارانِ يختمان الختم
+ *  نفسه يعنيان شهادتين لمسيرةٍ واحدة — ورسالتين بنصّين مختلفين. فصار
+ *  الإصدار في موضع واحد (`markCertificateShared`) وهذا بابٌ إليه. */
 export async function issueCertificate(memberId: string) {
-  const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
-  if (member.certificateIssuedAt) return member;
-
-  const updated = await prisma.member.update({
-    where: { id: memberId },
-    data: { certificateIssuedAt: new Date() },
-  });
-
-  await sendCertificateEmail({ to: member.email, fullName: member.fullName });
-
-  await appendMemberEvent({
-    fullName: member.fullName,
-    email: member.email,
-    event: "إصدار شهادة",
-    roleOrDepartment: await memberScope(member),
-    details: "شهادة إتمام",
-    at: new Date(),
-  });
-
-  await syncMemberLifecycleRow(member.id);
-
-  return updated;
+  const { markCertificateShared } = await import("@/lib/offboarding");
+  return markCertificateShared(memberId, "إصدار يدوي من الإدارة");
 }
 
 export async function acknowledgeWarning(warningId: string, memberId: string) {
