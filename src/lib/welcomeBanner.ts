@@ -186,6 +186,20 @@ export async function renderWelcomeBanner(data: BannerData): Promise<Buffer> {
     .png()
     .toBuffer();
 
+  // **حارسٌ ضدّ عطبٍ لا يظهر إلا في الإنتاج.** librsvg يرسم نصّ SVG عبر
+  // pango/fontconfig. فإن لم تجد بيئةُ التنفيذ خطّاً عربياً — أو لم
+  // يُبنَ libvips بدعم النصّ أصلاً — خرجت الطبقة فارغةً تماماً، ووصلت
+  // اللوحة بلا اسم: صورةٌ تبدو سليمة وقد فقدت كلّ ما يجعلها مُخصَّصة.
+  // فتُقاس الطبقة: إن لم يكن فيها حبرٌ يُذكَر فذاك عطبُ خطوط لا اسمٌ
+  // فارغ، ويُرفع ليُقرأ في السجل بدل أن يمرّ صامتاً.
+  const layerStats = await sharp(layerPng).stats();
+  const alphaMean = layerStats.channels[3]?.mean ?? 0;
+  if (alphaMean < 0.05) {
+    throw new Error(
+      "طبقة نصّ اللوحة خرجت فارغة — الأرجح أن بيئة التنفيذ لا تجد خطّاً عربياً (fontconfig/pango)"
+    );
+  }
+
   const composite = Array.from({ length: frames }, (_, i) => ({
     input: layerPng,
     top: i * BANNER_H,
