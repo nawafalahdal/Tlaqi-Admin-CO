@@ -24,6 +24,7 @@
     {{team}}         الفريق أو القسم
     {{join_date}}    تاريخ الانضمام
     {{portal_url}}   رابط دخول المنصة
+    {{banner_url}}   اللوحة المتحرّكة المُخصَّصة (تُولَّد عند الطلب)
     {{x_url}} {{instagram_url}} {{linkedin_url}}   روابط الحسابات
     {{handle}}       المعرّف الموحّد — tlaqisa@
     {{asset_base}}   أصل روابط الصور (نطاق المنصة)
@@ -70,6 +71,20 @@
       <td align="center" bgcolor="#0C1100" style="background-color:#0C1100;font-size:0;line-height:0;">
         <img src="{{asset_base}}/brand/email-hero-welcome.png" width="600" height="233"
              alt="تَـــلاقِ — أهلاً بك في عائلة تَـــلاقِ"
+             style="display:block;border:0;outline:none;text-decoration:none;width:100%;max-width:600px;height:auto;">
+      </td>
+    </tr>
+
+    <!-- ١-ب — اللوحة المتحرّكة: تحمل اسمه ومسمّاه وقسمه بلون قسمه.
+         وهي صورةٌ واحدة لا نصٌّ حيٌّ فوق صورة: Gmail على الجوال يعكس
+         ألوان CSS ولا يعكس الصور، فنصٌّ حيٌّ بجانب صورةٍ على الخلفية
+         نفسها ينقلب وحده فيظهر مستطيلٌ بلونين.
+         و`alt` يحمل البيانات نفسها: من حُجبت عنه الصور يقرأها نصّاً،
+         ومن تعذّرت حركتها يرى الإطار الأول ساكناً — وكلاهما مقروء. -->
+    <tr>
+      <td align="center" bgcolor="#0C1100" style="background-color:#0C1100;font-size:0;line-height:0;">
+        <img src="{{banner_url}}" width="600" height="200"
+             alt="{{full_name}} — {{role}} — {{team}}"
              style="display:block;border:0;outline:none;text-decoration:none;width:100%;max-width:600px;height:auto;">
       </td>
     </tr>

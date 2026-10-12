@@ -731,6 +731,8 @@ export type WelcomeEmailOpts = {
   departmentName?: string | null;
   /** لون القسم المسجَّل — منه تُعرف هويته، ولا يُخمَّن */
   departmentColorHex?: string | null;
+  /** رابط اللوحة المتحرّكة المُخصَّصة — موقَّعٌ لصاحبها */
+  bannerUrl?: string | null;
   portalUrl: string;
   joinedAt?: Date | null;
   /** عدّة المشاركة — تُدرَج داخل الرسالة نفسها لا في رسالة ثانية */
@@ -813,6 +815,7 @@ export function renderWelcomeEmail(opts: WelcomeEmailOpts): string {
     team: opts.departmentName?.trim() || opts.jobTitle?.trim() || "—",
     join_date: opts.joinedAt ? formatDate(opts.joinedAt) : "—",
     portal_url: opts.portalUrl,
+    banner_url: opts.bannerUrl || `${base}/brand/banner/base.gif`,
     asset_base: base,
     handle: `@${SOCIAL_HANDLE}`,
     x_url: `https://x.com/${SOCIAL_HANDLE}`,

@@ -11,6 +11,22 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   agentRules: false,
+
+  /** ملفّان يُقرآن من القرص داخل دالّة بلا حالة، فلا يَستنتجهما التتبّع.
+   *
+   *  Next يحزم ما يراه في `import`. ومسار اللوحة الترحيبية يقرأ ملفّين
+   *  بمسارٍ مبنيٍّ في وقت التنفيذ (`join(process.cwd(), …)`): اللوحة
+   *  الرمادية الأصل، وخطّ Cairo الذي يرسم به librsvg اسم العضو. وكونُ
+   *  اللوحة في `public/` يجعلها تُخدَم للمتصفّح، ولا يضعها في حزمة
+   *  الدالّة.
+   *
+   *  وبدون هذا السطر يعمل كل شيء محلياً ويفشل في الإنتاج وحده: اللوحة
+   *  تُرجِع ٥٠٠، أو — وهو أسوأ — يُرسَم اسم العضو مربّعاتٍ فارغة لأن لا
+   *  خطّ عربي في بيئة التنفيذ. */
+  outputFileTracingIncludes: {
+    "/api/welcome-banner/[token]": ["./public/brand/banner/**", "./assets/fonts/**"],
+  },
+
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
