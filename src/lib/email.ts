@@ -816,6 +816,7 @@ export function renderWelcomeEmail(opts: WelcomeEmailOpts): string {
     join_date: opts.joinedAt ? formatDate(opts.joinedAt) : "—",
     portal_url: opts.portalUrl,
     banner_url: opts.bannerUrl || `${base}/brand/banner/base.gif`,
+    dept_color: opts.departmentColorHex?.trim() || "#C34900",
     asset_base: base,
     handle: `@${SOCIAL_HANDLE}`,
     x_url: `https://x.com/${SOCIAL_HANDLE}`,

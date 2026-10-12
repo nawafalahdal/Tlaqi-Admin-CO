@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "postinstall": "prisma generate",
-    "build": "tsx scripts/check-email-coverage.ts && prisma migrate deploy && next build",
+    "build": "tsx scripts/check-email-coverage.ts && tsx scripts/check-banner-render.ts && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
