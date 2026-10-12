@@ -206,6 +206,13 @@ model Member {
   // (فلا تُصدَر شهادتان لمسيرةٍ واحدة)، والتسليم يُعاد إن فشل البريد.
   // ولو كان الحدث واحداً لمنع فشلُ الإرسال إعادةَ المحاولة أبداً.
   certificateSentAt   DateTime?
+  // شهادة الثلاثة أشهر — حدثٌ مستقلٌّ عن شهادة الإنهاء، له ختماه.
+  // `appreciationDueAt` يُسجَّل يوم الاستحقاق كما حُسب، لا يوم الإرسال:
+  // فمن أُرسلت له متأخّرةً (تعطّل الكنس يوماً) يبقى في السجل أنه
+  // استحقّها في موعدها.
+  appreciationDueAt   DateTime?
+  appreciationIssuedAt DateTime?
+  appreciationSentAt  DateTime?
   sheetRow            Int?
 
   // بيانات يسجّلها المرشّح بنفسه قبل بدء الاختبار — تُكتب في الشيت فوراً
@@ -238,6 +245,9 @@ model Member {
   warnings        MemberWarning[]
   tickets         Ticket[]
   ticketsAssigned Ticket[]        @relation("TicketTargetMember")
+
+  // الكنس اليومي يسأل: من لم تصله شهادة تقديره؟ فيُجاب رخيصاً
+  @@index([appreciationSentAt])
 }
 
 model TestAttempt {

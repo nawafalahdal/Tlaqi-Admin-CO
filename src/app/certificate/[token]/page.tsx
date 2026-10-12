@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import {
   certificateFor,
   certificateBody,
+  certificateHeading,
   certificatePalette,
   verifyCertificateToken,
 } from "@/lib/certificate";
@@ -30,13 +31,14 @@ export default async function CertificatePage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const memberId = verifyCertificateToken(decodeURIComponent(token));
-  if (!memberId) notFound();
+  const verified = verifyCertificateToken(decodeURIComponent(token));
+  if (!verified) notFound();
 
-  const data = await certificateFor(memberId);
+  const data = await certificateFor(verified.memberId, verified.kind);
   if (!data) notFound();
 
   const c = certificatePalette(data.colorHex);
+  const heading = certificateHeading(data.kind);
 
   return (
     <main className="min-h-screen bg-[#1A1023] p-4 print:bg-white print:p-0">
@@ -63,14 +65,14 @@ export default async function CertificatePage({
               className="font-extrabold"
               style={{ color: c.ink, fontSize: "5.3cqw", lineHeight: 1.25, letterSpacing: "0.05em" }}
             >
-              شكــر وتقديــر
+              {heading.ar}
             </h1>
             <p
               dir="ltr"
               className="font-semibold"
               style={{ color: c.ink, fontSize: "2.05cqw", letterSpacing: "0.07em", marginTop: "0.3cqw" }}
             >
-              Certification of Appreciation
+              {heading.en}
             </p>
             <div
               className="mx-auto flex items-center"

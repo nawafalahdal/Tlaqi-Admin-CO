@@ -22,6 +22,7 @@ export type CertificateSigner = {
 
 export type CertificateData = {
   memberId: string;
+  kind: CertificateKind;
   fullName: string;
   /** المهمة كما حدّدتها الإدارة الداعية */
   mission: string | null;
@@ -45,28 +46,50 @@ function certificateSecret(): string {
   return secret;
 }
 
-export function signCertificateToken(memberId: string): string {
-  const mac = crypto
-    .createHmac("sha256", certificateSecret())
-    .update(`certificate:${memberId}`)
-    .digest("base64url");
-  return `${memberId}.${mac}`;
+/** نوع الشهادة: ختامُ مسيرةٍ أم تقديرُ ثلاثة أشهر.
+ *
+ *  الاثنتان بالتصميم نفسه ولون القسم نفسه — فهما من منظّمةٍ واحدة —
+ *  لكن نصّهما ومناسبتهما مختلفان، ولا تحلّ إحداهما محلّ الأخرى. */
+export type CertificateKind = "final" | "appreciation";
+
+/** الرسالة الموقَّعة. و«final» تُوقَّع بصيغتها القديمة بلا بادئة نوع:
+ *  روابطُ شهاداتٍ صدرت ووصلت بريدَ أصحابها، وتغيير الصيغة يُبطلها. */
+function tokenMessage(memberId: string, kind: CertificateKind): string {
+  return kind === "final" ? `certificate:${memberId}` : `certificate:${kind}:${memberId}`;
 }
 
-export function verifyCertificateToken(token: string): string | null {
-  const dot = token.lastIndexOf(".");
+export function signCertificateToken(memberId: string, kind: CertificateKind = "final"): string {
+  const mac = crypto
+    .createHmac("sha256", certificateSecret())
+    .update(tokenMessage(memberId, kind))
+    .digest("base64url");
+  return kind === "final" ? `${memberId}.${mac}` : `${kind}.${memberId}.${mac}`;
+}
+
+export function verifyCertificateToken(
+  token: string
+): { memberId: string; kind: CertificateKind } | null {
+  // النوع في مقدّمة الرابط، فلا يُقرأ تقديرُ أحدٍ على أنه ختامُ مسيرته
+  const kind: CertificateKind = token.startsWith("appreciation.") ? "appreciation" : "final";
+  const rest = kind === "final" ? token : token.slice("appreciation.".length);
+
+  const dot = rest.lastIndexOf(".");
   if (dot <= 0) return null;
-  const memberId = token.slice(0, dot);
-  const expected = signCertificateToken(memberId);
+  const memberId = rest.slice(0, dot);
+  const expected = signCertificateToken(memberId, kind);
   const a = Buffer.from(token);
   const b = Buffer.from(expected);
   // المقارنة ثابتة الزمن: المقارنة العادية تُسرّب طول البادئة الصحيحة
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
-  return memberId;
+  return { memberId, kind };
 }
 
-export function certificateUrl(memberId: string, base: string): string {
-  return `${base}/certificate/${signCertificateToken(memberId)}`;
+export function certificateUrl(
+  memberId: string,
+  base: string,
+  kind: CertificateKind = "final"
+): string {
+  return `${base}/certificate/${signCertificateToken(memberId, kind)}`;
 }
 
 /** نصّ الشهادة — يتبدّل بالمهمة والصفة لا بالاسم وحده.
@@ -91,6 +114,18 @@ export function certificateBody(data: CertificateData): string {
         : `على ${mission} ${where}`
       : `على الإسهام ${where}`;
 
+  // شهادة الثلاثة أشهر تُكرّم مسيرةً جارية، وختامُ المسيرة يودّعها.
+  // فلا يصحّ أن تقول للباقي معنا «نتمنّى له مستقبلاً حافلاً» كأنه ذهب.
+  if (data.kind === "appreciation") {
+    return [
+      `تتقدّم «تَـــلاقِ» بخالص التقدير إلى ${data.fullName}`,
+      `${contribution}،`,
+      `على إكماله ثلاثة أشهرٍ من العطاء (منذ ${formatDate(data.period.start)}).`,
+      "ثلاثة أشهرٍ من العمل والتعلّم والإسهام في بناء ما نطمح إليه معاً،",
+      "ونتطلّع إلى ما نصنعه في الأشهر القادمة.",
+    ].join(" ");
+  }
+
   return [
     `كلمات الثناء لا توفي حقّه، تتقدّم «تَـــلاقِ» بخالص الشكر إلى ${data.fullName}`,
     `${contribution} (${formatDate(data.period.start)} — ${formatDate(data.period.end)}).`,
@@ -99,17 +134,29 @@ export function certificateBody(data: CertificateData): string {
   ].join(" ");
 }
 
+/** عنوان الشهادة — المناسبة تُقرأ من أعلى الورقة لا من نصّها */
+export function certificateHeading(kind: CertificateKind): { ar: string; en: string } {
+  return kind === "appreciation"
+    ? { ar: "شهــادة تقديــر", en: "Certificate of Appreciation" }
+    : { ar: "شكــر وتقديــر", en: "Certification of Appreciation" };
+}
+
 /** يجمع كل ما تحتاجه الشهادة من القاعدة.
  *
  *  يرجع null لمن لم تُسلَّم شهادته بعد: الشهادة أثرُ خطوةٍ في الحوكمة لا
  *  صفحةٌ تُفتح متى شئنا، وإصدارها قبل أوانها يُفرغ الخطوة من معناها. */
-export async function certificateFor(memberId: string): Promise<CertificateData | null> {
+export async function certificateFor(
+  memberId: string,
+  kind: CertificateKind = "final"
+): Promise<CertificateData | null> {
   const member = await prisma.member.findUnique({
     where: { id: memberId },
     include: { department: true, invite: true },
   });
   if (!member) return null;
-  if (!member.certificateIssuedAt) return null;
+  // كلُّ نوعٍ ختمُه: ولا يُفتح نوعٌ بختم الآخر
+  const issuedAt = kind === "appreciation" ? member.appreciationIssuedAt : member.certificateIssuedAt;
+  if (!issuedAt) return null;
 
   const isLead = member.invite.targetRole !== "member";
   const colorHex = member.department?.colorHex ?? BRAND.temptress;
@@ -144,6 +191,7 @@ export async function certificateFor(memberId: string): Promise<CertificateData 
 
   return {
     memberId: member.id,
+    kind,
     fullName: member.fullName,
     mission: member.jobTitle,
     departmentName: member.department?.name ?? null,
@@ -151,8 +199,12 @@ export async function certificateFor(memberId: string): Promise<CertificateData 
     isLead,
     period: {
       start: member.decidedAt ?? member.joinDate,
-      // تاريخ الانتهاء المتّفق عليه، وإلا فيوم التنحي، وإلا فاليوم
-      end: member.endDate ?? member.stepDownAt ?? member.terminatedAt ?? new Date(),
+      // شهادة التقدير تُصدَر في موعد الاستحقاق ومسيرتُه جارية، فنهايتها
+      // يوم استحقاقها لا «اليوم»: من أُرسلت له متأخّرةً تبقى بتاريخها.
+      end:
+        kind === "appreciation"
+          ? (member.appreciationDueAt ?? issuedAt)
+          : (member.endDate ?? member.stepDownAt ?? member.terminatedAt ?? new Date()),
     },
     colorHex,
     signers,

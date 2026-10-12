@@ -9,7 +9,6 @@ import {
   sendWindowReminderEmail,
   sendWarningEmail,
   sendExitEmail,
-  sendCertificateEmail,
   sendRequestReminderEmail,
   sendTestReopenedEmail,
   sendTotpNudgeEmail,

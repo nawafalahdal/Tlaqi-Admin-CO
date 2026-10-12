@@ -7,6 +7,7 @@ import {
 } from "@/lib/workflow";
 import { sweepTicketEscalation } from "@/lib/tickets";
 import { purgeExpiredLoginCodes } from "@/lib/loginCodes";
+import { sweepThreeMonthAppreciation } from "@/lib/appreciation";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,15 @@ export async function GET(request: Request) {
   const purgedCodes = await purgeExpiredLoginCodes();
   // الحماية تُذكَّر لا تُفترض: من لم يفعّل طريقه الثاني يُنبَّه دورياً
   const totpNudged = await nudgeMissingTwoFactor();
+  // التكريم لا ينتظر أن يفتح أحدٌ اللوحة يوم الذكرى
+  const appreciated = await sweepThreeMonthAppreciation();
 
-  return NextResponse.json({ ok: true, reminded, expiredAccounts, purgedCodes, totpNudged });
+  return NextResponse.json({
+    ok: true,
+    reminded,
+    expiredAccounts,
+    purgedCodes,
+    totpNudged,
+    appreciated,
+  });
 }

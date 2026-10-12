@@ -106,7 +106,11 @@ async function send(
       variant: variantForKind(kind),
       hero,
     });
-    await resend.emails.send({
+    // Resend لا يرمي استثناءً عند رفض الـAPI: يرجع `{ data, error }`.
+    // فكان كل رفضٍ — مفتاحٌ خاطئ، نطاقٌ غير موثّق، حدُّ إرسال، مستلمٌ
+    // غير مقبول — يُسجَّل «أُرسلت» ويُقال لصاحب الشأن إنها وصلت. وهذا
+    // أسوأ من الفشل: الفشلُ يُعاد، والفشلُ المكتوبُ نجاحاً لا يُعاد أبداً.
+    const result = await resend.emails.send({
       from: FROM,
       to: recipients,
       subject,
@@ -119,6 +123,11 @@ async function send(
         "X-Entity-Ref-ID": `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       },
     });
+    if (result.error) {
+      console.error("رفض Resend إرسال البريد:", result.error);
+      await logEmail(recipients, kind, subject, "فشل الإرسال");
+      return { skipped: true, error: true };
+    }
     await logEmail(recipients, kind, subject, "أُرسلت");
     return { skipped: false };
   } catch (err) {
@@ -149,7 +158,7 @@ async function sendPrebuilt(to: string | string[], subject: string, html: string
     return { skipped: true };
   }
   try {
-    await resend.emails.send({
+    const result = await resend.emails.send({
       from: FROM,
       to: recipients,
       subject,
@@ -159,6 +168,11 @@ async function sendPrebuilt(to: string | string[], subject: string, html: string
         "X-Entity-Ref-ID": `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       },
     });
+    if (result.error) {
+      console.error("رفض Resend إرسال البريد:", result.error);
+      await logEmail(recipients, kind, subject, "فشل الإرسال");
+      return { skipped: true, error: true };
+    }
     await logEmail(recipients, kind, subject, "أُرسلت");
     return { skipped: false };
   } catch (err) {
@@ -289,6 +303,52 @@ export async function sendCertificateEmail(opts: {
       <p style="font-size:13px;color:#6B6B6B">الرابط خاصٌّ بك ويعمل بلا تسجيل دخول — فاحفظ الشهادة عندك.</p>
     </div>`,
     "شهادة إتمام"
+  );
+}
+
+/** شهادة تقدير الثلاثة أشهر — تكريمٌ لمسيرةٍ جارية لا وداعٌ لها.
+ *
+ *  ونصُّها لا يَنسب إليه إنجازاً بعينه: المنصة تعرف أنه أكمل ثلاثة
+ *  أشهر، ولا تعرف ماذا صنع فيها. فاختراعُ إنجازٍ يُفرغ التكريم من
+ *  صدقه — ومن يقرأ ثناءً على عملٍ لم يعمله يعرف أنه آليّ. */
+export async function sendAppreciationEmail(opts: {
+  to: string;
+  fullName: string;
+  jobTitle?: string | null;
+  departmentName?: string | null;
+  certificateUrl: string;
+}) {
+  const role = opts.jobTitle?.trim();
+  const dept = opts.departmentName?.trim();
+  const place = role
+    ? dept
+      ? `في منصبك ${role} ضمن ${dept}`
+      : `في منصبك ${role}`
+    : dept
+      ? `ضمن ${dept}`
+      : "معنا";
+
+  return send(
+    opts.to,
+    "ثلاثة أشهر من العطاء — شهادة تقدير من تَـــلاقِ",
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>أهلاً وسهلاً، ${esc(opts.fullName)}،</p>
+      <p>ثلاثة أشهرٍ مضت منذ انضمامك إلى مسيرتنا في تَـــلاقِ، وثلاثة أشهرٍ من
+         العمل والتعلّم والمساهمة في بناء ما نطمح إليه معاً.</p>
+      <p>يسعدنا أن نحتفي بإكمالك ثلاثة أشهرٍ ${esc(place)}، وأن نعبّر لك عن
+         تقديرنا للوقت والجهد الذي خصّصته لهذه التجربة.</p>
+      <p>نؤمن أن الأثر الحقيقي لا يُقاس بالوقت وحده، بل بما نتعلّمه، وما نبنيه،
+         وما نضيفه إلى الفريق. ونتمنّى أن تكون الأشهر القادمة مليئةً بفرصٍ أكبر،
+         وأفكارٍ أجمل، وإنجازاتٍ نفتخر بها جميعاً.</p>
+      <p style="margin:22px 0">
+        <a href="${esc(opts.certificateUrl)}"
+           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
+          اعرض شهادة التقدير
+        </a>
+      </p>
+      <p>شكراً لكونك جزءاً من تَـــلاقِ.</p>
+    </div>`,
+    "تقدير ثلاثة أشهر"
   );
 }
 

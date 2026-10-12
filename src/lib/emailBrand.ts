@@ -162,6 +162,7 @@ const KIND_VARIANT: Record<string, EmailVariant> = {
   // ما يُفرح
   "اجتياز الاختبار": "celebration",
   "شهادة إتمام": "celebration",
+  "تقدير ثلاثة أشهر": "celebration",
   "إعادة فتح الاختبار": "celebration",
 
   // ما يُسجَّل ويُحاسَب عليه
