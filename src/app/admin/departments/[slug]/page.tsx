@@ -7,7 +7,7 @@ import {
   sweepOverdueRequests,
   sweepExpiredCandidateAccounts,
 } from "@/lib/workflow";
-import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE } from "@/lib/tickets";
+import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere } from "@/lib/tickets";
 import { TicketCard } from "../../tickets/TicketCard";
 import { themeFromColor } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
@@ -111,20 +111,12 @@ export default async function DepartmentBoardPage({
       },
       orderBy: { fullName: "asc" },
     }),
+    // قاعدة الرؤية المشتركة: تشمل ما وُجِّه إلى قائد القسم باسمه وما
+    // رفعه هو — وكلاهما كان يسقط من الاستعلام المكتوب هنا بيد
     prisma.ticket.findMany({
-      where: {
-        status: { in: ["open", "in_progress"] },
-        // الفاوندر داخل لوحة القسم مراقبٌ لا طرف: لا تُعرض له تذاكر
-        // القسم إلا ما بلغ مرحلته الأخيرة بعد أن وقف عند الجميع
-        ...(isSuperAdmin ? { stage: "founder_escalation" as const } : {}),
-        OR: [
-          { targetDepartmentId: department.id },
-          { targetMember: { departmentId: department.id } },
-          { stage: "lead_escalation", member: { departmentId: department.id } },
-        ],
-      },
+      where: openTicketsWhere(session),
       include: TICKET_INCLUDE,
-      orderBy: { createdAt: "desc" },
+      orderBy: { stageDueAt: "asc" },
     }),
     prisma.member.findMany({
       where: {

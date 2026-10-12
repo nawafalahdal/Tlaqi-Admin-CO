@@ -12,7 +12,7 @@ import { SecurityGuidance } from "@/components/SecurityGuidance";
 import { GovernanceCharter } from "@/components/GovernanceCharter";
 import { formatDate } from "@/lib/format";
 import { RaiseTicketForm } from "./RaiseTicketForm";
-import { sweepTicketEscalation } from "@/lib/tickets";
+import { sweepTicketEscalation, ticketVisibilityWhere } from "@/lib/tickets";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { announcementsForSession } from "@/lib/announcements";
 import { AnnouncementList } from "@/app/admin/hub/AnnouncementList";
@@ -54,9 +54,12 @@ export default async function MemberPortalPage() {
 
   const [departments, tickets, announcements, leadership, colleagues] = await Promise.all([
     prisma.department.findMany({ orderBy: { name: "asc" } }),
-    // تذاكره: ما رفعه هو، وما وُجِّه إليه باسمه
+    // تذاكره: ما رفعه، وما وُجِّه إليه باسمه، وما وُجِّه إلى قسمه.
+    // الأخير كان ناقصاً: مسار العمل اليومي (محتوى ← تصميم ← نشر) يُوجَّه
+    // إلى القسم لا إلى شخصٍ بعينه، فكانت تذاكر القسم لا يراها أحد من
+    // أعضائه — تُرفع فتقف عند قائده وحده.
     prisma.ticket.findMany({
-      where: { OR: [{ memberId: member.id }, { targetMemberId: member.id }] },
+      where: ticketVisibilityWhere(session),
       orderBy: { createdAt: "desc" },
     }),
     announcementsForSession(session, 6),

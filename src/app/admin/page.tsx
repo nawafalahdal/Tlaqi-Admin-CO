@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { isLeadership } from "@/lib/announcements";
 import { sweepOverdueRequests, sweepExpiredCandidateAccounts } from "@/lib/workflow";
-import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, ticketVisibilityWhere } from "@/lib/tickets";
+import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere } from "@/lib/tickets";
 import {
   announcementsForSession,
   canPublishAnnouncement,
@@ -84,10 +84,9 @@ export default async function AdminPage() {
     ]);
 
   const boardTickets = await prisma.ticket.findMany({
-    where: ticketVisibilityWhere(session),
+    where: openTicketsWhere(session),
     include: TICKET_INCLUDE,
     orderBy: { stageDueAt: "asc" },
-    take: 60,
   });
 
   const dict = getDictionary(await getLocale());

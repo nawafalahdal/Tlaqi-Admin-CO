@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { Ticket, Member, Department, User } from "@prisma/client";
+import type { Ticket, Member, Department, User, TicketStatus } from "@prisma/client";
 import {
   sendTicketCreatedEmail,
   sendTicketEscalatedEmail,
@@ -395,8 +395,39 @@ export function ticketVisibilityWhere(session: {
     };
   }
 
+  if (role === "member") {
+    // العضو يرى تذاكره، وما وُجِّه إليه باسمه، **وما وُجِّه إلى قسمه**.
+    // كان الأخير ناقصاً: مسار العمل اليومي (محتوى ← تصميم ← نشر) يُوجَّه
+    // إلى القسم لا إلى شخصٍ بعينه، فكانت تذاكر القسم لا تصل أحداً من
+    // أعضائه — تُرفع فلا يراها إلا قائده.
+    return {
+      OR: [
+        { memberId: id },
+        { targetMemberId: id },
+        ...(departmentId ? [{ targetDepartmentId: departmentId }] : []),
+      ],
+    };
+  }
+
   // التنفيذي ومسؤول التشغيل: لا قيد
   return {};
+}
+
+/** التذاكر المفتوحة التي يراها صاحب الجلسة — استعلامٌ واحد لكل الشاشات.
+ *
+ *  كانت كل لوحة تكتب استعلامها بيدها، فاختلفت: لوحة القسم تنسى التذاكر
+ *  الموجَّهة إلى قائدها باسمه وما رفعه هو، ولوحة المؤسس لا تُصفّي
+ *  المُغلَقة فتزحمها القديمة حتى تختفي المفتوحة تحت سقف العدد. وكلّما
+ *  صُحّحت قاعدة الرؤية في موضع بقي الموضعان الآخران على خطئهما.
+ *
+ *  فصار الاستعلام واحداً: من يرى ماذا يُحسم في `ticketVisibilityWhere`،
+ *  و«المفتوح» يُصفّى في القاعدة لا في الذاكرة. */
+export function openTicketsWhere(session: {
+  user: { id: string; role: string; departmentId?: string | null };
+}) {
+  return {
+    AND: [{ status: { in: ["open", "in_progress"] as TicketStatus[] } }, ticketVisibilityWhere(session)],
+  };
 }
 
 /** من يملك الردّ على التذكرة وإغلاقها.

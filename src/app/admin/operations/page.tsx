@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { sweepOverdueRequests, sweepExpiredCandidateAccounts } from "@/lib/workflow";
-import { sweepTicketEscalation, TICKET_STAGE_LABELS, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE } from "@/lib/tickets";
+import { sweepTicketEscalation, TICKET_STAGE_LABELS, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere } from "@/lib/tickets";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card, StatusBadge } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
@@ -35,7 +35,7 @@ export default async function OperationsPage() {
 
   const [tickets, requests, announcements, departments] = await Promise.all([
     prisma.ticket.findMany({
-      where: { status: { in: ["open", "in_progress"] } },
+      where: openTicketsWhere(session),
       include: TICKET_INCLUDE,
       orderBy: { stageDueAt: "asc" },
     }),
