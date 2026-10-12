@@ -17,7 +17,11 @@ const LOCKUP_RATIO = 259 / 880;
 
 export type LogoTone = "light" | "dark";
 
-/** الرمز وحده — درعٌ برتقالي بلونه الرسمي، فلا يتبدّل بالخلفية */
+/** الرمز وحده — درعٌ برتقالي بلونه الرسمي، فلا يتبدّل بالخلفية.
+ *
+ *  ولا `rounded-full` ولا `object-cover`: صورة الرمز بيضويّةٌ مدبَّبة
+ *  من أسفل، وتدويرُها دائرةً يقصّ طرفها ويُسوّي حوافّها — فيخرج شكلٌ
+ *  غير شكل الهوية. والقصّ تحويرٌ للشعار كالرسم من جديد. */
 export function LogoMark({ size = 40 }: { size?: number }) {
   return (
     <Image
@@ -25,7 +29,7 @@ export function LogoMark({ size = 40 }: { size?: number }) {
       alt="تَـــلاقِ"
       width={size}
       height={size}
-      className="shrink-0 rounded-full object-cover"
+      className="shrink-0 object-contain"
       style={{ width: size, height: size }}
       priority
     />
