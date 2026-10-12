@@ -5,6 +5,7 @@ import { formatDate } from "@/lib/format";
 import { appendEmailLog } from "@/lib/googleSheets";
 import { prisma } from "@/lib/prisma";
 import { wrapEmail, htmlToText, variantForKind, appBaseUrl, SOCIAL_HANDLE } from "@/lib/emailBrand";
+import { welcomeParagraphs } from "@/lib/departmentBrand";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FROM = process.env.EMAIL_FROM || "تَـــلاقِ <hello@tlaqiteam.site>";
@@ -618,6 +619,8 @@ export type WelcomeEmailOpts = {
   specialization?: string | null;
   section?: string | null;
   departmentName?: string | null;
+  /** لون القسم المسجَّل — منه تُعرف هويته، ولا يُخمَّن */
+  departmentColorHex?: string | null;
   portalUrl: string;
   joinedAt?: Date | null;
   /** عدّة المشاركة — تُدرَج داخل الرسالة نفسها لا في رسالة ثانية */
@@ -682,9 +685,19 @@ export function welcomeEmailSubject(fullName: string, occasion: "approved" | "re
  *  بغلافٍ ثانٍ يُنتج رسالةً بترويستين. */
 export function renderWelcomeEmail(opts: WelcomeEmailOpts): string {
   const base = appBaseUrl();
-  const firstName = opts.fullName.trim().split(/\s+/)[0] || opts.fullName;
+  // نصُّ القسم يُركَّب في موضعه لا في القالب: القالب شكلٌ، والنصّ هويّة
+  const p = welcomeParagraphs({
+    fullName: opts.fullName,
+    role: opts.jobTitle ?? opts.roleLabel,
+    departmentName: opts.departmentName ?? null,
+    colorHex: opts.departmentColorHex ?? null,
+  });
   return fillTemplate(welcomeTemplate(), {
-    first_name: firstName,
+    greeting: p.greeting,
+    intro: p.intro,
+    belief: p.belief,
+    aspiration: p.aspiration,
+    closing: p.closing,
     full_name: opts.fullName,
     role: opts.roleLabel,
     team: opts.departmentName?.trim() || opts.jobTitle?.trim() || "—",

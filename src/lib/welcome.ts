@@ -2,11 +2,39 @@ import { prisma } from "@/lib/prisma";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { sendWelcomeEmail } from "@/lib/email";
 import { accountRoleLabel } from "@/lib/testTracks";
+import { departmentBrand } from "@/lib/departmentBrand";
 import { syncAdminAccountRow, syncMemberLifecycleRow } from "@/lib/workflow";
 import { SOCIAL_LINKS, appBaseUrl } from "@/lib/emailBrand";
 
 /** الوسم الرسمي. يُضبط من البيئة ليُغيَّر دون نشر جديد. */
 export const BRAND_HASHTAG = process.env.BRAND_HASHTAG || "#تلاقي";
+
+/** قسمٌ بلا إعدادٍ رسمي: تمرّ الرسالة بالبديل المعتمد ويُسجَّل النقص.
+ *
+ *  البديل محايد عمداً — لا يَنسب إلى القسم مهمّةً لم تُكتب له — لكن
+ *  سكوتَه عن نفسه هو العيب: تُرسَل مئةُ رسالةٍ عامّة ولا يدري أحد أن
+ *  قسماً جديداً يحتاج نصّاً. فيُكتب في السجل ليُقرأ. */
+async function flagUnconfiguredDepartment(
+  departmentName: string | null,
+  colorHex: string | null,
+  fullName: string,
+  email: string,
+  at: Date
+) {
+  const brand = departmentBrand(departmentName, colorHex);
+  if (brand.known) return;
+  console.warn(
+    `[departmentBrand] لا إعداد رسمي للقسم «${departmentName}» — استُعمل النصّ البديل`
+  );
+  await appendMemberEvent({
+    fullName,
+    email,
+    event: "قسم بلا إعداد هوية",
+    details: `القسم «${departmentName}» لا نصّ ترحيب رسمي له — وصلت الرسالة بالنصّ البديل`,
+    roleOrDepartment: departmentName ?? "—",
+    at,
+  });
+}
 
 /** من يملك طلب إعادة الترحيب: صاحب الحساب نفسه لا غير.
  *
@@ -48,6 +76,7 @@ export async function sendWelcomePack(
       specialization: user.specialization,
       section: user.section,
       departmentName: user.department?.name ?? null,
+      departmentColorHex: user.department?.colorHex ?? null,
       portalUrl,
       joinedAt: user.createdAt,
       handles: SOCIAL_LINKS,
@@ -71,6 +100,13 @@ export async function sendWelcomePack(
     });
     // الصفّ الثابت يُحدَّث فوراً: السجل الحي يُثبت الحدث، والصفّ يُظهر
     // الحالة. ومن يفتح الشيت يقرأ الحالة قبل أن يبحث في السجل.
+    await flagUnconfiguredDepartment(
+      user.department?.name ?? null,
+      user.department?.colorHex ?? null,
+      user.fullName,
+      user.email,
+      at
+    );
     await syncAdminAccountRow(user.id);
 
     return { ok: true, to: user.email };
@@ -94,6 +130,7 @@ export async function sendWelcomePack(
     specialization: member.specialization,
     section: member.section,
     departmentName: member.department?.name ?? null,
+    departmentColorHex: member.department?.colorHex ?? null,
     portalUrl,
     joinedAt: member.decidedAt ?? member.joinDate,
     handles: SOCIAL_LINKS,
@@ -115,6 +152,13 @@ export async function sendWelcomePack(
     roleOrDepartment: member.department?.name ?? roleLabel,
     at,
   });
+  await flagUnconfiguredDepartment(
+    member.department?.name ?? null,
+    member.department?.colorHex ?? null,
+    member.fullName,
+    member.email,
+    at
+  );
   await syncMemberLifecycleRow(member.id);
 
   return { ok: true, to: member.email };

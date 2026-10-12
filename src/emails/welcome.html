@@ -14,7 +14,11 @@
 
   المتغيّرات (تُستبدل قبل الإرسال؛ لا تكتب أسماءً حقيقية هنا):
 
-    {{first_name}}   الاسم الأول — يُستعمل في التحية
+    {{greeting}}     التحية باسم العضو
+    {{intro}}        جملة الترحيب: قسمُه ومسمّاه الوظيفي
+    {{belief}}       بما نؤمن في قسمه — يتبدّل بالقسم
+    {{aspiration}}   ما نتطلّع إلى صنعه معه — يتبدّل بالقسم
+    {{closing}}      الخاتمة الثابتة
     {{full_name}}    الاسم الكامل — في بطاقة العضوية
     {{role}}         الصفة (عضو / قائد قسم / مسؤول تشغيل …)
     {{team}}         الفريق أو القسم
@@ -70,15 +74,25 @@
       </td>
     </tr>
 
-    <!-- ٢ — التحية الشخصية والنص -->
+    <!-- ٢ — التحية الشخصية والنص.
+         والنصّ يأتي مُركَّباً من `departmentBrand`: لكل قسمٍ إيمانُه
+         وتطلّعُه، فلا يُقرأ على من انضمّ للتسويق كلامُ التقنية. -->
     <tr>
       <td style="padding:34px 34px 0;font-family:'Segoe UI',Tahoma,Arial,sans-serif;" dir="rtl">
         <p style="margin:0 0 14px;font-size:21px;font-weight:bold;line-height:1.6;color:#EEF6DF;">
-          أهلاً بك، {{first_name}}
+          {{greeting}}
         </p>
-        <p style="margin:0;font-size:15px;line-height:2.1;color:#C7D3AE;">
-          اليوم تبدأ رحلتك معنا. أصبحت جزءاً من مجتمعٍ يجمع العقول،
-          ويحوّل الأفكار إلى فرص، ويصنع أثراً يمتدّ إلى المستقبل.
+        <p style="margin:0 0 14px;font-size:15px;line-height:2.1;color:#EEF6DF;">
+          {{intro}}
+        </p>
+        <p style="margin:0 0 14px;font-size:15px;line-height:2.1;color:#C7D3AE;">
+          {{belief}}
+        </p>
+        <p style="margin:0 0 14px;font-size:15px;line-height:2.1;color:#C7D3AE;">
+          {{aspiration}}
+        </p>
+        <p style="margin:0;font-size:15px;font-weight:bold;line-height:2.1;color:#EEF6DF;">
+          {{closing}}
         </p>
       </td>
     </tr>
@@ -125,7 +139,7 @@
             <td align="center" bgcolor="#C34900" style="background-color:#C34900;border-radius:999px;">
               <a href="{{portal_url}}"
                  style="display:inline-block;padding:14px 38px;font-family:'Segoe UI',Tahoma,Arial,sans-serif;font-size:15px;font-weight:bold;color:#FFFFFF;text-decoration:none;border-radius:999px;">
-                ادخل إلى منصّتك
+                الدخول إلى منصة تَـــلاقِ
               </a>
             </td>
           </tr>
