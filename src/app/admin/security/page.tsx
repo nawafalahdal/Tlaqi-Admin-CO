@@ -36,7 +36,7 @@ export default async function SecurityPage() {
     >
       <div className="w-full max-w-sm">
         <div className="mb-8 flex justify-center">
-          <LogoLockup size={26} color={BRAND.beige} dotColor={BRAND.mahogany} />
+          <LogoLockup height={34} tone="light" />
         </div>
 
         <div className="rounded-3xl bg-white p-8 shadow-xl">

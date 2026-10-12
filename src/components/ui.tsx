@@ -1,21 +1,29 @@
 import type { ReactNode } from "react";
 import { LogoLockup } from "./Logo";
 import { HeaderShell } from "./HeaderShell";
-import type { themeFromColor } from "@/lib/brand";
+import { logoToneFor, type themeFromColor } from "@/lib/brand";
 import { readableTextOn } from "@/lib/colors";
 export { StatusBadge } from "./StatusBadge";
 
 type Theme = ReturnType<typeof themeFromColor>;
 
+/** الشعار في الهيدر يعود به إلى بيته.
+ *
+ *  و«بيته» ليس صفحةً واحدة: `/admin` نفسها تُحوّل كلّ دور إلى لوحته —
+ *  قائد القسم إلى قسمه، ومسؤول التشغيل إلى تشغيله، والعضو إلى بوابته.
+ *  فيكفي رابطٌ واحد، ولا تُكرَّر قواعد التوجيه في سبعة عشر موضعاً حتى
+ *  تختلف إحداها عن الباقي. */
 export function AppHeader({
   theme,
   roleName,
   userName,
+  homeHref = "/admin",
   children,
 }: {
   theme: Theme;
   roleName: string;
   userName: string;
+  homeHref?: string;
   children?: ReactNode;
 }) {
   return (
@@ -28,7 +36,8 @@ export function AppHeader({
         borderColor={`${theme.text}22`}
         userName={userName}
         roleName={roleName}
-        logo={<LogoLockup size={22} color={theme.text} dotColor={theme.text} />}
+        homeHref={homeHref}
+        logo={<LogoLockup height={30} tone={logoToneFor(theme)} />}
         actions={children}
       />
     </header>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useTranslations } from "@/i18n/LocaleProvider";
 
 /** غلاف الهيدر: على الجوال يخفي بيانات المستخدم والأزرار داخل قائمة منسدلة
@@ -12,6 +13,7 @@ export function HeaderShell({
   userName,
   roleName,
   logo,
+  homeHref,
   actions,
 }: {
   textColor: string;
@@ -19,6 +21,8 @@ export function HeaderShell({
   userName: string;
   roleName: string;
   logo: ReactNode;
+  /** الشعار يعود به إلى لوحته — فإن لم يُمرَّر بقي الشعار شعاراً فقط */
+  homeHref?: string;
   actions?: ReactNode;
 }) {
   const t = useTranslations();
@@ -27,7 +31,15 @@ export function HeaderShell({
   return (
     <>
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-5 sm:py-4">
-        <div className="min-w-0 shrink">{logo}</div>
+        <div className="min-w-0 shrink">
+          {homeHref ? (
+            <Link href={homeHref} aria-label={t.actions.home} className="inline-flex">
+              {logo}
+            </Link>
+          ) : (
+            logo
+          )}
+        </div>
 
         {/* سطح المكتب: الاسم والأزرار ظاهرة */}
         <div className="hidden items-center gap-4 sm:flex">

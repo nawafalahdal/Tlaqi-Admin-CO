@@ -53,12 +53,9 @@ export default async function CertificatePage({
         <div className="relative flex h-full flex-col" style={{ padding: "4.2cqw 6cqw 2.4cqw" }}>
           <OrganicMarks color={c.ornament} />
 
-          {/* رمز الهوية أعلى الصفحة.
-              مرسومٌ هنا لا مستورَداً صورةً: الصورة درعٌ برتقالي بثقوب،
-              فإن قُنّعت بشفافيتها خرجت كتلةً صمّاء. والرسم يأخذ لون
-              الحبر نفسه فيصحّ على الخلفيات الأربع كلها. */}
+          {/* رمز الهوية أعلى الصفحة — الرمز الرسمي نفسه لا رسماً يشبهه */}
           <div className="relative flex justify-start">
-            <SymbolMark color={c.ink} />
+            <SymbolMark color={c.ink} size="5.6cqw" />
           </div>
 
           <header className="relative text-center" style={{ marginTop: "-2.6cqw" }}>
@@ -130,44 +127,64 @@ export default async function CertificatePage({
   );
 }
 
-/** رمز تَـــلاقِ: نقاطٌ تتشعّب من مركز — لقاءٌ وتفرّع */
-function SymbolMark({ color }: { color: string }) {
-  const rays = [0, 45, 90, 135, 180, 225, 270, 315];
+/** نسب الرمز الرسمي كما هي في ملف الهوية: 512 × 725 */
+const MARK_RATIO = 725 / 512;
+const MARK_SRC = "/brand/symbol-mark.png";
+
+/** رمز تَـــلاقِ الرسمي — الأصل نفسه، لا رسمٌ يحاكيه.
+ *
+ *  والأصل صورةٌ بيضاء على شفافية، والشهادة أربع خلفيات مختلفة الفاتح
+ *  منها والداكن. فيُقنَّع الرمز بـ`mask` ويُملأ بلون الحبر: اللون وحده
+ *  يتبدّل، وهندسة الرمز تبقى بكسلاً ببكسل كما وردت — فلا يُعاد رسمها
+ *  ولا تُقارَب بـCSS ولا تُستبدل بشكلٍ شبيه. */
+function SymbolMark({
+  color,
+  size,
+  opacity = 0.95,
+}: {
+  color: string;
+  /** العرض بوحدة الحاوية — والارتفاع يتبعه بنسبة الأصل */
+  size: string;
+  opacity?: number;
+}) {
+  const mask = {
+    maskImage: `url(${MARK_SRC})`,
+    WebkitMaskImage: `url(${MARK_SRC})`,
+    maskSize: "100% 100%",
+    WebkitMaskSize: "100% 100%",
+    maskRepeat: "no-repeat",
+    WebkitMaskRepeat: "no-repeat",
+  } as const;
   return (
-    <svg
+    <span
       aria-hidden="true"
-      viewBox="0 0 100 100"
-      style={{ width: "5.6cqw", height: "5.6cqw", opacity: 0.95 }}
-      fill={color}
-    >
-      {rays.map((a) => (
-        <g key={a} transform={`rotate(${a} 50 50)`}>
-          <rect x="47.4" y="22" width="5.2" height="22" rx="2.6" />
-          <circle cx="50" cy="18" r="7" />
-        </g>
-      ))}
-      <circle cx="50" cy="50" r="6.5" />
-    </svg>
+      style={{
+        display: "block",
+        width: size,
+        height: `calc(${size} * ${MARK_RATIO})`,
+        background: color,
+        opacity,
+        ...mask,
+      }}
+    />
   );
 }
 
-/** أشكال عضوية مستوحاة من رمز الهوية — خلفية لا عنصر يُقرأ */
+/** الرمز الرسمي مكبَّراً وباهتاً خلف النصّ — زخرفةٌ من الهوية نفسها.
+ *
+ *  كانت أشكالاً رسمتُها تشبه الرمز، وشبهُ الرمز ليس الرمز. فصار نفسه،
+ *  يفيض عن حدّ الورقة فلا يُقرأ رمزاً ثانياً ولا يزاحم الذي في الأعلى. */
 function OrganicMarks({ color }: { color: string }) {
   return (
-    <svg
-      aria-hidden="true"
-      className="pointer-events-none absolute inset-0 h-full w-full"
-      viewBox="0 0 1123 794"
-      fill={color}
-      preserveAspectRatio="none"
-    >
-      <circle cx="52" cy="92" r="58" />
-      <rect x="74" y="128" width="34" height="96" rx="17" />
-      <circle cx="128" cy="258" r="92" />
-      <rect x="104" y="332" width="36" height="92" rx="18" />
-      <circle cx="58" cy="436" r="74" />
-      <rect x="70" y="500" width="32" height="86" rx="16" />
-      <circle cx="86" cy="628" r="62" />
-    </svg>
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      {/* على الحدّ المقابل للرمز الصغير: الصغير في مبدأ القراءة (يميناً)،
+          والزخرفة في آخرها (يساراً) — فلا يقع أحدهما فوق الآخر */}
+      <span
+        className="absolute"
+        style={{ top: "50%", left: "-15cqw", transform: "translateY(-50%)", display: "block" }}
+      >
+        <SymbolMark color={color} size="38cqw" opacity={1} />
+      </span>
+    </div>
   );
 }

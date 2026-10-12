@@ -34,6 +34,14 @@ export function themeFromColor(colorHex: string) {
   };
 }
 
+/** أيّ نسختَي الشعار تصحّ على هذه الخلفية.
+ *
+ *  القرار واحد في موضع واحد: الخلفية الفاتحة تطلب حبراً داكناً، والداكنة
+ *  فاتحاً. وتركُه لكل صفحة يعني أن تُنسى نسخةٌ في صفحة فيختفي الشعار. */
+export function logoToneFor(theme: ReturnType<typeof themeFromColor>): "light" | "dark" {
+  return theme.text === BRAND.ink ? "dark" : "light";
+}
+
 export function themeForDepartment(slug: DepartmentSlug | string) {
   const entry = DEPARTMENT_THEME[slug as DepartmentSlug];
   return themeFromColor(entry ? entry.colorHex : BRAND.temptress);

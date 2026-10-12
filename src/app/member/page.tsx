@@ -41,7 +41,7 @@ export default async function MemberPortalPage() {
   if (!member.isActive) {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-4" style={{ background: BRAND.temptress }}>
-        <LogoLockup size={24} color={BRAND.beige} dotColor={BRAND.mahogany} />
+        <LogoLockup height={32} tone="light" />
         <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl">
           <h1 className="mb-2 text-lg font-bold text-red-700">{t.member.deactivatedTitle}</h1>
           <p className="text-sm text-black/60">{t.member.deactivatedBody}</p>
@@ -96,7 +96,12 @@ export default async function MemberPortalPage() {
 
   return (
     <div className="min-h-screen bg-[#FAF8F4]">
-      <AppHeader theme={theme} roleName={member.department?.name ?? t.member.roleFallback} userName={member.fullName}>
+      <AppHeader
+        theme={theme}
+        roleName={member.department?.name ?? t.member.roleFallback}
+        userName={member.fullName}
+        homeHref="/member"
+      >
         <HeaderActions color={theme.text} />
       </AppHeader>
 

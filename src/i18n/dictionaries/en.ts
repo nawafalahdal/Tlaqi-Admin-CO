@@ -473,6 +473,7 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
     enable2fa: "Enable two-factor auth",
     confirming: "Confirming...",
     confirmEnable: "Confirm activation",
+    home: "Home",
     openMenu: "Open menu",
     closeMenu: "Close menu",
     copied: "Copied ✓",

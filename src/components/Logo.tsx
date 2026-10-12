@@ -1,5 +1,23 @@
 import Image from "next/image";
 
+/** الشعار الرسمي — الأصل نفسه، صورةً، لا محاكاةً له.
+ *
+ *  كان اسم العلامة يُكتب هنا نصّاً («TLAQI» بخط الواجهة ونقطةٌ من CSS).
+ *  وهو شعارٌ يُشبه الشعار ولا يكون هو: حرفُه غير حرفِ الهوية، ونسبةُ
+ *  نقطته غير نسبتها، وكل تغيّرٍ في خطّ الواجهة يُغيّر العلامة من حيث
+ *  لا نقصد. فصار الشعار ملفّ الهوية ذاته — بكسلاً ببكسل — ولا يُعاد
+ *  رسمه ولا يُقارَب بـCSS.
+ *
+ *  ونُسخته نسختان لا أكثر: واحدة حبرها فاتح للخلفيات الداكنة، وأخرى
+ *  حبرها داكن للفاتحة. وكلتاهما مولَّدة من الأصل بتغيير لون الحبر
+ *  وحده — الهندسة واحدة، ودرع الرمز يبقى بلونه الرسمي في الحالتين. */
+
+/** نسب الشعار الرسمي كما وردت: 880 × 259 */
+const LOCKUP_RATIO = 259 / 880;
+
+export type LogoTone = "light" | "dark";
+
+/** الرمز وحده — درعٌ برتقالي بلونه الرسمي، فلا يتبدّل بالخلفية */
 export function LogoMark({ size = 40 }: { size?: number }) {
   return (
     <Image
@@ -7,54 +25,33 @@ export function LogoMark({ size = 40 }: { size?: number }) {
       alt="تَـــلاقِ"
       width={size}
       height={size}
-      className="rounded-full object-cover shrink-0"
+      className="shrink-0 rounded-full object-cover"
       style={{ width: size, height: size }}
       priority
     />
   );
 }
 
-/** علامة الاسم النصّية — لاستخدامها فوق أي خلفية فاتحة أو داكنة عبر اختيار color */
-export function Wordmark({
-  size = 24,
-  color = "var(--brand-ink)",
-  dotColor = "var(--brand-mahogany)",
-  className = "",
-}: {
-  size?: number;
-  color?: string;
-  dotColor?: string;
-  className?: string;
-}) {
-  return (
-    <span
-      className={`inline-flex items-center font-extrabold tracking-wide ${className}`}
-      style={{ fontSize: size, color, lineHeight: 1 }}
-      dir="ltr"
-    >
-      TLAQI
-      <span
-        aria-hidden
-        className="inline-block rounded-full ms-1"
-        style={{ width: size * 0.22, height: size * 0.22, background: dotColor }}
-      />
-    </span>
-  );
-}
-
+/** الشعار الكامل: الرمز واسم العلامة.
+ *
+ *  `height` ارتفاع الشعار بالبكسل — والعرض يتبعه بنسبة الأصل. */
 export function LogoLockup({
-  size = 32,
-  color = "var(--brand-ink)",
-  dotColor = "var(--brand-mahogany)",
+  height = 32,
+  tone = "dark",
 }: {
-  size?: number;
-  color?: string;
-  dotColor?: string;
+  height?: number;
+  tone?: LogoTone;
 }) {
+  const width = Math.round(height / LOCKUP_RATIO);
   return (
-    <span className="inline-flex items-center gap-2.5">
-      <LogoMark size={size + 8} />
-      <Wordmark size={size} color={color} dotColor={dotColor} />
-    </span>
+    <Image
+      src={tone === "light" ? "/brand/lockup-on-dark.png" : "/brand/lockup-on-light.png"}
+      alt="تَـــلاقِ — TLAQI"
+      width={width}
+      height={height}
+      className="shrink-0"
+      style={{ width, height }}
+      priority
+    />
   );
 }

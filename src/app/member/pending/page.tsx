@@ -30,7 +30,7 @@ export default async function MemberPendingPage() {
       className="flex min-h-screen flex-col items-center justify-center gap-6 px-4"
       style={{ background: theme.surface }}
     >
-      <LogoLockup size={24} color={theme.accentDark} dotColor={theme.accentDark} />
+      <LogoLockup height={32} tone="dark" />
       <div className="w-full max-w-md rounded-3xl bg-white p-6 text-center shadow-xl sm:p-8">
         <h1 className="mb-2 text-lg font-bold">
           {failed ? t.memberTest.failedPendingTitle : t.memberTest.pendingTitle}

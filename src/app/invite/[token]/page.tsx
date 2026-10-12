@@ -14,7 +14,7 @@ export default async function LegacyInvitePage() {
       className="flex min-h-screen flex-col items-center justify-center gap-6 px-4"
       style={{ background: BRAND.temptress }}
     >
-      <LogoLockup size={24} color={BRAND.beige} dotColor={BRAND.mahogany} />
+      <LogoLockup height={32} tone="light" />
       <div className="w-full max-w-md rounded-3xl bg-white p-6 text-center shadow-xl sm:p-8">
         <h1 className="mb-3 text-lg font-bold">{t.legacyInvite.title}</h1>
         <p className="mb-6 text-sm leading-relaxed text-black/60">{t.legacyInvite.body}</p>

@@ -40,7 +40,7 @@ export default async function MemberTestPage() {
       style={{ background: theme.surface }}
     >
       <div className="mb-6 flex w-full max-w-xl items-center justify-between gap-3">
-        <LogoLockup size={22} color={theme.accentDark} dotColor={theme.accentDark} />
+        <LogoLockup height={30} tone="dark" />
         <div className="flex flex-wrap items-center gap-2">
           <LocaleToggle color={theme.accentDark} />
           <LogoutButton color={theme.accentDark} />

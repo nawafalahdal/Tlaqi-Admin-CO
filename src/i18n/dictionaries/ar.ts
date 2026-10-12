@@ -469,6 +469,7 @@ raiseRequestHint: "وجّهها لقسم، أو لحساب إداري، أو ل�
     enable2fa: "تفعيل التحقق بخطوتين",
     confirming: "جارِ التأكيد...",
     confirmEnable: "تأكيد التفعيل",
+    home: "الصفحة الرئيسية",
     openMenu: "فتح القائمة",
     closeMenu: "إغلاق القائمة",
     copied: "تم النسخ ✓",
