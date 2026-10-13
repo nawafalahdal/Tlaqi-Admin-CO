@@ -17,12 +17,18 @@ export function FounderMemberControls({
   memberId,
   memberName,
   orgJoinDate,
+  welcomeSentAt,
   theme,
 }: {
   memberId: string;
   memberName: string;
   /** `yyyy-mm-dd` أو فراغ لمن لا تاريخ مُسجَّل له */
   orgJoinDate: string;
+  /** تاريخ وصول بطاقته — فإن وصلت انتهت صلاحية الإرسال ولا زرّ.
+   *
+   *  وبقاءُ زرٍّ سيُرفض وعدٌ كاذب: البطاقة مرّةٌ واحدة، والخادم يرفض
+   *  الثانية بشرطٍ في `where`. فتُقال القاعدة في الشاشة أيضاً. */
+  welcomeSentAt: string | null;
   theme: ReturnType<typeof themeFromColor>;
 }) {
   const [date, setDate] = useState(orgJoinDate);
@@ -92,12 +98,22 @@ export function FounderMemberControls({
       </p>
 
       <div className="mt-3">
-        <Button theme={theme} variant="outline" disabled={pendingMail} onClick={sendWelcome}>
-          {pendingMail ? "تُرسَل..." : "أرسل بطاقة الانضمام"}
-        </Button>
-        <p className="mt-1.5 text-xs text-black/40">
-          نفس القالب المتحرّك بلون قسمه. ولا تُنشئ حساباً ولا تُغيّر حالة عضوية ولا تُصفّر تاريخاً.
-        </p>
+        {welcomeSentAt ? (
+          <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-800">
+            ✓ وصلت بطاقة الانضمام في {welcomeSentAt} — وتُرسل مرّةً واحدة، فانتهت بها صلاحية
+            الإرسال لهذا الشخص.
+          </p>
+        ) : (
+          <>
+            <Button theme={theme} variant="outline" disabled={pendingMail} onClick={sendWelcome}>
+              {pendingMail ? "تُرسَل..." : "أرسل بطاقة الانضمام"}
+            </Button>
+            <p className="mt-1.5 text-xs text-black/40">
+              نفس القالب المتحرّك بلون قسمه. مرّةٌ واحدة لا تُعاد. ولا تُنشئ حساباً ولا تُغيّر حالة
+              عضوية ولا تُصفّر تاريخاً.
+            </p>
+          </>
+        )}
       </div>
 
       {msg && (

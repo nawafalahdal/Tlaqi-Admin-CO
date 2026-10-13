@@ -6,7 +6,7 @@
  *
  *  التشغيل:
  *    npx next dev -p 3000 > dev.log 2>&1 &
- *    node scripts/render-check-admin.mjs dev.log
+ *    node scripts/render-check-admin.mjs dev.log [صورة-كبيرة.png]
  *
  *  ورمز الدخول يُقرأ من سجلّ التطوير لأن البريد معطّل محلياً — ولا
  *  يُتجاوَز بابُ التحقّق بخطوتين: الرمز يُدخَل كما يُدخله صاحبه.
@@ -14,11 +14,13 @@
 import pw from "/opt/node-tools/node_modules/playwright/index.js";
 const { chromium } = pw;
 import fs from "fs";
+import { execFileSync } from "child_process";
 
 const LOG = process.argv[2];
 const EMAIL = "nawafalahdal.sa@gmail.com";
 const PASS = "Tlaqi@2026";
-const BASE = "http://127.0.0.1:3000";
+// المضيف يُطابق `NEXTAUTH_URL`: بناءُ الإنتاج يرفض مضيفاً غير موثوق
+const BASE = process.env.CHECK_BASE_URL ?? "http://127.0.0.1:3000";
 
 function codeFromLog(since) {
   const txt = fs.readFileSync(LOG).subarray(since).toString("utf8");
@@ -52,12 +54,43 @@ await page.waitForTimeout(4000);
 
 const step1 = await page.evaluate(() => document.body.innerText.split("\n").filter(l => /مقفل|غير صحيح|رمز|تعذّر/.test(l)).slice(0,4).join(" | "));
 console.log("  بعد الخطوة الأولى:", step1);
+// في بناء الإنتاج لا بريد ولا طبعَ رمزٍ في السجل، فيُستعمل تطبيق
+// المصادقة: عاملٌ ثانٍ كاملٌ لا تجاوزٌ له. ويُمرَّر سرُّه في
+// `TOTP_SECRET` ويُحتسب رمزُه بـ`TOTP_CODE_CMD`.
+if (process.env.TOTP_SECRET && process.env.TOTP_CODE_CMD) {
+  await page.locator('button:has-text("رمز التطبيق")').first().click();
+  await page.waitForTimeout(500);
+  const [tc, ...targs] = process.env.TOTP_CODE_CMD.split(" ");
+  const totp = execFileSync(tc, [...targs, process.env.TOTP_SECRET, EMAIL], {
+    encoding: "utf8",
+  }).trim().match(/\d{6}/)?.[0];
+  check(!!totp, "احتُسب رمز تطبيق المصادقة");
+  await page.evaluate((creds) => {
+    const set = (n, v) => { const el = document.querySelector(`input[name="${n}"]`); if (el) el.value = v; };
+    set("email", creds.email); set("password", creds.pass);
+  }, { email: EMAIL, pass: PASS });
+  await page.fill('input[name="totp"]', totp ?? "");
+  await page.click('button[type="submit"]');
+  await page.waitForTimeout(6000);
+  await page.goto(BASE + "/admin", { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(3000);
+  check(!page.url().includes("/login"), "نجح الدخول وفُتحت لوحة الإدارة — " + page.url());
+} else {
+
 let code = null;
-for (let i = 0; i < 20 && !code; i++) {
+for (let i = 0; i < 12 && !code; i++) {
   code = codeFromLog(before);
   if (!code) await page.waitForTimeout(1000);
 }
-check(!!code, "صدر رمز الدخول ووُجد في سجل التطوير");
+// بناءُ الإنتاج لا يطبع الرمز في السجل (وهذا صحيح: إنتاجٌ نُسي فيه
+// مفتاحُ البريد يجب أن يَمنع الدخول لا أن يُذيع الرموز). فيُصدَر رمزٌ
+// جديد لصاحب الحساب نفسه بأمرٍ يُمرَّر في `LOGIN_CODE_CMD` — والبابُ
+// قائم: الخادم يتحقّق من كلمة المرور ويستهلك الرمز.
+if (!code && process.env.LOGIN_CODE_CMD) {
+  const [cmd, ...args] = process.env.LOGIN_CODE_CMD.split(" ");
+  code = execFileSync(cmd, [...args, EMAIL], { encoding: "utf8" }).trim().match(/\d{6}/)?.[0] ?? null;
+}
+check(!!code, "صدر رمز الدخول");
 if (!code) { await browser.close(); process.exit(1); }
 
 await page.fill('input[name="loginCode"]', code);
@@ -84,6 +117,7 @@ if (errText) console.log("  رسالة الصفحة:", errText);
 await page.goto(BASE + "/admin", { waitUntil: "domcontentloaded" });
 await page.waitForTimeout(3000);
 check(!page.url().includes("/login"), "نجح الدخول وفُتحت لوحة الإدارة — " + page.url());
+}
 
 for (const [path, needles] of [
   ["/admin", ["إدارة الأعضاء والهيكل التنظيمي", "الاعتمادات الإدارية"]],
@@ -103,6 +137,32 @@ for (const [path, needles] of [
     check(page.url().endsWith("/admin/people"), `${path} — يحوّل إلى /admin/people (${page.url()})`);
   }
   for (const n of needles) check((body ?? "").includes(n), `${path} — يحمل «${n}»`);
+}
+
+// ── رفع صورةٍ كبيرة كما يرفعها صاحب جوّال
+//
+// **العطب الذي يُختبَر هنا:** الصورة من الجوّال تتجاوز حدَّ حجم طلب
+// Server Action، فيُرفَض الطلب قبل أن يبلغ الإجراء — فلا رسالةَ خطأٍ
+// مفهومة بل حاجزُ الأخطاء العام: «تعذّر إتمام العملية». والفحص يرفع
+// ملفاً كبيراً فعلاً ويتحقّق أن الصورة حُفظت.
+const BIG = process.argv[3];
+if (BIG) {
+  await page.goto(BASE + "/admin/profile", { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(4000);
+  const body0 = await page.textContent("body");
+  check(!/تعذّر إتمام العملية/.test(body0 ?? ""), "/admin/profile — بلا خطأ تشغيل");
+  check((body0 ?? "").includes("قسمك في الهيكل"), "/admin/profile — فيه تسجيل قسم المؤسس");
+
+  await page.setInputFiles('input[type="file"][name="avatar"]', BIG);
+  await page.waitForTimeout(1500);
+  const saveBtn = page.locator('button:has-text("حفظ الصورة"), button:has-text("استبدال الصورة")').first();
+  await saveBtn.click();
+  await page.waitForTimeout(12000);
+  const body1 = await page.textContent("body");
+  check(!/تعذّر إتمام العملية|Application error/.test(body1 ?? ""),
+        "**صورةٌ كبيرة تُرفَع بلا «تعذّر إتمام العملية»**");
+  check(/حُفظت صورتك/.test(body1 ?? ""), "وتُحفَظ ويُقال ذلك صريحاً",
+        (body1 ?? "").slice(0, 0));
 }
 
 check(errors.length === 0, "لا أخطاء جافاسكربت في المتصفح" + (errors.length ? `: ${errors[0]}` : ""));

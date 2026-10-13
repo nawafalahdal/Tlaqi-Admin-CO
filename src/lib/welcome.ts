@@ -54,6 +54,41 @@ export type WelcomeSubject =
  *  ولا يُرسل شيء لمن أُغلقت تجربته: `noFurtherEmail` حدٌّ نهائي، واحترامه
  *  جزء من الوداع لا استثناء عليه.
  */
+/** يَحجز حقَّ الإرسال مرّةً واحدة — في القاعدة لا في الذاكرة.
+ *
+ *  **المرّة الواحدة لا تُفرَض بفحصٍ قبل الإرسال.** الفحص ثم الإرسال
+ *  يمرّ منه متسابقان: نقرأ «لم تُرسَل» مرّتين فتُرسَل مرّتان — وهذا
+ *  وقع فعلاً حين ضُغط زرٌّ بطيء ضغطتين. فالشرط يُكتب في `where`:
+ *  `welcomeEmailSentAt: null` جزءٌ من التحديث نفسه، فمن كتب أولاً
+ *  حجز الحقّ ومن تأخّر وجد `count === 0`.
+ *
+ *  والحجز قبل الإرسال لا بعده. ولو فشل الإرسال بعده بقي الحقّ محجوزاً
+ *  بلا رسالةٍ وصلت — فيُفَكّ الحجز صريحاً عند الفشل. */
+async function claimWelcomeSend(
+  subject: WelcomeSubject,
+  at: Date
+): Promise<boolean> {
+  const where = { id: subject.id, welcomeEmailSentAt: null } as const;
+  const data = { welcomeEmailSentAt: at };
+  const written =
+    subject.kind === "user"
+      ? await prisma.user.updateMany({ where, data })
+      : await prisma.member.updateMany({ where, data });
+  return written.count > 0;
+}
+
+/** يُفَكّ الحجز إن لم تصل الرسالة — فلا يُحرَم صاحبها من بطاقته بإخفاقٍ
+ *  في البريد. والشرط على الوقت نفسه: لا يُفَكّ حجزُ إرسالٍ آخر نجح. */
+async function releaseWelcomeClaim(subject: WelcomeSubject, at: Date) {
+  const where = { id: subject.id, welcomeEmailSentAt: at } as const;
+  const data = { welcomeEmailSentAt: null };
+  if (subject.kind === "user") await prisma.user.updateMany({ where, data });
+  else await prisma.member.updateMany({ where, data });
+}
+
+const ALREADY_SENT =
+  "بطاقة الانضمام تُرسل مرّةً واحدة وقد أُرسلت — وانتهت بها صلاحية الإرسال لهذا الشخص.";
+
 export async function sendWelcomePack(
   subject: WelcomeSubject,
   occasion: "approved" | "resend" = "resend"
@@ -69,6 +104,11 @@ export async function sendWelcomePack(
     if (!user.isActive) return { ok: false, reason: "الحساب غير نشط" };
 
     const roleLabel = accountRoleLabel(user.role);
+
+    // الحجز قبل الإرسال — وما بعده إمّا رسالةٌ وصلت أو حجزٌ يُفَكّ
+    const at = new Date();
+    if (!(await claimWelcomeSend(subject, at))) return { ok: false, reason: ALREADY_SENT };
+
     const sent = await sendWelcomeEmail({
       to: user.email,
       fullName: user.fullName,
@@ -85,12 +125,14 @@ export async function sendWelcomePack(
       hashtag: BRAND_HASHTAG,
       occasion,
     });
-    if (sent.skipped) return { ok: false, reason: "تعذّر إرسال البريد الآن" };
+    if (sent.skipped) {
+      await releaseWelcomeClaim(subject, at);
+      return { ok: false, reason: "تعذّر إرسال البريد الآن" };
+    }
 
-    const at = new Date();
     await prisma.user.update({
       where: { id: user.id },
-      data: { welcomeEmailSentAt: at, welcomeEmailCount: { increment: 1 } },
+      data: { welcomeEmailCount: { increment: 1 } },
     });
     await appendMemberEvent({
       fullName: user.fullName,
@@ -124,6 +166,10 @@ export async function sendWelcomePack(
   if (!member.isActive) return { ok: false, reason: "الحساب غير نشط" };
 
   const roleLabel = accountRoleLabel(member.invite.targetRole);
+
+  const at = new Date();
+  if (!(await claimWelcomeSend(subject, at))) return { ok: false, reason: ALREADY_SENT };
+
   const sent = await sendWelcomeEmail({
     to: member.email,
     fullName: member.fullName,
@@ -140,12 +186,14 @@ export async function sendWelcomePack(
     hashtag: BRAND_HASHTAG,
     occasion,
   });
-  if (sent.skipped) return { ok: false, reason: "تعذّر إرسال البريد الآن" };
+  if (sent.skipped) {
+    await releaseWelcomeClaim(subject, at);
+    return { ok: false, reason: "تعذّر إرسال البريد الآن" };
+  }
 
-  const at = new Date();
   await prisma.member.update({
     where: { id: member.id },
-    data: { welcomeEmailSentAt: at, welcomeEmailCount: { increment: 1 } },
+    data: { welcomeEmailCount: { increment: 1 } },
   });
   await appendMemberEvent({
     fullName: member.fullName,

@@ -20,7 +20,14 @@ export function MyAccountCard({
   account,
   theme,
 }: {
-  account: { id: string; fullName: string; email: string; roleLabel: string };
+  account: {
+    id: string;
+    fullName: string;
+    email: string;
+    roleLabel: string;
+    /** تاريخ وصول بطاقته — البطاقة مرّةٌ واحدة حتى للمؤسس */
+    welcomeSentAt: string | null;
+  };
   theme: ReturnType<typeof themeFromColor>;
 }) {
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
@@ -37,6 +44,7 @@ export function MyAccountCard({
           </p>
           <p className="text-xs text-black/40">{account.roleLabel}</p>
         </div>
+        {account.welcomeSentAt ? null : (
         <Button
           theme={theme}
           variant="outline"
@@ -55,7 +63,15 @@ export function MyAccountCard({
         >
           {pending ? t.actions.working : t.accounts.sendWelcome}
         </Button>
+        )}
       </div>
+
+      {account.welcomeSentAt && (
+        <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-800">
+          ✓ وصلتك بطاقة الانضمام في {account.welcomeSentAt} — وتُرسل مرّةً واحدة، فانتهت صلاحية
+          الإرسال.
+        </p>
+      )}
 
       <p className="mt-3 rounded-lg bg-black/[0.03] px-3 py-2 text-xs leading-relaxed text-black/55">
         {t.accounts.myAccountHint}

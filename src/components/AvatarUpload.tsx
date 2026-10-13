@@ -13,6 +13,52 @@ import type { themeFromColor } from "@/lib/brand";
  *  والإرشاد مكتوبٌ لا مُفترَض: الشفافية وحدها لا تجعل الصورة لائقة،
  *  فيُقال ما هو المطلوب — وجهٌ واضح، خلفيةٌ مفرَّغة، PNG.
  */
+/** حدُّ الضلع الذي تُرسَل الصورة فيه — والخادم يُوحّدها بعده إلى ٥١٢.
+ *
+ *  التصغير في المتصفّح لا في الخادم وحده: صورة الجوّال الحديث ٣–٨
+ *  ميجابايت، وطلبُ Server Action له حدٌّ أصغر من ذلك افتراضاً — فكان
+ *  الطلب يُرفَض قبل أن يبلغ الإجراء، فلا رسالةَ خطأٍ مفهومة بل حاجزُ
+ *  الأخطاء العام: «تعذّر إتمام العملية».
+ *
+ *  والصيغة PNG لا JPEG: الخلفية الشفّافة هي المطلوب، وJPEG لا يحمل
+ *  شفافيةً — فيُمتلئ المفرَّغ أسودَ ثم يظهر مربّعاً في الهيكل. */
+const MAX_EDGE = 1024;
+
+/** يُصغّر الصورة في المتصفّح مع الحفاظ على الشفافية.
+ *
+ *  وإن تعذّر شيءٌ من ذلك — متصفّحٌ لا يُفكّ الصيغة، أو `canvas` مُقيَّد —
+ *  يُرسَل الملف كما هو: الخادم يتحقّق ويُوحّد على كل حال، والتصغير
+ *  تخفيفٌ لا شرطُ صحّة. */
+async function shrinkForUpload(file: File): Promise<File> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    if (scale === 1 && file.size <= 900_000) {
+      bitmap.close();
+      return file;
+    }
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      bitmap.close();
+      return file;
+    }
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((b) => resolve(b), "image/png")
+    );
+    if (!blob) return file;
+    return new File([blob], "avatar.png", { type: "image/png" });
+  } catch {
+    return file;
+  }
+}
+
 export function AvatarUpload({
   current,
   theme,
@@ -80,8 +126,20 @@ export function AvatarUpload({
                 setMsg(null);
                 startTransition(async () => {
                   const fd = new FormData();
-                  fd.set("avatar", f);
-                  const res = await uploadMyAvatarAction(fd);
+                  fd.set("avatar", await shrinkForUpload(f));
+                  // الإجراء يُعيد خطأه نصّاً. وما يبقى بعده — انقطاعُ
+                  // شبكةٍ أو طلبٌ مرفوض — يُقال هنا بدل أن يُسقط الصفحة
+                  // في حاجز الأخطاء العام.
+                  let res: Awaited<ReturnType<typeof uploadMyAvatarAction>>;
+                  try {
+                    res = await uploadMyAvatarAction(fd);
+                  } catch {
+                    setMsg({
+                      kind: "err",
+                      text: "تعذّر إرسال الصورة — تحقّق من الاتصال وأعد المحاولة بصورة أصغر.",
+                    });
+                    return;
+                  }
                   if (res.error) {
                     setMsg({ kind: "err", text: res.error });
                     return;

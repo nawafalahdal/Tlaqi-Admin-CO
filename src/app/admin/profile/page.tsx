@@ -10,6 +10,7 @@ import { getLocale, getDictionary } from "@/i18n/server";
 import { ROLE_LABELS, accountRoleLabel } from "@/lib/testTracks";
 import { formatDate } from "@/lib/format";
 import { AdminProfileForm } from "./ProfileForm";
+import { MyDepartment } from "./MyDepartment";
 import { WelcomeMailCard } from "@/components/WelcomeMailCard";
 import { SecurityGuidance } from "@/components/SecurityGuidance";
 import { GovernanceCharter } from "@/components/GovernanceCharter";
@@ -28,6 +29,15 @@ export default async function AdminProfilePage() {
     where: { id: session.user.id },
     include: { department: true },
   });
+
+  // أقسامُ المنصة كاملة — «الإدارة العليا» منها: المؤسس يُسجَّل فيها
+  const departments =
+    session.user.role === "super_admin"
+      ? await prisma.department.findMany({
+          select: { id: true, name: true },
+          orderBy: [{ leadershipOnly: "desc" }, { name: "asc" }],
+        })
+      : [];
 
   const t = getDictionary(await getLocale());
   const tp = t.adminProfile;
@@ -49,6 +59,15 @@ export default async function AdminProfilePage() {
 
         {/* الصورة الشخصية — لكل شخصٍ لا للقادة وحدهم */}
         <AvatarUpload current={user.avatarData} theme={theme} />
+
+        {/* قسم المؤسس: لم يُسأل عنه يوم أُنشئ حسابه، فيُسجّله مرّة */}
+        {session.user.role === "super_admin" && (
+          <MyDepartment
+            departments={departments}
+            current={user.department?.name ?? null}
+            theme={theme}
+          />
+        )}
 
         {/* الهوية: تُعرض ولا تُعدَّل من هنا */}
         <Card className="p-4 sm:p-5">

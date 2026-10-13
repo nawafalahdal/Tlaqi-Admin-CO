@@ -27,6 +27,18 @@ const nextConfig: NextConfig = {
     "/api/welcome-banner/[token]": ["./public/brand/banner/**", "./assets/fonts/**"],
   },
 
+  /** حدُّ حجم طلب Server Action — صورةُ وجهٍ من جوّالٍ حديث تتجاوز
+   *  الافتراضي (١ ميجابايت) بسهولة.
+   *
+   *  **عطبٌ رآه المستخدم:** رفع صورته فظهرت «تعذّر إتمام العملية».
+   *  والسبب أن الطلب نفسه رُفض قبل أن يصل إلى الإجراء، فلم يُنفَّذ
+   *  `try/catch` فيه ولا عاد بخطأٍ مفهوم — سقط الطلب فظهر حاجزُ
+   *  الأخطاء العام. ورفعُ الحدّ وحده لا يكفي: الواجهة تُصغّر الصورة
+   *  قبل الإرسال أيضاً، وهذا الحدّ شبكةُ أمانٍ لا طريقٌ معتاد. */
+  experimental: {
+    serverActions: { bodySizeLimit: "8mb" },
+  },
+
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

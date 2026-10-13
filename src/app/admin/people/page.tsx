@@ -48,7 +48,11 @@ export default async function PeoplePage() {
 
   await sweepExpiredCandidateAccounts();
 
-  const [accounts, allMembers, removedUsers, allDepartments] = await Promise.all([
+  const [me, accounts, allMembers, removedUsers, allDepartments] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { welcomeEmailSentAt: true },
+    }),
     prisma.user.findMany({
       where: {
         isActive: true,
@@ -73,12 +77,15 @@ export default async function PeoplePage() {
       orderBy: { removedAt: "desc" },
       take: 20,
     }),
-    // الأقسام العاملة وحدها تُعرض للتصنيف: القسم الاستثنائي يتبع
-    // الإدارة العليا ولا يُصنَّف فيه عضوٌ بقرارٍ إداري
+    // كلُّ الأقسام تُعرض للتصنيف — «الإدارة العليا» منها.
+    //
+    // كانت مُستثناةً بشرط `leadershipOnly: false`، فظهرت القائمة بثلاثة
+    // أقسام ولم يجد المؤسس القسمَ الذي أنشأه. والقسم الاستثنائي قسمٌ
+    // قائم في القاعدة وله لونُه وصفُّه في الهيكل، فحجبُه عن التصنيف
+    // يجعله قسماً لا يُدخَل إليه — وهذا ليس حكماً، بل نقصٌ في الواجهة.
     prisma.department.findMany({
-      where: { leadershipOnly: false },
       select: { id: true, name: true },
-      orderBy: { name: "asc" },
+      orderBy: [{ leadershipOnly: "desc" }, { name: "asc" }],
     }),
   ]);
 
@@ -229,6 +236,9 @@ export default async function PeoplePage() {
                 fullName: session.user.name ?? "—",
                 email: session.user.email ?? "—",
                 roleLabel: t.roles.super_admin,
+                welcomeSentAt: me?.welcomeEmailSentAt
+                  ? formatDate(me.welcomeEmailSentAt)
+                  : null,
               }}
             />
           </div>
@@ -302,6 +312,9 @@ export default async function PeoplePage() {
                     memberId={m.id}
                     memberName={m.fullName}
                     orgJoinDate={m.orgJoinDate ? m.orgJoinDate.toISOString().slice(0, 10) : ""}
+                    welcomeSentAt={
+                      m.welcomeEmailSentAt ? formatDate(m.welcomeEmailSentAt) : null
+                    }
                     theme={theme}
                   />
                 </Card>
