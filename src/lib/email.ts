@@ -182,43 +182,93 @@ async function sendPrebuilt(to: string | string[], subject: string, html: string
   }
 }
 
-export async function sendInviteEmail(opts: {
-  to: string;
-  fullName: string;
-  roleLabel: string;
-  inviteUrl: string;
-}) {
-  return send(
-    opts.to,
-    `دعوتك للانضمام إلى تَـــلاقِ — ${opts.roleLabel}`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>مرحباً ${esc(opts.fullName)}،</p>
-      <p>تمت دعوتك للانضمام إلى منصة <strong>تَـــلاقِ</strong> بصفة <strong>${esc(opts.roleLabel)}</strong>.</p>
-      <p><a href="${opts.inviteUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">فتح رابط الدعوة</a></p>
-      <p style="color:#777;font-size:12px">هذا الرابط مخصص لك فقط بالاسم والبريد المذكورين.</p>
-    </div>`,
-    "دعوة"
-  );
-}
-
+/** بيانات الدخول — ولها مناسبتان لا مناسبة واحدة.
+ *
+ *  **كانت تقول للمدعوّ «تهانينا، تم اعتماد انضمامك».** وهو لم يُعتمد:
+ *  دُعي للتوّ، وأمامه اختبارٌ ثم قرارُ اعتماد قد يكون بالرفض. فكانت
+ *  الرسالة تَعِد بما لم يُقرَّر، ويقرأ صاحبها أنه صار عضواً ثم يُفاجَأ
+ *  باختبارٍ لم يُذكر له. ثم تُرسَل الرسالة نفسها عند إعادة تعيين كلمة
+ *  المرور لعضوٍ قديم، فتُهنّئه على انضمامٍ جرى قبل سنة.
+ *
+ *  فصار لكلّ مناسبةٍ نصُّها: الدعوة تقول إنها دعوة وتشرح الخطوات،
+ *  وإعادة التعيين تقول إنها إعادة تعيين. */
 export async function sendCredentialsEmail(opts: {
   to: string;
   fullName: string;
   tempPassword: string;
   loginUrl: string;
+  /** `invitation` لحظة الدعوة، `reset` لإعادة تعيين بيانات حسابٍ قائم */
+  occasion?: "invitation" | "reset";
+  /** القسم والمسمّى كما حدّدتهما الإدارة الداعية — لا يُغيّرهما المدعوّ */
+  departmentName?: string | null;
+  jobTitle?: string | null;
+  roleLabel?: string | null;
+  /** مهلة أول دخول بالساعات */
+  hoursValid?: number;
 }) {
+  const invitation = (opts.occasion ?? "invitation") === "invitation";
+
+  const facts: [string, string][] = [];
+  if (opts.roleLabel?.trim()) facts.push(["الصفة", opts.roleLabel.trim()]);
+  if (opts.departmentName?.trim()) facts.push(["القسم", opts.departmentName.trim()]);
+  if (opts.jobTitle?.trim()) facts.push(["المسمّى الوظيفي", opts.jobTitle.trim()]);
+
+  const credentials = `
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+        ${factRow("البريد الإلكتروني", opts.to)}
+        ${factRow("كلمة المرور المؤقتة", opts.tempPassword)}
+      </table>
+      <p style="margin:22px 0">
+        <a href="${esc(opts.loginUrl)}"
+           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
+          ${invitation ? "ابدأ من هنا" : "تسجيل الدخول"}
+        </a>
+      </p>
+      <p style="font-size:13px;color:#6B6B6B">سيُطلب منك تغيير كلمة المرور فور الدخول الأول.</p>`;
+
+  if (!invitation) {
+    return send(
+      opts.to,
+      "بيانات دخول جديدة لحسابك في تَـــلاقِ",
+      `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+        <p>مرحباً ${esc(opts.fullName)}،</p>
+        <p>أُعيد تعيين بيانات دخولك إلى منصة تَـــلاقِ. استعمل البيانات التالية:</p>
+        ${credentials}
+        <p style="font-size:13px;color:#6B6B6B">إن لم تكن قد طلبت هذا، أبلغ إدارتك فوراً.</p>
+      </div>`,
+      "بيانات الدخول"
+    );
+  }
+
+  const where = opts.departmentName?.trim()
+    ? `إلى ${opts.departmentName.trim()}`
+    : "إلى فريق تَـــلاقِ";
+  const hours = opts.hoursValid ?? 24;
+
   return send(
     opts.to,
-    "تم اعتماد انضمامك إلى تَـــلاقِ — بيانات الدخول",
+    `دعوة للانضمام إلى تَـــلاقِ${opts.departmentName?.trim() ? ` — ${opts.departmentName.trim()}` : ""}`,
     `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
       <p>مرحباً ${esc(opts.fullName)}،</p>
-      <p>تهانينا، تم اعتماد انضمامك. يمكنك الآن الدخول إلى المنصة بالبيانات التالية:</p>
-      <p>البريد الإلكتروني: <strong dir="ltr">${esc(opts.to)}</strong><br/>
-         كلمة المرور المؤقتة: <strong dir="ltr">${esc(opts.tempPassword)}</strong></p>
-      <p><a href="${opts.loginUrl}" style="background:#341D2B;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">تسجيل الدخول</a></p>
-      <p style="color:#777;font-size:12px">سيُطلب منك تغيير كلمة المرور فور الدخول الأول.</p>
+      <p>دعتك إدارة <strong>تَـــلاقِ</strong> للانضمام ${esc(where)}. وهذه دعوةٌ خاصّةٌ بك،
+         والبيانات أدناه سجّلتها الإدارة الداعية — فلا تحتاج إلى تعبئتها ولا يمكن تعديلها.</p>
+      ${facts.length ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">${facts.map(([k, v]) => factRow(k, v)).join("")}</table>` : ""}
+
+      <p style="margin:20px 0 8px;font-weight:bold">خطواتك:</p>
+      <ol style="margin:0 0 16px;padding-inline-start:20px;line-height:2;font-size:14px">
+        <li>ادخل بالبيانات أدناه وغيّر كلمة المرور.</li>
+        <li>أكمل بياناتك الشخصية (تخصّصك وبيانات التواصل).</li>
+        <li>اجتز اختبار القسم — وهو شرط النظر في انضمامك.</li>
+        <li>تُعرض نتيجتك على الإدارة المختصّة لقرار الاعتماد.</li>
+      </ol>
+      <p style="font-size:14px"><strong>الاعتماد ليس تلقائياً:</strong> اجتياز الاختبار يُقدّم طلبك
+         للمراجعة، وتصلك رسالة الانضمام عند الاعتماد.</p>
+      ${credentials}
+      <p style="font-size:13px;color:#6B6B6B">
+        وللدعوة مهلة: إن لم تدخل خلال ${hours} ساعة سقطت ووجب على الإدارة إعادة إصدارها.
+      </p>
     </div>`,
-    "بيانات الدخول"
+    "دعوة"
   );
 }
 

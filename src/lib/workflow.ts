@@ -584,6 +584,8 @@ export async function resetMemberCredentials(
     fullName: member.fullName,
     tempPassword,
     loginUrl: `${baseUrl()}/login`,
+    // إعادة تعيين لا دعوة: لا تُهنّئ عضواً قديماً على انضمامٍ جرى قبل سنة
+    occasion: "reset",
   });
 
   await appendMemberEvent({
@@ -700,6 +702,11 @@ export async function createCandidateAccount(opts: {
   const tempPassword = generateTempPassword();
   const passwordHash = await hashPassword(tempPassword);
 
+  // اسم القسم يُقرأ من المعرّف: الدعوة تذكر لمن دُعي، لا معرّفاً مُبهماً
+  const department = opts.departmentId
+    ? await prisma.department.findUnique({ where: { id: opts.departmentId } })
+    : null;
+
   const invite = await prisma.invite.create({
     data: {
       fullName: opts.fullName,
@@ -736,12 +743,40 @@ export async function createCandidateAccount(opts: {
     at: new Date(),
   });
 
-  await sendCredentialsEmail({
+  const invited = await sendCredentialsEmail({
     to: member.email,
     fullName: member.fullName,
     tempPassword,
     loginUrl: `${baseUrl()}/login`,
+    // الدعوة تقول إنها دعوة: القسم والمسمّى كما سجّلتهما الإدارة،
+    // والخطوات، والمهلة — لا «تهانينا، تم اعتماد انضمامك».
+    occasion: "invitation",
+    departmentName: department?.name ?? null,
+    jobTitle: opts.jobTitle ?? null,
+    roleLabel: ROLE_LABELS[opts.targetRole],
+    hoursValid: CANDIDATE_WINDOW_HOURS,
   });
+
+  // يُسجَّل وصولُ البريد لا إرسالُه: `skipped` تعني أنه لم يصل — إمّا
+  // لأن البريد معطّل أو لأن Resend رفضه. والفرق بين «وصلت ولم يفتحها»
+  // و«لم تصل» هو الفرق بين الانتظار والإعادة، فلا يُخمَّن.
+  await prisma.invite.update({
+    where: { id: invite.id },
+    data: {
+      emailAttempts: { increment: 1 },
+      ...(invited.skipped ? {} : { emailSentAt: new Date() }),
+    },
+  });
+  if (invited.skipped) {
+    await appendMemberEvent({
+      fullName: member.fullName,
+      email: member.email,
+      event: "تعذّر تسليم الدعوة",
+      roleOrDepartment: department?.name ?? ROLE_LABELS[opts.targetRole],
+      details: "أُنشئ الحساب ولم يصل بريد الدعوة — تُعاد بإعادة تعيين بياناته، ولا تُنشأ دعوة ثانية",
+      at: new Date(),
+    });
+  }
 
   // الصف يُفتح في تبويب الأعضاء من هذه اللحظة، لا عند الاعتماد: المرشّح
   // الذي لم يُعتمد بعد يجب أن يكون مرئياً هو أيضاً

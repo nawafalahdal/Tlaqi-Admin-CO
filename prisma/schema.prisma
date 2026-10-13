@@ -167,6 +167,13 @@ model Invite {
   invitedById  String
   invitedBy    User             @relation("InvitedBy", fields: [invitedById], references: [id])
   status       InviteStatus     @default(open)
+  /// وصول بريد الدعوة: متى وصل، وكم مرّة حُوِلت.
+  ///
+  /// لولا هذا لا يُعرف الفرق بين دعوةٍ وصلت ولم يفتحها صاحبها ودعوةٍ لم
+  /// تصل أصلاً — والأولى تُنتظَر والثانية تُعاد. والإعادة لا تُنشئ دعوةً
+  /// ثانية: `resetMemberCredentials` يُصدر رمزاً جديداً للدعوة نفسها.
+  emailSentAt  DateTime?
+  emailAttempts Int             @default(0)
   createdAt    DateTime         @default(now())
 
   member Member?
