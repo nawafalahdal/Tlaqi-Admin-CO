@@ -1211,25 +1211,78 @@ export async function nudgeMissingTwoFactor(): Promise<number> {
  *  ولا يُصلح هذا تلقائياً: تعطيلُ حسابين من ثلاثة اختيارٌ لا يملكه
  *  الكود — قد يُعطّل التنفيذيَّ الحقيقي ويُبقي قديماً. فيُعرَض على
  *  المؤسس بأسمائه ليحسمه هو. */
+export type SeatHolder = {
+  id: string;
+  fullName: string;
+  email: string;
+  createdAt: Date;
+  /** هل استُعمل الحساب قطّ؟
+   *
+   *  حسابٌ أُنشئ ولم يُغيَّر رمزُه المؤقّت ولم يُكمَل سجلُّه لم يدخله
+   *  صاحبُه. وهذه أوثق علامةٍ على المكرّر الزائد: الحقيقي يُستعمل. */
+  everUsed: boolean;
+  /** حالة اعتماد سجلّ ترشّحه — يُوصَل بالبريد.
+   *
+   *  `null` يعني: لا سجلّ ترشّحٍ لهذا البريد أصلاً. وهو حالُ من أُنشئ
+   *  حسابُه بيدٍ مباشرةً (بذرة النظام أو إنشاءٌ إداري)، وحالُ المكرّر
+   *  الذي أُنشئ خطأً. */
+  approvalStatus: string | null;
+};
+
 export async function seatConflicts(): Promise<
-  { role: string; roleLabel: string; departmentName: string | null; holders: { fullName: string; email: string }[] }[]
+  { role: string; roleLabel: string; departmentName: string | null; holders: SeatHolder[] }[]
 > {
   const conflicts: Awaited<ReturnType<typeof seatConflicts>> = [];
+
+  /** يُلحق بكل شاغلٍ ما يُفرّقه عن قرينه.
+   *
+   *  كان التعارض يُعرض أسماءً وبُرُداً فقط — فيرى المؤسس أن المقعد
+   *  مشغولٌ باثنين ولا يعرف أيُّهما الزائد. والمعرفة هنا ليست رفاهية:
+   *  حذفُ الحساب الخطأ يُخرج قائداً عاملاً من المنصة.
+   *
+   *  فيُقال: متى أُنشئ، وهل استُعمل قطّ، وهل له سجلُّ ترشّحٍ معتمَد. */
+  async function enrich(
+    rows: { id: string; fullName: string; email: string; createdAt: Date;
+            passwordChangedAt: Date | null; profileCompletedAt: Date | null }[]
+  ): Promise<SeatHolder[]> {
+    const members = await prisma.member.findMany({
+      where: { email: { in: rows.map((r) => r.email) } },
+      select: { email: true, approvalStatus: true },
+    });
+    const byEmail = new Map(members.map((m) => [m.email.toLowerCase(), m.approvalStatus]));
+    return rows.map((r) => ({
+      id: r.id,
+      fullName: r.fullName,
+      email: r.email,
+      createdAt: r.createdAt,
+      everUsed: r.passwordChangedAt !== null || r.profileCompletedAt !== null,
+      approvalStatus: byEmail.get(r.email.toLowerCase()) ?? null,
+    }));
+  }
+
+  const SEAT_SELECT = {
+    id: true,
+    fullName: true,
+    email: true,
+    createdAt: true,
+    passwordChangedAt: true,
+    profileCompletedAt: true,
+  } as const;
 
   // الأدوار المفردة على مستوى المنظمة
   for (const role of ["super_admin", "executive", "operations_officer"] as const) {
     if (!isSingletonRole(role)) continue;
-    const holders = await prisma.user.findMany({
+    const rows = await prisma.user.findMany({
       where: { role, isActive: true },
-      select: { fullName: true, email: true },
+      select: SEAT_SELECT,
       orderBy: { createdAt: "asc" },
     });
-    if (holders.length > 1) {
+    if (rows.length > 1) {
       conflicts.push({
         role,
         roleLabel: ROLE_LABELS[role] ?? role,
         departmentName: null,
-        holders,
+        holders: await enrich(rows),
       });
     }
   }
@@ -1237,17 +1290,17 @@ export async function seatConflicts(): Promise<
   // قيادة القسم مفردةٌ لكل قسم لا للمنظمة
   const departments = await prisma.department.findMany({ select: { id: true, name: true } });
   for (const dept of departments) {
-    const holders = await prisma.user.findMany({
+    const rows = await prisma.user.findMany({
       where: { role: "department_admin", isActive: true, departmentId: dept.id },
-      select: { fullName: true, email: true },
+      select: SEAT_SELECT,
       orderBy: { createdAt: "asc" },
     });
-    if (holders.length > 1) {
+    if (rows.length > 1) {
       conflicts.push({
         role: "department_admin",
         roleLabel: ROLE_LABELS.department_admin ?? "قائد قسم",
         departmentName: dept.name,
-        holders,
+        holders: await enrich(rows),
       });
     }
   }

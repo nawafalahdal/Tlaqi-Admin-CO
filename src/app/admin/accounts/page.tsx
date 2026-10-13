@@ -6,6 +6,7 @@ import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { AccountRow } from "./AccountRow";
 import { MyAccountCard } from "./MyAccountCard";
+import { SeatConflicts } from "@/components/SeatConflicts";
 import { RemovedAccountRow } from "./RemovedAccountRow";
 import { MemberAccountRow } from "./MemberAccountRow";
 import { StuckCandidateRow, type StuckCandidate } from "./StuckCandidateRow";
@@ -109,25 +110,6 @@ export default async function AccountsPage() {
 
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
 
-  // المناصب التي يشغلها أكثر من حساب نشط الآن
-  const duplicateSeats: { label: string; holders: string[] }[] = [];
-  for (const role of ["executive", "operations_officer"] as const) {
-    const holders = accounts.filter((a) => a.role === role).map((a) => a.fullName);
-    if (holders.length > 1) {
-      duplicateSeats.push({ label: ROLE_LABELS[role], holders });
-    }
-  }
-  const byDept = new Map<string, string[]>();
-  for (const a of accounts.filter((x) => x.role === "department_admin")) {
-    const key = a.department?.name ?? "—";
-    byDept.set(key, [...(byDept.get(key) ?? []), a.fullName]);
-  }
-  for (const [dept, holders] of byDept) {
-    if (holders.length > 1) {
-      duplicateSeats.push({ label: `${ROLE_LABELS.department_admin} — ${dept}`, holders });
-    }
-  }
-
   return (
     <div className="min-h-screen bg-[#FAF8F4]">
       <AppHeader
@@ -150,21 +132,13 @@ export default async function AccountsPage() {
           {t.seats.governance}
         </p>
 
-        {/* بيانات سابقة لتطبيق القاعدة قد تحمل أكثر من شاغل لمنصب واحد —
-            تُعرض صراحةً لأن القاعدة تمنع الإضافة ولا تحسم ما هو قائم */}
-        {duplicateSeats.length > 0 && (
-          <div className="mb-4 rounded-lg bg-red-50 px-3 py-2.5 text-xs leading-relaxed text-red-900">
-            <p className="font-bold">{t.seats.duplicatesTitle}</p>
-            <ul className="mt-1 list-inside list-disc">
-              {duplicateSeats.map((d) => (
-                <li key={d.label}>
-                  {d.label}: {d.holders.join("، ")}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-1.5 opacity-80">{t.seats.duplicatesHint}</p>
-          </div>
-        )}
+        {/* التعارض يُعرض هنا بوقائعه وبزرّ محوه — لا نصّاً يُحيل إلى
+            شاشةٍ أخرى. وكان قائمةً نصّية تقول «نحِّ من لم يبقَ في
+            منصبه»، فيرى المؤسس العطب ولا يملك أداته. والمكوّن نفسه
+            يُستعمل في اللوحة، فالقاعدة في موضعٍ واحد. */}
+        <div className="mb-4">
+          <SeatConflicts canPurge={isSuperAdmin} />
+        </div>
 
         {/* حسابُ المؤسس نفسه — خارج القائمة لأنها لا تَعرض له تنحيةً ولا
             حذفاً، فلو تُرك بلا موضعٍ هنا لم يجد طريقاً إلى بطاقته */}

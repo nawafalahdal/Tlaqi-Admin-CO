@@ -1,5 +1,7 @@
 import { Card } from "@/components/ui";
 import { seatConflicts } from "@/lib/workflow";
+import { SeatHolderRow } from "@/components/SeatHolderRow";
+import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 
 /** تعارض المقاعد المفردة — يُعرض للمؤسس وحده، ولا يُعرض إن لم يكن.
  *
@@ -8,11 +10,20 @@ import { seatConflicts } from "@/lib/workflow";
  *  يظهر في أي شاشة — تبقى القاعدة مكتوبةً والواقع يخالفها بلا أن يدري
  *  أحد.
  *
- *  ولا يُصلح نفسه: تعطيلُ حسابين من ثلاثة اختيارٌ لا يملكه الكود. فيُسمّى
- *  الشاغلون ويُقال ما أثرُ بقائهم، ويحسمه المؤسس من إدارة الحسابات. */
-export async function SeatConflicts() {
+ *  **وكان يُعرض ولا يُعالَج.** أسماءٌ وبُرُدٌ نصّاً، وسطرٌ يقول «نحِّ من
+ *  لم يبقَ في منصبه من إدارة الحسابات». فيرى المؤسس أن المقعد مشغولٌ
+ *  باثنين، ولا يعرف أيُّهما الزائد، ولا يجد هنا ما يُزيله به. والعلم
+ *  بالعطب بلا أداةٍ لإصلاحه ليس حلاًّ.
+ *
+ *  فصار لكل شاغلٍ سطرُه، يحمل ما يُفرّقه عن قرينه — متى أُنشئ، وهل
+ *  استُعمل قطّ، وهل له سجلُّ ترشّحٍ معتمَد — وزرَّ محوٍ نهائي للمؤسس.
+ *  والقرار قرارُه: الكود لا يُخمّن أيَّ حسابٍ هو الحقيقي، لأن حذف الخطأ
+ *  منهما يُخرج قائداً عاملاً من المنصة. */
+export async function SeatConflicts({ canPurge = false }: { canPurge?: boolean }) {
   const conflicts = await seatConflicts();
   if (conflicts.length === 0) return null;
+
+  const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
 
   return (
     <Card className="border-[#9A2E1C]/30 bg-[#9A2E1C]/[0.04] p-4 sm:p-5">
@@ -22,27 +33,28 @@ export async function SeatConflicts() {
         حسابات أُنشئت قبل هذه القاعدة. وما دام المنصب مشغولاً بأكثر من واحد، تصل رسائل
         التصعيد إليهم جميعاً.
       </p>
-      <ul className="mt-3 flex flex-col gap-2.5">
+
+      <div className="mt-4 flex flex-col gap-4">
         {conflicts.map((c) => (
-          <li key={`${c.role}-${c.departmentName ?? ""}`} className="text-xs">
-            <span className="font-bold text-black/75">
+          <div key={`${c.role}-${c.departmentName ?? ""}`}>
+            <p className="text-xs font-bold text-black/75">
               {c.roleLabel}
               {c.departmentName ? ` — ${c.departmentName}` : ""}
-            </span>
-            <span className="text-black/45"> ({c.holders.length})</span>
-            <ul className="mt-1 flex flex-col gap-0.5 ps-4">
+              <span className="font-normal text-black/40"> · {c.holders.length} شاغلين</span>
+            </p>
+            <div className="mt-2 flex flex-col gap-2">
               {c.holders.map((h) => (
-                <li key={h.email} className="text-black/60">
-                  {h.fullName} <span className="text-black/35" dir="ltr">{h.email}</span>
-                </li>
+                <SeatHolderRow key={h.id} holder={{ ...h, createdAt: h.createdAt.toISOString() }} canPurge={canPurge} theme={theme} />
               ))}
-            </ul>
-          </li>
+            </div>
+          </div>
         ))}
-      </ul>
-      <p className="mt-3 border-t border-black/5 pt-3 text-xs text-black/45">
-        نحِّ من لم يبقَ في منصبه من «إدارة الحسابات» — ولا يحسمها الكود: تعطيل الحساب الخطأ
-        يُفرِغ المنصب من صاحبه الحقيقي.
+      </div>
+
+      <p className="mt-4 border-t border-black/10 pt-3 text-xs leading-relaxed text-black/50">
+        الكود لا يحسمها: حذف الحساب الخطأ من المكرّرين يُخرج قائداً عاملاً من المنصة. فاقرأ
+        السطور — «لم يُستعمل قطّ» و«غير معتمد» و«أُنشئ قبل» — واحذف الزائد، أو نحِّه إن أردت
+        إبقاء سجلّه.
       </p>
     </Card>
   );

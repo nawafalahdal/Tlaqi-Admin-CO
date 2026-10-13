@@ -4,7 +4,7 @@ import {
   changeLeadershipEmail,
   sendWelcomeToUser,
 } from "@/lib/founderActions";
-import { removeLeadershipUser } from "@/lib/workflow";
+import { removeLeadershipUser, seatConflicts } from "@/lib/workflow";
 import { memberForSession } from "@/lib/termination";
 import type { Session } from "next-auth";
 
@@ -245,6 +245,58 @@ async function cleanup() {
       purgeHeld.ok ? (purgeHeld.heldBy ?? "null") : "");
   await prisma.member.deleteMany({ where: { email: "held-twin@example.test" } });
   await prisma.invite.deleteMany({ where: { id: heldInvite.id } });
+
+  // ٩ — تعارض المقاعد يحمل ما يُفرّق المكرّر عن القائد العامل.
+  //
+  //      كان يُعيد أسماءً وبُرُداً فقط، فيرى المؤسس أن المقعد مشغولٌ
+  //      باثنين ولا يعرف أيُّهما الزائد — وحذفُ الخطأ منهما يُخرج قائداً
+  //      عاملاً من المنصة. فصار يحمل: متى أُنشئ، وهل استُعمل قطّ، وهل
+  //      له سجلُّ ترشّحٍ معتمَد.
+  const dupDept = await prisma.department.findFirstOrThrow({ where: { name: "التسويق" } });
+  const existingLeads = await prisma.user.count({
+    where: { role: "department_admin", departmentId: dupDept.id, isActive: true },
+  });
+
+  // مكرّرٌ لم يُستعمل قطّ ولا سجلّ ترشّح له
+  const ghostLead = await prisma.user.create({
+    data: { fullName: "قائد مكرّر لم يُستعمل", email: "dup-unused@example.test",
+            passwordHash: "x", role: "department_admin", departmentId: dupDept.id,
+            isActive: true },
+  });
+  // وقائدٌ عاملٌ: غيّر كلمته وأكمل سجلّه
+  const realLead = await prisma.user.create({
+    data: { fullName: "قائد عامل", email: "dup-real@example.test",
+            passwordHash: "x", role: "department_admin", departmentId: dupDept.id,
+            isActive: true, passwordChangedAt: new Date(), profileCompletedAt: new Date() },
+  });
+
+  const conflicts = await seatConflicts();
+  const seat = conflicts.find(
+    (c) => c.role === "department_admin" && c.departmentName === dupDept.name
+  );
+  chk("التعارض يُرصَد", !!seat, seat ? `${seat.holders.length} شاغلين` : "لم يُرصَد");
+
+  if (seat) {
+    const ghost = seat.holders.find((h) => h.id === ghostLead.id);
+    const real = seat.holders.find((h) => h.id === realLead.id);
+    chk("وكلُّ شاغلٍ له معرّفٌ يُحذَف به", !!ghost?.id && !!real?.id);
+    chk("**والمكرّر يُوسَم: لم يُستعمل قطّ**", ghost?.everUsed === false);
+    chk("والعامل يُوسَم: استُعمل", real?.everUsed === true);
+    chk("**ومن لا سجلّ ترشّح له يُقال فيه ذلك**", ghost?.approvalStatus === null);
+    chk("وتاريخ الإنشاء محمول", ghost?.createdAt instanceof Date);
+  }
+
+  // والمؤسس يمحو المكرّر — بإقرارٍ مباشر لأنه نشط
+  const purgeDup = await permanentlyDeleteAccount({
+    kind: "user", id: ghostLead.id, confirmEmail: "dup-unused@example.test",
+    reason: "حساب قيادي مكرّر لم يُستعمل قطّ", force: true, ...F });
+  chk("ويُمحى المكرّر", purgeDup.ok, purgeDup.ok ? "" : (purgeDup as { reason: string }).reason);
+
+  await prisma.user.deleteMany({ where: { id: realLead.id } });
+  const after = await prisma.user.count({
+    where: { role: "department_admin", departmentId: dupDept.id, isActive: true },
+  });
+  chk("وعاد المقعد كما كان", after === existingLeads, `${existingLeads} → ${after}`);
 
   await cleanup();
   console.log(checks.join("\n"));

@@ -364,7 +364,7 @@ export default async function AdminPage() {
             القاعدة مكتوبة والحرس يمنع الجديد — وهذا يُظهر ما سبقهما. */}
         {isSuperAdmin && (
           <section>
-            <SeatConflicts />
+            <SeatConflicts canPurge={isSuperAdmin} />
           </section>
         )}
 
