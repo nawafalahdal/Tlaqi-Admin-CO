@@ -94,7 +94,15 @@ function memberStage(member: {
  *  (decidedAt) يعني أن المرشّح لا يظهر في تبويب الأعضاء إطلاقاً حتى يُعتمد،
  *  فيبقى أثره الوحيد سطراً في السجل الحي — وهذا سبب امتلاء السجل الحي
  *  وحده وبقاء بقية التبويبات فارغة. */
-export async function syncMemberLifecycleRow(memberId: string) {
+export async function syncMemberLifecycleRow(
+  memberId: string,
+  /** شاهدةٌ تُكتب في عمود المرحلة بدل المحسوب — للحذف النهائي.
+   *
+   *  الصفّ يبقى في الشيت بعد زوال صاحبه من القاعدة، فلا يُقرأ عضواً
+   *  قائماً: يُعلَن عليه أنه حُذف نهائياً ومتى وبيد من. ولو تُرك على
+   *  مرحلته الأخيرة لبقي في السجل كأنه ما يزال في الفريق. */
+  tombstone?: string
+) {
   const member = await prisma.member.findUniqueOrThrow({
     where: { id: memberId },
     include: { department: true, invite: true },
@@ -110,7 +118,7 @@ export async function syncMemberLifecycleRow(memberId: string) {
     email: member.email,
     departmentName: member.department?.name ?? "—",
     roleLabel: ROLE_LABELS[member.invite.targetRole] ?? member.invite.targetRole,
-    stage: memberStage(member),
+    stage: tombstone ?? memberStage(member),
     specialization: member.specialization,
     section: member.section,
     profileCompletedAt: member.profileCompletedAt,

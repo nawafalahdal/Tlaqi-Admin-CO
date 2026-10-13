@@ -14,6 +14,32 @@ const DEFAULT_SESSION_HOURS = 2;
 /** ومن اختار "أبقني مسجّلاً" على جهازه الشخصي: ثلاثون يوماً. */
 const REMEMBER_DAYS = 30;
 
+
+/** هل الحساب ما يزال قائماً ونشطاً؟
+ *
+ *  يُسأل دورياً من `jwt` ليُبطل جلسةَ من حُذف أو عُطِّل. والخطأ في
+ *  القراءة لا يُبطل جلسةً صحيحة: انقطاعُ القاعدة لحظةً ليس حذفاً، وطردُ
+ *  الناس عند كل تعثّرٍ في الشبكة أسوأ من نافذة الخمس دقائق. */
+async function accountIsLive(sub: unknown, role: unknown): Promise<boolean> {
+  if (typeof sub !== "string" || !sub) return false;
+  try {
+    if (role === "member") {
+      const m = await prisma.member.findUnique({
+        where: { id: sub },
+        select: { isActive: true },
+      });
+      return Boolean(m?.isActive);
+    }
+    const u = await prisma.user.findUnique({
+      where: { id: sub },
+      select: { isActive: true },
+    });
+    return Boolean(u?.isActive);
+  } catch {
+    return true;
+  }
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   /** مدة الجلسة.
    *
@@ -168,6 +194,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // وحدها، فلا يبقى بابٌ يَقبل توكناً انتهت مدّته.
       if (typeof token.sessionExpiry === "number" && now > token.sessionExpiry) {
         return null;
+      }
+
+      // **الحساب يُراجَع لا يُفترَض باقياً.**
+      //
+      // الجلسة توكنٌ موقَّع لا صفٌّ في جدول: فمن عُطِّل حسابه أو حُذف
+      // نهائياً يبقى توكنُه صالحاً إلى أن تنتهي مدّته — وقد تبلغ أسبوعين
+      // لمن اختار «تذكّرني». و`isActive` كان يُفحَص عند الدخول وحده.
+      //
+      // فيُراجَع الحساب دورياً: كل خمس دقائق على الأكثر، لا عند كل طلب —
+      // فحصٌ بكل طلبٍ يُضيف استعلاماً لكل صفحةٍ وإجراء. والنافذة خمس
+      // دقائق حدٌّ معلوم: من حُذف لا يبقى داخلاً أكثر منها.
+      //
+      // والإبطال بإرجاع `null`، وهو نفس ما تفعله نهايةُ المدّة أعلاه —
+      // فيسري على كل ما يقرأ الجلسة لا على المسارات المحروسة وحدها.
+      const CHECK_EVERY_MS = 5 * 60_000;
+      const lastCheck = typeof token.accountCheckedAt === "number" ? token.accountCheckedAt : 0;
+      if (now - lastCheck > CHECK_EVERY_MS) {
+        const stillThere = await accountIsLive(token.sub, token.role);
+        if (!stillThere) return null;
+        token.accountCheckedAt = now;
       }
 
       // الجلسة القصيرة تُقاس من آخر نشاط: من يعمل باستمرار لا تنقطع

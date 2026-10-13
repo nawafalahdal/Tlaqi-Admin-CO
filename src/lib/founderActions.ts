@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { sendWelcomePack } from "@/lib/welcome";
-import { syncMemberLifecycleRow } from "@/lib/workflow";
+import { syncMemberLifecycleRow, syncAdminAccountRow } from "@/lib/workflow";
+import { accountRoleLabel } from "@/lib/testTracks";
 
 /** تصرّفات المؤسس وحده — وتُحرَس في الخادم لا بإخفاء زرّ.
  *
@@ -154,4 +155,200 @@ export async function sendWelcomeToMember(opts: {
   });
 
   return { ok: true, to: res.to };
+}
+
+/** الحذف النهائي لحساب — للمؤسس وحده، وهو الملاذ الأخير.
+ *
+ *  **وهو غير التعطيل وغير التنحية وغير إنهاء التكليف.** تلك ثلاثٌ
+ *  تُبقي السجل في القاعدة وتُوقف العمل. وهذا يُزيل الصفّ نفسه ليتحرّر
+ *  البريد لدعوةٍ جديدة — ولذلك لا يُستعمل إلا عند الحاجة إليه بعينه.
+ *
+ *  والمبدأ الحاكم: **لا يُهدَر دليلٌ لتُستعاد خانةُ بريد.** فالسجل
+ *  يُختم في الشيت أولاً بشاهدةٍ تقول إنه حُذف ومتى وبيد من، وتُفَكّ
+ *  ارتباطاتُ التذاكر ولا تُحذف (هي سجلُّ عملٍ يخصّ أطرافاً أخرى)، ثم
+ *  يُحذف الصفّ. فالتاريخ باقٍ والبريد حرّ.
+ *
+ *  والجلسةُ تبطل من تلقائها: `auth` يُراجع الحساب كل خمس دقائق على
+ *  الأكثر، فمن حُذف لا يبقى داخلاً أكثر من ذلك.
+ */
+export async function permanentlyDeleteAccount(opts: {
+  /** `member` لسجلّ مرشّح/عضو، و`user` لحسابٍ إداري */
+  kind: "member" | "user";
+  id: string;
+  /** يُكتب البريد كاملاً: الحذف لا يقع بنقرةٍ في المكان الخطأ */
+  confirmEmail: string;
+  reason: string;
+  actorRole: string;
+  actorId: string;
+  actorName: string;
+}): Promise<{ ok: true; email: string; fullName: string } | { ok: false; reason: string }> {
+  assertFounder(opts.actorRole);
+  const reason = opts.reason.trim();
+  if (reason.length < 5) return { ok: false, reason: "اكتب سبب الحذف" };
+
+  const stamp = new Date();
+  const tombstone = `حُذف نهائياً ${stamp.toISOString().slice(0, 10)} — ${opts.actorName}`;
+
+  if (opts.kind === "user") {
+    const user = await prisma.user.findUnique({ where: { id: opts.id } });
+    if (!user) return { ok: false, reason: "الحساب غير موجود" };
+    if (user.id === opts.actorId) return { ok: false, reason: "لا تحذف حسابك أنت" };
+    if (user.role === "super_admin") return { ok: false, reason: "لا يُحذف حساب المؤسس" };
+    if (opts.confirmEmail.trim().toLowerCase() !== user.email.toLowerCase()) {
+      return { ok: false, reason: "البريد المكتوب لا يطابق بريد الحساب — لم يُحذف شيء" };
+    }
+    if (user.isActive) {
+      return { ok: false, reason: "نحِّ الحساب أولاً — الحذف ليس طريق الاستبعاد" };
+    }
+
+    // السجل يُختم قبل الحذف: بعده لا يبقى ما يُكتب
+    await syncAdminAccountRow(user.id);
+    await appendMemberEvent({
+      fullName: user.fullName,
+      email: user.email,
+      event: "حذف نهائي لحساب إداري",
+      roleOrDepartment: accountRoleLabel(user.role),
+      details: `${tombstone} — السبب: ${reason}. السجل محفوظ هنا والبريد تحرّر.`,
+      at: stamp,
+    });
+
+    // التوقيعات تُحذف معه (لا معنى لتوقيعٍ بلا صاحب)، والتذاكر تُفَكّ
+    // ولا تُحذف — والقيود في القاعدة `SetNull` فتُفَكّ من تلقائها.
+    await prisma.leaderSignature.deleteMany({ where: { userId: user.id } });
+    await prisma.ticket.updateMany({ where: { raisedByUserId: user.id }, data: { raisedByUserId: null } });
+    await prisma.ticket.updateMany({ where: { targetUserId: user.id }, data: { targetUserId: null } });
+    await prisma.user.delete({ where: { id: user.id } });
+
+    return { ok: true, email: user.email, fullName: user.fullName };
+  }
+
+  const member = await prisma.member.findUnique({
+    where: { id: opts.id },
+    include: { department: true, invite: true },
+  });
+  if (!member) return { ok: false, reason: "السجل غير موجود" };
+  if (opts.confirmEmail.trim().toLowerCase() !== member.email.toLowerCase()) {
+    return { ok: false, reason: "البريد المكتوب لا يطابق بريد الحساب — لم يُحذف شيء" };
+  }
+  if (member.isActive && member.approvalStatus === "approved") {
+    return { ok: false, reason: "هذا عضو معتمد نشط — أنهِ عضويته أولاً، فالحذف ليس طريق الاستبعاد" };
+  }
+  // وحسابٌ إداريٌّ قائمٌ بنفس البريد يُحذف أولاً، وإلا بقي البريد محجوزاً
+  const twin = await prisma.user.findUnique({ where: { email: member.email } });
+  if (twin) {
+    return {
+      ok: false,
+      reason: "لهذا البريد حسابٌ إداريٌّ أيضاً — احذفه أولاً وإلا بقي البريد محجوزاً",
+    };
+  }
+
+  // الشاهدة تُكتب في الصفّ نفسه، فلا يُقرأ الصفّ عضواً قائماً
+  await syncMemberLifecycleRow(member.id, tombstone);
+  await appendMemberEvent({
+    fullName: member.fullName,
+    email: member.email,
+    event: "حذف نهائي من قاعدة البيانات",
+    roleOrDepartment: member.department?.name ?? accountRoleLabel(member.invite.targetRole),
+    details:
+      `${tombstone} — السبب: ${reason} — التنبيهات: ${member.warningsCount} — ` +
+      `نتيجة الاختبار: ${member.testScore === null ? "لم يختبر" : `${member.testScore}%`}. ` +
+      `السجل محفوظ هنا والبريد تحرّر لدعوة جديدة.`,
+    at: stamp,
+  });
+
+  // التذاكر سجلُّ عملٍ يخصّ أطرافاً أخرى: تُفَكّ ولا تُحذف.
+  // والشهادات أثرُ حوكمةٍ مضت، وهي على الصفّ نفسه فتزول معه — ولهذا
+  // كُتب كل ما فيها في الشيت قبل الحذف.
+  await prisma.ticket.updateMany({ where: { memberId: member.id }, data: { memberId: null } });
+  await prisma.ticket.updateMany({ where: { targetMemberId: member.id }, data: { targetMemberId: null } });
+  await prisma.request.updateMany({ where: { linkedMemberId: member.id }, data: { linkedMemberId: null } });
+  await prisma.testAttempt.deleteMany({ where: { memberId: member.id } });
+  await prisma.memberWarning.deleteMany({ where: { memberId: member.id } });
+  await prisma.terminationRequest.deleteMany({ where: { memberId: member.id } });
+  await prisma.memberDateEdit.deleteMany({ where: { memberId: member.id } });
+  await prisma.member.delete({ where: { id: member.id } });
+  await prisma.invite.delete({ where: { id: member.inviteId } });
+
+  return { ok: true, email: member.email, fullName: member.fullName };
+}
+
+/** تغيير بريد حسابٍ قيادي — للمؤسس وحده.
+ *
+ *  **وينتشر إلى سجلَّي الشخص لا إلى أحدهما.** القائد له سجلّان: حسابٌ
+ *  إداري (`User`) وسجلُّ ترشّحه الباقي (`Member`). والوصلُ بينهما
+ *  **بالبريد** — هكذا يجد `memberForSession` سجلَّ القائد حين يرفع طلب
+ *  إنهاء فترته.
+ *
+ *  فلو غُيّر بريد `User` وحده انفصل السجلّان بصمت: يبقى القائد داخلاً
+ *  ولا يجد النظامُ سجلَّ عضويته — فلا يرفع طلباً ولا تُقرأ تواريخه.
+ *  وهذا عطبٌ لا يظهر إلا بعد التغيير بأسابيع.
+ *
+ *  ولا يُفرَض تغييرُ كلمة المرور معه: تغييرُ البريد تصحيحُ بيانٍ لا
+ *  اشتباهُ اختراق، وإقرانُهما يُجبر القائد على تغيير كلمته لأن إدارته
+ *  صحّحت حرفاً في عنوانه. ومن أراد الاثنين ناداهما.
+ */
+export async function changeLeadershipEmail(opts: {
+  userId: string;
+  newEmail: string;
+  actorRole: string;
+  actorId: string;
+  actorName: string;
+}): Promise<{ ok: true; previous: string; next: string } | { ok: false; reason: string }> {
+  assertFounder(opts.actorRole);
+
+  const next = opts.newEmail.trim().toLowerCase();
+  // تحقّقٌ بسيطٌ مقصود: الأنماط المُسهِبة ترفض عناوين صحيحة، والقبول
+  // النهائي عند أول إرسالٍ فعلي.
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(next)) {
+    return { ok: false, reason: "صيغة البريد غير صحيحة" };
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: opts.userId } });
+  if (!user) return { ok: false, reason: "الحساب غير موجود" };
+  const previous = user.email;
+  if (previous.toLowerCase() === next) return { ok: true, previous, next };
+
+  // التفرّد يُفحَص في الجدولين: البريد مفتاحٌ فريدٌ في كلٍّ منهما،
+  // وقبولُه في أحدهما ورفضُه في الآخر يترك التغيير نصفَ منفَّذ.
+  const [userClash, memberClash] = await Promise.all([
+    prisma.user.findUnique({ where: { email: next }, select: { id: true } }),
+    prisma.member.findUnique({ where: { email: next }, select: { id: true } }),
+  ]);
+  if (userClash && userClash.id !== user.id) {
+    return { ok: false, reason: "هذا البريد مستخدمٌ في حسابٍ إداريٍّ آخر" };
+  }
+
+  const twin = await prisma.member.findUnique({ where: { email: previous } });
+  if (memberClash && memberClash.id !== twin?.id) {
+    return { ok: false, reason: "هذا البريد مستخدمٌ في سجلّ عضويةٍ آخر" };
+  }
+
+  // السجلّان معاً أو لا أحد: معاملةٌ واحدة تمنع الانفصال الصامت
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: user.id }, data: { email: next } }),
+    ...(twin ? [prisma.member.update({ where: { id: twin.id }, data: { email: next } })] : []),
+  ]);
+
+  // أقفال المحاولات الفاشلة تُفرَّغ على العنوانين: قفلٌ على العنوان
+  // القديم لا يُفيد، وقفلٌ موروثٌ على الجديد يمنع صاحبه بلا سبب.
+  const { clearFailedAttempts } = await import("@/lib/loginAttempts");
+  await clearFailedAttempts(previous);
+  await clearFailedAttempts(next);
+
+  await appendMemberEvent({
+    fullName: user.fullName,
+    email: next,
+    event: "تغيير بريد حساب قيادي",
+    roleOrDepartment: accountRoleLabel(user.role),
+    details:
+      `${previous} ← ${next} — غيّره ${opts.actorName}` +
+      (twin ? " — وانتشر إلى سجلّ العضوية" : " — لا سجلّ عضويةٍ مرتبط"),
+    at: new Date(),
+  });
+
+  // الصفّان يُحدَّثان ليُقرأ العنوان الجديد في الإكسل لا القديم
+  await syncAdminAccountRow(user.id);
+  if (twin) await syncMemberLifecycleRow(twin.id);
+
+  return { ok: true, previous, next };
 }
