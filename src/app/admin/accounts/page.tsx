@@ -5,6 +5,7 @@ import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { AccountRow } from "./AccountRow";
+import { MyAccountCard } from "./MyAccountCard";
 import { MemberAccountRow } from "./MemberAccountRow";
 import { StuckCandidateRow, type StuckCandidate } from "./StuckCandidateRow";
 import { BackButton } from "@/components/BackButton";
@@ -154,6 +155,23 @@ export default async function AccountsPage() {
               ))}
             </ul>
             <p className="mt-1.5 opacity-80">{t.seats.duplicatesHint}</p>
+          </div>
+        )}
+
+        {/* حسابُ المؤسس نفسه — خارج القائمة لأنها لا تَعرض له تنحيةً ولا
+            حذفاً، فلو تُرك بلا موضعٍ هنا لم يجد طريقاً إلى بطاقته */}
+        {isSuperAdmin && (
+          <div className="mb-6">
+            <h3 className="mb-2 text-sm font-bold text-black/70">{t.accounts.myAccountTitle}</h3>
+            <MyAccountCard
+              theme={theme}
+              account={{
+                id: session.user.id,
+                fullName: session.user.name ?? "—",
+                email: session.user.email ?? "—",
+                roleLabel: t.roles.super_admin,
+              }}
+            />
           </div>
         )}
 

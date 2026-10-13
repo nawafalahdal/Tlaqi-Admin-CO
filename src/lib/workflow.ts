@@ -115,7 +115,9 @@ export async function syncMemberLifecycleRow(
   const result = await upsertMemberLifecycleRow({
     sheetRow: member.sheetRow,
     fullName: member.fullName,
-    email: member.email,
+    // المحذوف نهائياً لا يُقيَّد بريدُه في الصفّ الباقي: السجل يُحفظ
+    // ليُقرأ تاريخاً، والبريد يتحرّر ليُدعى صاحبه من جديد بنفس بياناته.
+    email: tombstone ? "— (حُرِّر البريد لإعادة الدعوة)" : member.email,
     departmentName: member.department?.name ?? "—",
     roleLabel: ROLE_LABELS[member.invite.targetRole] ?? member.invite.targetRole,
     stage: tombstone ?? memberStage(member),
@@ -154,7 +156,11 @@ export async function syncMemberLifecycleRow(
 
 /** نظير دالة الأعضاء للحسابات الإدارية — صف ثابت واحد لكل حساب، يُحدَّث عند
  *  إنشائه، أو تغيير كلمة مروره، أو تفعيل التحقق بخطوتين، أو تنحيته */
-export async function syncAdminAccountRow(userId: string) {
+export async function syncAdminAccountRow(
+  userId: string,
+  /** شاهدةُ حذفٍ نهائي: الصفّ يبقى والبريد لا يُقيَّد فيه */
+  tombstone?: string
+) {
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: userId },
     include: { department: true },
@@ -163,7 +169,8 @@ export async function syncAdminAccountRow(userId: string) {
   const result = await upsertAdminAccountRow({
     sheetRow: user.sheetRow,
     fullName: user.fullName,
-    email: user.email,
+    email: tombstone ? "— (حُرِّر البريد لإعادة الدعوة)" : user.email,
+    removalReason: tombstone ?? user.removalReason,
     roleLabel: accountRoleLabel(user.role),
     departmentName: user.department?.name ?? null,
     phone: user.phone,
@@ -176,7 +183,6 @@ export async function syncAdminAccountRow(userId: string) {
     createdAt: user.createdAt,
     passwordChangedAt: user.passwordChangedAt,
     removedAt: user.removedAt,
-    removalReason: user.removalReason,
     welcomeEmailSentAt: user.welcomeEmailSentAt,
   });
 

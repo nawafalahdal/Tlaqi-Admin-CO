@@ -8,6 +8,7 @@ import {
   reopenCandidateTest,
   purgeCandidate,
 } from "@/lib/workflow";
+import { permanentlyDeleteAccount, sendWelcomeToUser } from "@/lib/founderActions";
 import { safeErrorMessage } from "@/lib/safeError";
 import { revalidatePath } from "next/cache";
 
@@ -137,6 +138,63 @@ export async function purgeCandidateAction(
     revalidatePath("/admin/members");
     revalidatePath("/admin");
     return { error: null, done: true, email: result.email };
+  } catch (err) {
+    return { error: safeErrorMessage(err) };
+  }
+}
+
+/** الحذف النهائي لحسابٍ إداري — للمؤسس وحده.
+ *
+ *  **كان مبنيّاً في الخلف ولا زرَّ له.** فكان المؤسس يملك الإجراء ولا
+ *  يجد إليه سبيلاً — وهذا عجزٌ عمليٌّ لا فرق بينه وبين ألّا يكون. فصار
+ *  له طريقُه هنا، والتصريح يُفرض في `permanentlyDeleteAccount` نفسها لا
+ *  في هذه الطبقة: من يعرف اسم الإجراء يُناديه من طرفه.
+ */
+export async function permanentlyDeleteUserAction(
+  userId: string,
+  confirmEmail: string,
+  reason: string,
+  force: boolean
+): Promise<{ error: string | null; done?: boolean; email?: string }> {
+  const session = await auth();
+  if (!session) return { error: "يجب تسجيل الدخول" };
+
+  try {
+    const res = await permanentlyDeleteAccount({
+      kind: "user",
+      id: userId,
+      confirmEmail,
+      reason,
+      force,
+      actorRole: session.user.role,
+      actorId: session.user.id,
+      actorName: session.user.name ?? "—",
+    });
+    if (!res.ok) return { error: res.reason };
+    revalidatePath("/admin/accounts");
+    revalidatePath("/admin");
+    return { error: null, done: true, email: res.email };
+  } catch (err) {
+    return { error: safeErrorMessage(err) };
+  }
+}
+
+/** بطاقة الانضمام إلى حسابٍ إداري — وللمؤسس أن يُرسلها إلى نفسه */
+export async function sendWelcomeToUserAction(
+  userId: string
+): Promise<{ error: string | null; to?: string }> {
+  const session = await auth();
+  if (!session) return { error: "يجب تسجيل الدخول" };
+
+  try {
+    const res = await sendWelcomeToUser({
+      userId,
+      actorRole: session.user.role,
+      actorName: session.user.name ?? "—",
+    });
+    if (!res.ok) return { error: res.reason };
+    revalidatePath("/admin/accounts");
+    return { error: null, to: res.to };
   } catch (err) {
     return { error: safeErrorMessage(err) };
   }

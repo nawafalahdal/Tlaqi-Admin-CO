@@ -56,42 +56,59 @@ export default async function CertificatePage({
           <OrganicMarks color={c.ornament} />
 
           {/* رمز الهوية أعلى الصفحة — الرمز الرسمي نفسه لا رسماً يشبهه */}
-          <div className="relative flex justify-start">
+          <div className="relative flex justify-start" style={{ marginBottom: "-2.6cqw" }}>
             <SymbolMark color={c.ink} size="5.6cqw" />
           </div>
 
-          <header className="relative text-center" style={{ marginTop: "-2.6cqw" }}>
-            <h1
-              className="font-extrabold"
-              style={{ color: c.ink, fontSize: "5.3cqw", lineHeight: 1.25, letterSpacing: "0.05em" }}
-            >
-              {heading.ar}
-            </h1>
-            <p
-              dir="ltr"
-              className="font-semibold"
-              style={{ color: c.ink, fontSize: "2.05cqw", letterSpacing: "0.07em", marginTop: "0.3cqw" }}
-            >
-              {heading.en}
-            </p>
-            <div
-              className="mx-auto flex items-center"
-              style={{ maxWidth: "58%", gap: "1.2cqw", marginTop: "1.4cqw" }}
-            >
-              <span className="h-px flex-1" style={{ background: c.rule }} />
-              <span style={{ color: c.rule, fontSize: "1.3cqw", letterSpacing: "0.3em" }}>◈◈</span>
-              <span className="h-px flex-1" style={{ background: c.rule }} />
-            </div>
-          </header>
+          {/* الإعلان والنصّ كتلةٌ واحدة تتوسّط ما بقي من الورقة.
+            *
+            * كانا قسمين مستقلّين: الإعلان في أعلى العمود، والنصّ في قسمٍ
+            * `flex-1` يتوسّطه. فكان الفراغ بينهما يأخذ كلّ ما بقي من
+            * ارتفاع الورقة — مئة بكسل مقيسة — فيطفو النصّ وحده في الوسط
+            * ولا يُقرأ تتمّةً لإعلانٍ فوقه. والشهادة لوحةٌ واحدة لا
+            * قسمان متباعدان.
+            *
+            * فصارا كتلةً واحدة: المسافة بينهما مقدَّرةٌ ثابتة (`3cqw`)،
+            * والفراغ الباقي يتوزّع حولها — وهو حول التوقيعين فراغٌ
+            * مقصودٌ في كلّ شهادة. */}
+          <div
+            className="relative flex flex-1 flex-col items-center justify-center"
+            // والكتلة تتوسّط بانحيازٍ إلى الأعلى: التوسّط الحسابي الصِرف
+            // يترك فوق الإعلان فراغاً أوسع من الذي فوق التوقيعين، فيبدو
+            // أعلى الورقة خالياً. و`paddingBottom` يرفع مركزَها بنصفه.
+            style={{ gap: "3cqw", paddingBottom: "6.5cqw" }}
+          >
+            <header className="text-center">
+              <h1
+                className="font-extrabold"
+                style={{ color: c.ink, fontSize: "4.3cqw", lineHeight: 1.22, letterSpacing: "0.04em" }}
+              >
+                {heading.ar}
+              </h1>
+              <p
+                dir="ltr"
+                className="font-semibold"
+                style={{ color: c.ink, fontSize: "1.85cqw", letterSpacing: "0.07em", marginTop: "0.35cqw" }}
+              >
+                {heading.en}
+              </p>
+              <div
+                className="mx-auto flex items-center"
+                style={{ maxWidth: "52%", gap: "1.2cqw", marginTop: "1.5cqw" }}
+              >
+                <span className="h-px flex-1" style={{ background: c.rule }} />
+                <span style={{ color: c.rule, fontSize: "1.3cqw", letterSpacing: "0.3em" }}>◈◈</span>
+                <span className="h-px flex-1" style={{ background: c.rule }} />
+              </div>
+            </header>
 
-          <section className="relative flex flex-1 items-center justify-center">
             <p
               className="text-center font-bold"
               style={{ color: c.ink, fontSize: "2.25cqw", lineHeight: 2.05, maxWidth: "88%" }}
             >
               {certificateBody(data)}
             </p>
-          </section>
+          </div>
 
           {/* التوقيعان: من يمثّل جهته، ومن يمثّل المنصة */}
           <footer className="relative grid grid-cols-2" style={{ gap: "9cqw" }}>

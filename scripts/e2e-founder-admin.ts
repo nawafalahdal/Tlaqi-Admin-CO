@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { permanentlyDeleteAccount, changeLeadershipEmail } from "@/lib/founderActions";
+import {
+  permanentlyDeleteAccount,
+  changeLeadershipEmail,
+  sendWelcomeToUser,
+} from "@/lib/founderActions";
+import { removeLeadershipUser } from "@/lib/workflow";
 import { memberForSession } from "@/lib/termination";
 import type { Session } from "next-auth";
 
@@ -83,11 +88,25 @@ async function cleanup() {
   chk("**وانتشر إلى سجلّ العضوية**", t2.email === NEW, t2.email);
   chk("والوصل بالبريد ما يزال يعمل", (await memberForSession(sess(lead.id)))?.id === twin.id);
 
-  // ٦ — الحذف النهائي: الحسابُ النشط يُرفض
+  // ٦ — الحذف النهائي: الحسابُ النشط يُرفض بلا إقرارٍ ثانٍ
   const activeDel = await permanentlyDeleteAccount({
     kind: "user", id: lead.id, confirmEmail: NEW, reason: "اختبار", ...F });
-  chk("لا يُحذف حسابٌ قياديٌّ نشط", activeDel.ok === false,
+  chk("لا يُحذف حسابٌ قياديٌّ نشط بلا إقرار", activeDel.ok === false,
       activeDel.ok === false ? activeDel.reason : "حُذف!");
+
+  // ٦أ — وبالإقرار الصريح يُحذف مباشرةً: الحساب المكرّر الذي أُنشئ خطأً
+  //      لا معنى لإلزام المؤسس بتنحيته قبل محوه
+  const spare = await prisma.user.create({
+    data: { fullName: "مكرّر اختبار", email: "dup-ceo@example.test",
+            passwordHash: "x", role: "executive", isActive: true },
+  });
+  const forced = await permanentlyDeleteAccount({
+    kind: "user", id: spare.id, confirmEmail: "dup-ceo@example.test",
+    reason: "حساب مكرّر أُنشئ خطأً", force: true, ...F });
+  chk("وبالإقرار يُحذف الحساب النشط مباشرةً", forced.ok,
+      forced.ok ? "" : (forced as { reason: string }).reason);
+  chk("ولم يبقَ له صفّ",
+      (await prisma.user.findUnique({ where: { email: "dup-ceo@example.test" } })) === null);
 
   // ٧ — بريدُ تأكيدٍ خاطئ يُرفض
   await prisma.user.update({ where: { id: lead.id }, data: { isActive: false } });
@@ -100,6 +119,57 @@ async function cleanup() {
   const self = await permanentlyDeleteAccount({
     kind: "user", id: founder.id, confirmEmail: founder.email, reason: "اختبار", ...F });
   chk("المؤسس لا يحذف نفسه", self.ok === false, self.ok === false ? self.reason : "حُذف!");
+
+  // ٨أ — ولا يُحذف حساب المؤسس بيد مؤسسٍ آخر، ولا بإقرارٍ مباشر.
+  //      الحماية مطلقة لا مشروطة: المنصة لا تبقى بلا مؤسس نشط.
+  const otherFounder = await prisma.user.create({
+    data: { fullName: "مؤسس اختبار", email: "founder-test@example.test",
+            passwordHash: "x", role: "super_admin", isActive: true },
+  });
+  const killFounder = await permanentlyDeleteAccount({
+    kind: "user", id: otherFounder.id, confirmEmail: otherFounder.email,
+    reason: "محاولة حذف حساب مؤسس", force: true, ...F });
+  chk("حساب المؤسس لا يُحذف ولو بإقرارٍ مباشر", killFounder.ok === false,
+      killFounder.ok === false ? killFounder.reason : "حُذف!");
+  chk("وما يزال في القاعدة",
+      (await prisma.user.findUnique({ where: { id: otherFounder.id } })) !== null);
+
+  // ٨ب — ولا يُنحّى: التنحية الطريق الآخر إلى تعطيله
+  let standDownDenied = false;
+  try {
+    await removeLeadershipUser({ userId: otherFounder.id, reason: "اختبار",
+      performedById: founder.id, performedByName: "المؤسس" });
+  } catch { standDownDenied = true; }
+  chk("وحساب المؤسس لا يُنحّى أيضاً", standDownDenied);
+  chk("فيبقى نشطاً",
+      (await prisma.user.findUniqueOrThrow({ where: { id: otherFounder.id } })).isActive === true);
+  await prisma.user.delete({ where: { id: otherFounder.id } });
+
+  // ٨ج — بطاقة الانضمام إلى حسابٍ إداري: التصريح للمؤسس وحده
+  let mailDenied = false;
+  try {
+    await sendWelcomeToUser({ userId: founder.id, actorRole: "executive", actorName: "تنفيذي" });
+  } catch { mailDenied = true; }
+  chk("إرسال البطاقة للمؤسس وحده — ويُفرض في الخادم", mailDenied);
+
+  // والمؤسس يُرسلها إلى نفسه (البريد مُعطَّل في الاختبار، فالمهم أن
+  // التصريح يمرّ ولا يُرفض لكونه هو هو)
+  const selfMail = await sendWelcomeToUser({
+    userId: founder.id, actorRole: "super_admin", actorName: "المؤسس" });
+  chk("والمؤسس يُرسل البطاقة إلى نفسه",
+      selfMail.ok === true || (selfMail.ok === false && !selfMail.reason.includes("وحده")),
+      selfMail.ok ? selfMail.to : selfMail.reason);
+
+  // ٨د — ولا تُرسَل إلى حسابٍ مُنحّى: الرابط وعدٌ ببابٍ مفتوح
+  const stoodDown = await prisma.user.create({
+    data: { fullName: "مُنحّى اختبار", email: "stood-down@example.test",
+            passwordHash: "x", role: "department_admin", isActive: false },
+  });
+  const deadMail = await sendWelcomeToUser({
+    userId: stoodDown.id, actorRole: "super_admin", actorName: "المؤسس" });
+  chk("ولا تُرسَل بطاقة دخول لحسابٍ مُنحّى", deadMail.ok === false,
+      deadMail.ok === false ? deadMail.reason : "أُرسلت!");
+  await prisma.user.delete({ where: { id: stoodDown.id } });
 
   // ٩ — تذكرةٌ له تُفَكّ ولا تُحذف
   const member = await prisma.member.findFirstOrThrow({ where: { departmentId: dept.id, isActive: true } });

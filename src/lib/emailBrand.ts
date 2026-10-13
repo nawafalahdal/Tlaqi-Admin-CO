@@ -154,6 +154,7 @@ const KIND_VARIANT: Record<string, EmailVariant> = {
   "تذكرة جديدة": "ticket",
   "تصعيد تذكرة": "ticket",
   "حل تذكرة": "ticket",
+  "سحب تذكرة": "ticket",
   "تذكير تذكرة": "ticket",
   "تذكير طلب": "ticket",
   "تكليف اجتماع شرح": "ticket",

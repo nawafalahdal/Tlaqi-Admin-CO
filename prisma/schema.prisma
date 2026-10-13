@@ -373,6 +373,13 @@ model Ticket {
   /// من أغلقها — الإغلاق تصرّفٌ يُنسَب لصاحبه، لا حدثٌ بلا فاعل
   resolvedByUserId   String?
   resolvedByUser     User?        @relation("TicketResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+  /// سُحبت بطلب صاحبها — إغلاقٌ ليس إجابة.
+  ///
+  /// التذكرة التي رفعها صاحبها ثم بلغت آخر السلسلة ولم يكن في المرحلة
+  /// الأخيرة أحدٌ غيره، كانت تقف إلى الأبد: الوحيد المصرَّح له هو
+  /// صاحبها، وصاحبها لا يُجيب نفسه. فصار له أن يسحبها — وهذا يُسجَّل
+  /// سحباً لا حلاً، فلا يُقال في السجل إن أحداً أجاب وقد لم يُجب.
+  withdrawnAt        DateTime?
   /// إعادة الفتح: لا تقع إلا بتصرّفٍ صريح مُصرَّح به، ويُسجَّل كم مرّة
   reopenCount        Int          @default(0)
   reopenedAt         DateTime?

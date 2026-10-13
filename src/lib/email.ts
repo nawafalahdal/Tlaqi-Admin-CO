@@ -590,6 +590,28 @@ export async function sendTicketResolvedEmail(opts: {
   );
 }
 
+/** سحب التذكرة — يُخبَر به من كان الطلب في يده ليتوقّف عن عملٍ صار بلا
+ *  داعٍ. ولا يُقال فيه «تم الحل»: لم يُحَلّ، بل رفعه صاحبه ثم رفَعه. */
+export async function sendTicketWithdrawnEmail(opts: {
+  to: string | string[];
+  ticketNumber: number;
+  subject: string;
+  reason: string;
+  byName: string;
+}) {
+  return send(
+    opts.to,
+    `سُحبت التذكرة #${opts.ticketNumber}: ${opts.subject}`,
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>سحب <strong>${esc(opts.byName)}</strong> التذكرة التي رفعها، فلم تبقَ بانتظار ردّك:</p>
+      <p><strong>#${opts.ticketNumber} — ${esc(opts.subject)}</strong></p>
+      <p>السبب: ${esc(opts.reason)}</p>
+      <p style="color:#555">لم تُحَلّ التذكرة — سُحبت. فلا إجراء عليك.</p>
+    </div>`,
+    "سحب تذكرة"
+  );
+}
+
 export async function sendTicketReminderEmail(opts: {
   to: string | string[];
   subject: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { respondToTicketAction } from "../departments/[slug]/actions";
+import { respondToTicketAction, withdrawTicketAction } from "../departments/[slug]/actions";
 import { Card, Button } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import type { themeFromColor } from "@/lib/brand";
@@ -40,7 +40,9 @@ export function TicketCard({
   mine?: boolean;
 }) {
   const [responding, setResponding] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
   const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const t = useTranslations();
 
@@ -50,8 +52,18 @@ export function TicketCard({
 
   function respond(status: "in_progress" | "resolved") {
     startTransition(async () => {
-      await respondToTicketAction(ticket.id, status, note);
-      setResponding(false);
+      // الرفض يُقرأ في مكانه لا يُسقِط الصفحة
+      const res = await respondToTicketAction(ticket.id, status, note);
+      setError(res.error);
+      if (!res.error) setResponding(false);
+    });
+  }
+
+  function withdraw() {
+    startTransition(async () => {
+      const res = await withdrawTicketAction(ticket.id, note);
+      setError(res.error);
+      if (!res.error) setWithdrawing(false);
     });
   }
 
@@ -96,12 +108,53 @@ export function TicketCard({
         </p>
       )}
 
-      {/* من رفع التذكرة لا يُغلقها: تُقال له العلّة صراحةً بدل أن يختفي
-          الزرّ بلا سبب، فالقاعدة حوكمة لا عطل */}
-      {mine && ticket.status !== "resolved" && (
-        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
-          {t.ticketCard.authorCannotClose}
+      {error && (
+        <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-800">
+          {error}
         </p>
+      )}
+
+      {/* من رفع التذكرة لا يُغلقها: تُقال له العلّة صراحةً بدل أن يختفي
+          الزرّ بلا سبب، فالقاعدة حوكمة لا عطل.
+          ولأن تذكرةً بلغت آخر السلسلة ولا مصرَّحَ لها إلا صاحبُها كانت
+          تقف إلى الأبد، صار له أن يسحبها — سحباً يُسجَّل سحباً لا حلاً. */}
+      {mine && ticket.status !== "resolved" && (
+        <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2.5">
+          <p className="text-xs leading-relaxed text-amber-900">
+            {t.ticketCard.authorCannotClose}
+          </p>
+          {withdrawing ? (
+            <div className="mt-2.5 flex flex-col gap-2">
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                rows={2}
+                placeholder={t.ticketCard.withdrawPlaceholder}
+                className="rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm outline-none focus:border-amber-500"
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button theme={theme} disabled={pending || note.trim().length < 3} onClick={withdraw}>
+                  {t.ticketCard.withdrawConfirm}
+                </Button>
+                <Button theme={theme} variant="ghost" onClick={() => setWithdrawing(false)}>
+                  {t.common.cancel}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setNote("");
+                setError(null);
+                setWithdrawing(true);
+              }}
+              className="mt-2 min-h-11 rounded-xl border border-amber-400 px-3.5 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+            >
+              {t.ticketCard.withdrawButton}
+            </button>
+          )}
+        </div>
       )}
 
       {!readOnly && ticket.status !== "resolved" && (

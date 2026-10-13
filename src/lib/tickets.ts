@@ -4,6 +4,7 @@ import {
   sendTicketCreatedEmail,
   sendTicketEscalatedEmail,
   sendTicketResolvedEmail,
+  sendTicketWithdrawnEmail,
   sendTicketReminderEmail,
 } from "@/lib/email";
 import { upsertTicketRow } from "@/lib/googleSheets";
@@ -165,12 +166,16 @@ export async function syncTicketSheetRow(ticket: FullTicket) {
     targetDepartment: ticketTargetLabel(ticket),
     subject: ticket.subject,
     details: ticket.resolutionNote ?? ticket.description,
-    status: TICKET_STATUS_LABELS[ticket.status],
+    status: ticket.withdrawnAt
+      ? "أُغلقت بسحب صاحبها"
+      : TICKET_STATUS_LABELS[ticket.status],
     currentOwner: TICKET_STAGE_LABELS[ticket.stage],
-    isLate,
+    isLate: ticket.withdrawnAt ? false : isLate,
     createdAt: ticket.createdAt,
     closedOrDueAt: ticket.resolvedAt ?? ticket.stageDueAt,
-    closedOnTime: resolved ? !isLate : null,
+    // المسحوبة لا تُقاس بـ«أُجيبت في وقتها»: لم تُجَب أصلاً، فالعمود
+    // يبقى فارغاً بدل أن يُسجَّل التزامٌ لم يحدث أو تأخّرٌ لا معنى له
+    closedOnTime: ticket.withdrawnAt ? null : resolved ? !isLate : null,
     // من أغلقها — الإغلاق تصرّفٌ يُنسَب لصاحبه في السجل أيضاً
     resolvedByName: ticket.resolvedByUser?.fullName ?? null,
   });
@@ -339,6 +344,79 @@ export async function respondToTicket(opts: {
 
   await syncTicketSheetRow(ticket);
   return { ok: true, ticket, changed: true };
+}
+
+/** يسحب صاحبُ التذكرة تذكرتَه — إغلاقٌ ليس إجابة.
+ *
+ *  **العطب الذي أوجب هذا:** القاعدة «لا يردّ أحد على تذكرة رفعها بنفسه»
+ *  صحيحة — إغلاقُ صاحبِها إقرارٌ بأن الطرف الآخر أجاب. لكن التذكرة التي
+ *  يرفعها الفاوندر وتُصعَّد حتى `founder_escalation` لا يملك الردّ عليها
+ *  في تلك المرحلة إلا الفاوندر، وهو صاحبها. فكان المصرَّح له الوحيد
+ *  ممنوعاً، والتذكرة تقف إلى الأبد لا تُغلق ولا تُحَلّ.
+ *
+ *  والحلّ ليس كسر القاعدة — بل الاعتراف بتصرّفٍ آخر: أن يسحب صاحبُ الطلب
+ *  طلبَه. فلا يُقال في السجل إن أحداً أجاب وقد لم يُجب: العمود يقول
+ *  «أُغلقت بسحب صاحبها»، و«أُجيبت في وقتها» يبقى فارغاً.
+ *
+ *  والحرس في `where` لا قبله: السحب المكرّر لا يُغلق مرّتين ولا يُراسِل
+ *  مرّتين، وسحبُ تذكرةِ غيرك لا يُطابق صفّاً فلا يكتب شيئاً. */
+export async function withdrawTicket(opts: {
+  ticketId: string;
+  /** صاحبها — ويُتحقَّق منه في `where` لا بقراءةٍ سابقة */
+  actorUserId: string;
+  reason: string;
+}): Promise<{ ok: true; changed: boolean } | { ok: false; reason: string }> {
+  const reason = opts.reason.trim();
+  if (reason.length < 3) return { ok: false, reason: "اكتب سبب السحب" };
+
+  const at = new Date();
+  const written = await prisma.ticket.updateMany({
+    where: {
+      id: opts.ticketId,
+      raisedByUserId: opts.actorUserId,
+      status: { not: "resolved" },
+    },
+    data: {
+      status: "resolved",
+      resolutionNote: `سحبها صاحبها: ${reason}`,
+      resolvedAt: at,
+      withdrawnAt: at,
+      resolvedByUserId: opts.actorUserId,
+    },
+  });
+
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: opts.ticketId },
+    include: TICKET_INCLUDE,
+  });
+  if (!ticket) return { ok: false, reason: "التذكرة غير موجودة" };
+
+  if (written.count === 0) {
+    // إمّا ليست تذكرته، أو كانت مُغلقة. نُطابق الشيت على الحقيقة ولا نُراسل.
+    await syncTicketSheetRow(ticket);
+    if (ticket.raisedByUserId !== opts.actorUserId) {
+      return { ok: false, reason: "لا تُسحب إلا تذكرةٌ رفعتَها أنت" };
+    }
+    return { ok: true, changed: false };
+  }
+
+  // من كان الطلب في يده يُخبَر ليتوقّف — لا إخباراً بما يعلمه، بل رفعاً
+  // لعملٍ صار بلا داعٍ. وصاحبها هو الفاعل فلا يُراسَل بفعل نفسه.
+  const owners = await recipientsForStage(ticket);
+  const author = ticketAuthor(ticket);
+  const notify = owners.filter((e) => e && e !== author.email);
+  if (notify.length > 0) {
+    await sendTicketWithdrawnEmail({
+      to: notify,
+      ticketNumber: ticket.ticketNumber,
+      subject: ticket.subject,
+      reason,
+      byName: author.name,
+    });
+  }
+
+  await syncTicketSheetRow(ticket);
+  return { ok: true, changed: true };
 }
 
 /** يُشغَّل عند كل تحميل للوحات — يصعّد أي تذكرة تجاوزت مهلتها دون حل:

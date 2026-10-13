@@ -157,6 +157,51 @@ export async function sendWelcomeToMember(opts: {
   return { ok: true, to: res.to };
 }
 
+/** إرسال بطاقة الانضمام إلى حسابٍ إداري — ومنها حسابُ المؤسس نفسه.
+ *
+ *  `sendWelcomeToMember` يقرأ سجلّ `Member`، والمؤسس ليس له سجلُّ ترشّح:
+ *  حسابُه `User` أُنشئ مع المنصة لا بدعوةٍ ولا باختبار. فلم يكن له طريق
+ *  إلى بطاقته — لا ليراها كما يراها أعضاؤه، ولا ليتحقّق من شكلها قبل
+ *  أن تُرسَل إليهم. وهذا هو الطريق.
+ *
+ *  وهو **لا يُنشئ حساباً ولا يغيّر حالةً ولا يصفّر تاريخاً**: بطاقةٌ
+ *  تُرسَل بالقالب نفسه، لا أكثر. والقالب نفسه حرفياً — `sendWelcomePack`
+ *  هو هو، فما يراه المؤسس في صندوقه هو ما يصل عضوَه. */
+export async function sendWelcomeToUser(opts: {
+  userId: string;
+  actorRole: string;
+  actorName: string;
+}): Promise<{ ok: true; to: string } | { ok: false; reason: string }> {
+  assertFounder(opts.actorRole);
+
+  const user = await prisma.user.findUnique({
+    where: { id: opts.userId },
+    select: { id: true, fullName: true, email: true, isActive: true, role: true },
+  });
+  if (!user) return { ok: false, reason: "الحساب غير موجود" };
+  // ولا يُرسَل رابط دخولٍ لحسابٍ مُنحّى — الرابط وعدٌ ببابٍ مفتوح
+  if (!user.isActive) {
+    return { ok: false, reason: "الحساب مُنحّى — لا يُرسَل رابط دخول لحسابٍ مُعطَّل" };
+  }
+
+  const res = await sendWelcomePack({ kind: "user", id: user.id }, "resend");
+  if (!res.ok) return { ok: false, reason: res.reason };
+
+  await appendMemberEvent({
+    fullName: user.fullName,
+    email: user.email,
+    event: "إرسال بطاقة الانضمام يدوياً",
+    roleOrDepartment: accountRoleLabel(user.role),
+    details:
+      user.id === opts.userId && opts.actorName
+        ? `أرسلها ${opts.actorName}`
+        : "بقرار المؤسس",
+    at: new Date(),
+  });
+
+  return { ok: true, to: res.to };
+}
+
 /** الحذف النهائي لحساب — للمؤسس وحده، وهو الملاذ الأخير.
  *
  *  **وهو غير التعطيل وغير التنحية وغير إنهاء التكليف.** تلك ثلاثٌ
@@ -178,6 +223,13 @@ export async function permanentlyDeleteAccount(opts: {
   /** يُكتب البريد كاملاً: الحذف لا يقع بنقرةٍ في المكان الخطأ */
   confirmEmail: string;
   reason: string;
+  /** إقرارٌ ثانٍ صريح لحذف حسابٍ ما يزال نشطاً.
+   *
+   *  الأصل أن يُنحّى الحساب قبل حذفه — التنحية تُبقي السجل وتُوقف
+   *  العمل، والحذف يمحو الصفّ. لكن المؤسس قد يواجه حساباً مكرّراً
+   *  أُنشئ خطأً وهو نشط، فإلزامُه بتنحيته أولاً خطوةٌ بلا معنى. فصار
+   *  له حذفُه مباشرةً — بإقرارٍ ثانٍ لا بنقرةٍ واحدة. */
+  force?: boolean;
   actorRole: string;
   actorId: string;
   actorName: string;
@@ -189,26 +241,48 @@ export async function permanentlyDeleteAccount(opts: {
   const stamp = new Date();
   const tombstone = `حُذف نهائياً ${stamp.toISOString().slice(0, 10)} — ${opts.actorName}`;
 
+  /** البريد لا يُكتب في الشاهدة.
+   *
+   *  الشاهدة سجلُّ أن شخصاً كان ثم حُذف: اسمُه ودورُه وتواريخُه وسببُ
+   *  حذفه. أما بريدُه فلا يُقيَّد فيها — فلا يبقى له أثرٌ في المنصة ولا
+   *  في الشيت، ويُدعى صاحبُه من جديد بنفس بريده وبنفس بياناته كأن
+   *  شيئاً لم يكن. وهذا طلبُ المؤسس صريحاً، ولا يُفقِد السجلَّ شيئاً:
+   *  الصفّ باقٍ بكل ما فيه إلا خانةَ بريدٍ تحرّرت. */
+  const REDACTED = "— (حُرِّر البريد لإعادة الدعوة)";
+
   if (opts.kind === "user") {
     const user = await prisma.user.findUnique({ where: { id: opts.id } });
     if (!user) return { ok: false, reason: "الحساب غير موجود" };
     if (user.id === opts.actorId) return { ok: false, reason: "لا تحذف حسابك أنت" };
-    if (user.role === "super_admin") return { ok: false, reason: "لا يُحذف حساب المؤسس" };
+    // حساب المؤسس لا يُحذف بيد أحد — ولا بيده هو.
+    //
+    // المنصة بلا مؤسسٍ نشط لا يملك أحدٌ فيها الاعتماد النهائي ولا آخر
+    // حلقة التصعيد. فهذا ليس تفضيلاً في الواجهة بل شرطُ بقاءٍ يُفرض هنا،
+    // في الخادم، قبل أيّ كتابة.
+    if (user.role === "super_admin") {
+      return { ok: false, reason: "حساب المؤسس لا يُحذف — المنصة لا تبقى بلا مؤسس نشط" };
+    }
     if (opts.confirmEmail.trim().toLowerCase() !== user.email.toLowerCase()) {
       return { ok: false, reason: "البريد المكتوب لا يطابق بريد الحساب — لم يُحذف شيء" };
     }
-    if (user.isActive) {
-      return { ok: false, reason: "نحِّ الحساب أولاً — الحذف ليس طريق الاستبعاد" };
+    if (user.isActive && !opts.force) {
+      return {
+        ok: false,
+        reason: "الحساب ما يزال نشطاً — أكّد الحذف المباشر، أو نحِّه أولاً",
+      };
     }
 
     // السجل يُختم قبل الحذف: بعده لا يبقى ما يُكتب
-    await syncAdminAccountRow(user.id);
+    await syncAdminAccountRow(user.id, tombstone);
     await appendMemberEvent({
       fullName: user.fullName,
-      email: user.email,
+      email: REDACTED,
       event: "حذف نهائي لحساب إداري",
       roleOrDepartment: accountRoleLabel(user.role),
-      details: `${tombstone} — السبب: ${reason}. السجل محفوظ هنا والبريد تحرّر.`,
+      details:
+        `${tombstone} — السبب: ${reason}` +
+        `${user.isActive ? " — وكان نشطاً، حُذف بإقرار مباشر" : ""}. ` +
+        `السجل محفوظ هنا، والبريد لم يُقيَّد فيه ليُدعى صاحبه من جديد.`,
       at: stamp,
     });
 
@@ -230,8 +304,11 @@ export async function permanentlyDeleteAccount(opts: {
   if (opts.confirmEmail.trim().toLowerCase() !== member.email.toLowerCase()) {
     return { ok: false, reason: "البريد المكتوب لا يطابق بريد الحساب — لم يُحذف شيء" };
   }
-  if (member.isActive && member.approvalStatus === "approved") {
-    return { ok: false, reason: "هذا عضو معتمد نشط — أنهِ عضويته أولاً، فالحذف ليس طريق الاستبعاد" };
+  if (member.isActive && member.approvalStatus === "approved" && !opts.force) {
+    return {
+      ok: false,
+      reason: "هذا عضو معتمد نشط — أنهِ عضويته أولاً، أو أكّد الحذف المباشر",
+    };
   }
   // وحسابٌ إداريٌّ قائمٌ بنفس البريد يُحذف أولاً، وإلا بقي البريد محجوزاً
   const twin = await prisma.user.findUnique({ where: { email: member.email } });
@@ -246,13 +323,13 @@ export async function permanentlyDeleteAccount(opts: {
   await syncMemberLifecycleRow(member.id, tombstone);
   await appendMemberEvent({
     fullName: member.fullName,
-    email: member.email,
+    email: REDACTED,
     event: "حذف نهائي من قاعدة البيانات",
     roleOrDepartment: member.department?.name ?? accountRoleLabel(member.invite.targetRole),
     details:
       `${tombstone} — السبب: ${reason} — التنبيهات: ${member.warningsCount} — ` +
       `نتيجة الاختبار: ${member.testScore === null ? "لم يختبر" : `${member.testScore}%`}. ` +
-      `السجل محفوظ هنا والبريد تحرّر لدعوة جديدة.`,
+      `السجل محفوظ هنا، والبريد لم يُقيَّد فيه ليُدعى صاحبه من جديد بنفس بياناته.`,
     at: stamp,
   });
 

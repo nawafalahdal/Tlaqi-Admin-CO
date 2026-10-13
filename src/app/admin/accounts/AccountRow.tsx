@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { removeLeadershipUserAction, resetUserCredentialsAction } from "./actions";
+import {
+  removeLeadershipUserAction,
+  resetUserCredentialsAction,
+  permanentlyDeleteUserAction,
+  sendWelcomeToUserAction,
+} from "./actions";
 import { Card, Button } from "@/components/ui";
 import { CredentialsReveal } from "@/components/CredentialsReveal";
 import type { themeFromColor } from "@/lib/brand";
@@ -24,6 +29,14 @@ export function AccountRow({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<{ email: string; tempPassword: string } | null>(null);
+  // الحذف النهائي: حالته منفصلة عن حالة التنحية، فلا تُفتح إحداهما بزرّ
+  // الأخرى ولا يُستعمل سببُ هذه سبباً لتلك
+  const [purgeOpen, setPurgeOpen] = useState(false);
+  const [purgeEmail, setPurgeEmail] = useState("");
+  const [purgeReason, setPurgeReason] = useState("");
+  const [purgeForce, setPurgeForce] = useState(false);
+  const [purgeError, setPurgeError] = useState<string | null>(null);
+  const [mailMsg, setMailMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const t = useTranslations();
 
   const roleLabel =
@@ -70,6 +83,38 @@ export function AccountRow({
             >
               {t.seats.remove}
             </button>
+          )}
+          {canRemove && (
+            <>
+              <Button
+                theme={theme}
+                variant="outline"
+                disabled={pending}
+                onClick={() => {
+                  setMailMsg(null);
+                  startTransition(async () => {
+                    const res = await sendWelcomeToUserAction(account.id);
+                    setMailMsg(
+                      res.error
+                        ? { kind: "err", text: res.error }
+                        : { kind: "ok", text: `وصلت البطاقة إلى ${res.to}` }
+                    );
+                  });
+                }}
+              >
+                {t.accounts.sendWelcome}
+              </Button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPurgeError(null);
+                  setPurgeOpen((o) => !o);
+                }}
+                className="inline-flex min-h-11 items-center rounded-xl bg-red-50 px-4 text-sm font-semibold text-red-800 ring-1 ring-red-300"
+              >
+                {t.accounts.purge}
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -129,6 +174,81 @@ export function AccountRow({
               {pending ? t.actions.working : t.seats.removeConfirm}
             </button>
             <Button theme={theme} variant="ghost" onClick={() => setRemoveOpen(false)}>
+              {t.common.cancel}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {mailMsg && (
+        <p
+          className={`mt-3 rounded-lg px-3 py-2 text-xs leading-relaxed ${
+            mailMsg.kind === "ok" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+          }`}
+        >
+          {mailMsg.text}
+        </p>
+      )}
+
+      {/* الحذف النهائي — يُزيل الصفّ من القاعدة ويُحرّر البريد لدعوةٍ
+          جديدة بنفس البيانات، ويبقى السجل في الإكسل بلا بريد. وهو غير
+          التنحية: تلك تُوقف العمل وتُبقي الحساب. */}
+      {purgeOpen && (
+        <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-red-50/70 p-4 ring-1 ring-red-200">
+          <p className="text-xs font-bold text-red-900">{t.accounts.purgeTitle}</p>
+          <p className="text-xs leading-relaxed text-red-900/80">{t.accounts.purgeHint}</p>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium text-black/70">{t.accounts.purgeConfirmEmail}</span>
+            <input
+              value={purgeEmail}
+              onChange={(e) => setPurgeEmail(e.target.value)}
+              dir="ltr"
+              type="email"
+              placeholder={account.email}
+              className="min-h-11 rounded-xl border border-red-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-red-400"
+            />
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium text-black/70">{t.accounts.purgeReason}</span>
+            <textarea
+              value={purgeReason}
+              onChange={(e) => setPurgeReason(e.target.value)}
+              rows={2}
+              className="rounded-xl border border-red-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-red-400"
+            />
+          </label>
+          <label className="flex items-start gap-2 text-xs leading-relaxed text-red-900">
+            <input
+              type="checkbox"
+              checked={purgeForce}
+              onChange={(e) => setPurgeForce(e.target.checked)}
+              className="mt-0.5 size-4"
+            />
+            <span>{t.accounts.purgeForce}</span>
+          </label>
+          {purgeError && <p className="text-sm font-semibold text-red-700">{purgeError}</p>}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={pending || purgeReason.trim().length < 5 || !purgeEmail.trim()}
+              onClick={() => {
+                setPurgeError(null);
+                startTransition(async () => {
+                  const res = await permanentlyDeleteUserAction(
+                    account.id,
+                    purgeEmail,
+                    purgeReason,
+                    purgeForce
+                  );
+                  if (res.error) setPurgeError(res.error);
+                  else setPurgeOpen(false);
+                });
+              }}
+              className="inline-flex min-h-11 items-center rounded-xl bg-red-700 px-4 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {pending ? t.actions.working : t.accounts.purgeConfirm}
+            </button>
+            <Button theme={theme} variant="ghost" onClick={() => setPurgeOpen(false)}>
               {t.common.cancel}
             </Button>
           </div>

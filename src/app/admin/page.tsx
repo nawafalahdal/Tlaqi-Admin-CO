@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { isLeadership } from "@/lib/announcements";
 import { sweepOverdueRequests, sweepExpiredCandidateAccounts } from "@/lib/workflow";
-import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere } from "@/lib/tickets";
+import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere, canRespondToTicket } from "@/lib/tickets";
 import {
   announcementsForSession,
   canPublishAnnouncement,
@@ -306,6 +306,13 @@ export default async function AdminPage() {
                     memberName: ticketAuthor(t).name,
                     targetDepartmentName: ticketTargetLabel(t),
                   }}
+                  // **هذا كان العطب:** البطاقة هنا كانت بلا حارس، فيظهر
+                  // زرّ الردّ على كل تذكرةٍ بلغت مرحلة الفاوندر — ومنها
+                  // تذاكرُه هو. فيضغط، فيرفض الخادم بحقّ، فتنهار الصفحة.
+                  // والحارس هو نفسه الذي يفرضه الخادم، فلا يُعرض إجراءٌ
+                  // يُرفَض.
+                  readOnly={!canRespondToTicket(t, session)}
+                  mine={t.raisedByUserId === session.user.id}
                 />
               ))}
             </div>

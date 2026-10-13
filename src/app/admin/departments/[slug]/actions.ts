@@ -9,7 +9,7 @@ import {
   markMemberExited,
   issueCertificate,
 } from "@/lib/workflow";
-import { respondToTicket, canRespondToTicket } from "@/lib/tickets";
+import { respondToTicket, withdrawTicket, canRespondToTicket } from "@/lib/tickets";
 import { getTrackForTarget } from "@/lib/testTracks";
 import type { Session } from "next-auth";
 import { safeErrorMessage } from "@/lib/safeError";
@@ -173,21 +173,34 @@ export async function issueCertificateAction(memberId: string): Promise<{ error:
 
 /** يرد أدمن القسم (المستهدف أصلاً أو قائد قسم العضو بعد التصعيد) على تذكرة —
  *  المؤسس/التنفيذي مصرَّح لهما دائماً */
+/** ويُعيد الرفضَ نصّاً لا يرميه استثناءً.
+ *
+ *  كان يرمي، فكان منعُ التصريح — وهو حكمُ حوكمةٍ مفهوم — يصل إلى صاحبه
+ *  صفحةَ انهيارٍ بيضاء ورقمَ هضمٍ لا يقرؤه أحد. والرفض المفهوم يُقال، لا
+ *  يُسقِط الصفحة. */
 export async function respondToTicketAction(
   ticketId: string,
   status: "in_progress" | "resolved",
   resolutionNote: string
-) {
+): Promise<{ error: string | null }> {
   const session = await auth();
-  if (!session) throw new Error("يجب تسجيل الدخول");
+  if (!session) return { error: "يجب تسجيل الدخول" };
 
-  const ticket = await prisma.ticket.findUniqueOrThrow({
+  const ticket = await prisma.ticket.findUnique({
     where: { id: ticketId },
     include: { member: true, raisedByUser: true, targetMember: true },
   });
+  if (!ticket) return { error: "التذكرة غير موجودة" };
 
   // قاعدة واحدة تحكم الردّ في كل الشاشات — ومنها أن صاحب التذكرة لا يُغلقها
-  if (!canRespondToTicket(ticket, session)) throw new Error("غير مصرح لك بهذا الإجراء");
+  if (!canRespondToTicket(ticket, session)) {
+    return {
+      error:
+        ticket.raisedByUserId === session.user.id
+          ? "هذه تذكرة رفعتَها أنت — وإغلاقها إقرارٌ بأن الطرف الآخر أجاب. إن لم تعد تحتاجها فاسحبها."
+          : "الردّ على هذه التذكرة لصاحب مرحلتها الحالية",
+    };
+  }
 
   const res = await respondToTicket({
     ticketId,
@@ -195,9 +208,33 @@ export async function respondToTicketAction(
     resolutionNote,
     actorUserId: session.user.id,
   });
-  if (!res.ok) throw new Error(res.reason);
+  if (!res.ok) return { error: res.reason };
   revalidatePath("/admin/departments");
+  revalidatePath("/admin/tickets");
   revalidatePath("/admin");
+  return { error: null };
+}
+
+/** يسحب صاحبُ التذكرة تذكرتَه — والتصريح يُفرض في `withdrawTicket` نفسها
+ *  بشرطٍ في `where`، لا بفحصٍ هنا يسبق الكتابة. */
+export async function withdrawTicketAction(
+  ticketId: string,
+  reason: string
+): Promise<{ error: string | null }> {
+  const session = await auth();
+  if (!session) return { error: "يجب تسجيل الدخول" };
+
+  const res = await withdrawTicket({
+    ticketId,
+    actorUserId: session.user.id,
+    reason,
+  });
+  if (!res.ok) return { error: res.reason };
+  revalidatePath("/admin/departments");
+  revalidatePath("/admin/tickets");
+  revalidatePath("/admin");
+  revalidatePath("/member");
+  return { error: null };
 }
 
 /** من يملك إجراءات الخروج على عضو: قائد قسمه، أو الإدارة العليا.

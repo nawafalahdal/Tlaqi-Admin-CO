@@ -7,7 +7,7 @@ import {
   sweepOverdueRequests,
   sweepExpiredCandidateAccounts,
 } from "@/lib/workflow";
-import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere } from "@/lib/tickets";
+import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere, canRespondToTicket } from "@/lib/tickets";
 import { TicketCard } from "../../tickets/TicketCard";
 import { themeFromColor } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
@@ -339,6 +339,10 @@ export default async function DepartmentBoardPage({
                     memberName: ticketAuthor(tk).name,
                     targetDepartmentName: ticketTargetLabel(tk),
                   }}
+                  // الحارس نفسه الذي يفرضه الخادم يُغذّي الواجهة: لا
+                  // يُعرض زرُّ ردٍّ يُرفَض عند الضغط
+                  readOnly={!canRespondToTicket(tk, session)}
+                  mine={tk.raisedByUserId === session.user.id}
                 />
               ))}
             </div>

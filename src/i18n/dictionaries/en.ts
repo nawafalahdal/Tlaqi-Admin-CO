@@ -47,6 +47,7 @@ export const en: Dictionary = {
     },
   },
   roles: {
+    super_admin: "Senior Management (Founder)",
     member: "Member",
     department_admin: "Department lead",
     operations_officer: "Operations Officer",
@@ -203,7 +204,10 @@ requestsHint: "What the platform creates on its own: the welcome banner on appro
     markResolved: "Resolved",
     openLink: "Open attached link",
     respondButton: "Respond to ticket",
-    authorCannotClose: "You raised this ticket \u2014 closing it certifies that the other side answered, so only they can close it. You may escalate it if it is late.",
+    authorCannotClose: "You raised this ticket \u2014 closing it certifies that the other side answered, so only they can close it. You may escalate it if it is late, or withdraw it if you no longer need it.",
+    withdrawButton: "Withdraw ticket",
+    withdrawConfirm: "Confirm withdrawal",
+    withdrawPlaceholder: "Why are you withdrawing it? (recorded in the log and the sheet)",
   },
   deptBoard: {
     openInvitesTitle: "Accounts yet to start the test",
@@ -285,6 +289,18 @@ requestsHint: "What the platform creates on its own: the welcome banner on appro
     submitting: "Issuing...",
   },
   accounts: {
+    sendWelcome: "Send welcome card",
+    purge: "Delete permanently",
+    purgeTitle: "Permanently delete this account",
+    purgeHint:
+      "The row is removed from the database. The sheet keeps a record with the person's name, role and the reason \u2014 without their email. The email is released so they can be invited again with the same details. Tickets are not deleted: they are detached and the work history stays.",
+    purgeConfirmEmail: "Type the account's full email to confirm",
+    purgeReason: "Reason for deletion (recorded in the sheet)",
+    purgeForce: "This account is still active \u2014 I confirm deleting it directly without standing it down first.",
+    purgeConfirm: "Delete permanently",
+    myAccountTitle: "Your account",
+    myAccountHint:
+      "The founder's account cannot be deleted or stood down \u2014 the platform cannot be left without an active founder. You may send the welcome card to yourself to see it as your members see it.",
     subtitleSuper: "All department lead and executive management accounts — you can reset the password or edit the email for any of them whenever there's an issue.",
     subtitleExec: "Department lead accounts only — you can reset the password or edit the email for any of them whenever there's an issue.",
     empty: "No accounts yet",

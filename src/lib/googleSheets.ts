@@ -141,7 +141,7 @@ export async function upsertTicketRow(row: {
   targetDepartment: string;
   subject: string;
   details: string;
-  status: "جديدة" | "قيد المعالجة" | "تم الحل";
+  status: "جديدة" | "قيد المعالجة" | "تم الحل" | "أُغلقت بسحب صاحبها";
   currentOwner: string;
   isLate: boolean;
   createdAt: Date;
