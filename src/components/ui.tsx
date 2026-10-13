@@ -48,14 +48,18 @@ export function Card({
   children,
   className = "",
   style,
+  id,
 }: {
   children: ReactNode;
   className?: string;
   style?: React.CSSProperties;
+  /** مِرساة: رابطُ التذكرة في البريد ينتهي بـ`#ticket-123` فيقف عليها */
+  id?: string;
 }) {
   return (
     <div
-      className={`rounded-2xl border bg-white shadow-sm shadow-black/[0.03] ${className}`}
+      id={id}
+      className={`scroll-mt-24 rounded-2xl border bg-white shadow-sm shadow-black/[0.03] ${className}`}
       style={{ borderColor: "#00000012", ...style }}
     >
       {children}

@@ -32,7 +32,7 @@ export function MyTicketCard({
   const stageLabel = (t.ticketStage.member as Record<string, string>)[ticket.stage];
 
   return (
-    <Card className="p-4">
+    <Card className="p-4" id={`ticket-${ticket.ticketNumber}`}>
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <span className="text-xs font-mono text-black/40" dir="ltr">
           #{ticket.ticketNumber}

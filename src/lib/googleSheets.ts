@@ -147,6 +147,8 @@ export async function upsertTicketRow(row: {
   createdAt: Date;
   closedOrDueAt: Date;
   closedOnTime: boolean | null;
+  /** من أغلقها — null لمن لم تُغلق بعد أو لم يُسجَّل فاعلها */
+  resolvedByName: string | null;
 }) {
   return upsertRow("التذاكر", row.sheetRow, [
     row.ticketNumber,
@@ -161,6 +163,7 @@ export async function upsertTicketRow(row: {
     formatSheetDate(row.createdAt),
     formatSheetDate(row.closedOrDueAt),
     row.closedOnTime === null ? "—" : row.closedOnTime ? "نعم" : "لا",
+    row.resolvedByName ?? "—",
   ]);
 }
 
@@ -321,8 +324,9 @@ const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: numb
       "تاريخ الرفع",
       "الموعد الحالي / تاريخ الإغلاق",
       "أُغلقت بالموعد؟",
+      "من أغلقها",
     ],
-    widths: [100, 160, 220, 150, 200, 280, 110, 170, 90, 160, 190, 120],
+    widths: [100, 160, 220, 150, 200, 280, 110, 170, 90, 160, 190, 120, 160],
   },
   "الحسابات الإدارية": {
     title: "تَـــلاقِ — الحسابات الإدارية (صف ثابت لكل حساب)",

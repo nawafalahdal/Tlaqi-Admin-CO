@@ -22,6 +22,12 @@ export async function TicketBoard({
 }) {
   const t = getDictionary(await getLocale());
   const tb = t.ticketBoard;
+  // هذا مكوّن خادم غير متزامن (`async`): يُنفَّذ مرّةً لكل طلب على
+  // الخادم، فـ`Date.now()` هنا لحظةُ الطلب لا قيمةٌ تتبدّل بين إعادات
+  // الرسم. وقاعدة `react-hooks/purity` لا تُميّز مكوّنات الخادم فتعدّه
+  // نجاسةً — وهو إنذارٌ كاذب لا عطب. والبديل (تمرير الوقت من كل
+  // مُستدعٍ) يُعقّد أربعة مواضع لإرضاء قاعدةٍ مُخطئة.
+  // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
 
   const open = tickets.filter((x) => x.status !== "resolved");

@@ -41,6 +41,7 @@ export type FullTicket = Ticket & {
   targetDepartment: Department | null;
   targetUser: User | null;
   targetMember: Member | null;
+  resolvedByUser: User | null;
 };
 
 export const TICKET_INCLUDE = {
@@ -49,6 +50,8 @@ export const TICKET_INCLUDE = {
   targetDepartment: true,
   targetUser: true,
   targetMember: true,
+  // من أغلقها: يُقرأ هنا ليُكتب في الشيت باسمه لا بمعرّفه
+  resolvedByUser: true,
 } as const;
 
 /** اسم صاحب التذكرة وبريده، أياً كان نوع حسابه */
@@ -138,7 +141,20 @@ function nextStage(ticket: FullTicket): "lead_escalation" | "ceo_escalation" | "
  *  أول مرة فقط — كل استدعاء لاحق يحدّث نفس الصف بدل إضافة صف جديد */
 export async function syncTicketSheetRow(ticket: FullTicket) {
   const resolved = ticket.status === "resolved";
-  const isLate = resolved ? ticket.stage !== "department" : new Date() > ticket.stageDueAt;
+
+  // التأخّر يُقاس بالموعد الأصلي لا بالمرحلة.
+  //
+  // كان: `resolved ? stage !== "department" : …` — أي «إن صُعِّدت فقد
+  // تأخّرت». وهو استنتاجٌ هشّ: أيُّ مسٍّ للمرحلة يُفسد العمود، وهذا
+  // بعينه ما وقع في عطب الكنس. فصار القياس صريحاً: أُغلقت بعد موعدها
+  // الأصلي أم قبله. ولتذاكرٍ قديمة لا `firstDueAt` لها يبقى الاستنتاج
+  // القديم بديلاً — لا يُخترَع تاريخٌ لم يُسجَّل.
+  const baseline = ticket.firstDueAt;
+  const isLate = resolved
+    ? baseline
+      ? (ticket.resolvedAt ?? new Date()) > baseline
+      : ticket.stage !== "department"
+    : new Date() > (baseline ?? ticket.stageDueAt);
   const author = ticketAuthor(ticket);
 
   const result = await upsertTicketRow({
@@ -154,7 +170,9 @@ export async function syncTicketSheetRow(ticket: FullTicket) {
     isLate,
     createdAt: ticket.createdAt,
     closedOrDueAt: ticket.resolvedAt ?? ticket.stageDueAt,
-    closedOnTime: resolved ? ticket.stage === "department" : null,
+    closedOnTime: resolved ? !isLate : null,
+    // من أغلقها — الإغلاق تصرّفٌ يُنسَب لصاحبه في السجل أيضاً
+    resolvedByName: ticket.resolvedByUser?.fullName ?? null,
   });
 
   if (!ticket.sheetRow && result.sheetRow) {
@@ -196,6 +214,8 @@ export async function raiseTicket(opts: {
       linkUrl: opts.linkUrl || null,
       stage: "department",
       stageDueAt,
+      // الموعد الأصلي يُحفظ هنا ولا يُمَسّ بعدها
+      firstDueAt: stageDueAt,
     },
     include: TICKET_INCLUDE,
   });
@@ -210,7 +230,7 @@ export async function raiseTicket(opts: {
       description: opts.description,
       memberName: author.name,
       dueDate: stageDueAt,
-      portalUrl: `${baseUrl()}/admin/tickets`,
+      portalUrl: `${baseUrl()}/t/${created.ticketNumber}`,
       linkUrl: created.linkUrl,
     });
   }
@@ -389,7 +409,7 @@ export async function sweepTicketEscalation() {
         description: ticket.description,
         stageLabel: TICKET_STAGE_LABELS[next],
         dueDate: isFinal ? null : nextDue,
-        portalUrl: `${baseUrl()}/admin/tickets`,
+        portalUrl: `${baseUrl()}/t/${ticket.ticketNumber}`,
       });
     }
 
@@ -415,7 +435,7 @@ export async function remindTicket(ticketId: string, fromName: string) {
     stageLabel: TICKET_STAGE_LABELS[ticket.stage],
     dueDate: ticket.stageDueAt,
     fromName,
-    portalUrl: `${baseUrl()}/admin/tickets`,
+    portalUrl: `${baseUrl()}/t/${ticket.ticketNumber}`,
   });
 }
 
@@ -450,7 +470,7 @@ export async function escalateTicketNow(ticketId: string, byName: string) {
       description: ticket.description,
       stageLabel: TICKET_STAGE_LABELS[next],
       dueDate: isFinal ? null : updated.stageDueAt,
-      portalUrl: `${baseUrl()}/admin/tickets`,
+      portalUrl: `${baseUrl()}/t/${ticket.ticketNumber}`,
     });
   }
 
