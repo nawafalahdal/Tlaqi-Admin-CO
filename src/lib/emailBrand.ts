@@ -161,6 +161,7 @@ const KIND_VARIANT: Record<string, EmailVariant> = {
 
   // ما يُفرح
   "طلب ينتظر الاعتماد": "ticket",
+  "طلب توقيع": "ticket",
   "شهادة إتمام": "celebration",
   "تقدير ثلاثة أشهر": "celebration",
   "إعادة فتح الاختبار": "celebration",

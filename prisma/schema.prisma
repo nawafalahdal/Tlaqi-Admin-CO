@@ -103,6 +103,7 @@ model Department {
   members       Member[]
   requests      Request[]      @relation("TargetDepartmentRequests")
   testTracks    TestTrack[]
+  signatures    LeaderSignature[]
   tickets       Ticket[]       @relation("TicketTargetDepartment")
   announcements Announcement[]
 }
@@ -151,6 +152,8 @@ model User {
   ticketsAssigned Ticket[] @relation("TicketTargetUser")
   ticketsResolved Ticket[] @relation("TicketResolvedBy")
   memberDateEdits MemberDateEdit[] @relation("MemberDateEditor")
+  signatures      LeaderSignature[] @relation("SignatureOwner")
+  signaturesApproved LeaderSignature[] @relation("SignatureApprover")
 }
 
 /// دعوة مقفلة بالاسم والإيميل — لا تسجيل عام. targetRole يحدد المسار:
@@ -490,4 +493,57 @@ model MemberDateEdit {
   createdAt DateTime @default(now())
 
   @@index([memberId, createdAt])
+}
+
+/// حالة توقيع القائد في مساره من الطلب إلى الاعتماد
+enum SignatureStatus {
+  /// طُلب منه ولم يرفع بعد
+  requested
+  /// رفعه وينتظر اعتماد الإدارة
+  submitted
+  /// اعتُمد — وهو وحده ما يُرسَم على الشهادات
+  approved
+  /// رُفض بسبب مكتوب
+  rejected
+  /// بطل لأن صاحبه لم يبقَ في منصبه
+  superseded
+}
+
+/// توقيع قائد — يُرسَم على الشهادات التي يُوقّعها.
+///
+/// **ولا يُعاد استعمال توقيع قائدٍ سابق لخَلَفِه أبداً.** التوقيع مرتبط
+/// بصاحبه ودوره وقسمه، لا بالمنصب وحده. فمن خرج بطل توقيعه
+/// (`superseded`) ولم يُورَّث، ومن جاء طُلب منه توقيعُه هو. وتوريثُه
+/// انتحالٌ: شهادةٌ تحمل توقيع من لم يكن في المنصة يوم صدورها.
+///
+/// والشهادات الصادرة تبقى صحيحة بتوقيعاتها: `certificateIssuedAt` يُثبت
+/// وقتها، وبطلانُ التوقيع لاحقاً لا يُبطل ما مضى.
+model LeaderSignature {
+  id           String          @id @default(cuid())
+  userId       String
+  user         User            @relation("SignatureOwner", fields: [userId], references: [id], onDelete: Cascade)
+  /// الدور والقسم حين طُلب التوقيع — فلا يُستعمل توقيعُ قائدٍ لقسمٍ آخر
+  role         String
+  departmentId String?
+  department   Department?     @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  status       SignatureStatus @default(requested)
+  /// صورة التوقيع كـdata URL — صغيرةٌ بطبعها، ولا مخزن ملفّات في المنصة
+  imageData    String?
+  requestedAt  DateTime        @default(now())
+  submittedAt  DateTime?
+  approvedAt   DateTime?
+  approvedById String?
+  approvedBy   User?           @relation("SignatureApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  rejectedAt   DateTime?
+  rejectionNote String?
+  supersededAt DateTime?
+  /// متى ذُكِّر صاحبه آخر مرّة — فلا يُذكَّر كل يوم
+  remindedAt   DateTime?
+
+  createdAt    DateTime        @default(now())
+
+  /// لكل شخصٍ في دورٍ وقسمٍ توقيعٌ واحدٌ حيّ
+  @@index([userId, status])
+  @@index([role, departmentId, status])
 }

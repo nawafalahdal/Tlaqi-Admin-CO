@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { approverFor } from "@/lib/notify";
+import { isSigningRole } from "@/lib/signatures";
 import { clearFailedAttempts } from "@/lib/loginAttempts";
 import { appendApprovedMember, appendMemberEvent, appendTestResult, upsertMemberLifecycleRow, upsertAdminAccountRow } from "@/lib/googleSheets";
 import {
@@ -388,6 +389,17 @@ export async function approveMember(memberId: string) {
     await syncAdminAccountRow(createdUser.id);
     await syncMemberLifecycleRow(member.id);
     promotedUserId = createdUser.id;
+
+    // قائدٌ جديد يُطلب توقيعه فوراً: الشهادات تصدر باسمه، ولا يُستعار
+    // توقيع من سبقه. والطلب هنا لا عند أول شهادة — حتى لا يُكتشَف
+    // النقص يوم الحاجة.
+    if (isSigningRole(role)) {
+      const { requestSignature } = await import("@/lib/signatures");
+      await requestSignature({
+        userId: createdUser.id,
+        reason: `تكليف جديد: ${accountRoleLabel(role)}`,
+      });
+    }
   }
 
   // رسالة واحدة تُعلن الاعتماد وتُرحّب وتحمل عدّة المشاركة. كانت ثلاثاً
@@ -941,6 +953,11 @@ export async function removeLeadershipUser(opts: {
     where: { id: opts.userId },
     data: { isActive: false, removedAt: new Date(), removalReason: opts.reason },
   });
+
+  // توقيعه يبطل مع منصبه: لا يُرسَم على شهادةٍ بعد اليوم، والصادر
+  // يبقى صحيحاً بتاريخه. ولا يُورَّث لخَلَفِه — الوراثة انتحال.
+  const { supersedeSignatures } = await import("@/lib/signatures");
+  await supersedeSignatures(user.id, `تنحية عن ${accountRoleLabel(user.role)}`);
 
   await appendMemberEvent({
     fullName: user.fullName,

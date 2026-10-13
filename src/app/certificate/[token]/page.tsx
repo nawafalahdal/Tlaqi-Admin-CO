@@ -97,6 +97,37 @@ export default async function CertificatePage({
           <footer className="relative grid grid-cols-2" style={{ gap: "9cqw" }}>
             {data.signers.map((s, i) => (
               <div key={i} className="text-center">
+                {/* التوقيع المعتمَد فوق السطر. ومن لا توقيع معتمَد له
+                    يبقى سطرُه فارغاً واسمُه تحته: نسبةٌ لا انتحال —
+                    ولا يُستعار توقيعُ من سبقه في المنصب. */}
+                <div
+                  className="mx-auto flex items-end justify-center"
+                  style={{ height: "4.6cqw", marginBottom: "0.3cqw" }}
+                >
+                  {s.signatureImage && (
+                    // التوقيع يُقنَّع ويُملأ بحبر الشهادة لا يُعرَض بحبره:
+                    // الشهادة أربع خلفيات، وحبرُ التوقيع الأصلي يصحّ على
+                    // بعضها ويختفي على بعض. وهو مُوحَّدٌ عند الاستلام إلى
+                    // PNG شفّافٍ معتم الحبر، فالقناع يُلوّنه بما يُقرأ.
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        display: "block",
+                        width: "62%",
+                        height: "4.6cqw",
+                        background: c.ink,
+                        maskImage: `url(${s.signatureImage})`,
+                        WebkitMaskImage: `url(${s.signatureImage})`,
+                        maskSize: "contain",
+                        WebkitMaskSize: "contain",
+                        maskRepeat: "no-repeat",
+                        WebkitMaskRepeat: "no-repeat",
+                        maskPosition: "center bottom",
+                        WebkitMaskPosition: "center bottom",
+                      }}
+                    />
+                  )}
+                </div>
                 <span
                   className="mx-auto block"
                   style={{ height: "1px", width: "74%", background: c.rule, marginBottom: "1cqw" }}

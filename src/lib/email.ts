@@ -402,6 +402,49 @@ export async function sendAppreciationEmail(opts: {
   );
 }
 
+/** طلب توقيع من قائدٍ جديد.
+ *
+ *  يشرح لماذا يُطلب وأين يُرسَم: التوقيع يُوضَع على شهادات الشكر التي
+ *  يُوقّعها لأعضاء قسمه. ومن لا يفهم لماذا يُطلب توقيعُه لا يرفعه. */
+export async function sendSignatureRequestEmail(opts: {
+  to: string;
+  fullName: string;
+  roleLabel: string;
+  departmentName?: string | null;
+  uploadUrl: string;
+}) {
+  const scope = opts.departmentName?.trim()
+    ? `أعضاء ${opts.departmentName.trim()}`
+    : "من تُوقّع لهم";
+
+  return send(
+    opts.to,
+    "نحتاج توقيعك — شهادات تَـــلاقِ",
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>مرحباً ${esc(opts.fullName)}،</p>
+      <p>بصفتك <strong>${esc(opts.roleLabel)}</strong>، أنت من يُوقّع شهادات الشكر والتقدير
+         التي تُصدرها تَـــلاقِ لـ${esc(scope)}.</p>
+      <p>ولهذا نحتاج توقيعك مرّةً واحدة: يُرسَم على الشهادات التي تصدر باسمك، فيقرأ صاحبُها
+         توقيعَ من عمل تحته فعلاً لا اسماً مطبوعاً.</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+        ${factRow("الصفة", opts.roleLabel)}
+        ${opts.departmentName?.trim() ? factRow("القسم", opts.departmentName.trim()) : ""}
+      </table>
+      <p style="margin:22px 0">
+        <a href="${esc(opts.uploadUrl)}"
+           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
+          ارفع توقيعك
+        </a>
+      </p>
+      <p style="font-size:13px;color:#6B6B6B">
+        ارسم توقيعك على ورقةٍ بيضاء وصوّره، أو ارسمه داخل الصفحة مباشرةً. ويُعتمد من الإدارة
+        قبل أن يُرسَم على أي شهادة — ولا يُستعمل توقيعُ قائدٍ سابق مكانه.
+      </p>
+    </div>`,
+    "طلب توقيع"
+  );
+}
+
 export async function sendTicketCreatedEmail(opts: {
   to: string | string[];
   subject: string;

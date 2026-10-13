@@ -144,12 +144,19 @@ export async function markCertificateShared(
   }
 
   await prisma.member.update({ where: { id: memberId }, data: { certificateSentAt: at } });
+
+  // الشهادة تصدر بتوقيعٍ ناقص إن لم يُعتمد توقيع مُوقّعها — ولا تصدر
+  // **صامتةً**: الاسم والصفة عليها نسبةٌ لا انتحال، لكن النقص يُكتب في
+  // السجل ليُقرأ. ومنعُ الإصدار كان سيحبس كل خروجٍ على توقيعٍ لم يُرفع.
+  const missing = data?.missingSignatures ?? [];
   await appendMemberEvent({
     fullName: member.fullName,
     email: member.email,
     event: "تسليم شهادة الإنهاء",
     roleOrDepartment: await scopeOf(member),
-    details: `وصلت برابطها الموقَّع — سجّلها ${byName}`,
+    details:
+      `وصلت برابطها الموقَّع — سجّلها ${byName}` +
+      (missing.length ? ` — بلا توقيع معتمَد لـ: ${missing.join("، ")}` : ""),
     at,
   });
   await syncMemberLifecycleRow(memberId);

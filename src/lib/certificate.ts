@@ -18,6 +18,11 @@ export type CertificateSigner = {
   /** الصفة: «قائد قسم التسويق»، «المؤسس»، «المدير التنفيذي» */
   title: string;
   name: string;
+  /** توقيعه المعتمَد — `null` إن لم يُعتمد له توقيع بعد.
+   *
+   *  ولا يُستعار توقيعُ من سبقه في المنصب: الشهادة تحمل توقيع من عمل
+   *  صاحبُها تحته فعلاً، أو لا توقيع — ولا توقيعاً منتحلاً. */
+  signatureImage: string | null;
 };
 
 export type CertificateData = {
@@ -33,6 +38,9 @@ export type CertificateData = {
   colorHex: string;
   /** يُوقّعها اثنان: صاحب الجهة التي عمل تحتها، ومن يمثّل المنصة */
   signers: [CertificateSigner, CertificateSigner];
+  /** هل صدرت بتوقيعٍ ناقص؟ يُعرَض للإدارة ويُسجَّل — فلا تصدر «صامتةً»
+   *  وكأنها موقَّعة. والاسم والصفة يبقيان: نسبةٌ لا انتحال. */
+  missingSignatures: string[];
 };
 
 /** رابط الشهادة موقَّع، فيصل بالبريد ويُفتح بلا تسجيل دخول.
@@ -173,21 +181,36 @@ export async function certificateFor(
       : null,
   ]);
 
+  // التوقيع يُقرأ بالشخص لا بالمنصب — ولو قُرئ بالمنصب لعاد توقيع من سبقه
+  const { approvedSignatureFor } = await import("@/lib/signatures");
+  const [founderSig, execSig, leadSig] = await Promise.all([
+    founder ? approvedSignatureFor(founder.id) : null,
+    executive ? approvedSignatureFor(executive.id) : null,
+    deptLead ? approvedSignatureFor(deptLead.id) : null,
+  ]);
+
   const founderSigner: CertificateSigner = {
     title: "المؤسس",
     name: founder?.fullName ?? "—",
+    signatureImage: founderSig,
   };
   const executiveSigner: CertificateSigner = {
     title: "المدير التنفيذي",
     name: executive?.fullName ?? "—",
+    signatureImage: execSig,
   };
   const leadSigner: CertificateSigner = {
     title: member.department ? `قائد ${member.department.name}` : "قائد القسم",
     name: deptLead?.fullName ?? "—",
+    signatureImage: leadSig,
   };
 
   const signers: [CertificateSigner, CertificateSigner] =
     isLead || !deptLead ? [founderSigner, executiveSigner] : [leadSigner, executiveSigner];
+
+  const missingSignatures = signers
+    .filter((sg) => !sg.signatureImage)
+    .map((sg) => `${sg.title}${sg.name !== "—" ? ` (${sg.name})` : ""}`);
 
   return {
     memberId: member.id,
@@ -213,6 +236,7 @@ export async function certificateFor(
     },
     colorHex,
     signers,
+    missingSignatures,
   };
 }
 
