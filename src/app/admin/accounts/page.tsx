@@ -24,7 +24,7 @@ export default async function AccountsPage() {
 
   await sweepExpiredCandidateAccounts();
 
-  const [accounts, members, removedUsers, lapsed, stuckRaw] = await Promise.all([
+  const [accounts, members, removedUsers, lapsed, stuckRaw, allDepartments] = await Promise.all([
     prisma.user.findMany({
       where: {
         isActive: true,
@@ -62,6 +62,13 @@ export default async function AccountsPage() {
       include: { department: true, invite: true },
       orderBy: { createdAt: "desc" },
       take: 50,
+    }),
+    // الأقسام العاملة وحدها تُعرَض للتصنيف: القسم الاستثنائي يتبع
+    // الإدارة العليا ولا يُصنَّف فيه عضوٌ بقرارٍ إداري
+    prisma.department.findMany({
+      where: { leadershipOnly: false },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
     }),
   ]);
 
@@ -211,6 +218,11 @@ export default async function AccountsPage() {
                 key={m.id}
                 theme={theme}
                 canPurge={isSuperAdmin}
+                // التصنيف يُعرَض لغير المصنّف وحده: من صُنِّف لا يُعاد
+                // تصنيفه، والخادم يرفضه على كل حال
+                assignableDepartments={
+                  isSuperAdmin && m.departmentId === null ? allDepartments : undefined
+                }
                 member={{
                   id: m.id,
                   fullName: m.fullName,

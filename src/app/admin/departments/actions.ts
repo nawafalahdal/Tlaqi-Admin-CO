@@ -2,7 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { canCreateDepartment, createDepartment } from "@/lib/departments";
+import {
+  canCreateDepartment,
+  createDepartment,
+  deleteDepartment,
+  assignMemberDepartment,
+} from "@/lib/departments";
 import { prisma } from "@/lib/prisma";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { safeErrorMessage } from "@/lib/safeError";
@@ -76,6 +81,56 @@ export async function updateDepartmentColorAction(
     revalidatePath("/admin/departments");
     revalidatePath("/admin");
     return { error: null };
+  } catch (err) {
+    return { error: safeErrorMessage(err) };
+  }
+}
+
+/** حذف قسم — للمؤسس وحده، والتصريح يُفرض في `deleteDepartment` نفسها */
+export async function deleteDepartmentAction(
+  departmentId: string,
+  confirmName: string
+): Promise<{ error: string | null; done?: boolean; name?: string }> {
+  const session = await auth();
+  if (!session) return { error: "يجب تسجيل الدخول" };
+
+  try {
+    const res = await deleteDepartment({
+      departmentId,
+      confirmName,
+      actorRole: session.user.role,
+      actorName: session.user.name ?? "—",
+    });
+    if (!res.ok) return { error: res.reason };
+    revalidatePath("/admin/departments");
+    revalidatePath("/admin");
+    return { error: null, done: true, name: res.name };
+  } catch (err) {
+    return { error: safeErrorMessage(err) };
+  }
+}
+
+/** تصنيف عضوٍ غير مصنّف في قسم — للمؤسس وحده، ولا يُعيد تصنيف من صُنِّف */
+export async function assignMemberDepartmentAction(
+  memberId: string,
+  departmentId: string
+): Promise<{ error: string | null; done?: boolean; departmentName?: string }> {
+  const session = await auth();
+  if (!session) return { error: "يجب تسجيل الدخول" };
+
+  try {
+    const res = await assignMemberDepartment({
+      memberId,
+      departmentId,
+      actorRole: session.user.role,
+      actorName: session.user.name ?? "—",
+    });
+    if (!res.ok) return { error: res.reason };
+    revalidatePath("/admin/accounts");
+    revalidatePath("/admin/members");
+    revalidatePath("/admin/departments");
+    revalidatePath("/admin");
+    return { error: null, done: true, departmentName: res.departmentName };
   } catch (err) {
     return { error: safeErrorMessage(err) };
   }

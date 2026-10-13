@@ -7,9 +7,10 @@ import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { BackButton } from "@/components/BackButton";
 import { getLocale, getDictionary } from "@/i18n/server";
-import { canCreateDepartment } from "@/lib/departments";
+import { canCreateDepartment, canDeleteDepartment } from "@/lib/departments";
 import { NewDepartmentForm } from "./NewDepartmentForm";
 import { DepartmentColor } from "./DepartmentColor";
+import { DeleteDepartment } from "./DeleteDepartment";
 
 /** فهرس الأقسام وإنشاء قسم جديد.
  *
@@ -27,6 +28,7 @@ export default async function DepartmentsIndexPage() {
   const td = t.deptAdmin;
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
   const canCreate = canCreateDepartment(session.user.role);
+  const canDelete = canDeleteDepartment(session.user.role);
 
   const departments = await prisma.department.findMany({
     orderBy: { name: "asc" },
@@ -90,9 +92,13 @@ export default async function DepartmentsIndexPage() {
                     )}
                   </div>
                 </div>
-                {canCreate && (
-                  <div className="mt-3 border-t border-black/5 pt-3">
-                    <DepartmentColor departmentId={d.id} current={d.colorHex} />
+                {(canCreate || canDelete) && (
+                  <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-black/5 pt-3">
+                    {canCreate && <DepartmentColor departmentId={d.id} current={d.colorHex} />}
+                    {/* الحذف للمؤسس وحده — والخادم يفرضه، وهذا موضعه */}
+                    {canDelete && (
+                      <DeleteDepartment departmentId={d.id} departmentName={d.name} theme={theme} />
+                    )}
                   </div>
                 )}
               </Card>

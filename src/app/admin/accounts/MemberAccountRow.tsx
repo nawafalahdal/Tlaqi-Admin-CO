@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { resetMemberCredentialsAction } from "../departments/[slug]/actions";
 import { permanentlyDeleteMemberAction } from "./actions";
+import { AssignDepartment } from "@/components/AssignDepartment";
 import { Card, Button } from "@/components/ui";
 import { CredentialsReveal } from "@/components/CredentialsReveal";
 import type { themeFromColor } from "@/lib/brand";
@@ -14,6 +15,7 @@ export function MemberAccountRow({
   lapsed = false,
   canReset = true,
   canPurge = false,
+  assignableDepartments,
 }: {
   member: { id: string; fullName: string; email: string; departmentName: string };
   theme: ReturnType<typeof themeFromColor>;
@@ -27,6 +29,11 @@ export function MemberAccountRow({
    *  أُنشئت خطأً — مكرّرةً أو بلا قسم — تبقى في «إدارة حسابات الأعضاء»
    *  تحجز بُرُدَها ولا يملك المؤسس من الواجهة ما يمحوها به. */
   canPurge?: boolean;
+  /** أقسامٌ يُصنَّف فيها — تُمرَّر لغير المصنّف وحده.
+   *
+   *  ومن صُنِّف لا تُمرَّر له: القسم ليس وسماً يُبدَّل. والخادم يرفض على
+   *  كل حال، فهذا راحةٌ للعين لا حماية. */
+  assignableDepartments?: { id: string; name: string }[];
 }) {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
@@ -66,6 +73,13 @@ export function MemberAccountRow({
           {lapsed && (
             <p className="mt-1 text-xs font-semibold text-red-700">{t.candidateWindow.lapsed}</p>
           )}
+          {/* «غير مصنّف» يُقال صريحاً: شَرطةٌ مكان القسم تُقرأ عطباً في
+              العرض، وهي في الحقيقة سجلٌّ ناقصٌ يُكمَل */}
+          {assignableDepartments && assignableDepartments.length > 0 && (
+            <p className="mt-1 text-xs font-semibold text-amber-700">
+              {t.deptAdmin.unclassified}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           {canReset && (
@@ -92,6 +106,16 @@ export function MemberAccountRow({
         <p className="mt-3 rounded-lg bg-green-50 px-3 py-2 text-xs leading-relaxed text-green-800">
           {purgeDone}
         </p>
+      )}
+
+      {assignableDepartments && assignableDepartments.length > 0 && !purgeDone && (
+        <div className="mt-3">
+          <AssignDepartment
+            memberId={member.id}
+            departments={assignableDepartments}
+            theme={theme}
+          />
+        </div>
       )}
 
       {/* المحو النهائي لسجلّ عضوية. وهو عضوٌ معتمدٌ نشط، فيحتاج إقراراً
