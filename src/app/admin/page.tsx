@@ -17,6 +17,7 @@ import { HeaderActions } from "@/components/HeaderActions";
 import { DataTable } from "@/components/DataTable";
 import { TicketBoard } from "@/components/TicketBoard";
 import { ApprovalQueue } from "./ApprovalQueue";
+import { SeatConflicts } from "@/components/SeatConflicts";
 import { AnnouncementComposer } from "./hub/AnnouncementComposer";
 import { AnnouncementList } from "./hub/AnnouncementList";
 import { RaiseAdminTicketForm, type TicketTargetOption } from "./tickets/RaiseAdminTicketForm";
@@ -340,6 +341,14 @@ export default async function AdminPage() {
             }))}
           />
         </section>
+
+        {/* تعارض المقاعد: للمؤسس وحده، ولا يظهر إن لم يكن تعارض.
+            القاعدة مكتوبة والحرس يمنع الجديد — وهذا يُظهر ما سبقهما. */}
+        {isSuperAdmin && (
+          <section>
+            <SeatConflicts />
+          </section>
+        )}
 
         {/* الاعتمادات */}
         <section>

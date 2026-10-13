@@ -1165,3 +1165,61 @@ export async function nudgeMissingTwoFactor(): Promise<number> {
   }
   return sent;
 }
+
+/** تعارضات المقاعد المفردة — يُقرأ الجواب من الإنتاج لا يُخمَّن.
+ *
+ *  `assertRoleSeatAvailable` يحرس **الإنشاء والاعتماد**: فلا يُنشأ مقعدٌ
+ *  ثانٍ لمنصبٍ مفرد من اليوم. لكنه لا يرى ما سبقه — حساباتٌ أُدخلت قبل
+ *  القاعدة، أو زُرعت في القاعدة مباشرةً، أو غُيّر دورُها بمسارٍ لا يمرّ
+ *  على الحرس. فالحرس سليم والبيانات قد لا تكون.
+ *
+ *  وللتعارض أثرٌ يُقرأ في البريد: `emailsForExecutive()` يرجع **كل**
+ *  تنفيذيٍّ نشط، فتذكرةٌ صُعِّدت إلى التنفيذي تُراسل ثلاثة إن كانوا
+ *  ثلاثة — وهو عين ما نُهي عنه في تقليل الرسائل.
+ *
+ *  ولا يُصلح هذا تلقائياً: تعطيلُ حسابين من ثلاثة اختيارٌ لا يملكه
+ *  الكود — قد يُعطّل التنفيذيَّ الحقيقي ويُبقي قديماً. فيُعرَض على
+ *  المؤسس بأسمائه ليحسمه هو. */
+export async function seatConflicts(): Promise<
+  { role: string; roleLabel: string; departmentName: string | null; holders: { fullName: string; email: string }[] }[]
+> {
+  const conflicts: Awaited<ReturnType<typeof seatConflicts>> = [];
+
+  // الأدوار المفردة على مستوى المنظمة
+  for (const role of ["super_admin", "executive", "operations_officer"] as const) {
+    if (!isSingletonRole(role)) continue;
+    const holders = await prisma.user.findMany({
+      where: { role, isActive: true },
+      select: { fullName: true, email: true },
+      orderBy: { createdAt: "asc" },
+    });
+    if (holders.length > 1) {
+      conflicts.push({
+        role,
+        roleLabel: ROLE_LABELS[role] ?? role,
+        departmentName: null,
+        holders,
+      });
+    }
+  }
+
+  // قيادة القسم مفردةٌ لكل قسم لا للمنظمة
+  const departments = await prisma.department.findMany({ select: { id: true, name: true } });
+  for (const dept of departments) {
+    const holders = await prisma.user.findMany({
+      where: { role: "department_admin", isActive: true, departmentId: dept.id },
+      select: { fullName: true, email: true },
+      orderBy: { createdAt: "asc" },
+    });
+    if (holders.length > 1) {
+      conflicts.push({
+        role: "department_admin",
+        roleLabel: ROLE_LABELS.department_admin ?? "قائد قسم",
+        departmentName: dept.name,
+        holders,
+      });
+    }
+  }
+
+  return conflicts;
+}
