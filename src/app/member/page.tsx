@@ -10,6 +10,8 @@ import { MyTicketCard } from "./MyTicketCard";
 import { WelcomeMailCard } from "@/components/WelcomeMailCard";
 import { SecurityGuidance } from "@/components/SecurityGuidance";
 import { GovernanceCharter } from "@/components/GovernanceCharter";
+import { TerminationRequestCard } from "@/components/TerminationRequestCard";
+import { openRequestFor } from "@/lib/termination";
 import { formatDate } from "@/lib/format";
 import { RaiseTicketForm } from "./RaiseTicketForm";
 import { sweepTicketEscalation, ticketVisibilityWhere } from "@/lib/tickets";
@@ -37,6 +39,7 @@ export default async function MemberPortalPage() {
   const t = getDictionary(await getLocale());
 
   await sweepTicketEscalation();
+  const openTermination = await openRequestFor(session.user.id);
 
   if (!member.isActive) {
     return (
@@ -121,6 +124,26 @@ export default async function MemberPortalPage() {
             sentAt={member.welcomeEmailSentAt ? formatDate(member.welcomeEmailSentAt) : null}
           />
           <SecurityGuidance theme={theme} totpEnabled={null} />
+          <TerminationRequestCard
+            theme={theme}
+            open={
+              openTermination
+                ? {
+                    id: openTermination.id,
+                    status: openTermination.status,
+                    reason: openTermination.reason,
+                    assignmentLabel: openTermination.assignmentLabel,
+                    submittedAt: formatDate(openTermination.submittedAt),
+                    requestedEndDate: openTermination.requestedEndDate
+                      ? formatDate(openTermination.requestedEndDate)
+                      : null,
+                    decisionNote: openTermination.decisionNote,
+                    meetingNote: openTermination.meetingNote,
+                  }
+                : null
+            }
+          />
+
           <GovernanceCharter theme={theme} />
         </section>
 

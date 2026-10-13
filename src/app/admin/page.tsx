@@ -156,6 +156,17 @@ export default async function AdminPage() {
       title: ti.quickAccounts,
       desc: ti.quickAccountsHint,
     },
+    // طلبات الإنهاء والتوقيعات: يراها من يقرّر فيها لا كلّ إداري
+    {
+      href: "/admin/terminations",
+      title: "طلبات إنهاء فترة الإدارة",
+      desc: "يرفعها أصحابها — وأمامك الموافقة أو الرفض أو طلب لقاء",
+    },
+    {
+      href: "/admin/signature",
+      title: "توقيعات الشهادات",
+      desc: "توقيعك، والتوقيعات التي تنتظر اعتمادك",
+    },
     ...(isSuperAdmin
       ? [
           {

@@ -445,6 +445,88 @@ export async function sendSignatureRequestEmail(opts: {
   );
 }
 
+/** طلب إنهاء فترة الإدارة — للمسؤول المختصّ وحده.
+ *
+ *  ويُنصّ فيها أن اللقاء خيارٌ ثالث: مسؤولٌ يرى الموافقة والرفض فقط
+ *  يقرّر على عجلٍ في أمرٍ يستحقّ حواراً. */
+export async function sendTerminationRequestEmail(opts: {
+  to: string | string[];
+  memberName: string;
+  memberEmail: string;
+  assignmentLabel: string;
+  reason: string;
+  requestedEndDate: Date | null;
+  portalUrl: string;
+}) {
+  return send(
+    opts.to,
+    `طلب إنهاء فترة الإدارة: ${opts.memberName}`,
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>رفع <strong>${esc(opts.memberName)}</strong> طلب إنهاء فترة الإدارة في تَـــلاقِ.</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+        ${factRow("التكليف", opts.assignmentLabel)}
+        ${factRow("البريد", opts.memberEmail)}
+        ${opts.requestedEndDate ? factRow("التاريخ المقترح", formatDate(opts.requestedEndDate)) : ""}
+      </table>
+      <p style="margin:0 0 6px;font-weight:bold">سبب الطلب بكلماته:</p>
+      <p style="margin:0 0 18px;padding:12px 14px;background:#F6F4F0;border-radius:10px">${esc(opts.reason)}</p>
+      <p style="font-size:14px">وأمامك ثلاثة: الموافقة بتاريخٍ تُثبته، أو الرفض بتفسيرٍ يُقرأ له،
+         أو <strong>طلب لقاءٍ قبل أن تقرّر</strong> — واللقاء ليس موافقةً ولا رفضاً.</p>
+      <p style="font-size:14px;color:#6B6B6B">ولم يتوقّف عمله بالرفع: يبقى على تكليفه حتى تقرّر
+         وتحلّ المهلة.</p>
+      <p style="margin:22px 0">
+        <a href="${esc(opts.portalUrl)}"
+           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
+          افتح الطلب
+        </a>
+      </p>
+    </div>`,
+    "طلب إنهاء إدارة"
+  );
+}
+
+/** قرار الطلب — لصاحبه، فهو صاحب الشأن */
+export async function sendTerminationDecisionEmail(opts: {
+  to: string;
+  memberName: string;
+  assignmentLabel: string;
+  decision: "approve" | "reject" | "request_meeting";
+  note: string | null;
+  endDate: Date | null;
+  byName: string;
+}) {
+  const subject =
+    opts.decision === "approve"
+      ? "وُوفق على طلب إنهاء فترة الإدارة"
+      : opts.decision === "reject"
+        ? "بشأن طلب إنهاء فترة الإدارة"
+        : "طلب لقاء بشأن طلبك";
+
+  const body =
+    opts.decision === "approve"
+      ? `<p>وُوفق على طلبك إنهاء فترة الإدارة في <strong>${esc(opts.assignmentLabel)}</strong>.</p>
+         ${opts.endDate ? `<p>تاريخ الانتهاء المُثبَت: <strong>${esc(formatDate(opts.endDate))}</strong>. وتبقى على عملك حتى ذلك اليوم.</p>` : ""}
+         <p>وتصلك شهادة شكرٍ وتقدير عند الختام — لا ينتهي أحدٌ عندنا بلا توثيق.</p>`
+      : opts.decision === "reject"
+        ? `<p>نظرنا في طلبك إنهاء فترة الإدارة في <strong>${esc(opts.assignmentLabel)}</strong>،
+             ولم يُوافَق عليه.</p>`
+        : `<p>بشأن طلبك إنهاء فترة الإدارة في <strong>${esc(opts.assignmentLabel)}</strong>:
+             يطلب مسؤولك لقاءً قبل أن يقرّر.</p>
+           <p><strong>وهذا ليس موافقةً ولا رفضاً</strong> — طلبك قائمٌ كما هو، والقرار يأتي بعد اللقاء.</p>`;
+
+  return send(
+    opts.to,
+    subject,
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>مرحباً ${esc(opts.memberName)}،</p>
+      ${body}
+      ${opts.note ? `<p style="margin:16px 0 0;padding:12px 14px;background:#F6F4F0;border-radius:10px"><strong>${opts.decision === "reject" ? "التفسير" : "ملاحظة"}:</strong> ${esc(opts.note)}</p>` : ""}
+      <p style="margin-top:18px;font-size:13px;color:#6B6B6B">القرار من: ${esc(opts.byName)}</p>
+    </div>`,
+    "قرار إنهاء إدارة"
+  );
+}
+
 export async function sendTicketCreatedEmail(opts: {
   to: string | string[];
   subject: string;

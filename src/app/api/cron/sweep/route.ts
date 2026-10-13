@@ -8,6 +8,7 @@ import {
 import { sweepTicketEscalation } from "@/lib/tickets";
 import { purgeExpiredLoginCodes } from "@/lib/loginCodes";
 import { sweepThreeMonthAppreciation } from "@/lib/appreciation";
+import { sweepEffectiveTerminations } from "@/lib/termination";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,8 @@ export async function GET(request: Request) {
   const totpNudged = await nudgeMissingTwoFactor();
   // التكريم لا ينتظر أن يفتح أحدٌ اللوحة يوم الذكرى
   const appreciated = await sweepThreeMonthAppreciation();
+  // من وُوفق على إنهائه وحلّ تاريخُه: الخروج يقع هنا لا عند الموافقة
+  const terminated = await sweepEffectiveTerminations();
 
   return NextResponse.json({
     ok: true,
@@ -49,5 +52,6 @@ export async function GET(request: Request) {
     purgedCodes,
     totpNudged,
     appreciated,
+    terminated,
   });
 }

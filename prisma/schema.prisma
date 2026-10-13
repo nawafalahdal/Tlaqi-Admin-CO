@@ -154,6 +154,7 @@ model User {
   memberDateEdits MemberDateEdit[] @relation("MemberDateEditor")
   signatures      LeaderSignature[] @relation("SignatureOwner")
   signaturesApproved LeaderSignature[] @relation("SignatureApprover")
+  terminationsDecided TerminationRequest[] @relation("TerminationDecider")
 }
 
 /// دعوة مقفلة بالاسم والإيميل — لا تسجيل عام. targetRole يحدد المسار:
@@ -267,6 +268,7 @@ model Member {
   tickets         Ticket[]
   ticketsAssigned Ticket[]        @relation("TicketTargetMember")
   dateEdits       MemberDateEdit[]
+  terminationRequests TerminationRequest[]
 
   // الكنس اليومي يسأل: من لم تصله شهادة تقديره؟ فيُجاب رخيصاً
   @@index([appreciationSentAt])
@@ -546,4 +548,63 @@ model LeaderSignature {
   /// لكل شخصٍ في دورٍ وقسمٍ توقيعٌ واحدٌ حيّ
   @@index([userId, status])
   @@index([role, departmentId, status])
+}
+
+/// حالة طلب إنهاء فترة الإدارة
+enum TerminationStatus {
+  /// رفعه صاحبه وينتظر قرار مسؤوله
+  submitted
+  /// طلب المسؤول لقاءً قبل أن يقرّر — **وليس قراراً**
+  meeting_requested
+  /// وُوفق عليه: ينتهي بتاريخٍ محدّد
+  approved
+  /// رُفض بتفسيرٍ مكتوب
+  rejected
+  /// وُوفق عليه وحلّ تاريخُه ونُفِّذ الخروج
+  effective
+  /// سحبه صاحبه قبل القرار
+  withdrawn
+}
+
+/// «طلب إنهاء فترة الإدارة في تَـــلاقِ» — يرفعه صاحبه لا تُقرّره عنه.
+///
+/// والرفع لا يُعطّل أحداً: من طلب الإنهاء يبقى على عمله حتى يُقرّر
+/// مسؤولُه وتحلّ مهلته. ولو عُطِّل بالرفع لصار الطلب عقوبةً يخشاها من
+/// يحقّ له طلبُه، ولأمكن أن يُخرِج نفسَه بضغطةٍ بلا مراجعة.
+///
+/// ولقاءُ المسؤول ليس قراراً: قد يُقنعه بالبقاء أو يتفهّم فيوافق —
+/// وفي الحالتين القرار يأتي بعده لا معه.
+model TerminationRequest {
+  id          String            @id @default(cuid())
+  memberId    String
+  member      Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  /// التكليف المعنيّ كما كان وقت الطلب — فلا يُقرأ لاحقاً تكليفاً آخر
+  assignmentLabel String
+  /// سبب الطلب بكلمات صاحبه
+  reason      String
+  status      TerminationStatus @default(submitted)
+
+  submittedAt DateTime          @default(now())
+  /// التاريخ المقترح للانتهاء — يقترحه صاحبه ويُثبته القرار
+  requestedEndDate DateTime?
+
+  decidedAt   DateTime?
+  decidedById String?
+  decidedBy   User?             @relation("TerminationDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedByName String?
+  /// تفسير الرفض، أو ملاحظة الموافقة، أو ما قيل في طلب اللقاء
+  decisionNote String?
+
+  /// متى طُلب اللقاء وما موعده — ولا يُعدّ قراراً
+  meetingRequestedAt DateTime?
+  meetingNote  String?
+
+  /// متى نُفِّذ الخروج فعلاً — بعد الموافقة وحلول التاريخ
+  effectiveAt DateTime?
+
+  createdAt   DateTime          @default(now())
+
+  @@index([memberId, status])
+  @@index([status, submittedAt])
 }
