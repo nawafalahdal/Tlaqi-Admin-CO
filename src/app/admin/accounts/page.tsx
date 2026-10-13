@@ -210,6 +210,7 @@ export default async function AccountsPage() {
               <MemberAccountRow
                 key={m.id}
                 theme={theme}
+                canPurge={isSuperAdmin}
                 member={{
                   id: m.id,
                   fullName: m.fullName,
@@ -276,6 +277,7 @@ export default async function AccountsPage() {
                   key={m.id}
                   theme={theme}
                   lapsed
+                  canPurge={isSuperAdmin}
                   member={{
                     id: m.id,
                     fullName: m.fullName,

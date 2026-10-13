@@ -21,11 +21,15 @@
     {{closing}}      الخاتمة الثابتة
     {{full_name}}    الاسم الكامل — في بطاقة العضوية
     {{role}}         الصفة (عضو / قائد قسم / مسؤول تشغيل …)
-    {{team}}         الفريق أو القسم
+    {{team}}         الفريق أو القسم — لوسم اللوحة فقط
+    {{card_meta}}    سطر البطاقة: الصفة · الفريق — بلا تكرار
     {{join_date}}    تاريخ الانضمام
     {{portal_url}}   رابط دخول المنصة
     {{banner_url}}   اللوحة المتحرّكة المُخصَّصة (تُولَّد عند الطلب)
-    {{dept_color}}   لون القسم الرسمي — للحدّ والعنوان لا للسطح
+    {{dept_color}}   لون القسم الرسمي — للحدّ والعنوان
+    {{card_mark}}    ملف مربّع الرمز المخبوز بلون القسم
+    {{btn_bg}}       خلفية زرّ الدخول — لون القسم
+    {{btn_text}}     حبر الزرّ — محسوبٌ من إضاءة لون القسم
     {{x_url}} {{instagram_url}} {{linkedin_url}}   روابط الحسابات
     {{handle}}       المعرّف الموحّد — tlaqisa@
     {{asset_base}}   أصل روابط الصور (نطاق المنصة)
@@ -88,32 +92,27 @@
       </td>
     </tr>
 
-    <!-- ٢ — التحية الشخصية والنص.
-         والنصّ يأتي مُركَّباً من `departmentBrand`: لكل قسمٍ إيمانُه
-         وتطلّعُه، فلا يُقرأ على من انضمّ للتسويق كلامُ التقنية. -->
+    <!-- ٢ — التحية والجملة الأولى وحدهما فوق البطاقة.
+         كانت الرسالة تضع التحية وأربع فقرات قبل البطاقة، فتنزل البطاقة
+         والزرّ إلى ما دون الشاشة الأولى: من أراد تصويرها احتاج ثلاث
+         لقطات، ولا تُقرأ واحدةٌ منها كاملة.
+         ونصُّ القسم لم يُحذف — نُقل. فأوّل شاشةٍ تحمل ما يُصوَّر:
+         اللوحة المتحرّكة، التحية، البطاقة، الزرّ، التوقيع البصري.
+         وتحتها يبقى كلامُ القسم بتمامه لمن يقرأ. -->
     <tr>
-      <td style="padding:34px 34px 0;font-family:'Segoe UI',Tahoma,Arial,sans-serif;" dir="rtl">
-        <p style="margin:0 0 14px;font-size:21px;font-weight:bold;line-height:1.6;color:#EEF6DF;">
+      <td style="padding:26px 30px 0;font-family:'Segoe UI',Tahoma,Arial,sans-serif;" dir="rtl">
+        <p style="margin:0 0 10px;font-size:22px;font-weight:bold;line-height:1.5;color:#EEF6DF;">
           {{greeting}}
         </p>
-        <p style="margin:0 0 14px;font-size:15px;line-height:2.1;color:#EEF6DF;">
+        <p style="margin:0;font-size:15px;line-height:1.95;color:#C7D3AE;">
           {{intro}}
-        </p>
-        <p style="margin:0 0 14px;font-size:15px;line-height:2.1;color:#C7D3AE;">
-          {{belief}}
-        </p>
-        <p style="margin:0 0 14px;font-size:15px;line-height:2.1;color:#C7D3AE;">
-          {{aspiration}}
-        </p>
-        <p style="margin:0;font-size:15px;font-weight:bold;line-height:2.1;color:#EEF6DF;">
-          {{closing}}
         </p>
       </td>
     </tr>
 
     <!-- ٣ — بطاقة العضوية: كل قيمها متغيّرة -->
     <tr>
-      <td style="padding:26px 34px 0;">
+      <td style="padding:20px 30px 0;">
         <!-- بطاقة العضوية: سطحُها محايدٌ وحدُّها بلون القسم.
              ولون القسم لا يُملأ به سطحٌ واسع عمداً. Gmail على الجوال
              يعكس ألوان CSS: البرتقالي #C34900 ينقلب أزرق #0072BB،
@@ -125,30 +124,64 @@
              (والصور لا يعكسها أي عميل)، وهنا حدّاً رقيقاً وعنواناً —
              فإن انحرفت نبرتُه في الوضع الداكن لم يُفسد بطاقةً كاملة. -->
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-               bgcolor="#141B03" style="background-color:#141B03;border-radius:16px;border:1px solid #2B3810;border-top:3px solid {{dept_color}};">
+               bgcolor="#141B03" style="background-color:#141B03;border-radius:18px;border:1px solid #2B3810;border-top:4px solid {{dept_color}};">
           <tr>
-            <td style="padding:22px 24px;font-family:'Segoe UI',Tahoma,Arial,sans-serif;" dir="rtl">
-              <p style="margin:0 0 16px;font-size:11px;font-weight:bold;letter-spacing:2px;color:{{dept_color}};">
-                بطاقة العضوية — {{team}}
-              </p>
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <!-- البطاقة: اسمٌ واحدٌ كبير، وسطرٌ واحدٌ تحته.
+                 كانت أربعة صفوفٍ بعناوين («الاسم» و«الدور» و«الفريق»
+                 و«تاريخ الانضمام») بجوار أربع قيم. فمن لا قسم له كان
+                 «الفريق» يُملأ بصفته، فتُقرأ البطاقة: الاسم «نواف
+                 الأهدل - مؤسس»، والدور «المؤسس»، والفريق «المؤسس» —
+                 الكلمة نفسها ثلاث مرّات، وسبعة أسطرٍ تقول ثلاث حقائق.
+                 فصارت: الاسم عنواناً، وتحته الصفةُ والفريقُ في سطرٍ
+                 واحد (و`card_meta` يُسقط المكرّر منهما في الخادم)،
+                 وتاريخُ الانضمام سطراً صغيراً. -->
+            <td style="padding:16px 18px 18px;font-family:'Segoe UI',Tahoma,Arial,sans-serif;" dir="rtl">
+
+              <!-- ترويسة البطاقة: الرمز الرسمي في مربّعٍ بلون القسم،
+                   وبجانبه العنوان واسم القسم.
+                   **والمربّع كلُّه صورةٌ واحدة** — لونُه وحبرُه مخبوزان
+                   معاً (`scripts/gen-card-marks.ts`). وكان مربّعَ CSS
+                   بلون القسم تحته رمزٌ أبيض شفّاف، فظهر عطبٌ في البيج:
+                   رمزٌ أبيض على مربّعٍ فاتح لا يُقرأ.
+                   وحتى لو اختير الحبر بحسب اللون، فعميل البريد يقلب
+                   إضاءة ألوان CSS: البيج الفاتح يصير داكناً، فيختفي
+                   الحبرُ الداكن الذي اخترناه له. ولا ينجو حبرٌ واحدٌ من
+                   الحالتين على لونٍ متطرّف الإضاءة.
+                   والصورة لا يقلبها أحد. فصار المربّع صورةً: واحدةٌ لكل
+                   لون قسم، حبرُها محسوبٌ بـ`readableTextOn` — وتبقى هي
+                   هي في الوضعين. -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
                 <tr>
-                  <td style="padding:0 0 12px;font-size:12px;color:#8A9470;width:92px;white-space:nowrap;">الاسم</td>
-                  <td style="padding:0 14px 12px 0;font-size:15px;font-weight:bold;color:#EEF6DF;">{{full_name}}</td>
-                </tr>
-                <tr>
-                  <td style="padding:0 0 12px;font-size:12px;color:#8A9470;white-space:nowrap;">الدور</td>
-                  <td style="padding:0 14px 12px 0;font-size:15px;font-weight:bold;color:#EEF6DF;">{{role}}</td>
-                </tr>
-                <tr>
-                  <td style="padding:0 0 12px;font-size:12px;color:#8A9470;white-space:nowrap;">الفريق</td>
-                  <td style="padding:0 14px 12px 0;font-size:15px;font-weight:bold;color:#EEF6DF;">{{team}}</td>
-                </tr>
-                <tr>
-                  <td style="padding:0;font-size:12px;color:#8A9470;white-space:nowrap;">تاريخ الانضمام</td>
-                  <td style="padding:0 14px 0 0;font-size:15px;font-weight:bold;color:#EEF6DF;">{{join_date}}</td>
+                  <td width="42" valign="middle" style="width:42px;font-size:0;line-height:0;">
+                    <img src="{{asset_base}}/brand/{{card_mark}}" width="42" height="42"
+                         alt="تَـــلاقِ"
+                         style="display:block;border:0;outline:none;width:42px;height:42px;">
+                  </td>
+                  <td valign="middle" style="padding:0 12px 0 0;">
+                    <p style="margin:0 0 3px;font-size:10px;font-weight:bold;letter-spacing:2.5px;color:{{dept_color}};">
+                      بطاقة العضوية
+                    </p>
+                    <p style="margin:0;font-size:12.5px;font-weight:bold;color:#8A9470;">
+                      {{team}}
+                    </p>
+                  </td>
                 </tr>
               </table>
+
+              <!-- فاصلٌ رقيق بلون القسم باهتاً: يفصل الترويسة عن الهوية -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr><td height="1" style="height:1px;background-color:#2B3810;font-size:0;line-height:0;">&nbsp;</td></tr>
+              </table>
+
+              <p style="margin:14px 0 5px;font-size:21px;font-weight:bold;line-height:1.35;color:#EEF6DF;">
+                {{full_name}}
+              </p>
+              <p style="margin:0 0 12px;font-size:14px;line-height:1.6;color:#C7D3AE;">
+                {{card_meta}}
+              </p>
+              <p style="margin:0;font-size:11.5px;letter-spacing:0.5px;line-height:1.5;color:#8A9470;">
+                انضمّ في {{join_date}}
+              </p>
             </td>
           </tr>
         </table>
@@ -157,12 +190,18 @@
 
     <!-- ٤ — زرّ الدخول: جدول لا <a> مُنسَّق، ليُرسم في Outlook كما يُرسم في غيره -->
     <tr>
-      <td align="center" style="padding:28px 34px 0;">
+      <td align="center" style="padding:22px 30px 0;">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0">
           <tr>
-            <td align="center" bgcolor="#C34900" style="background-color:#C34900;border-radius:999px;">
+            <!-- الزرّ بلون القسم لا بلونٍ واحدٍ للجميع: البطاقة ملوّنةٌ
+                 بقسمه، فزرٌّ برتقاليٌّ ثابتٌ يكسر الوحدة في كل قسمٍ عدا
+                 التسويق.
+                 وحبرُه محسوبٌ في الخادم لا مكتوبٌ هنا: «الموارد البشرية»
+                 لونُها بيجٌ فاتح، ونصٌّ أبيض عليه لا يُقرأ. فـ`btn_text`
+                 يُشتقّ من إضاءة اللون نفسه. -->
+            <td align="center" bgcolor="{{btn_bg}}" style="background-color:{{btn_bg}};border-radius:999px;">
               <a href="{{portal_url}}"
-                 style="display:inline-block;padding:14px 38px;font-family:'Segoe UI',Tahoma,Arial,sans-serif;font-size:15px;font-weight:bold;color:#FFFFFF;text-decoration:none;border-radius:999px;">
+                 style="display:inline-block;padding:15px 40px;font-family:'Segoe UI',Tahoma,Arial,sans-serif;font-size:15px;font-weight:bold;color:{{btn_text}};text-decoration:none;border-radius:999px;">
                 الدخول إلى منصة تَـــلاقِ
               </a>
             </td>
@@ -171,24 +210,45 @@
       </td>
     </tr>
 
-    <!-- ٥ — الجملة: صورة بخط الهوية، فلا يقلبها الوضع الداكن ولا يُسقط خطَّها -->
+    <!-- ٥ — الشاشة الأولى تنتهي عند الزرّ.
+         كانت تحته صورةُ الجملة «نلتقي · نفكر · نصنع». وخلفيّتها معتمة
+         داكنة (#0C1100) — مثل خلفيّة البطاقة بالضبط، فتبدو ملتحمةً بها
+         في الوضع الداكن.
+         لكن عميل البريد على الجوال يقلب إضاءة ألوان CSS ولا يقلب
+         الصور: فتصير الرسالة كريمية الخلفية داكنة النصّ، وتبقى الصورة
+         داكنةً كما هي — **شريطاً أسود** في وسط صفحةٍ فاتحة. وهذا ما
+         ظهر في لقطة الشاشة.
+         والجملة محروقةٌ أصلاً في اللوحة المتحرّكة أعلى الرسالة، واللوحة
+         صورةٌ ممتدّة من حدٍّ إلى حدّ فلا يظهر لها حدٌّ غريب. فحُذفت
+         الصورة الثانية: زال الشريط، وقَصُرت الرسالة، وبقي التوقيع
+         البصري في موضعٍ واحد.
+
+         وما بعدها كلامُ القسم بتمامه: إيمانُه وتطلّعُه وخاتمة الرسالة
+         — لم يُحذف منه حرف، ولكنه لا يُزاحم البطاقةَ والزرَّ على
+         الشاشة الأولى. -->
     <tr>
-      <td align="center" style="padding:34px 34px 0;">
+      <td align="center" style="padding:24px 30px 0;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           <tr><td style="border-top:1px solid #232E0C;font-size:0;line-height:0;">&nbsp;</td></tr>
         </table>
       </td>
     </tr>
     <tr>
-      <td align="center" style="padding:26px 34px 0;font-size:0;line-height:0;">
-        <img src="{{asset_base}}/brand/email-tagline.png" width="390" height="66"
-             alt="نلتقي · نفكر · نصنع"
-             style="display:block;border:0;outline:none;text-decoration:none;width:390px;max-width:100%;height:auto;">
+      <td style="padding:22px 30px 0;font-family:'Segoe UI',Tahoma,Arial,sans-serif;" dir="rtl">
+        <p style="margin:0 0 14px;font-size:14.5px;line-height:2;color:#C7D3AE;">
+          {{belief}}
+        </p>
+        <p style="margin:0 0 14px;font-size:14.5px;line-height:2;color:#C7D3AE;">
+          {{aspiration}}
+        </p>
+        <p style="margin:0;font-size:15px;font-weight:bold;line-height:1.9;color:#EEF6DF;">
+          {{closing}}
+        </p>
       </td>
     </tr>
     <tr>
-      <td align="center" style="padding:16px 40px 0;font-family:'Segoe UI',Tahoma,Arial,sans-serif;" dir="rtl">
-        <p style="margin:0;font-size:13.5px;line-height:2;color:#99A47C;">
+      <td align="center" style="padding:18px 34px 0;font-family:'Segoe UI',Tahoma,Arial,sans-serif;" dir="rtl">
+        <p style="margin:0;font-size:13px;line-height:1.95;color:#99A47C;">
           معاً نصنع فرصاً حقيقية، ونحوّل الأفكار إلى مبادرات تُحدث أثراً في الحاضر والمستقبل.
         </p>
       </td>
@@ -196,26 +256,26 @@
 
     <!-- ٦ — حسابات التواصل -->
     <tr>
-      <td align="center" style="padding:30px 34px 0;font-family:'Segoe UI',Tahoma,Arial,sans-serif;">
+      <td align="center" style="padding:24px 34px 0;font-family:'Segoe UI',Tahoma,Arial,sans-serif;">
         <p style="margin:0 0 16px;font-size:12px;font-weight:bold;letter-spacing:2px;color:#8A9470;">تابع تَـــلاقِ</p>
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center">
           <tr>
             <td style="padding:0 6px;">
               <a href="{{x_url}}" style="text-decoration:none;">
-                <img src="{{asset_base}}/brand/icon-x.png" width="44" height="44" alt="X"
-                     style="display:block;border:0;outline:none;width:44px;height:44px;border-radius:12px;">
+                <img src="{{asset_base}}/brand/icon-x.png" width="38" height="38" alt="X"
+                     style="display:block;border:0;outline:none;width:38px;height:38px;border-radius:10px;">
               </a>
             </td>
             <td style="padding:0 6px;">
               <a href="{{instagram_url}}" style="text-decoration:none;">
-                <img src="{{asset_base}}/brand/icon-instagram.png" width="44" height="44" alt="Instagram"
-                     style="display:block;border:0;outline:none;width:44px;height:44px;border-radius:12px;">
+                <img src="{{asset_base}}/brand/icon-instagram.png" width="38" height="38" alt="Instagram"
+                     style="display:block;border:0;outline:none;width:38px;height:38px;border-radius:10px;">
               </a>
             </td>
             <td style="padding:0 6px;">
               <a href="{{linkedin_url}}" style="text-decoration:none;">
-                <img src="{{asset_base}}/brand/icon-linkedin.png" width="44" height="44" alt="LinkedIn"
-                     style="display:block;border:0;outline:none;width:44px;height:44px;border-radius:12px;">
+                <img src="{{asset_base}}/brand/icon-linkedin.png" width="38" height="38" alt="LinkedIn"
+                     style="display:block;border:0;outline:none;width:38px;height:38px;border-radius:10px;">
               </a>
             </td>
           </tr>
@@ -231,9 +291,14 @@
          توقيعاً. فبقيت الصورةُ الكبيرة توقيعاً بصريّاً، وبقي الشعار
          هنا علامةَ ختامٍ صغيرة، وحُذف النصّ المكرّر. -->
     <tr>
-      <td align="center" bgcolor="#090D00" style="background-color:#090D00;padding:20px 34px;border-top:1px solid #232E0C;">
-        <img src="{{asset_base}}/brand/email-footer-mark.png" width="104" height="30" alt="تَـــلاقِ — TLAQI"
-             style="display:block;border:0;outline:none;width:104px;height:auto;margin:0 auto;">
+      <td align="center" bgcolor="#090D00" style="background-color:#090D00;padding:16px 34px;border-top:1px solid #232E0C;font-family:'Segoe UI',Tahoma,Arial,sans-serif;">
+        <!-- الشعار كان صورةً هنا أيضاً، وخلفيّتها معتمة داكنة — فتصير
+             مستطيلاً أسود صغيراً حين يقلب العميل الإضاءة. والشعار
+             محمولٌ في اللوحة أعلى الرسالة، فبقي هنا اسماً نصّياً:
+             النصّ يُقلَب مع ما حوله فيبقى مقروءاً في الحالتين. -->
+        <p style="margin:0;font-size:12px;font-weight:bold;letter-spacing:1px;color:#8A9470;" dir="rtl">
+          تَـــلاقِ · TLAQI
+        </p>
       </td>
     </tr>
 

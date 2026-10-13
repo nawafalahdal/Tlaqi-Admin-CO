@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { resetMemberCredentialsAction } from "../departments/[slug]/actions";
+import { permanentlyDeleteMemberAction } from "./actions";
 import { Card, Button } from "@/components/ui";
 import { CredentialsReveal } from "@/components/CredentialsReveal";
 import type { themeFromColor } from "@/lib/brand";
@@ -12,6 +13,7 @@ export function MemberAccountRow({
   theme,
   lapsed = false,
   canReset = true,
+  canPurge = false,
 }: {
   member: { id: string; fullName: string; email: string; departmentName: string };
   theme: ReturnType<typeof themeFromColor>;
@@ -19,6 +21,12 @@ export function MemberAccountRow({
   lapsed?: boolean;
   /** التعيين اليدوي صار شبكة أمان للفاوندر وحده بعد إتاحة الاستعادة الذاتية */
   canReset?: boolean;
+  /** المحو النهائي — للمؤسس وحده، والتصريح يُفرض في الخادم أيضاً.
+   *
+   *  كانت القائمة تَعرض كل عضوٍ معتمدٍ نشط بلا طريقٍ لإزالته: سجلّاتٌ
+   *  أُنشئت خطأً — مكرّرةً أو بلا قسم — تبقى في «إدارة حسابات الأعضاء»
+   *  تحجز بُرُدَها ولا يملك المؤسس من الواجهة ما يمحوها به. */
+  canPurge?: boolean;
 }) {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
@@ -26,6 +34,11 @@ export function MemberAccountRow({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<{ email: string; tempPassword: string } | null>(null);
+  const [purgeOpen, setPurgeOpen] = useState(false);
+  const [purgeEmail, setPurgeEmail] = useState("");
+  const [purgeReason, setPurgeReason] = useState("");
+  const [purgeError, setPurgeError] = useState<string | null>(null);
+  const [purgeDone, setPurgeDone] = useState<string | null>(null);
 
   function handleReset() {
     setError(null);
@@ -54,12 +67,92 @@ export function MemberAccountRow({
             <p className="mt-1 text-xs font-semibold text-red-700">{t.candidateWindow.lapsed}</p>
           )}
         </div>
-        {canReset && (
-          <Button theme={theme} variant="outline" onClick={() => setOpen((o) => !o)}>
-            {lapsed ? t.candidateWindow.reissue : t.misc.loginTrouble}
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canReset && (
+            <Button theme={theme} variant="outline" onClick={() => setOpen((o) => !o)}>
+              {lapsed ? t.candidateWindow.reissue : t.misc.loginTrouble}
+            </Button>
+          )}
+          {canPurge && !purgeDone && (
+            <button
+              type="button"
+              onClick={() => {
+                setPurgeError(null);
+                setPurgeOpen((o) => !o);
+              }}
+              className="inline-flex min-h-11 items-center rounded-xl bg-red-50 px-4 text-sm font-semibold text-red-800 ring-1 ring-red-300"
+            >
+              {t.accounts.purge}
+            </button>
+          )}
+        </div>
       </div>
+
+      {purgeDone && (
+        <p className="mt-3 rounded-lg bg-green-50 px-3 py-2 text-xs leading-relaxed text-green-800">
+          {purgeDone}
+        </p>
+      )}
+
+      {/* المحو النهائي لسجلّ عضوية. وهو عضوٌ معتمدٌ نشط، فيحتاج إقراراً
+          ثانياً صريحاً: الأصل أن تُنهى عضويته لا أن يُمحى سجلُّه —
+          والاستثناء سجلٌّ أُنشئ خطأً، مكرّراً أو بلا قسم. */}
+      {purgeOpen && !purgeDone && (
+        <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-red-50/70 p-4 ring-1 ring-red-200">
+          <p className="text-xs font-bold text-red-900">{t.accounts.purgeTitle}</p>
+          <p className="text-xs leading-relaxed text-red-900/80">{t.accounts.purgeHint}</p>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium text-black/70">{t.accounts.purgeConfirmEmail}</span>
+            <input
+              value={purgeEmail}
+              onChange={(e) => setPurgeEmail(e.target.value)}
+              dir="ltr"
+              type="email"
+              placeholder={member.email}
+              className="min-h-11 rounded-xl border border-red-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-red-400"
+            />
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium text-black/70">{t.accounts.purgeReason}</span>
+            <textarea
+              value={purgeReason}
+              onChange={(e) => setPurgeReason(e.target.value)}
+              rows={2}
+              className="rounded-xl border border-red-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-red-400"
+            />
+          </label>
+          {purgeError && <p className="text-sm font-semibold text-red-700">{purgeError}</p>}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={pending || purgeReason.trim().length < 5 || !purgeEmail.trim()}
+              onClick={() => {
+                setPurgeError(null);
+                startTransition(async () => {
+                  const res = await permanentlyDeleteMemberAction(
+                    member.id,
+                    purgeEmail,
+                    purgeReason,
+                    true
+                  );
+                  if (res.error) {
+                    setPurgeError(res.error);
+                    return;
+                  }
+                  setPurgeDone(t.accounts.purgeDoneFreed);
+                  setPurgeOpen(false);
+                });
+              }}
+              className="inline-flex min-h-11 items-center rounded-xl bg-red-700 px-4 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {pending ? t.actions.working : t.accounts.purgeConfirm}
+            </button>
+            <Button theme={theme} variant="ghost" onClick={() => setPurgeOpen(false)}>
+              {t.common.cancel}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {open && !revealed && (
         <div className="mt-4 flex flex-col gap-3 border-t border-black/5 pt-4">

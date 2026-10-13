@@ -6,6 +6,7 @@ import { appendEmailLog } from "@/lib/googleSheets";
 import { prisma } from "@/lib/prisma";
 import { wrapEmail, htmlToText, variantForKind, appBaseUrl, SOCIAL_HANDLE } from "@/lib/emailBrand";
 import { welcomeParagraphs } from "@/lib/departmentBrand";
+import { readableTextOn } from "@/lib/colors";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FROM = process.env.EMAIL_FROM || "تَـــلاقِ <hello@tlaqiteam.site>";
@@ -992,6 +993,39 @@ export function welcomeEmailSubject(fullName: string, occasion: "approved" | "re
  *
  *  لا تمرّ على `wrapEmail`: القالب غلافٌ كامل بترويسته وتذييله، ولفّه
  *  بغلافٍ ثانٍ يُنتج رسالةً بترويستين. */
+/** مربّع الرمز المخبوز بلون هذا القسم.
+ *
+ *  الملفّات تُولَّد بـ`scripts/gen-card-marks.ts`، ولكلٍّ حبرٌ محسوب.
+ *  ومن جاء بلونٍ غير ألوان الهوية يأخذ المهوجني — لا مربّعاً مفقوداً. */
+function cardMarkFile(colorHex: string): string {
+  const byColor: Record<string, string> = {
+    "#c34900": "card-mark-mahogany.png",
+    "#67c090": "card-mark-green.png",
+    "#eef6df": "card-mark-beige.png",
+    "#341d2b": "card-mark-temptress.png",
+  };
+  return byColor[colorHex.trim().toLowerCase()] ?? "card-mark-mahogany.png";
+}
+
+/** الصفةُ والفريقُ في سطرٍ واحد، بلا تكرارٍ ولا شَرَطاتٍ فارغة.
+ *
+ *  يُقارَن بعد التشذيب: «المؤسس» و«المؤسس » واحد. ومن لا قسم له ولا
+ *  مسمّى يبقى سطرُه صفتَه وحدها — لا «المؤسس · —». */
+function cardMeta(opts: WelcomeEmailOpts): string {
+  // المسمّى الوظيفي أخصُّ من الصفة، فإن وُجد كفى عنها: «قائدة التسويق»
+  // تُغني عن «قائد قسم». ثم القسم بعده — وهما حقيقتان لا ثلاث.
+  const parts = [opts.jobTitle || opts.roleLabel, opts.departmentName]
+    .map((v) => v?.trim())
+    .filter((v): v is string => !!v && v !== "—");
+  const seen = new Set<string>();
+  const unique = parts.filter((v) => {
+    if (seen.has(v)) return false;
+    seen.add(v);
+    return true;
+  });
+  return unique.length > 0 ? unique.join(" · ") : "عضو في تَـــلاقِ";
+}
+
 export function renderWelcomeEmail(opts: WelcomeEmailOpts): string {
   const base = appBaseUrl();
   // نصُّ القسم يُركَّب في موضعه لا في القالب: القالب شكلٌ، والنصّ هويّة
@@ -1001,6 +1035,7 @@ export function renderWelcomeEmail(opts: WelcomeEmailOpts): string {
     departmentName: opts.departmentName ?? null,
     colorHex: opts.departmentColorHex ?? null,
   });
+  const deptColor = opts.departmentColorHex?.trim() || "#C34900";
   return fillTemplate(welcomeTemplate(), {
     greeting: p.greeting,
     intro: p.intro,
@@ -1010,10 +1045,27 @@ export function renderWelcomeEmail(opts: WelcomeEmailOpts): string {
     full_name: opts.fullName,
     role: opts.roleLabel,
     team: opts.departmentName?.trim() || opts.jobTitle?.trim() || "—",
+    // سطر البطاقة: الصفةُ والفريقُ بلا تكرار.
+    //
+    // كان القالب يَعرض «الدور» و«الفريق» صفّين مستقلّين، و`team` يرتدّ
+    // إلى المسمّى الوظيفي لمن لا قسم له. فمن كان مسمّاه هو صفتَه —
+    // المؤسس مثلاً — قرأ الكلمة نفسها في الصفّين، وقرأها ثالثةً في
+    // اسمه إن كتبه بصفته. والبطاقة تقول الحقائق مرّةً واحدة.
+    //
+    // والإسقاط هنا لا في القالب: القالب لا يعرف أيُّ القيمتين تكرار،
+    // والخادم يعرف — فهو من يقرأ السجل.
+    card_meta: cardMeta(opts),
     join_date: opts.joinedAt ? formatDate(opts.joinedAt) : "—",
     portal_url: opts.portalUrl,
     banner_url: opts.bannerUrl || `${base}/brand/banner/base.gif`,
-    dept_color: opts.departmentColorHex?.trim() || "#C34900",
+    dept_color: deptColor,
+    card_mark: cardMarkFile(deptColor),
+    btn_bg: deptColor,
+    // حبر الزرّ يُشتقّ من إضاءة لونه لا يُكتب ثابتاً: «الموارد البشرية»
+    // لونُها بيجٌ فاتح (#EEF6DF)، ونصٌّ أبيض عليه لا يُقرأ. و
+    // `readableTextOn` هي الدالة نفسها التي تحكم ألوان الواجهة — فلا
+    // يُتّخذ القرار مرّتين بطريقتين.
+    btn_text: readableTextOn(deptColor),
     asset_base: base,
     handle: `@${SOCIAL_HANDLE}`,
     x_url: `https://x.com/${SOCIAL_HANDLE}`,

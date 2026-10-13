@@ -211,3 +211,41 @@ export async function sendWelcomeToUserAction(
     return { error: safeErrorMessage(err) };
   }
 }
+
+/** المحو النهائي لسجلّ عضوية — للمؤسس وحده.
+ *
+ *  «إدارة حسابات الأعضاء» كانت تَعرض كل عضوٍ معتمدٍ نشط بلا طريقٍ
+ *  لإزالته. والسجلّ الذي أُنشئ خطأً — مكرّراً أو بلا قسم — يبقى فيها
+ *  يحجز بريدَه ويُحسَب في الأعداد، ولا يملك المؤسس من الواجهة ما يمحوه
+ *  به. والتنحية لا تُصلحه: هو ليس عضواً انتهت فترته، هو سجلٌّ لا يقابله
+ *  أحد.
+ */
+export async function permanentlyDeleteMemberAction(
+  memberId: string,
+  confirmEmail: string,
+  reason: string,
+  force: boolean
+): Promise<{ error: string | null; done?: boolean; email?: string }> {
+  const session = await auth();
+  if (!session) return { error: "يجب تسجيل الدخول" };
+
+  try {
+    const res = await permanentlyDeleteAccount({
+      kind: "member",
+      id: memberId,
+      confirmEmail,
+      reason,
+      force,
+      actorRole: session.user.role,
+      actorId: session.user.id,
+      actorName: session.user.name ?? "—",
+    });
+    if (!res.ok) return { error: res.reason };
+    revalidatePath("/admin/accounts");
+    revalidatePath("/admin/members");
+    revalidatePath("/admin");
+    return { error: null, done: true, email: res.email };
+  } catch (err) {
+    return { error: safeErrorMessage(err) };
+  }
+}
