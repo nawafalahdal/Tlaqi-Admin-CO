@@ -200,6 +200,52 @@ async function cleanup() {
   chk("وبعد تعطيله يُحذف", memberDel2.ok, memberDel2.ok ? "" : (memberDel2 as {reason:string}).reason);
   chk("والبريد تحرّر", (await prisma.member.findUnique({ where: { email: NEW } })) === null);
 
+  // ٨ه — الحساب المُنحّى يُمحى بلا إقرارٍ إضافي، ويُقال الحقُّ في البريد.
+  //
+  //      المُنحّى بريدُه محجوزٌ في القاعدة وإن لم يَقبل دخولاً. وحذفُه
+  //      يُحرّره — إلا إن بقي له سجلُّ عضويةٍ يحمله، فيُقال ذلك صريحاً
+  //      ولا يُقال «تحرّر» وقد لم يتحرّر.
+  const removed = await prisma.user.create({
+    data: { fullName: "مُنحّى للحذف", email: "removed-purge@example.test",
+            passwordHash: "x", role: "department_admin", isActive: false,
+            removedAt: new Date(), removalReason: "اختبار التنحية" },
+  });
+  const purgeRemoved = await permanentlyDeleteAccount({
+    kind: "user", id: removed.id, confirmEmail: "removed-purge@example.test",
+    reason: "محو حسابٍ مُنحّى لتحرير بريده", ...F });
+  chk("الحساب المُنحّى يُمحى بلا إقرارٍ إضافي", purgeRemoved.ok,
+      purgeRemoved.ok ? "" : (purgeRemoved as { reason: string }).reason);
+  chk("ويُقال إن البريد تحرّر", purgeRemoved.ok && purgeRemoved.emailFreed === true);
+  chk("والبريد حرٌّ فعلاً",
+      (await prisma.user.findUnique({ where: { email: "removed-purge@example.test" } })) === null);
+
+  // ٨و — وإن بقي سجلُّ عضويةٍ يحمل البريد، لا يُقال «تحرّر»
+  const heldDept = await prisma.department.findFirstOrThrow({ where: { name: "التقنية" } });
+  const heldInvite = await prisma.invite.create({
+    data: { fullName: "قائد له توأم", email: "held-twin@example.test",
+            departmentId: heldDept.id, targetRole: "department_admin",
+            testTrackId: track.id, invitedById: founder.id, status: "used" },
+  });
+  await prisma.member.create({
+    data: { fullName: "قائد له توأم", email: "held-twin@example.test",
+            inviteId: heldInvite.id, departmentId: heldDept.id,
+            approvalStatus: "approved", isActive: true },
+  });
+  const heldUser = await prisma.user.create({
+    data: { fullName: "قائد له توأم", email: "held-twin@example.test",
+            passwordHash: "x", role: "department_admin", isActive: false,
+            removedAt: new Date(), removalReason: "اختبار" },
+  });
+  const purgeHeld = await permanentlyDeleteAccount({
+    kind: "user", id: heldUser.id, confirmEmail: "held-twin@example.test",
+    reason: "محو الحساب الإداري مع بقاء سجلّ العضوية", ...F });
+  chk("حُذف الحساب الإداري", purgeHeld.ok);
+  chk("**ولا يُقال «تحرّر البريد» وقد لم يتحرّر**",
+      purgeHeld.ok && purgeHeld.emailFreed === false && !!purgeHeld.heldBy,
+      purgeHeld.ok ? (purgeHeld.heldBy ?? "null") : "");
+  await prisma.member.deleteMany({ where: { email: "held-twin@example.test" } });
+  await prisma.invite.deleteMany({ where: { id: heldInvite.id } });
+
   await cleanup();
   console.log(checks.join("\n"));
   const failed = checks.some((c) => c.startsWith("✗"));

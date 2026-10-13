@@ -155,7 +155,13 @@ export async function permanentlyDeleteUserAction(
   confirmEmail: string,
   reason: string,
   force: boolean
-): Promise<{ error: string | null; done?: boolean; email?: string }> {
+): Promise<{
+  error: string | null;
+  done?: boolean;
+  email?: string;
+  emailFreed?: boolean;
+  heldBy?: string | null;
+}> {
   const session = await auth();
   if (!session) return { error: "يجب تسجيل الدخول" };
 
@@ -173,7 +179,13 @@ export async function permanentlyDeleteUserAction(
     if (!res.ok) return { error: res.reason };
     revalidatePath("/admin/accounts");
     revalidatePath("/admin");
-    return { error: null, done: true, email: res.email };
+    return {
+      error: null,
+      done: true,
+      email: res.email,
+      emailFreed: res.emailFreed,
+      heldBy: res.heldBy,
+    };
   } catch (err) {
     return { error: safeErrorMessage(err) };
   }

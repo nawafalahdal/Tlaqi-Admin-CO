@@ -6,6 +6,7 @@ import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { AccountRow } from "./AccountRow";
 import { MyAccountCard } from "./MyAccountCard";
+import { RemovedAccountRow } from "./RemovedAccountRow";
 import { MemberAccountRow } from "./MemberAccountRow";
 import { StuckCandidateRow, type StuckCandidate } from "./StuckCandidateRow";
 import { BackButton } from "@/components/BackButton";
@@ -224,17 +225,22 @@ export default async function AccountsPage() {
           <>
             <h2 className="mb-4 mt-10 text-lg font-bold">{t.seats.removedTitle}</h2>
             <div className="flex flex-col gap-3">
+              {/* المُنحّى بريدُه ما يزال محجوزاً في القاعدة. فكان القسم
+                  سجلاً بلا طريق: لا يَقبل الحساب دخولاً، ولا يُدعى
+                  صاحبه من جديد ببريده، ولا يملك المؤسس ما يُحرّره به. */}
               {removedUsers.map((u) => (
-                <Card key={u.id} className="p-4">
-                  <p className="text-sm font-semibold">{u.fullName}</p>
-                  <p className="break-all text-xs text-black/50" dir="ltr">
-                    {u.email}
-                  </p>
-                  <p className="mt-1 text-xs text-black/40">
-                    {u.department ? `${u.department.name} — ` : ""}
-                    {u.removalReason}
-                  </p>
-                </Card>
+                <RemovedAccountRow
+                  key={u.id}
+                  theme={theme}
+                  canPurge={isSuperAdmin}
+                  account={{
+                    id: u.id,
+                    fullName: u.fullName,
+                    email: u.email,
+                    departmentName: u.department?.name ?? null,
+                    removalReason: u.removalReason,
+                  }}
+                />
               ))}
             </div>
           </>

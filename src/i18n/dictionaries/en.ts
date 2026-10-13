@@ -298,6 +298,8 @@ requestsHint: "What the platform creates on its own: the welcome banner on appro
     purgeReason: "Reason for deletion (recorded in the sheet)",
     purgeForce: "This account is still active \u2014 I confirm deleting it directly without standing it down first.",
     purgeConfirm: "Delete permanently",
+    purgeDoneFreed: "The account was permanently deleted and the email is released \u2014 you can invite them again with the same details.",
+    purgeDoneHeld: "The leadership account was deleted, but the email is still held by:",
     myAccountTitle: "Your account",
     myAccountHint:
       "The founder's account cannot be deleted or stood down \u2014 the platform cannot be left without an active founder. You may send the welcome card to yourself to see it as your members see it.",

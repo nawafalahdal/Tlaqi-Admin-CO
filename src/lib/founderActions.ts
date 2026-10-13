@@ -233,7 +233,22 @@ export async function permanentlyDeleteAccount(opts: {
   actorRole: string;
   actorId: string;
   actorName: string;
-}): Promise<{ ok: true; email: string; fullName: string } | { ok: false; reason: string }> {
+}): Promise<
+  | {
+      ok: true;
+      email: string;
+      fullName: string;
+      /** هل تحرّر البريد فعلاً؟
+       *
+       *  القائد له سجلّان: `User` و`Member`. فحذفُ أحدهما لا يُحرّر
+       *  البريد ما بقي الآخر يحمله — ولو قيل «حُذف» لظنّ المؤسس أن
+       *  البريد صار حرّاً فتفشل دعوتُه بعد أسبوع بلا سببٍ ظاهر. فيُقال
+       *  صريحاً: حُرّر أم بقي، وأين بقي. */
+      emailFreed: boolean;
+      heldBy: string | null;
+    }
+  | { ok: false; reason: string }
+> {
   assertFounder(opts.actorRole);
   const reason = opts.reason.trim();
   if (reason.length < 5) return { ok: false, reason: "اكتب سبب الحذف" };
@@ -293,7 +308,18 @@ export async function permanentlyDeleteAccount(opts: {
     await prisma.ticket.updateMany({ where: { targetUserId: user.id }, data: { targetUserId: null } });
     await prisma.user.delete({ where: { id: user.id } });
 
-    return { ok: true, email: user.email, fullName: user.fullName };
+    // وهل تحرّر البريد؟ سجلُّ ترشّحه قد يبقى يحمله
+    const twinLeft = await prisma.member.findUnique({
+      where: { email: user.email },
+      select: { fullName: true },
+    });
+    return {
+      ok: true,
+      email: user.email,
+      fullName: user.fullName,
+      emailFreed: twinLeft === null,
+      heldBy: twinLeft ? `سجلّ عضوية ${twinLeft.fullName}` : null,
+    };
   }
 
   const member = await prisma.member.findUnique({
@@ -346,7 +372,9 @@ export async function permanentlyDeleteAccount(opts: {
   await prisma.member.delete({ where: { id: member.id } });
   await prisma.invite.delete({ where: { id: member.inviteId } });
 
-  return { ok: true, email: member.email, fullName: member.fullName };
+  // الفرع الآخر يرفض الحذف ما بقي للبريد حسابٌ إداري، فوصولُنا هنا
+  // يعني أنه لم يبقَ له حاملٌ
+  return { ok: true, email: member.email, fullName: member.fullName, emailFreed: true, heldBy: null };
 }
 
 /** تغيير بريد حسابٍ قيادي — للمؤسس وحده.
