@@ -613,6 +613,73 @@ export async function sendTicketWithdrawnEmail(opts: {
   );
 }
 
+/** طلبُ اعتمادٍ يقف على طاولة المعتمِد — يحمل ما يُقرَّر به لا دعوةً للدخول */
+export async function sendApprovalRequestEmail(opts: {
+  to: string | string[];
+  ticketNumber: number;
+  subject: string;
+  kindLabel: string;
+  requesterName: string;
+  requesterRole: string;
+  stepsTotal: number;
+  url: string;
+  /** حين يكون هذا اعتماداً ثانياً في مسارٍ متسلسل */
+  afterStepBy?: string;
+  /** حين يُعاد الطلب بعد تعديله */
+  resubmitted?: boolean;
+}) {
+  const head = opts.resubmitted
+    ? "أُعيد إليك طلبٌ بعد تعديله"
+    : opts.afterStepBy
+      ? `اعتمده ${esc(opts.afterStepBy)} وانتقل إليك`
+      : "طلبُ اعتمادٍ ينتظر قرارك";
+  return send(
+    opts.to,
+    `طلب اعتماد #${opts.ticketNumber}: ${opts.subject}`,
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p><strong>${head}.</strong></p>
+      <p><strong>#${opts.ticketNumber} — ${esc(opts.subject)}</strong></p>
+      <p>النوع: ${esc(opts.kindLabel)}</p>
+      <p>مُقدّم الطلب: ${esc(opts.requesterName)} — ${esc(opts.requesterRole)}</p>
+      ${opts.stepsTotal > 1 ? `<p>مسارُ الاعتماد: ${opts.stepsTotal} موافقات</p>` : ""}
+      <p><a href="${opts.url}">راجع الطلب وقرّر</a></p>
+      <p style="color:#555">ولا يُعتمد الطلب إلا منك — الزرّ في صفحته، والقرار يُسجَّل باسمك ووقته.</p>
+    </div>`,
+    "طلب اعتماد"
+  );
+}
+
+/** قرارُ المعتمِد يصل صاحبَ الطلب — اعتماداً أو ردّاً أو رفضاً */
+export async function sendApprovalDecisionEmail(opts: {
+  to: string | string[];
+  ticketNumber: number;
+  subject: string;
+  stateLabel: string;
+  note: string;
+  byName: string;
+  /** في المسار المتسلسل: إلى من انتقل بعد هذه الموافقة */
+  nextApproverName?: string;
+  url: string;
+}) {
+  return send(
+    opts.to,
+    `قرار على طلبك #${opts.ticketNumber}: ${opts.stateLabel}`,
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>طلبك <strong>#${opts.ticketNumber} — ${esc(opts.subject)}</strong> صار:
+         <strong>${esc(opts.stateLabel)}</strong></p>
+      <p>القرار من: ${esc(opts.byName)}</p>
+      ${opts.note ? `<p>الملاحظة: ${esc(opts.note)}</p>` : ""}
+      ${
+        opts.nextApproverName
+          ? `<p>وانتقل الطلب إلى <strong>${esc(opts.nextApproverName)}</strong> لاستكمال الموافقات.</p>`
+          : ""
+      }
+      <p><a href="${opts.url}">افتح الطلب</a></p>
+    </div>`,
+    "قرار اعتماد"
+  );
+}
+
 export async function sendTicketReminderEmail(opts: {
   to: string | string[];
   subject: string;

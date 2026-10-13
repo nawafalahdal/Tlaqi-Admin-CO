@@ -18,7 +18,7 @@ function addDays(date: Date, days: number) {
   return d;
 }
 
-function baseUrl() {
+export function baseUrl() {
   return process.env.APP_BASE_URL || "http://localhost:3000";
 }
 
