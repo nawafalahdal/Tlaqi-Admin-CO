@@ -37,7 +37,7 @@ export async function resetUserCredentialsAction(
       trimmedEmail && trimmedEmail !== target.email ? trimmedEmail : undefined,
       session.user.name ?? undefined
     );
-    revalidatePath("/admin/accounts");
+    revalidatePath("/admin/people");
     return { error: null, tempPassword, email: user.email };
   } catch (err) {
     return { error: safeErrorMessage(err) };
@@ -67,7 +67,7 @@ export async function removeLeadershipUserAction(
       performedById: session.user.id,
       performedByName: session.user.name ?? "المؤسس",
     });
-    revalidatePath("/admin/accounts");
+    revalidatePath("/admin/people");
     revalidatePath("/admin/invites");
     return { error: null, success: true };
   } catch (err) {
@@ -103,8 +103,7 @@ export async function reopenCandidateTestAction(
       note,
       performedByName: session.user.name ?? "—",
     });
-    revalidatePath("/admin/accounts");
-    revalidatePath("/admin/members");
+    revalidatePath("/admin/people");
     revalidatePath("/admin");
     return { error: null, done: true };
   } catch (err) {
@@ -134,8 +133,7 @@ export async function purgeCandidateAction(
       reason: reason.trim(),
       performedByName: session.user.name ?? "—",
     });
-    revalidatePath("/admin/accounts");
-    revalidatePath("/admin/members");
+    revalidatePath("/admin/people");
     revalidatePath("/admin");
     return { error: null, done: true, email: result.email };
   } catch (err) {
@@ -177,7 +175,7 @@ export async function permanentlyDeleteUserAction(
       actorName: session.user.name ?? "—",
     });
     if (!res.ok) return { error: res.reason };
-    revalidatePath("/admin/accounts");
+    revalidatePath("/admin/people");
     revalidatePath("/admin");
     return {
       error: null,
@@ -205,7 +203,7 @@ export async function sendWelcomeToUserAction(
       actorName: session.user.name ?? "—",
     });
     if (!res.ok) return { error: res.reason };
-    revalidatePath("/admin/accounts");
+    revalidatePath("/admin/people");
     return { error: null, to: res.to };
   } catch (err) {
     return { error: safeErrorMessage(err) };
@@ -241,8 +239,7 @@ export async function permanentlyDeleteMemberAction(
       actorName: session.user.name ?? "—",
     });
     if (!res.ok) return { error: res.reason };
-    revalidatePath("/admin/accounts");
-    revalidatePath("/admin/members");
+    revalidatePath("/admin/people");
     revalidatePath("/admin");
     return { error: null, done: true, email: res.email };
   } catch (err) {

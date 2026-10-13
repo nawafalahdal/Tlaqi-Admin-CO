@@ -126,8 +126,7 @@ export async function assignMemberDepartmentAction(
       actorName: session.user.name ?? "—",
     });
     if (!res.ok) return { error: res.reason };
-    revalidatePath("/admin/accounts");
-    revalidatePath("/admin/members");
+    revalidatePath("/admin/people");
     revalidatePath("/admin/departments");
     revalidatePath("/admin");
     return { error: null, done: true, departmentName: res.departmentName };

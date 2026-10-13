@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { permanentlyDeleteUserAction } from "@/app/admin/accounts/actions";
+import { permanentlyDeleteUserAction } from "@/app/admin/people/actions";
 import { Button } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import type { themeFromColor } from "@/lib/brand";

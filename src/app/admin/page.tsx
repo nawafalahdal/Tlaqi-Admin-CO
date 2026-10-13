@@ -141,6 +141,12 @@ export default async function AdminPage() {
     })),
   ];
 
+  // عددُ ما ينتظر اعتماد هذا الشخص — يُقال على الرابط نفسه، فالطلب
+  // المعلَّق لا يُكتشَف بالتجوال في الصفحات
+  const awaitingApprovals = await prisma.ticket.count({
+    where: { approverUserId: session.user.id, approvalState: { in: ["awaiting", "reviewing"] } },
+  });
+
   const quickLinks = [
     // الهيكل أولاً: هو خريطة المنظمة، ويراه الجميع
     {
@@ -157,16 +163,26 @@ export default async function AdminPage() {
       title: ti.quickInvites,
       desc: ti.quickInvitesHint,
     },
+    // صفحةٌ واحدة للشخص وموقعه وقسمه: ضُمّ إليها سجلّ الأعضاء، فلا
+    // يُقرأ الشخص من شاشتين ولا يُدخَل مرتين
     {
-      href: "/admin/accounts",
-      title: ti.quickAccounts,
-      desc: ti.quickAccountsHint,
+      href: "/admin/people",
+      title: "إدارة الأعضاء والهيكل التنظيمي",
+      desc: "الحسابات القيادية وحسابات الأعضاء والتصنيف والسجلّ الكامل — وربطٌ بالهيكل",
     },
     // طلبات الإنهاء والتوقيعات: يراها من يقرّر فيها لا كلّ إداري
     {
       href: "/admin/terminations",
       title: "طلبات إنهاء فترة الإدارة",
       desc: "يرفعها أصحابها — وأمامك الموافقة أو الرفض أو طلب لقاء",
+    },
+    {
+      href: "/admin/approvals",
+      title:
+        awaitingApprovals > 0
+          ? `الاعتمادات الإدارية (${awaitingApprovals} بانتظارك)`
+          : "الاعتمادات الإدارية",
+      desc: "ما لا يبدأ تنفيذه إلا بموافقة مسؤولٍ أعلى — خطةٌ أو ميزانيةٌ أو مبادرة",
     },
     {
       href: "/admin/signature",
@@ -204,7 +220,6 @@ export default async function AdminPage() {
   // السجلات مفصولة عن الإدارة: هذه صفحات قراءة ومراجعة، وتلك صفحات إجراء.
   // خلطُهما هو ما جعل كل شيء يبدو مكدّساً في مكان واحد.
   const recordLinks = [
-    { href: "/admin/members", title: dict.membersPage.title, desc: dict.membersPage.subtitle },
     { href: "/admin/tickets", title: dict.ticketsPage.title, desc: dict.ticketsPage.subtitle },
     { href: "/admin/messages", title: dict.messagesPage.title, desc: dict.messagesPage.subtitle },
     ...(isSuperAdmin

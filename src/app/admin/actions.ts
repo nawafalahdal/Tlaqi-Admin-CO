@@ -221,7 +221,7 @@ export async function correctOrgJoinDateAction(
       actorName: session.user.name ?? "—",
     });
     if (!res.ok) return { error: res.reason };
-    revalidatePath("/admin/members");
+    revalidatePath("/admin/people");
     revalidatePath("/admin/departments");
     return { error: null };
   } catch (err) {
@@ -244,7 +244,7 @@ export async function sendWelcomeToMemberAction(
       actorName: session.user.name ?? "—",
     });
     if (!res.ok) return { error: res.reason, to: null };
-    revalidatePath("/admin/members");
+    revalidatePath("/admin/people");
     return { error: null, to: res.to };
   } catch (err) {
     return { error: safeErrorMessage(err), to: null };
