@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { EMAIL_POLICY } from "@/lib/emailPolicy";
 import { approverFor, resolvedRecipients, DELIBERATELY_SILENT } from "@/lib/notify";
 import { TICKET_INCLUDE } from "@/lib/tickets";
 
@@ -46,6 +47,15 @@ import { TICKET_INCLUDE } from "@/lib/tickets";
   for (const [ev, to, why] of rows) {
     console.log(`${ev}\n   → ${to.length ? to.join(", ") : "(لا أحد)"}\n   ∵ ${why}\n`);
   }
+
+  // سياسة التقليل: ما يُرسَل وما يُكتم — تُطبَع من مصدرها لا تُكتَب هنا،
+  // فلا تنحرف الوثيقة عن الكود
+  const kept = Object.entries(EMAIL_POLICY).filter(([, v]) => v.send);
+  const muted = Object.entries(EMAIL_POLICY).filter(([, v]) => !v.send);
+  console.log(`═══ سياسة البريد: ${kept.length} نوعاً يُرسَل، ${muted.length} مكتومة ═══\n`);
+  for (const [ev, v] of kept) console.log(`✉ ${ev}\n   ∵ ${v.why}\n`);
+  console.log("─── مكتومة بالسياسة (تُقال في المنصة) ───\n");
+  for (const [ev, v] of muted) console.log(`🔇 ${ev}\n   ∵ ${v.why}\n`);
 
   console.log("═══ أحداث يُمتنع عن البريد فيها عمداً ═══\n");
   for (const [k, why] of Object.entries(DELIBERATELY_SILENT)) {

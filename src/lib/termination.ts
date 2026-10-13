@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { singleRecipient } from "@/lib/emailPolicy";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { approverFor } from "@/lib/notify";
 import {
@@ -109,9 +110,11 @@ export async function submitTerminationRequest(opts: {
 
   // يُخبَر مسؤولُه وحده — لا تُعمَّم على الإدارة
   const manager = await approverFor(member.departmentId);
-  if (manager.to.length > 0) {
+  // واحدٌ لا جمع: القرار يقع من شخص، والباقون يرونه في «طلبات الإنهاء»
+  const managerTo = singleRecipient(manager.to);
+  if (managerTo.length > 0) {
     await sendTerminationRequestEmail({
-      to: manager.to,
+      to: managerTo,
       memberName: member.fullName,
       memberEmail: member.email,
       assignmentLabel: created.assignmentLabel,

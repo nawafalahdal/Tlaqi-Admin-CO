@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { approverFor } from "@/lib/notify";
+import { singleRecipient } from "@/lib/emailPolicy";
 import { isSigningRole } from "@/lib/signatures";
 import { clearFailedAttempts } from "@/lib/loginAttempts";
 import { appendApprovedMember, appendMemberEvent, appendTestResult, upsertMemberLifecycleRow, upsertAdminAccountRow } from "@/lib/googleSheets";
@@ -255,10 +256,13 @@ export async function submitTestAttempt(opts: { memberId: string; answers: Recor
     //
     // والبريد الذي كان **ناقصاً** هو هذا: من يملك الاعتماد لا يعلم أن
     // طلباً ينتظره. فصار يُخبَر هو — وحده — ليفعل ما لا يفعله غيره.
+    // وواحدٌ منهم لا كلُّهم: الاعتماد فعلٌ يقع مرّةً، وثلاثُ نسخٍ منه
+    // ثلاثُ رسائل في خبرٍ واحد
     const approver = await approverFor(updated.departmentId);
-    if (approver.to.length > 0) {
+    const approverTo = singleRecipient(approver.to);
+    if (approverTo.length > 0) {
       await sendAwaitingApprovalEmail({
-        to: approver.to,
+        to: approverTo,
         candidateName: updated.fullName,
         candidateEmail: updated.email,
         score,

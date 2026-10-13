@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { singleRecipient } from "@/lib/emailPolicy";
 import type { Ticket, Member, Department, User, TicketStatus } from "@prisma/client";
 import {
   sendTicketCreatedEmail,
@@ -226,7 +227,10 @@ export async function raiseTicket(opts: {
   });
 
   const author = ticketAuthor(created);
-  const recipients = await recipientsForStage(created);
+  // مستلمٌ واحد لا نسخةَ مجاملة: التذكرة عملٌ على شخص، وحين تتعدّد
+  // الجهات (ثلاثة تنفيذيين، أو أكثر من قائد) تُرسَل إلى واحدٍ ثابتٍ
+  // والبقية يرونها في لوحتهم
+  const recipients = singleRecipient(await recipientsForStage(created));
 
   if (recipients.length > 0) {
     await sendTicketCreatedEmail({

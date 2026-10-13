@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { wrapEmail, htmlToText, variantForKind, appBaseUrl, SOCIAL_HANDLE } from "@/lib/emailBrand";
 import { welcomeParagraphs } from "@/lib/departmentBrand";
 import { readableTextOn } from "@/lib/colors";
+import { emailAllowed, policyReason, type EmailEvent } from "@/lib/emailPolicy";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FROM = process.env.EMAIL_FROM || "تَـــلاقِ <hello@tlaqiteam.site>";
@@ -28,7 +29,11 @@ async function logEmail(
   recipients: string[],
   kind: string,
   subject: string,
-  status: "أُرسلت" | "لم تُرسل (البريد معطّل)" | "فشل الإرسال"
+  status:
+    | "أُرسلت"
+    | "لم تُرسل (البريد معطّل)"
+    | "فشل الإرسال"
+    | "لم تُرسل (سياسة التقليل)"
 ) {
   const at = new Date();
   // قاعدة البيانات أولاً لأنها مصدر صفحة "سجل الرسائل" داخل المنصة،
@@ -57,6 +62,24 @@ async function logEmail(
  *
  *  والفشل لا يُسكِت البريد: لو تعذّر الوصول للقاعدة مضت الرسالة. منعُ
  *  كل بريد الفريق لأن استعلاماً تعثّر أسوأ من رسالة تصل من لا يريدها. */
+/** يَمنع نوعاً كُتم بالسياسة — ويُسجّله مكتوماً لا مفقوداً.
+ *
+ *  الحدث يبقى في «سجل الرسائل» بسببه، فيُقرأ ما لم يُرسَل كما يُقرأ ما
+ *  أُرسل. ولو قُطع السطر صامتاً لظنّ من يراجع أن الحدث لم يقع.
+ */
+async function suppressed(
+  event: EmailEvent,
+  to: string | string[],
+  kind: string,
+  subject: string
+): Promise<{ skipped: true; suppressed: true } | null> {
+  if (emailAllowed(event)) return null;
+  const all = (Array.isArray(to) ? to : [to]).filter(Boolean);
+  console.warn(`[email:policy] كُتم «${event}» — ${policyReason(event)}`);
+  if (all.length > 0) await logEmail(all, kind, subject, "لم تُرسل (سياسة التقليل)");
+  return { skipped: true, suppressed: true };
+}
+
 async function withoutClosedRecipients(recipients: string[]): Promise<string[]> {
   try {
     const closed = await prisma.member.findMany({
@@ -561,6 +584,9 @@ export async function sendTicketEscalatedEmail(opts: {
   dueDate: Date | null;
   portalUrl: string;
 }) {
+  const blocked = await suppressed("ticket.escalated", opts.to, "تصعيد تذكرة", `تذكرة متصعّدة إليك: ${opts.subject}`);
+  if (blocked) return blocked;
+
   return send(
     opts.to,
     `تذكرة متصعّدة إليك: ${opts.subject}`,
@@ -600,6 +626,9 @@ export async function sendTicketWithdrawnEmail(opts: {
   reason: string;
   byName: string;
 }) {
+  const blocked = await suppressed("ticket.withdrawn", opts.to, "سحب تذكرة", `سُحبت التذكرة: ${opts.subject}`);
+  if (blocked) return blocked;
+
   return send(
     opts.to,
     `سُحبت التذكرة #${opts.ticketNumber}: ${opts.subject}`,
@@ -689,6 +718,9 @@ export async function sendTicketReminderEmail(opts: {
   fromName: string;
   portalUrl: string;
 }) {
+  const blocked = await suppressed("ticket.reminder", opts.to, "تذكير تذكرة", `تذكير: ${opts.subject}`);
+  if (blocked) return blocked;
+
   return send(
     opts.to,
     `تذكير — تذكرة لم تُحل بعد: ${opts.subject}`,
@@ -710,6 +742,9 @@ export async function sendRequestReminderEmail(opts: {
   dueDate: Date | null;
   fromName: string;
 }) {
+  const blocked = await suppressed("request.reminder", opts.to, "تذكير طلب", `تذكير بطلب: ${opts.typeLabel}`);
+  if (blocked) return blocked;
+
   return send(
     opts.to,
     `تذكير — طلب بانتظار الإنجاز: ${opts.typeLabel}`,
@@ -728,6 +763,9 @@ export async function sendMeetingReminderEmail(opts: {
   candidateName: string;
   dueDate: Date;
 }) {
+  const blocked = await suppressed("meeting.reminder", opts.to, "تذكير اجتماع", "تذكير باجتماع");
+  if (blocked) return blocked;
+
   return send(
     opts.to,
     `طلب اجتماع شرح — ${opts.candidateName}`,
@@ -787,6 +825,9 @@ export async function sendTestFailedEmail(opts: {
   departmentName: string;
   dueDate: Date;
 }) {
+  const blocked = await suppressed("test.failed", opts.to, "نتيجة اختبار", "نتيجة اختبارك");
+  if (blocked) return blocked;
+
   return send(
     opts.to,
     "نتيجة اختبار القبول — اجتماع شرح قادم",
@@ -810,6 +851,9 @@ export async function sendMeetingOwnerEmail(opts: {
   departmentName: string;
   dueDate: Date;
 }) {
+  const blocked = await suppressed("meeting.owner", opts.to, "اجتماع شرح", "اجتماع شرح مجدول");
+  if (blocked) return blocked;
+
   return send(
     opts.to,
     `مطلوب جدولة اجتماع شرح — ${opts.candidateName}`,
@@ -831,6 +875,9 @@ export async function sendWindowReminderEmail(opts: {
   hoursLeft: number;
   loginUrl: string;
 }) {
+  const blocked = await suppressed("window.reminder", opts.to, "تذكير مهلة", "تذكير بمهلة الدخول");
+  if (blocked) return blocked;
+
   return send(
     opts.to,
     `تبقّى ${opts.hoursLeft} ساعة لتفعيل حسابك في تَـــلاقِ`,
@@ -877,6 +924,9 @@ export async function sendTestReopenedEmail(opts: {
   loginUrl: string;
   hoursValid: number;
 }) {
+  const blocked = await suppressed("test.reopened", opts.to, "إعادة اختبار", "أُعيد فتح اختبارك");
+  if (blocked) return blocked;
+
   return send(
     opts.to,
     "أُعيد فتح اختبار القبول لك — تَـــلاقِ",
@@ -1191,6 +1241,9 @@ export async function sendTotpNudgeEmail(opts: {
   fullName: string;
   securityUrl: string;
 }) {
+  const blocked = await suppressed("totp.nudge", opts.to, "تنبيه حماية", "تفعيل التحقق بخطوتين");
+  if (blocked) return blocked;
+
   return send(
     opts.to,
     "طريق دخولك الثاني لم يُفعَّل بعد — تَـــلاقِ",
