@@ -1,0 +1,114 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { correctOrgJoinDateAction, sendWelcomeToMemberAction } from "@/app/admin/actions";
+import { Button } from "@/components/ui";
+import type { themeFromColor } from "@/lib/brand";
+
+/** تصرّفان للمؤسس على عضوٍ بعينه: تصحيح تاريخ انضمامه، وإرسال بطاقته.
+ *
+ *  وكلاهما يُظهر نتيجته لا يكتفي بـ«تمّ»: إرسالٌ قيل عنه «تمّ» ولم يصل
+ *  يُغلق باب الإعادة على من يظنّها وصلت. فيُسمّى المستلم عند النجاح،
+ *  ويُسمّى السبب عند الفشل.
+ *
+ *  والزرّان يُعطَّلان أثناء التنفيذ: الضغطة الثانية على زرٍّ بطيء كانت
+ *  تُرسل رسالتين. والخادم يحرس أيضاً — هذا يمنع الخطأ لا الخبث. */
+export function FounderMemberControls({
+  memberId,
+  memberName,
+  orgJoinDate,
+  theme,
+}: {
+  memberId: string;
+  memberName: string;
+  /** `yyyy-mm-dd` أو فراغ لمن لا تاريخ مُسجَّل له */
+  orgJoinDate: string;
+  theme: ReturnType<typeof themeFromColor>;
+}) {
+  const [date, setDate] = useState(orgJoinDate);
+  const [note, setNote] = useState("");
+  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [pendingDate, startDate] = useTransition();
+  const [pendingMail, startMail] = useTransition();
+
+  function saveDate() {
+    setMsg(null);
+    startDate(async () => {
+      const res = await correctOrgJoinDateAction(memberId, date || null, note || undefined);
+      setMsg(
+        res.error
+          ? { kind: "err", text: res.error }
+          : { kind: "ok", text: date ? `سُجِّل تاريخ الانضمام: ${date}` : "أُفرِغ تاريخ الانضمام" }
+      );
+      if (!res.error) setNote("");
+    });
+  }
+
+  function sendWelcome() {
+    setMsg(null);
+    startMail(async () => {
+      const res = await sendWelcomeToMemberAction(memberId);
+      setMsg(
+        res.error
+          ? { kind: "err", text: res.error }
+          : { kind: "ok", text: `وصلت بطاقة الانضمام إلى ${res.to}` }
+      );
+    });
+  }
+
+  return (
+    <div className="mt-3 border-t border-black/5 pt-3">
+      <p className="text-xs font-bold text-black/60">إجراءات المؤسس — {memberName}</p>
+
+      <div className="mt-2 flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-xs">
+          <span className="text-black/55">تاريخ الانضمام لتَـــلاقِ</span>
+          <input
+            type="date"
+            value={date}
+            max={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => setDate(e.target.value)}
+            className="min-h-9 rounded-lg border border-black/10 px-2.5 py-1.5 text-xs"
+          />
+        </label>
+        <label className="flex min-w-40 flex-1 flex-col gap-1 text-xs">
+          <span className="text-black/55">سبب التصحيح (اختياري)</span>
+          <input
+            type="text"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="انضمّ قبل وجود المنصة"
+            className="min-h-9 rounded-lg border border-black/10 px-2.5 py-1.5 text-xs"
+          />
+        </label>
+        <Button theme={theme} variant="outline" disabled={pendingDate} onClick={saveDate}>
+          {pendingDate ? "يُحفَظ..." : "حفظ التاريخ"}
+        </Button>
+      </div>
+
+      <p className="mt-2 text-xs leading-relaxed text-black/40">
+        هذا تاريخ انضمامه للمنظمة، لا تاريخ إنشاء حسابه ولا بداية تكليفه الإداري. وتغييره لا
+        يُقدّم استحقاق شهادة الثلاثة أشهر ولا يُؤخّره — فهي تُقاس ببداية التكليف.
+      </p>
+
+      <div className="mt-3">
+        <Button theme={theme} variant="outline" disabled={pendingMail} onClick={sendWelcome}>
+          {pendingMail ? "تُرسَل..." : "أرسل بطاقة الانضمام"}
+        </Button>
+        <p className="mt-1.5 text-xs text-black/40">
+          نفس القالب المتحرّك بلون قسمه. ولا تُنشئ حساباً ولا تُغيّر حالة عضوية ولا تُصفّر تاريخاً.
+        </p>
+      </div>
+
+      {msg && (
+        <p
+          className={`mt-3 rounded-lg px-3 py-2 text-xs ${
+            msg.kind === "ok" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+          }`}
+        >
+          {msg.text}
+        </p>
+      )}
+    </div>
+  );
+}

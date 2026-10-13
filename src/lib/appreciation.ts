@@ -5,6 +5,20 @@ import { certificateUrl } from "@/lib/certificate";
 import { appBaseUrl } from "@/lib/emailBrand";
 import { completedThreeMonths, anniversaryDate, ORG_TIME_ZONE } from "@/lib/anniversary";
 
+/** مرساة عدّ الثلاثة أشهر: **بداية التكليف الإداري** لا الانضمام التنظيمي.
+ *
+ *  وهذا فرقٌ يُغيّر الاستحقاق. من انضمّ لتَـــلاقِ سنة ٢٠٢٤ وتولّى
+ *  تكليفه سنة ٢٠٢٦ له تاريخان: الشهادة تُكرّمه على ثلاثة أشهرٍ **في
+ *  تكليفه**، فلو عُدَّت من انضمامه استحقّها يوم تكليفه الأول — تكريمٌ
+ *  على مدّةٍ لم يكن فيها مُكلَّفاً.
+ *
+ *  ولهذا لا يُقرأ `orgJoinDate` هنا أبداً: تصحيحُ المؤسس لتاريخ انضمامٍ
+ *  تنظيميّ (لمن سبق المنصة) لا يجوز أن يُقدّم استحقاقاً أو يُؤخّره.
+ *  و`joinDate` بديلٌ أخير لمن لا `decidedAt` له — وهو سجلٌّ قديم. */
+function assignmentStart(m: { decidedAt: Date | null; joinDate: Date }): Date {
+  return m.decidedAt ?? m.joinDate;
+}
+
 /** شهادة تقدير الثلاثة أشهر — تُصدر نفسها في موعدها.
  *
  *  لا تنتظر أن يفتح أحدٌ اللوحة يوم الذكرى، ولا أن يتذكّر قائدٌ تاريخ
@@ -47,7 +61,7 @@ export async function issueAppreciation(
   if (!member) return { ok: false, reason: "السجل غير موجود" };
   if (member.appreciationSentAt) return { ok: true };
 
-  const start = member.decidedAt ?? member.joinDate;
+  const start = assignmentStart(member);
   if (!completedThreeMonths(start)) return { ok: false, reason: "لم يُكمل ثلاثة أشهر بعد" };
 
   // «كُرِّم سابقاً» ليس منعاً هنا: الختم موجودٌ وبريده لم يصل، فيُعاد
@@ -110,7 +124,7 @@ export async function sweepThreeMonthAppreciation(): Promise<number> {
 
   let issued = 0;
   for (const m of candidates) {
-    if (!completedThreeMonths(m.decidedAt ?? m.joinDate)) continue;
+    if (!completedThreeMonths(assignmentStart(m))) continue;
     const res = await issueAppreciation(m.id);
     if (res.ok) issued += 1;
   }

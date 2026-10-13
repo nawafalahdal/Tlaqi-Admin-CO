@@ -12,6 +12,7 @@ import {
 } from "@/lib/workflow";
 import { getTrackForTarget } from "@/lib/testTracks";
 import { safeErrorMessage } from "@/lib/safeError";
+import { correctMemberDate, sendWelcomeToMember } from "@/lib/founderActions";
 import { revalidatePath } from "next/cache";
 
 async function requireSession() {
@@ -190,4 +191,62 @@ export async function updateRequestStatusAction(
 
   revalidatePath("/admin");
   revalidatePath("/admin/departments");
+}
+
+/** تصحيح تاريخ الانضمام التنظيمي — للمؤسس وحده.
+ *
+ *  التحقّق في `correderMemberDate` نفسها لا هنا فقط: لو نُوديت من مسارٍ
+ *  آخر بقي الحرس. وهنا يُقرأ الدور من الجلسة لا من الواجهة. */
+export async function correctOrgJoinDateAction(
+  memberId: string,
+  isoDate: string | null,
+  note?: string
+): Promise<{ error: string | null }> {
+  const session = await requireSession();
+  try {
+    // تاريخٌ فارغ يُفرِغ الحقل؛ ونصٌّ غير صالح يُرفض قبل أن يصل القاعدة
+    let value: Date | null = null;
+    if (isoDate && isoDate.trim()) {
+      const d = new Date(isoDate);
+      if (Number.isNaN(d.getTime())) return { error: "تاريخ غير صالح" };
+      value = d;
+    }
+    const res = await correctMemberDate({
+      memberId,
+      field: "orgJoinDate",
+      value,
+      note,
+      actorRole: session.user.role,
+      actorId: session.user.id,
+      actorName: session.user.name ?? "—",
+    });
+    if (!res.ok) return { error: res.reason };
+    revalidatePath("/admin/members");
+    revalidatePath("/admin/departments");
+    return { error: null };
+  } catch (err) {
+    return { error: safeErrorMessage(err) };
+  }
+}
+
+/** إرسال بطاقة الانضمام لعضوٍ بعينه — للمؤسس وحده.
+ *
+ *  تُرجع نتيجة التسليم لتُعرَض: «تمّ» بلا تأكيدٍ من المُرسِل وعدٌ لا
+ *  يُتحقَّق منه، ومن لم تصله يُعاد له بلا إنشاء شيء. */
+export async function sendWelcomeToMemberAction(
+  memberId: string
+): Promise<{ error: string | null; to: string | null }> {
+  const session = await requireSession();
+  try {
+    const res = await sendWelcomeToMember({
+      memberId,
+      actorRole: session.user.role,
+      actorName: session.user.name ?? "—",
+    });
+    if (!res.ok) return { error: res.reason, to: null };
+    revalidatePath("/admin/members");
+    return { error: null, to: res.to };
+  } catch (err) {
+    return { error: safeErrorMessage(err), to: null };
+  }
 }

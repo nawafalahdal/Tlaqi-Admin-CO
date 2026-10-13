@@ -150,6 +150,7 @@ model User {
   ticketsRaised   Ticket[] @relation("TicketRaisedBy")
   ticketsAssigned Ticket[] @relation("TicketTargetUser")
   ticketsResolved Ticket[] @relation("TicketResolvedBy")
+  memberDateEdits MemberDateEdit[] @relation("MemberDateEditor")
 }
 
 /// دعوة مقفلة بالاسم والإيميل — لا تسجيل عام. targetRole يحدد المسار:
@@ -190,6 +191,15 @@ model Member {
   department      Department?    @relation(fields: [departmentId], references: [id])
   jobTitle        String?
   joinDate        DateTime       @default(now())
+  /// تاريخ الانضمام الفعلي لتَـــلاقِ — لا تاريخ إنشاء حسابه.
+  ///
+  /// بعضهم انضمّ قبل أن توجد المنصة، فتاريخُ حسابه ليس تاريخَ انضمامه.
+  /// وهي خمسة تواريخ لا تُخلَط: إنشاء الحساب (`createdAt`)، والانضمام
+  /// التنظيمي (هذا)، وبداية التكليف الإداري (`decidedAt`)، ونهايته
+  /// (`endDate`)، وإصدار الشهادة (`certificateIssuedAt`).
+  ///
+  /// ويبقى `null` لمن لا يُعرف تاريخه: لا يُخترَع تاريخٌ لمن جُهل أمره.
+  orgJoinDate     DateTime?
   testScore       Int?
   testStatus      TestStatus     @default(not_started)
   approvalStatus  ApprovalStatus @default(pending_review)
@@ -253,6 +263,7 @@ model Member {
   warnings        MemberWarning[]
   tickets         Ticket[]
   ticketsAssigned Ticket[]        @relation("TicketTargetMember")
+  dateEdits       MemberDateEdit[]
 
   // الكنس اليومي يسأل: من لم تصله شهادة تقديره؟ فيُجاب رخيصاً
   @@index([appreciationSentAt])
@@ -456,4 +467,27 @@ model LoginCode {
 
   @@index([email])
   @@index([expiresAt])
+}
+
+/// سجلّ تعديل تواريخ العضوية — تصحيحُ تاريخٍ تصرّفٌ يُراجَع لا يُفترَض.
+///
+/// المؤسس يصحّح تاريخ انضمامٍ تنظيميٍّ لمن سبق المنصة. ولأن التواريخ
+/// تحكم الاستحقاقات (شهادة الثلاثة أشهر مثلاً)، يُحفظ ما كان وما صار
+/// ومن غيّره ومتى — فلا يُقال «لماذا استحقّ هذا مبكراً؟» بلا جواب.
+model MemberDateEdit {
+  id        String   @id @default(cuid())
+  memberId  String
+  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  /// اسم الحقل كما في النموذج: `orgJoinDate` وغيره
+  field     String
+  previous  DateTime?
+  next      DateTime?
+  /// من عدّله — يبقى اسمه ولو حُذف حسابه لاحقاً
+  editedById   String?
+  editedByUser User?  @relation("MemberDateEditor", fields: [editedById], references: [id], onDelete: SetNull)
+  editedByName String
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([memberId, createdAt])
 }

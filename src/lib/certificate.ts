@@ -198,7 +198,12 @@ export async function certificateFor(
     roleLabel: accountRoleLabel(member.invite.targetRole),
     isLead,
     period: {
-      start: member.decidedAt ?? member.joinDate,
+      // شهادة التقدير تُكرّم مدّة التكليف، وشهادة الختام تُوثّق المسيرة
+      // كلّها — فتبدأ من الانضمام التنظيمي إن كان مُسجَّلاً.
+      start:
+        kind === "appreciation"
+          ? (member.decidedAt ?? member.joinDate)
+          : (member.orgJoinDate ?? member.decidedAt ?? member.joinDate),
       // شهادة التقدير تُصدَر في موعد الاستحقاق ومسيرتُه جارية، فنهايتها
       // يوم استحقاقها لا «اليوم»: من أُرسلت له متأخّرةً تبقى بتاريخها.
       end:

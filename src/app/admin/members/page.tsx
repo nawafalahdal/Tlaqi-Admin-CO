@@ -6,6 +6,7 @@ import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { BackButton } from "@/components/BackButton";
 import { DataTable } from "@/components/DataTable";
+import { FounderMemberControls } from "@/components/FounderMemberControls";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { ROLE_LABELS } from "@/lib/testTracks";
@@ -109,6 +110,30 @@ export default async function MembersPage() {
           </h2>
           <DataTable emptyLabel={tm.approvedEmpty} columns={columns} rows={section(approved)} />
         </section>
+
+        {/* إجراءات المؤسس على المعتمدين: تصحيح تاريخ الانضمام التنظيمي
+            (لمن سبق المنصة) وإرسال بطاقة الانضمام. للمؤسس وحده —
+            والحرس في الخادم لا في إخفاء هذا القسم. */}
+        {session.user.role === "super_admin" && approved.length > 0 && (
+          <section>
+            <h2 className="mb-1 text-base font-bold">إجراءات المؤسس</h2>
+            <p className="mb-3 text-xs text-black/40">
+              تاريخ الانضمام التنظيمي لمن انضمّ قبل وجود المنصة، وإرسال بطاقة الانضمام.
+            </p>
+            <div className="flex flex-col gap-3">
+              {approved.map((m) => (
+                <Card key={m.id} className="p-4">
+                  <FounderMemberControls
+                    memberId={m.id}
+                    memberName={m.fullName}
+                    orgJoinDate={m.orgJoinDate ? m.orgJoinDate.toISOString().slice(0, 10) : ""}
+                    theme={theme}
+                  />
+                </Card>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section>
           <h2 className="text-base font-bold">
