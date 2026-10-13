@@ -70,6 +70,67 @@ enum TestTrackScope {
   executive
 }
 
+/// حالة طلب الاعتماد الإداري على تذكرة.
+///
+/// وهي مستقلّة عن `TicketStatus`: التذكرة قد تكون مفتوحة وطلبُها معتمداً،
+/// أو مفتوحة وطلبُها مردوداً للتعديل. فخلطُهما في عمودٍ واحد يُفقِد
+/// أحدهما — وقد كان ذلك أول ما فكّرت فيه.
+///
+/// والحالة تعكس **آخر إجراءٍ فعلي**: فتحُ الطلب واستعراضُه لا يُغيّرها.
+enum ApprovalState {
+  /// مسودة: صاحبها يُعدّها ولم تُرسَل بعد
+  draft
+  /// بانتظار الاعتماد: وصلت المعتمِد ولم يقرأها بعد
+  awaiting
+  /// قيد المراجعة: المعتمِد أعلن أنه يدرسها — إجراءٌ صريح لا أثرُ فتح
+  reviewing
+  /// مردودة للتعديل: بملاحظاتٍ مكتوبة، وصاحبها يُعدّل ويُعيد
+  returned
+  /// معتمدة — وإن كان المسار متسلسلاً فهذا اعتماد المرحلة الحالية
+  approved
+  /// مرفوضة بسببٍ مكتوب
+  rejected
+  /// قيد التنفيذ: انتقل صاحبها إلى العمل بعد الاعتماد
+  executing
+  /// مكتملة
+  completed
+}
+
+/// نوع طلب الاعتماد — يُعرَض ويُصفّى به، ولا يُغيّر المسار بنفسه
+enum ApprovalKind {
+  marketing_plan
+  financial_plan
+  initiative
+  resources
+  operational
+  other
+}
+
+/// قرارُ معتمِدٍ على طلب — سجلٌّ لا يُعدَّل ولا يُحذف.
+///
+/// القرارات تُحفظ صفّاً لكل قرار لا عموداً يُستبدَل: الطلب الذي رُدّ
+/// للتعديل ثم أُعيد ثم اعتُمد له ثلاثة قرارات، ولو كُتب كلٌّ فوق سابقه
+/// لم يبقَ من التاريخ إلا آخرُه. وهذا هو سجلّ التدقيق.
+model ApprovalDecision {
+  id         String        @id @default(cuid())
+  ticketId   String
+  ticket     Ticket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  /// من قرّر — ولا يُحذف قرارُه بحذف حسابه، بل يُفَكّ ويبقى اسمُه
+  deciderId  String?
+  decider    User?         @relation("ApprovalDecider", fields: [deciderId], references: [id], onDelete: SetNull)
+  /// الاسم محفوظٌ نصّاً أيضاً: القرار ينسب إلى صاحبه حتى لو زال حسابه
+  deciderName String
+  /// الحالة التي صار إليها الطلب بهذا القرار
+  decision   ApprovalState
+  /// الملاحظة — إلزاميةٌ في الردّ للتعديل والرفض
+  note       String?
+  /// رقم المرحلة في المسار المتسلسل: ١ للمعتمِد الأول، ٢ للذي يليه
+  step       Int           @default(1)
+  decidedAt  DateTime      @default(now())
+
+  @@index([ticketId, decidedAt])
+}
+
 enum TicketStatus {
   open
   in_progress
@@ -137,6 +198,8 @@ model User {
   // الفاوندر والتنفيذي إداريان قبل أن يكونا لقبين، فلهما سجلّ كغيرهما.
   phone              String?
   jobTitle           String?
+  /// الصورة الشخصية — انظر `Member.avatarData`
+  avatarData         String?
   specialization     String?
   section            String?
   profileCompletedAt DateTime?
@@ -155,6 +218,9 @@ model User {
   signatures      LeaderSignature[] @relation("SignatureOwner")
   signaturesApproved LeaderSignature[] @relation("SignatureApprover")
   terminationsDecided TerminationRequest[] @relation("TerminationDecider")
+  approvalsPending    Ticket[]             @relation("TicketApprover")
+  approvalsGranted    Ticket[]             @relation("TicketApprovedBy")
+  approvalDecisions   ApprovalDecision[]   @relation("ApprovalDecider")
 }
 
 /// دعوة مقفلة بالاسم والإيميل — لا تسجيل عام. targetRole يحدد المسار:
@@ -194,6 +260,11 @@ model Member {
   departmentId    String?
   department      Department?    @relation(fields: [departmentId], references: [id])
   jobTitle        String?
+  /// الصورة الشخصية — صورةٌ واحدة معتمدة لكل شخص، مُوحَّدة عند الاستلام.
+  ///
+  /// تُخزَّن data URL كما يُخزَّن توقيع القائد: لا مخزن ملفّات في المنصة،
+  /// والصورة مُصغَّرةٌ مُوحَّدةُ الأبعاد عند الرفع فحجمها معلوم.
+  avatarData      String?
   joinDate        DateTime       @default(now())
   /// تاريخ الانضمام الفعلي لتَـــلاقِ — لا تاريخ إنشاء حسابه.
   ///
@@ -373,6 +444,28 @@ model Ticket {
   /// من أغلقها — الإغلاق تصرّفٌ يُنسَب لصاحبه، لا حدثٌ بلا فاعل
   resolvedByUserId   String?
   resolvedByUser     User?        @relation("TicketResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+  /// طلبُ اعتمادٍ إداري: اختياريٌّ على التذكرة لا لازمٌ لها.
+  ///
+  /// `null` يعني تذكرةً عادية — وهي الأكثر. ولو جُعل الاعتماد لازماً لكل
+  /// تذكرة لصار على كل سؤالٍ يوميٍّ بابُ موافقة.
+  approvalState      ApprovalState?
+  approvalKind       ApprovalKind?
+  /// المعتمِد المنتظَر الآن. يتبدّل في المسار المتسلسل إلى الذي يليه.
+  approverUserId     String?
+  approverUser       User?        @relation("TicketApprover", fields: [approverUserId], references: [id], onDelete: SetNull)
+  /// المسار المتسلسل: معرّفات المعتمِدين بالترتيب، وأوّلُهم هو
+  /// `approverUserId` ابتداءً. فارغٌ يعني اعتماداً واحداً.
+  approvalChain      String[]     @default([])
+  /// المرحلة الحالية في المسار — تبدأ عند ١
+  approvalStep       Int          @default(1)
+  /// الاعتماد النهائي: يُكتب حين تكتمل كل الموافقات المطلوبة لا أوّلُها
+  approvedAt         DateTime?
+  approvedByUserId   String?
+  approvedByUser     User?        @relation("TicketApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  /// كم مرّة رُدَّت للتعديل — يُقرأ تاريخاً مع `decisions`
+  returnCount        Int          @default(0)
+  decisions          ApprovalDecision[]
+
   /// سُحبت بطلب صاحبها — إغلاقٌ ليس إجابة.
   ///
   /// التذكرة التي رفعها صاحبها ثم بلغت آخر السلسلة ولم يكن في المرحلة

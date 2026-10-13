@@ -1,0 +1,84 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+import { saveAvatar, clearAvatar } from "@/lib/avatars";
+import { safeErrorMessage } from "@/lib/safeError";
+
+/** رفع الصورة الشخصية — **لنفسه وحده**.
+ *
+ *  والهويّة تُقرأ من الجلسة لا من الحقل: لو أُخِذ `id` من الواجهة لأمكن
+ *  لأيِّ عضوٍ أن يُبدّل صورة غيره في الهيكل. فلا مُعامِل هوية هنا أصلاً.
+ *
+ *  **وهذا ليس تعديلاً للهيكل.** الهيكل يُحسَب من المناصب والأقسام، ولا
+ *  تُغيّر الصورةُ موضعَ أحدٍ فيه ولا تبعيّته — تُغيّر ما يُرى في بطاقته
+ *  هو. فمنعُ تحرير الهيكل باقٍ: لا أحد يَنقل بطاقةً ولا يُعيد ترتيباً.
+ *
+ *  والعضو له سجلّ `Member`، والقيادي له `User`، وكلٌّ يكتب في سجلّه.
+ */
+export async function uploadMyAvatarAction(
+  formData: FormData
+): Promise<{ error: string | null; done?: boolean; bytes?: number }> {
+  const session = await auth();
+  if (!session) return { error: "يجب تسجيل الدخول" };
+
+  const file = formData.get("avatar");
+  if (!(file instanceof File) || file.size === 0) return { error: "اختر صورة أولاً" };
+
+  try {
+    const buf = Buffer.from(await file.arrayBuffer());
+    const subject =
+      session.user.role === "member"
+        ? ({ kind: "member", id: session.user.id } as const)
+        : ({ kind: "user", id: session.user.id } as const);
+
+    const res = await saveAvatar(subject, buf);
+    if (!res.ok) return { error: res.reason };
+
+    revalidatePath("/structure");
+    revalidatePath("/admin/profile");
+    revalidatePath("/member");
+    return { error: null, done: true, bytes: res.bytes };
+  } catch (err) {
+    return { error: safeErrorMessage(err) };
+  }
+}
+
+/** حذف صورته — فيعود العنصر الافتراضي في بطاقته */
+export async function clearMyAvatarAction(): Promise<{ error: string | null; done?: boolean }> {
+  const session = await auth();
+  if (!session) return { error: "يجب تسجيل الدخول" };
+
+  try {
+    await clearAvatar(
+      session.user.role === "member"
+        ? { kind: "member", id: session.user.id }
+        : { kind: "user", id: session.user.id }
+    );
+    revalidatePath("/structure");
+    revalidatePath("/admin/profile");
+    revalidatePath("/member");
+    return { error: null, done: true };
+  } catch (err) {
+    return { error: safeErrorMessage(err) };
+  }
+}
+
+/** صورتي الحالية — لتُعاين قبل الاستبدال */
+export async function myAvatar(): Promise<string | null> {
+  const session = await auth();
+  if (!session) return null;
+  if (session.user.role === "member") {
+    const m = await prisma.member.findUnique({
+      where: { id: session.user.id },
+      select: { avatarData: true },
+    });
+    return m?.avatarData ?? null;
+  }
+  const u = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { avatarData: true },
+  });
+  return u?.avatarData ?? null;
+}

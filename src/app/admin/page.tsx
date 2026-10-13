@@ -142,6 +142,12 @@ export default async function AdminPage() {
   ];
 
   const quickLinks = [
+    // الهيكل أولاً: هو خريطة المنظمة، ويراه الجميع
+    {
+      href: "/structure",
+      title: "الهيكل التنظيمي",
+      desc: "المؤسس والإدارة العليا وقادة الأقسام والأعضاء — يُبنى وحده من بيانات المنصة، وللعرض فقط",
+    },
     { href: "/admin/profile", title: dict.adminProfile.title, desc: dict.adminProfile.subtitle },
     ...(isSuperAdmin || session.user.role === "executive"
       ? [{ href: "/admin/departments", title: dict.deptAdmin.title, desc: dict.deptAdmin.subtitle }]

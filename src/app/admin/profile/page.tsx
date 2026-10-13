@@ -5,6 +5,7 @@ import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { BackButton } from "@/components/BackButton";
+import { AvatarUpload } from "@/components/AvatarUpload";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { ROLE_LABELS, accountRoleLabel } from "@/lib/testTracks";
 import { formatDate } from "@/lib/format";
@@ -45,6 +46,9 @@ export default async function AdminProfilePage() {
           <h1 className="text-lg font-bold sm:text-xl">{tp.title}</h1>
           <p className="mt-1 text-sm text-black/50">{tp.subtitle}</p>
         </div>
+
+        {/* الصورة الشخصية — لكل شخصٍ لا للقادة وحدهم */}
+        <AvatarUpload current={user.avatarData} theme={theme} />
 
         {/* الهوية: تُعرض ولا تُعدَّل من هنا */}
         <Card className="p-4 sm:p-5">

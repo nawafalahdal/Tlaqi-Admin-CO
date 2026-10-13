@@ -9,6 +9,8 @@ import { WarningCard } from "./WarningCard";
 import { MyTicketCard } from "./MyTicketCard";
 import { WelcomeMailCard } from "@/components/WelcomeMailCard";
 import { SecurityGuidance } from "@/components/SecurityGuidance";
+import { AvatarUpload } from "@/components/AvatarUpload";
+import { OrgChartLink } from "@/components/OrgChartLink";
 import { GovernanceCharter } from "@/components/GovernanceCharter";
 import { TerminationRequestCard } from "@/components/TerminationRequestCard";
 import { openRequestFor } from "@/lib/termination";
@@ -119,6 +121,9 @@ export default async function MemberPortalPage() {
 
         {/* البريد الترحيبي وشروط الحماية للجميع — العضو كالقائد في هذا */}
         <section className="flex flex-col gap-4">
+          {/* صورته في الهيكل — للأعضاء كما للقادة */}
+          <AvatarUpload current={member.avatarData} theme={theme} />
+          <OrgChartLink theme={theme} />
           <WelcomeMailCard
             theme={theme}
             sentAt={member.welcomeEmailSentAt ? formatDate(member.welcomeEmailSentAt) : null}
