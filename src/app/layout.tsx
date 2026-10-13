@@ -3,6 +3,7 @@ import { Cairo } from "next/font/google";
 import "./globals.css";
 import { getLocale } from "@/i18n/server";
 import { LocaleProvider } from "@/i18n/LocaleProvider";
+import { NavDepth } from "@/components/NavDepth";
 
 const cairo = Cairo({
   variable: "--font-cairo",
@@ -26,7 +27,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${cairo.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <LocaleProvider initialLocale={locale}>{children}</LocaleProvider>
+        <LocaleProvider initialLocale={locale}>
+          {/* يَعدّ خطواتنا وحدها، فيعرف زرُّ الرجوع متى يَرجع ومتى يَصعد */}
+          <NavDepth />
+          {children}
+        </LocaleProvider>
       </body>
     </html>
   );

@@ -32,3 +32,9 @@ body {
   background: var(--brand-mahogany);
   color: var(--brand-beige);
 }
+
+/* الصفحات التي تَعرض زرّ الرجوع الطائف: يُوسَّع أسفلُها بقدره فلا يحجب
+   آخر سطرٍ فيها. والصنف يُضاف ويُزال مع الزرّ نفسه. */
+body.has-floating-back {
+  padding-bottom: 5.5rem;
+}
