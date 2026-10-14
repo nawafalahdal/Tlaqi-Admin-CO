@@ -14,11 +14,18 @@ export function OrgCard({
   person,
   color,
   size = "md",
+  highlight = false,
 }: {
   person: OrgPerson;
   /** لون المستوى أو القسم — يُحمَل شريطاً وحدّاً لا سطحاً كاملاً */
   color: string;
   size?: "lg" | "md" | "sm";
+  /** بطاقةُ من يُشاهد — تُميَّز ليعرف موضعه من الهيكل.
+   *
+   *  والهيكل يُقرأ بعشرات البطاقات، فالعضو يبحث عن نفسه فيها بعينه.
+   *  فتُحاط بطاقتُه بحلقةٍ ويُكتَب عليها «أنت هنا» — ولا يُغيَّر ترتيبُها
+   *  ولا لونُ قسمها: التمييز للعين لا للهيكل. */
+  highlight?: boolean;
 }) {
   const dims =
     size === "lg"
@@ -29,8 +36,18 @@ export function OrgCard({
 
   return (
     <div
-      className={`${dims.box} shrink-0 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/[0.07]`}
+      className={`${dims.box} relative shrink-0 overflow-hidden rounded-2xl bg-white shadow-sm ${
+        highlight
+          ? "ring-2 ring-offset-2 ring-offset-[#FAF8F4] shadow-md"
+          : "ring-1 ring-black/[0.07]"
+      }`}
+      style={highlight ? { ["--tw-ring-color" as string]: "#C34900" } : undefined}
     >
+      {highlight && (
+        <span className="absolute start-0 top-0 z-10 rounded-ee-lg bg-[#C34900] px-1.5 py-0.5 text-[9px] font-bold text-white print:bg-[#C34900]">
+          أنت هنا
+        </span>
+      )}
       {/* الشريط يُرسَم بحدِّ العرض لا باللون الخام: الأبيض على أبيض
           لا يُرى، فيُحمَل بحدٍّ رماديٍّ داكن يُبقيه أبيضَ مقصوداً */}
       <div
@@ -115,13 +132,21 @@ export function SeatCard({
   seat,
   color,
   size,
+  viewerId,
 }: {
   seat: OrgSeat;
   color: string;
   size?: "lg" | "md" | "sm";
+  /** معرّف من يُشاهد — تُميَّز به بطاقتُه أينما وقعت */
+  viewerId?: string;
 }) {
   return seat.kind === "filled" ? (
-    <OrgCard person={seat.person} color={color} size={size} />
+    <OrgCard
+      person={seat.person}
+      color={color}
+      size={size}
+      highlight={Boolean(viewerId) && seat.person.id === viewerId}
+    />
   ) : (
     <VacantCard title={seat.title} color={color} />
   );

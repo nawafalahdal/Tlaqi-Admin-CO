@@ -50,16 +50,39 @@ export type OrgDepartment = {
   members: OrgPerson[];
 };
 
+/** اكتمالُ الهيكل — شرطُ تنزيله نسخةً رسمية.
+ *
+ *  الهيكل الناقص وثيقةٌ تكذب: تُنزَّل وتُعمَّم فتقول عن المنظمة أقلَّ
+ *  مما فيها، أو تُظهر قسماً بقائدٍ وحيدٍ كأنه فريق. فالتنزيل يُمنَع حتى
+ *  يكتمل، والمانعُ يُسمّى بعينه لا يُقال «غير مكتمل».
+ */
+export type OrgReadiness = {
+  ready: boolean;
+  /** ما ينقص — جملةٌ لكل نقص، تُعرَض كما هي */
+  blockers: string[];
+};
+
 export type OrgChart = {
   founder: OrgSeat;
   ceo: OrgSeat;
   /** المناصب الإدارية التابعة للتنفيذي — مسؤول التشغيل ومن مثله */
   underCeo: OrgSeat[];
+  /** الإدارة العليا — قسمٌ استثنائيٌّ موضعُه **مع** المؤسس والتنفيذي لا
+   *  صفّاً مكرّراً تحت الأقسام. فهو ليس فرعاً من فروع العمل، بل الطبقةُ
+   *  التي تعلوها جميعاً. */
+  senior: OrgDepartment | null;
   departments: OrgDepartment[];
   /** معتمدون في المنصة بلا قسم — يُعرضون ولا يُخفَون */
   unassigned: OrgPerson[];
   counts: { people: number; departments: number; vacancies: number };
+  readiness: OrgReadiness;
 };
+
+/** أقلُّ عددٍ من الأعضاء في القسم **خلا قائده**.
+ *
+ *  قسمٌ بقائدٍ وعضوٍ واحد ليس فريقاً، والهيكل الذي يُنزَّل رسمياً يقول
+ *  إنه كذلك. والعدد قرارُ صاحب المنصة لا اجتهاد. */
+export const MIN_DEPARTMENT_MEMBERS = 2;
 
 /** ألوان العرض — مرتبطةٌ بالمستوى والقسم لا تُختار عشوائياً.
  *
@@ -265,12 +288,49 @@ export async function buildOrgChart(): Promise<OrgChart> {
     departments.reduce((n, d) => n + (d.lead.kind === "filled" ? 1 : 0) + d.members.length, 0) +
     unassignedMembers.filter(notAlreadyShown).length;
 
+  // الإدارة العليا تُرفَع إلى أعلى ولا تُكرَّر تحت الأقسام: هي الطبقة
+  // التي تعلو الفروع لا فرعٌ بينها. وكان عرضُها صفّاً بين الأقسام
+  // يُقرأ خطأً — قسمٌ كالتسويق والتقنية، وهي ليست كذلك.
+  const senior = departments.find((d) => d.leadershipOnly) ?? null;
+  const branches = departments.filter((d) => !d.leadershipOnly);
+
+  const unassignedShown = unassignedMembers.filter(notAlreadyShown).map(personFromMember);
+
+  const blockers: string[] = [];
+  if (founderSeat.kind !== "filled") blockers.push("مقعد المؤسس شاغر");
+  if (ceoSeat.kind !== "filled") blockers.push("مقعد الرئيس التنفيذي شاغر");
+  if (branches.length === 0) blockers.push("لا أقسام عاملة في الهيكل بعد");
+  for (const d of branches) {
+    // الاسمُ بين قوسين لا بسابقةِ «قسم»: أسماءُ بعض الأقسام تبدأ بها
+    // فيُقرأ «قسم قسم التسويق»
+    if (d.lead.kind !== "filled") blockers.push(`«${d.name}» بلا قائد`);
+    if (d.members.length < MIN_DEPARTMENT_MEMBERS) {
+      blockers.push(
+        `«${d.name}»: ${d.members.length} من ${MIN_DEPARTMENT_MEMBERS} أعضاء خلا القائد`
+      );
+    }
+  }
+  if (senior && senior.members.length === 0 && senior.lead.kind !== "filled") {
+    blockers.push("الإدارة العليا بلا أعضاء");
+  }
+  // وأيُّ مقعدٍ شاغرٍ يمنع: الورقة الرسمية تقول في تذييلها «لا مقاعد
+  // شاغرة»، وكانت تقولها بينما يظهر فيها مقعدٌ شاغر — وثيقةٌ تُناقض
+  // نفسها. فإمّا أن يُملأ المقعد أو لا تُنزَّل النسخة.
+  for (const seat of underCeo) {
+    if (seat.kind === "vacant") blockers.push(`«${seat.title}» منصبٌ شاغر`);
+  }
+  if (unassignedShown.length > 0) {
+    blockers.push(`${unassignedShown.length} عضواً غير مصنّفٍ في قسم`);
+  }
+
   return {
     founder: founderSeat,
     ceo: ceoSeat,
     underCeo,
-    departments,
-    unassigned: unassignedMembers.filter(notAlreadyShown).map(personFromMember),
-    counts: { people, departments: departments.length, vacancies },
+    senior,
+    departments: branches,
+    unassigned: unassignedShown,
+    counts: { people, departments: branches.length, vacancies },
+    readiness: { ready: blockers.length === 0, blockers },
   };
 }

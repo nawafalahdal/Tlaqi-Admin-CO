@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { buildOrgChart, needsOutline, outlineFor, departmentDisplayColor } from "@/lib/orgChart";
+import {
+  buildOrgChart,
+  needsOutline,
+  outlineFor,
+  departmentDisplayColor,
+  MIN_DEPARTMENT_MEMBERS,
+} from "@/lib/orgChart";
 import { createDepartment, assignMemberDepartment } from "@/lib/departments";
 
 const log: string[] = [];
@@ -109,6 +115,67 @@ const F = { actorRole: "super_admin", actorName: "المؤسس" };
       departmentDisplayColor("الموارد البشرية", "#000000") === "#FFFFFF");
   chk("والإدارة العليا بنفسجيُّها الداكن",
       departmentDisplayColor("الإدارة العليا", "#000000") === "#1A0E1C");
+
+  // ── الإدارة العليا تُرفَع إلى الأعلى ولا تُكرَّر بين الأقسام
+  const senior = await prisma.department.findFirst({ where: { leadershipOnly: true } });
+  const temporarySenior = senior
+    ? null
+    : await prisma.department.create({
+        data: {
+          name: `إدارة عليا اختبار ${STAMP}`, slug: `senior-chart-${STAMP}`,
+          colorHex: "#1A0E1C", leadershipOnly: true,
+        },
+      });
+  const withSenior = await buildOrgChart();
+  chk("**الإدارة العليا تُقرأ في الأعلى لا بين الأقسام**", withSenior.senior !== null,
+      withSenior.senior?.name ?? "لا قسم استثنائي");
+  chk("**ولا تُكرَّر في فروع العمل**",
+      withSenior.departments.every((d) => !d.leadershipOnly),
+      withSenior.departments.map((d) => d.name).join("، "));
+  chk("وعدُّ الأقسام يَعدّ الفروع لا الطبقة العليا",
+      withSenior.counts.departments === withSenior.departments.length,
+      String(withSenior.counts.departments));
+
+  // ── اكتمالُ الهيكل: شرطُ النسخة الرسمية
+  const r = withSenior.readiness;
+  chk("قياسُ الاكتمال محسوبٌ في المحرّك لا في الواجهة", typeof r.ready === "boolean");
+  chk("**والمانعُ يُسمّى بعينه لا يُقال «غير مكتمل»**",
+      r.ready || r.blockers.every((b) => b.trim().length > 5),
+      r.blockers.slice(0, 2).join(" | ") || "مكتمل");
+
+  // قسمٌ بقائدٍ وعضوٍ واحد: ليس فريقاً — فيُمنَع التنزيل ويُسمّى سببُه
+  const thin = await createDepartment({
+    name: `قسم ناقص ${STAMP}`, colorHex: "#67C090", createdByName: "اختبار",
+  });
+  const thinTrack = await prisma.testTrack.findFirstOrThrow({ where: { departmentId: thin.id } });
+  const thinInvite = await prisma.invite.create({
+    data: {
+      fullName: "عضو وحيد", email: `thin-${STAMP}@example.test`, targetRole: "member",
+      testTrackId: thinTrack.id, invitedById: founder.id, status: "used", departmentId: thin.id,
+    },
+  });
+  const thinMember = await prisma.member.create({
+    data: {
+      fullName: "عضو وحيد", email: `thin-${STAMP}@example.test`, inviteId: thinInvite.id,
+      departmentId: thin.id, approvalStatus: "approved", isActive: true,
+    },
+  });
+  const afterThin = await buildOrgChart();
+  chk("**قسمٌ بعضوٍ واحد يمنع النسخة الرسمية**", afterThin.readiness.ready === false);
+  chk(`ويُقال إنه ١ من ${MIN_DEPARTMENT_MEMBERS}`,
+      afterThin.readiness.blockers.some(
+        (b) => b.includes(thin.name) && b.includes(String(MIN_DEPARTMENT_MEMBERS))
+      ),
+      afterThin.readiness.blockers.filter((b) => b.includes(thin.name)).join(" | ") || "لا مانع باسمه");
+
+  await prisma.member.delete({ where: { id: thinMember.id } });
+  await prisma.invite.delete({ where: { id: thinInvite.id } });
+  await prisma.testTrack.deleteMany({ where: { departmentId: thin.id } });
+  await prisma.department.delete({ where: { id: thin.id } });
+  if (temporarySenior) {
+    await prisma.testTrack.deleteMany({ where: { departmentId: temporarySenior.id } });
+    await prisma.department.delete({ where: { id: temporarySenior.id } });
+  }
 
   // تنظيف
   await prisma.member.deleteMany({ where: { id: m.id } });

@@ -165,6 +165,27 @@ if (BIG) {
         (body1 ?? "").slice(0, 0));
 }
 
+// ── الهيكل: شجرةٌ واحدة، وبطاقةُ المُشاهد مميَّزة، والنسخة الرسمية
+// تُمنَع وهي ناقصة — ويُفرَض المنع في الخادم لا بإخفاء الزرّ
+await page.goto(BASE + "/structure", { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(3000);
+const structure = (await page.textContent("body")) ?? "";
+check(!/تعذّر إتمام العملية|Application error/.test(structure), "/structure — بلا خطأ تشغيل");
+check(structure.includes("هيكل تَـــلاقِ التنظيمي"), "/structure — الشجرة تُعرَض");
+check(structure.includes("أنت هنا"), "**/structure — بطاقةُ المُشاهد مميَّزة بـ«أنت هنا»**");
+check(structure.includes("نسخة الهيكل الرسمية"), "/structure — فيه بطاقة النسخة الرسمية");
+
+await page.goto(BASE + "/structure/pdf", { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(3000);
+const pdfPage = (await page.textContent("body")) ?? "";
+const gated = pdfPage.includes("النسخة الرسمية غير متاحة بعد");
+const sheet = pdfPage.includes("نسخة رسمية");
+check(gated || sheet, "/structure/pdf — إمّا الورقة أو منعٌ مُعلَّل", gated ? "مُنع" : "ورقة");
+if (gated) {
+  check(/بلا قائد|أعضاء خلا القائد|شاغر|غير مصنّف/.test(pdfPage),
+        "**والمنع يُسمّي ما ينقص بعينه لا «غير مكتمل»**");
+}
+
 check(errors.length === 0, "لا أخطاء جافاسكربت في المتصفح" + (errors.length ? `: ${errors[0]}` : ""));
 
 await browser.close();
