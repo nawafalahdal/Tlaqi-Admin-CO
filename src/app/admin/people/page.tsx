@@ -22,6 +22,8 @@ import {
   candidateWindowExpired,
 } from "@/lib/workflow";
 import { ROLE_LABELS } from "@/lib/testTracks";
+import { loginHealthFor, loginHealthNotes, loginHealthBlocked } from "@/lib/loginHealth";
+import { canAward } from "@/lib/awards";
 
 /** إدارة الأعضاء والهيكل التنظيمي — موضعٌ واحد للشخص وموقعه وقسمه.
  *
@@ -88,6 +90,55 @@ export default async function PeoplePage() {
       orderBy: [{ leadershipOnly: "desc" }, { name: "asc" }],
     }),
   ]);
+
+  // مَن وصلته بطاقتُه فعلاً — من السجل لا من الحقل وحده. قراءةٌ واحدة
+  // لكل الصفوف بدل استعلامٍ لكل بطاقة.
+  const welcomedEmails = new Set(
+    (
+      await prisma.emailLog.findMany({
+        where: { kind: "ترحيب", status: "أُرسلت" },
+        select: { recipient: true },
+        distinct: ["recipient"],
+      })
+    ).map((r) => r.recipient.toLowerCase())
+  );
+  /** جملةُ الوصول — أو `null` لمن لم تصله بعد */
+  const welcomedLabel = (email: string, at: Date | null): string | null => {
+    if (at) return `في ${formatDate(at)}`;
+    return welcomedEmails.has(email.toLowerCase()) ? "سابقاً (مثبَّتٌ في سجل الرسائل)" : null;
+  };
+
+  // ── حالةُ الدخول: للمؤسس وحده. ولا تُجلَب أصلاً لغيره — لا تُجلَب
+  //    ثم تُخفى. وعددُ المحاولات الفاشلة وقفلُ الحساب يُقرأ منهما
+  //    محاولاتُ انتحالٍ على شخصٍ بعينه، فليست بياناتٍ تُعمَّم.
+  const seesLoginHealth = isSuperAdmin;
+  const health = seesLoginHealth
+    ? await loginHealthFor([
+        ...accounts.map((a) => ({
+          email: a.email,
+          mustChangePassword: a.mustChangePassword,
+          totpEnabled: a.totpEnabled,
+          neverSignedIn: a.passwordChangedAt === null && a.mustChangePassword,
+        })),
+        ...allMembers
+          .filter((m) => m.isActive)
+          .map((m) => ({
+            email: m.email,
+            mustChangePassword: m.mustChangePassword,
+            totpEnabled: false,
+            neverSignedIn: m.firstLoginAt === null,
+          })),
+      ])
+    : new Map();
+
+  const notesFor = (email: string): string[] | undefined => {
+    if (!seesLoginHealth) return undefined;
+    const h = health.get(email.toLowerCase());
+    if (!h || !loginHealthBlocked(h)) return undefined;
+    return loginHealthNotes(h);
+  };
+
+  const mayAward = canAward(session.user.role);
 
   const members = allMembers
     .filter((m) => m.approvalStatus === "approved" && m.isActive)
@@ -236,9 +287,10 @@ export default async function PeoplePage() {
                 fullName: session.user.name ?? "—",
                 email: session.user.email ?? "—",
                 roleLabel: t.roles.super_admin,
-                welcomeSentAt: me?.welcomeEmailSentAt
-                  ? formatDate(me.welcomeEmailSentAt)
-                  : null,
+                welcomeSentAt: welcomedLabel(
+                  session.user.email ?? "",
+                  me?.welcomeEmailSentAt ?? null
+                ),
               }}
             />
           </div>
@@ -254,6 +306,8 @@ export default async function PeoplePage() {
                 key={a.id}
                 theme={theme}
                 canRemove={isSuperAdmin}
+                loginNotes={notesFor(a.email)}
+                canAward={mayAward}
                 account={{
                   id: a.id,
                   fullName: a.fullName,
@@ -280,6 +334,8 @@ export default async function PeoplePage() {
                 key={m.id}
                 theme={theme}
                 canPurge={isSuperAdmin}
+                loginNotes={notesFor(m.email)}
+                canAward={mayAward}
                 // التصنيف يُعرَض لغير المصنّف وحده: من صُنِّف لا يُعاد
                 // تصنيفه، والخادم يرفضه على كل حال
                 assignableDepartments={
@@ -312,9 +368,7 @@ export default async function PeoplePage() {
                     memberId={m.id}
                     memberName={m.fullName}
                     orgJoinDate={m.orgJoinDate ? m.orgJoinDate.toISOString().slice(0, 10) : ""}
-                    welcomeSentAt={
-                      m.welcomeEmailSentAt ? formatDate(m.welcomeEmailSentAt) : null
-                    }
+                    welcomeSentAt={welcomedLabel(m.email, m.welcomeEmailSentAt)}
                     theme={theme}
                   />
                 </Card>

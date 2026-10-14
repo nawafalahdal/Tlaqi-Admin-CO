@@ -24,10 +24,14 @@ export function FounderMemberControls({
   memberName: string;
   /** `yyyy-mm-dd` أو فراغ لمن لا تاريخ مُسجَّل له */
   orgJoinDate: string;
-  /** تاريخ وصول بطاقته — فإن وصلت انتهت صلاحية الإرسال ولا زرّ.
+  /** متى وصلت بطاقته — جملةٌ جاهزة («في 12/10/2026» أو «سابقاً»)، و
+   *  `null` لمن لم تصله. فإن وصلت انتهت صلاحية الإرسال ولا زرّ.
    *
    *  وبقاءُ زرٍّ سيُرفض وعدٌ كاذب: البطاقة مرّةٌ واحدة، والخادم يرفض
-   *  الثانية بشرطٍ في `where`. فتُقال القاعدة في الشاشة أيضاً. */
+   *  الثانية بشرطٍ في `where`. فتُقال القاعدة في الشاشة أيضاً.
+   *
+   *  وجملةٌ لا تاريخٌ لأن بعض من وصلته لم يُكتب حقلُه — وصولُه ثابتٌ في
+   *  سجلّ الرسائل بلا تاريخٍ في سجلّه. ووضعُ تاريخ اليوم مكانه كذب. */
   welcomeSentAt: string | null;
   theme: ReturnType<typeof themeFromColor>;
 }) {
@@ -100,7 +104,7 @@ export function FounderMemberControls({
       <div className="mt-3">
         {welcomeSentAt ? (
           <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-800">
-            ✓ وصلت بطاقة الانضمام في {welcomeSentAt} — وتُرسل مرّةً واحدة، فانتهت بها صلاحية
+            ✓ وصلت بطاقة الانضمام {welcomeSentAt} — وتُرسل مرّةً واحدة، فانتهت بها صلاحية
             الإرسال لهذا الشخص.
           </p>
         ) : (

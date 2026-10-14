@@ -1,7 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { ticketVisibilityWhere } from "@/lib/tickets";
+import { ticketVisibilityWhere, ticketScopeWhere } from "@/lib/tickets";
 import { BRAND } from "@/lib/brand";
 import { LogoLockup } from "@/components/Logo";
 
@@ -49,6 +49,43 @@ export default async function TicketEntryPage({
   if (visible) {
     const board = session.user.role === "member" ? "/member" : "/admin/tickets";
     redirect(`${board}#ticket-${ticketNumber}`);
+  }
+
+  // أمّا تذكرتُه هو التي أُرشفت فيُقال لها اسمُها: «لا تخصّك» عن
+  // تذكرةٍ أغلقها بيده قبل أسبوعين تُقرأ عطباً في المنصة. والشرط نطاقُه
+  // هو، فلا يُكشَف بهذا شيءٌ لمن يُجرّب الأرقام.
+  const mineButArchived = await prisma.ticket.findFirst({
+    where: { AND: [{ ticketNumber }, ticketScopeWhere(session)] },
+    select: { id: true },
+  });
+
+  if (mineButArchived) {
+    return (
+      <main
+        className="flex min-h-screen items-center justify-center px-4"
+        style={{ background: BRAND.temptress }}
+      >
+        <div className="w-full max-w-sm text-center">
+          <div className="mb-8 flex justify-center">
+            <LogoLockup height={34} tone="light" />
+          </div>
+          <div className="rounded-3xl bg-white p-8 shadow-xl">
+            <h1 className="mb-2 text-lg font-bold text-black/90">أُرشفت هذه التذكرة</h1>
+            <p className="text-sm leading-relaxed text-black/55">
+              أُغلقت ومضى عليها أسبوع، فزالت من شاشة العمل ليلة السبت بعد الاجتماع — وسجلُّها
+              كاملاً محفوظٌ في ملفّ الإكسل المرجعي: موضوعها وردُّها ومن أغلقها ومتى.
+            </p>
+            <a
+              href={session.user.role === "member" ? "/member" : "/admin/tickets"}
+              className="mt-6 inline-block rounded-xl px-5 py-3 text-sm font-semibold text-white"
+              style={{ background: BRAND.temptress }}
+            >
+              افتح لوحتي
+            </a>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   // موجودةٌ ولا تخصّه، أو غير موجودة — ولا يُفرَّق بينهما في الجواب:

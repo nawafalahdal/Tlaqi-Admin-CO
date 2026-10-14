@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { singleRecipient } from "@/lib/emailPolicy";
+import { visibleTicketWhere } from "@/lib/retention";
 import type { Ticket, Member, Department, User, TicketStatus } from "@prisma/client";
 import {
   sendTicketCreatedEmail,
@@ -317,6 +318,7 @@ export async function respondToTicket(opts: {
       });
     }
 
+    await recordTicketOutcome(ticket);
     await syncTicketSheetRow(ticket);
     return { ok: true, ticket, changed: true };
   }
@@ -419,6 +421,7 @@ export async function withdrawTicket(opts: {
     });
   }
 
+  await recordTicketOutcome(ticket);
   await syncTicketSheetRow(ticket);
   return { ok: true, changed: true };
 }
@@ -569,7 +572,66 @@ export async function escalateTicketNow(ticketId: string, byName: string) {
  *
  *  التنفيذي ومسؤول التشغيل يريان كل شيء: إدارة العمل اليومي وظيفتهما.
  *  وقائد القسم يرى ما يخصّ قسمه أو ما وُجّه إليه. */
+/** يَعُدّ نتيجةَ التذكرة لحظةَ إغلاقها — ليبقى الرقم بعد أرشفتها.
+ *
+ *  **ولماذا عند الإغلاق لا عند التقرير؟** التذكرة المغلقة تُحال إلى
+ *  الإكسل كلَّ سبت، فلو حُسب التقرير من صفوفها لما بقي منه شيء. فتُعَدّ
+ *  هنا مرّةً واحدة في صفٍّ لكل نطاق — ويبقى العدّ وإن زال الصفّ.
+ *
+ *  والعدّ ذرّيٌّ (`increment`) لا قراءةٌ ثم كتابة: إغلاقان متزامنان
+ *  يزيدان اثنين لا واحداً.
+ */
+async function recordTicketOutcome(ticket: {
+  targetDepartmentId: string | null;
+  resolvedByUserId: string | null;
+  resolvedAt: Date | null;
+  firstDueAt: Date | null;
+  stageDueAt: Date;
+  withdrawnAt: Date | null;
+  stage: string;
+}) {
+  const field = ticket.withdrawnAt
+    ? ("withdrawn" as const)
+    : (() => {
+        const baseline = ticket.firstDueAt ?? ticket.stageDueAt;
+        const at = ticket.resolvedAt ?? new Date();
+        return at > baseline ? ("late" as const) : ("onTime" as const);
+      })();
+
+  const scopes: string[] = [];
+  if (ticket.targetDepartmentId) scopes.push(`dept:${ticket.targetDepartmentId}`);
+  if (ticket.resolvedByUserId) scopes.push(`user:${ticket.resolvedByUserId}`);
+
+  for (const scope of scopes) {
+    try {
+      await prisma.ticketTally.upsert({
+        where: { scope },
+        create: { scope, [field]: 1 },
+        update: { [field]: { increment: 1 } },
+      });
+    } catch (err) {
+      // العدّاد إحصاءٌ لا حوكمة: إخفاقُه لا يُفشل إغلاق التذكرة
+      console.error("تعذّر عدّ نتيجة التذكرة:", err);
+    }
+  }
+}
+
+
 export function ticketVisibilityWhere(session: {
+  user: { id: string; role: string; departmentId?: string | null };
+}) {
+  // الرؤية والأرشفة يُضَمّان هنا لا في كل شاشة: من يرى تذكرةً لا يرى
+  // المؤرشَف منها، ولو تُرك الشرط لكل صفحةٍ لنسيته واحدةٌ فظهر فيها ما
+  // اختفى من غيرها — وذاك أسوأ من ألّا يختفي شيء.
+  return { AND: [visibleTicketWhere(), ticketScopeWhere(session)] };
+}
+
+/** نطاقُ الرؤية وحدَه بلا قاعدة الأرشفة.
+ *
+ *  يُستعمل حين نحتاج أن نعرف: هل كانت هذه التذكرة تخصّه قبل أن تُؤرشَف؟
+ *  فيُقال له «أُرشفت» بدل «لا تخصّك» — والأولى صادقة والثانية كذبٌ
+ *  يُربكه. ولا يُكشَف بهذا شيءٌ لمن يُجرّب الأرقام: الشرط نطاقُه هو. */
+export function ticketScopeWhere(session: {
   user: { id: string; role: string; departmentId?: string | null };
 }) {
   const { id, role, departmentId } = session.user;

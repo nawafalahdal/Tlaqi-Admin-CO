@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { resetMemberCredentialsAction } from "../departments/[slug]/actions";
 import { permanentlyDeleteMemberAction } from "./actions";
 import { AssignDepartment } from "@/components/AssignDepartment";
+import { AwardButton } from "@/components/AwardButton";
 import { Card, Button } from "@/components/ui";
 import { CredentialsReveal } from "@/components/CredentialsReveal";
 import type { themeFromColor } from "@/lib/brand";
@@ -16,6 +17,8 @@ export function MemberAccountRow({
   canReset = true,
   canPurge = false,
   assignableDepartments,
+  loginNotes,
+  canAward,
 }: {
   member: { id: string; fullName: string; email: string; departmentName: string };
   theme: ReturnType<typeof themeFromColor>;
@@ -34,6 +37,10 @@ export function MemberAccountRow({
    *  ومن صُنِّف لا تُمرَّر له: القسم ليس وسماً يُبدَّل. والخادم يرفض على
    *  كل حال، فهذا راحةٌ للعين لا حماية. */
   assignableDepartments?: { id: string; name: string }[];
+  /** مشكلاتُ دخوله — للمؤسس وحده، والخادم يحرس القراءة */
+  loginNotes?: string[];
+  /** يملك المُشاهد تكريمه؟ — المؤسس والتنفيذي */
+  canAward?: boolean;
 }) {
   const t = useTranslations();
   const [open, setOpen] = useState(false);
@@ -73,6 +80,16 @@ export function MemberAccountRow({
           {lapsed && (
             <p className="mt-1 text-xs font-semibold text-red-700">{t.candidateWindow.lapsed}</p>
           )}
+          {/* مشكلةُ الدخول تُقال نصّاً: «لا يدخل» بلا سببٍ لا يُعالَج */}
+          {loginNotes && loginNotes.length > 0 && (
+            <ul className="mt-1.5 flex flex-col gap-0.5">
+              {loginNotes.map((n) => (
+                <li key={n} className="text-xs font-semibold text-amber-800">
+                  ⚠ {n}
+                </li>
+              ))}
+            </ul>
+          )}
           {/* «غير مصنّف» يُقال صريحاً: شَرطةٌ مكان القسم تُقرأ عطباً في
               العرض، وهي في الحقيقة سجلٌّ ناقصٌ يُكمَل */}
           {assignableDepartments && assignableDepartments.length > 0 && (
@@ -106,6 +123,16 @@ export function MemberAccountRow({
         <p className="mt-3 rounded-lg bg-green-50 px-3 py-2 text-xs leading-relaxed text-green-800">
           {purgeDone}
         </p>
+      )}
+
+      {canAward && !purgeDone && (
+        <div className="mt-3">
+          <AwardButton
+            target={{ kind: "member", id: member.id }}
+            personName={member.fullName}
+            theme={theme}
+          />
+        </div>
       )}
 
       {assignableDepartments && assignableDepartments.length > 0 && !purgeDone && (

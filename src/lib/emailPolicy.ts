@@ -28,6 +28,7 @@ export type EmailEvent =
   | "member.certificate"
   | "member.farewell"
   | "member.appreciation"
+  | "member.award"
   | "registration.awaiting_approval"
   | "ticket.created"
   | "ticket.resolved"
@@ -66,6 +67,10 @@ export const EMAIL_POLICY: Record<EmailEvent, { send: boolean; why: string }> = 
   "member.certificate": { send: true, why: "الشهادة وثيقتُه — والبريد هو تسليمها" },
   "member.farewell": { send: true, why: "الوداع وعدٌ قُطِع، ويُحمَل مع شهادته النهائية" },
   "member.appreciation": { send: true, why: "شهادة الثلاثة أشهر — مرّةً لكل عضو" },
+  "member.award": {
+    send: true,
+    why: "تكريمٌ على إنجاز يُرسله قائدٌ بيده لا كنسٌ يُطلقه — ونادرٌ بطبعه، وقيمتُه أن إنساناً قصده",
+  },
   "registration.awaiting_approval": {
     send: true,
     why: "من يملك الاعتماد لا يعلم أن طلباً ينتظره — ولا يمضي المسار بغيره. ويُرسَل إلى واحدٍ لا إلى الجميع",

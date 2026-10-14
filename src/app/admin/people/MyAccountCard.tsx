@@ -25,7 +25,8 @@ export function MyAccountCard({
     fullName: string;
     email: string;
     roleLabel: string;
-    /** تاريخ وصول بطاقته — البطاقة مرّةٌ واحدة حتى للمؤسس */
+    /** متى وصلته بطاقتُه — جملةٌ جاهزة، و`null` لمن لم تصله. والبطاقة
+     *  مرّةٌ واحدة حتى للمؤسس. */
     welcomeSentAt: string | null;
   };
   theme: ReturnType<typeof themeFromColor>;
@@ -68,7 +69,7 @@ export function MyAccountCard({
 
       {account.welcomeSentAt && (
         <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-800">
-          ✓ وصلتك بطاقة الانضمام في {account.welcomeSentAt} — وتُرسل مرّةً واحدة، فانتهت صلاحية
+          ✓ وصلتك بطاقة الانضمام {account.welcomeSentAt} — وتُرسل مرّةً واحدة، فانتهت صلاحية
           الإرسال.
         </p>
       )}

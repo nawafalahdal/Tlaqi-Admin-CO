@@ -186,6 +186,21 @@ if (gated) {
         "**والمنع يُسمّي ما ينقص بعينه لا «غير مكتمل»**");
 }
 
+// ── التقارير: تُفتح لمن يملك قراءتها، وأرقامُها من العدّاد
+await page.goto(BASE + "/admin/reports", { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(3000);
+const reports = (await page.textContent("body")) ?? "";
+check(!/تعذّر إتمام العملية|Application error/.test(reports), "/admin/reports — بلا خطأ تشغيل");
+check(reports.includes("ملخّص القادة والأقسام"), "/admin/reports — ملخّص القادة يُعرَض");
+check(reports.includes("أُغلقت في موعدها"), "/admin/reports — قائمة المُغلقة في موعدها");
+
+// ── إدارة الأعضاء: زرّ التكريم وحالة الدخول للمؤسس
+await page.goto(BASE + "/admin/people", { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(3500);
+const people = (await page.textContent("body")) ?? "";
+check(!/تعذّر إتمام العملية|Application error/.test(people), "/admin/people — بلا خطأ تشغيل");
+check(people.includes("كرِّمه على إنجاز"), "**/admin/people — زرّ التكريم معروضٌ للمؤسس**");
+
 check(errors.length === 0, "لا أخطاء جافاسكربت في المتصفح" + (errors.length ? `: ${errors[0]}` : ""));
 
 await browser.close();

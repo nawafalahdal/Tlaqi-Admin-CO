@@ -8,6 +8,7 @@ import {
   sendWelcomeToUserAction,
 } from "./actions";
 import { Card, Button } from "@/components/ui";
+import { AwardButton } from "@/components/AwardButton";
 import { CredentialsReveal } from "@/components/CredentialsReveal";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
@@ -15,12 +16,18 @@ import { useTranslations } from "@/i18n/LocaleProvider";
 export function AccountRow({
   account,
   theme,
+  loginNotes,
+  canAward,
   canRemove = false,
 }: {
   account: { id: string; fullName: string; email: string; role: string; departmentName: string | null };
   theme: ReturnType<typeof themeFromColor>;
   /** المؤسس وحده يرى التنحية — وهي الطريق الوحيد لتفريغ منصب فردي */
   canRemove?: boolean;
+  /** مشكلاتُ دخوله — للمؤسس وحده */
+  loginNotes?: string[];
+  /** يملك المُشاهد تكريمه؟ */
+  canAward?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
@@ -72,6 +79,16 @@ export function AccountRow({
             {roleLabel}
             {account.departmentName ? ` — ${account.departmentName}` : ""}
           </p>
+          {/* مشكلةُ الدخول تُقال نصّاً لا تُخمَّن من غياب الشخص */}
+          {loginNotes && loginNotes.length > 0 && (
+            <ul className="mt-1.5 flex flex-col gap-0.5">
+              {loginNotes.map((n) => (
+                <li key={n} className="text-xs font-semibold text-amber-800">
+                  ⚠ {n}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button theme={theme} variant="outline" onClick={() => setOpen((o) => !o)}>
@@ -195,6 +212,16 @@ export function AccountRow({
       {/* الحذف النهائي — يُزيل الصفّ من القاعدة ويُحرّر البريد لدعوةٍ
           جديدة بنفس البيانات، ويبقى السجل في الإكسل بلا بريد. وهو غير
           التنحية: تلك تُوقف العمل وتُبقي الحساب. */}
+      {canAward && !purgeDone && (
+        <div className="mt-3">
+          <AwardButton
+            target={{ kind: "user", id: account.id }}
+            personName={account.fullName}
+            theme={theme}
+          />
+        </div>
+      )}
+
       {purgeDone && (
         <p className="mt-3 rounded-lg bg-green-50 px-3 py-2 text-xs leading-relaxed text-green-800">
           {purgeDone}

@@ -20,11 +20,18 @@ import type { OrgChart } from "@/lib/orgChart";
 export function OrgTree({
   chart,
   viewerId,
+  viewerDepartmentId,
   compact = false,
 }: {
   chart: OrgChart;
   /** معرّف من يُشاهد — تُميَّز بطاقتُه أينما وقعت */
   viewerId?: string;
+  /** قسمُ من يُشاهد — يُميَّز فرعُه كلّه لا بطاقتُه وحدها.
+   *
+   *  وهذا لقائد القسم خاصّةً: موضعُه ليس بطاقتَه فقط، بل فرعُه —
+   *  قسمُه بقائده وأعضائه. فيُحاط الفرع بإطارٍ خفيفٍ بلون القسم،
+   *  وتبقى بطاقتُه هو وحدها بالحلقة البرتقالية و«أنت هنا». */
+  viewerDepartmentId?: string | null;
   /** نسخة الطباعة: مقاساتٌ أصغر لتسع الورقة */
   compact?: boolean;
 }) {
@@ -83,8 +90,29 @@ export function OrgTree({
           <Trunk />
           <Branching count={chart.departments.length} />
           <div className="flex w-full flex-wrap items-start justify-center gap-4">
-            {chart.departments.map((d) => (
-              <div key={d.id} className="flex flex-col items-center">
+            {chart.departments.map((d) => {
+              const mine = Boolean(viewerDepartmentId) && d.id === viewerDepartmentId;
+              return (
+              <div
+                key={d.id}
+                className={`flex flex-col items-center rounded-3xl ${mine ? "px-2 pb-2" : ""}`}
+                style={
+                  mine
+                    ? {
+                        background: `${d.displayColor}0A`,
+                        boxShadow: `0 0 0 2px ${outlineFor(d.displayColor)}`,
+                      }
+                    : undefined
+                }
+              >
+                {mine && (
+                  <span
+                    className="mt-1.5 rounded-full px-2 py-0.5 text-[9px] font-bold text-white"
+                    style={{ background: needsOutline(d.displayColor) ? "#341D2B" : d.displayColor }}
+                  >
+                    قسمك
+                  </span>
+                )}
                 {/* ساقُ الفرع تصل الشريطَ بترويسة القسم */}
                 <span className="block h-4 w-px" style={{ background: outlineFor(d.displayColor) }} aria-hidden />
                 <div
@@ -129,7 +157,8 @@ export function OrgTree({
                   <p className="mt-2 text-[11px] text-black/35">لا أعضاء بعد</p>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

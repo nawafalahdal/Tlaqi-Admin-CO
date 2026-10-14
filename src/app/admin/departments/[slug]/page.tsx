@@ -385,6 +385,25 @@ export default async function DepartmentBoardPage({
           </div>
         </section>
 
+        {/* تقارير قسمه — أعضاؤه هو، ولا يُقرأ منها قسمٌ آخر */}
+        <section>
+          <Card className="p-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold">تقارير {department.name}</h2>
+              <p className="text-xs text-black/40">
+                ملخّص أعضائك، والتذاكر التي أُغلقت في موعدها
+              </p>
+            </div>
+            <Link
+              href="/admin/reports"
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold"
+              style={{ background: theme.surface, color: theme.accentDark }}
+            >
+              افتح التقارير
+            </Link>
+          </Card>
+        </section>
+
         <section>
           <Card className="p-5 flex items-center justify-between">
             <div>

@@ -9,6 +9,7 @@ import {
   purgeCandidate,
 } from "@/lib/workflow";
 import { permanentlyDeleteAccount, sendWelcomeToUser } from "@/lib/founderActions";
+import { sendAward } from "@/lib/awards";
 import { safeErrorMessage } from "@/lib/safeError";
 import { revalidatePath } from "next/cache";
 
@@ -245,6 +246,35 @@ export async function permanentlyDeleteMemberAction(
     revalidatePath("/admin/people");
     revalidatePath("/admin");
     return { error: null, done: true, email: res.email };
+  } catch (err) {
+    return { error: safeErrorMessage(err) };
+  }
+}
+
+/** تكريمُ شخصٍ على إنجاز — للمؤسس والتنفيذي، والحرس في `sendAward` */
+export async function sendAwardAction(
+  kind: "member" | "user",
+  id: string,
+  achievement: string,
+  award: string,
+  note: string
+): Promise<{ error: string | null; to?: string }> {
+  const session = await auth();
+  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (kind !== "member" && kind !== "user") return { error: "هدفٌ غير معروف" };
+
+  try {
+    const res = await sendAward({
+      target: { kind, id },
+      achievement,
+      award: award.trim() || null,
+      note: note.trim() || null,
+      actorRole: session.user.role,
+      actorName: session.user.name ?? "—",
+    });
+    if (!res.ok) return { error: res.reason };
+    revalidatePath("/admin/people");
+    return { error: null, to: res.to };
   } catch (err) {
     return { error: safeErrorMessage(err) };
   }

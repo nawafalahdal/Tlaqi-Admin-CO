@@ -217,9 +217,18 @@ export default async function AdminPage() {
         ]),
   ];
 
+  // التقارير في السجلات لا في الإجراءات: قراءةٌ ومراجعة. ويراها من يملك
+  // قراءتها — التنفيذي ملخّصَ القادة، وقائدُ القسم أعضاءه هو.
   // السجلات مفصولة عن الإدارة: هذه صفحات قراءة ومراجعة، وتلك صفحات إجراء.
   // خلطُهما هو ما جعل كل شيء يبدو مكدّساً في مكان واحد.
   const recordLinks = [
+    {
+      href: "/admin/reports",
+      title: "التقارير",
+      desc: isSuperAdmin || session.user.role === "executive"
+        ? "ملخّص الأقسام وقادتها، والتذاكر التي أُغلقت في موعدها"
+        : "ملخّص أعضاء قسمك، والتذاكر التي أُغلقت في موعدها",
+    },
     { href: "/admin/tickets", title: dict.ticketsPage.title, desc: dict.ticketsPage.subtitle },
     { href: "/admin/messages", title: dict.messagesPage.title, desc: dict.messagesPage.subtitle },
     ...(isSuperAdmin

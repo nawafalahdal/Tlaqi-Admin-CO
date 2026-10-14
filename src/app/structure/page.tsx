@@ -53,7 +53,7 @@ export default async function StructurePage() {
         <p className="mt-1 text-sm leading-relaxed text-black/50">
           يُبنى من بيانات العضوية والمناصب والأقسام المعتمدة، ويتحدّث وحده مع كل تغييرٍ معتمد.
           وهو للعرض فقط — لا يُعدَّل من هذه الصفحة ولا من غيرها. وبطاقتك فيه مميَّزة بعلامة
-          «أنت هنا».
+          «أنت هنا»، ومن كان له قسمٌ تبيَّن له فرعُه كاملاً.
         </p>
 
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
@@ -107,7 +107,13 @@ export default async function StructurePage() {
         </Card>
 
         <section className="mt-7">
-          <OrgTree chart={chart} viewerId={session.user.id} />
+          {/* القائد موضعُه فرعُه لا بطاقتُه: يُميَّز قسمُه كلّه، وتبقى
+              بطاقتُه هو بـ«أنت هنا» */}
+          <OrgTree
+            chart={chart}
+            viewerId={session.user.id}
+            viewerDepartmentId={session.user.departmentId ?? null}
+          />
         </section>
       </main>
     </div>

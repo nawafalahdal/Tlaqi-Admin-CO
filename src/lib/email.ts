@@ -426,6 +426,64 @@ export async function sendAppreciationEmail(opts: {
   );
 }
 
+/** رسالةُ تحفيزٍ وتكريمٍ على إنجاز — يُرسلها المؤسس أو التنفيذي بيده.
+ *
+ *  **وليست تلقائية.** لا كنسٌ يُطلقها ولا قاعدةٌ تستنتج الإنجاز: من
+ *  يقودُ يرى الأثر ويَنسبه لصاحبه. ولو أُرسلت آلياً لصارت بريداً
+ *  معتاداً لا تكريماً — والتكريمُ قيمتُه أن إنساناً قصده.
+ *
+ *  والجائزةُ اختيارية: قد يكون التكريم كلمةً وحدها، وقد يحمل معه
+ *  جائزةً تُذكَر باسمها. وما لم يُذكَر لا يُفترَض.
+ */
+export async function sendAwardEmail(opts: {
+  to: string;
+  fullName: string;
+  /** عنوان الإنجاز — ما الذي تحقّق */
+  achievement: string;
+  /** الجائزة المرافقة إن وُجدت */
+  award?: string | null;
+  /** كلمةٌ من المُكرِّم */
+  note?: string | null;
+  /** اسمُ المُكرِّم وصفته — التكريم يُنسَب لمن قصده */
+  fromName: string;
+  fromRole: string;
+  portalUrl: string;
+}) {
+  const award = opts.award?.trim();
+  const note = opts.note?.trim();
+
+  return send(
+    opts.to,
+    `تكريمٌ من تَـــلاقِ: ${opts.achievement}`,
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>أحسنتَ، ${esc(opts.fullName)}!</p>
+      <p>وصلنا أثرُ ما صنعتَه، ونُحبّ أن نقوله لك صريحاً لا أن نكتفي بمعرفته:</p>
+      <p style="margin:18px 0;padding:14px 18px;background:#EEF6DF;border-radius:14px;
+                border-right:4px solid #C34900;font-weight:bold;color:#341D2B">
+        ${esc(opts.achievement)}
+      </p>
+      ${
+        award
+          ? `<p style="margin:18px 0;padding:14px 18px;background:#FFFFFF;border:1px solid rgba(52,29,43,0.14);
+                border-radius:14px">
+               <span style="color:#C34900;font-weight:bold">الجائزة المرافقة:</span>
+               ${esc(award)}
+             </p>`
+          : ""
+      }
+      ${note ? `<p>${esc(note)}</p>` : ""}
+      <p>مع التقدير،<br/><strong>${esc(opts.fromName)}</strong> — ${esc(opts.fromRole)}</p>
+      <p style="margin:22px 0">
+        <a href="${esc(opts.portalUrl)}"
+           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
+          افتح لوحتك
+        </a>
+      </p>
+    </div>`,
+    "تكريم إنجاز"
+  );
+}
+
 /** طلب توقيع من قائدٍ جديد.
  *
  *  يشرح لماذا يُطلب وأين يُرسَم: التوقيع يُوضَع على شهادات الشكر التي

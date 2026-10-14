@@ -54,6 +54,33 @@ export type WelcomeSubject =
  *  ولا يُرسل شيء لمن أُغلقت تجربته: `noFurtherEmail` حدٌّ نهائي، واحترامه
  *  جزء من الوداع لا استثناء عليه.
  */
+/** هل وصلت بطاقتُه فعلاً — ولو لم يُسجَّل ذلك في حقله؟
+ *
+ *  **السبب واقعةٌ في المنصة:** الفريق كلُّه وصلته بطاقاتُه، لكن حقل
+ *  `welcomeEmailSentAt` لم يكن يُكتب في كل المسارات القديمة. فبقي الزرّ
+ *  معروضاً لمن وصلته — وزرٌّ يُضغَط ثم يُرفَض وعدٌ كاذب، وإن لم يُرفَض
+ *  فرسالةٌ ثانية لمن قرأ الأولى.
+ *
+ *  فصار الجواب يُقرأ من سجلّ البريد أيضاً: صفٌّ من نوع «ترحيب» إلى
+ *  بريده **أُرسل فعلاً** يعني أنها وصلت. والحالة تُفحَص: «لم تُرسل
+ *  (البريد معطّل)» ليست وصولاً.
+ */
+export async function welcomeAlreadyDelivered(opts: {
+  email: string;
+  welcomeEmailSentAt: Date | null;
+}): Promise<boolean> {
+  if (opts.welcomeEmailSentAt) return true;
+  try {
+    const logged = await prisma.emailLog.count({
+      where: { recipient: opts.email, kind: "ترحيب", status: "أُرسلت" },
+    });
+    return logged > 0;
+  } catch {
+    // تعذّر قراءة السجل لا يعني أنها لم تصل — والأحوط ألّا نُرسل ثانيةً
+    return true;
+  }
+}
+
 /** يَحجز حقَّ الإرسال مرّةً واحدة — في القاعدة لا في الذاكرة.
  *
  *  **المرّة الواحدة لا تُفرَض بفحصٍ قبل الإرسال.** الفحص ثم الإرسال
@@ -66,8 +93,13 @@ export type WelcomeSubject =
  *  بلا رسالةٍ وصلت — فيُفَكّ الحجز صريحاً عند الفشل. */
 async function claimWelcomeSend(
   subject: WelcomeSubject,
-  at: Date
+  at: Date,
+  /** بريدُه — يُفحَص به سجلُّ البريد لمن لم يُكتب حقلُه */
+  email?: string
 ): Promise<boolean> {
+  if (email && (await welcomeAlreadyDelivered({ email, welcomeEmailSentAt: null }))) {
+    return false;
+  }
   const where = { id: subject.id, welcomeEmailSentAt: null } as const;
   const data = { welcomeEmailSentAt: at };
   const written =
@@ -107,7 +139,9 @@ export async function sendWelcomePack(
 
     // الحجز قبل الإرسال — وما بعده إمّا رسالةٌ وصلت أو حجزٌ يُفَكّ
     const at = new Date();
-    if (!(await claimWelcomeSend(subject, at))) return { ok: false, reason: ALREADY_SENT };
+    if (!(await claimWelcomeSend(subject, at, user.email))) {
+      return { ok: false, reason: ALREADY_SENT };
+    }
 
     const sent = await sendWelcomeEmail({
       to: user.email,
@@ -168,7 +202,9 @@ export async function sendWelcomePack(
   const roleLabel = accountRoleLabel(member.invite.targetRole);
 
   const at = new Date();
-  if (!(await claimWelcomeSend(subject, at))) return { ok: false, reason: ALREADY_SENT };
+  if (!(await claimWelcomeSend(subject, at, member.email))) {
+    return { ok: false, reason: ALREADY_SENT };
+  }
 
   const sent = await sendWelcomeEmail({
     to: member.email,

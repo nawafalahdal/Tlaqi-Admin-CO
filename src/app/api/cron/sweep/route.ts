@@ -9,6 +9,7 @@ import { sweepTicketEscalation } from "@/lib/tickets";
 import { purgeExpiredLoginCodes } from "@/lib/loginCodes";
 import { sweepThreeMonthAppreciation } from "@/lib/appreciation";
 import { sweepEffectiveTerminations } from "@/lib/termination";
+import { purgeArchivedTickets, purgeOldEmailLogs } from "@/lib/retention";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,11 @@ export async function GET(request: Request) {
   const appreciated = await sweepThreeMonthAppreciation();
   // من وُوفق على إنهائه وحلّ تاريخُه: الخروج يقع هنا لا عند الموافقة
   const terminated = await sweepEffectiveTerminations();
+  // الأرشفة: ما زال عن الشاشة ليلة السبت يُمحى من القاعدة هنا — وقد
+  // كُتب في الإكسل قبل ذلك، فالمحو تنظيفٌ لا فقد. والاختفاء وقع في
+  // موعده بشرط القراءة، وهذا يُفرّغ الجدول بعده على مهل.
+  const archivedTickets = await purgeArchivedTickets();
+  const purgedEmailLogs = await purgeOldEmailLogs();
 
   return NextResponse.json({
     ok: true,
@@ -53,5 +59,7 @@ export async function GET(request: Request) {
     totpNudged,
     appreciated,
     terminated,
+    archivedTickets,
+    purgedEmailLogs,
   });
 }
