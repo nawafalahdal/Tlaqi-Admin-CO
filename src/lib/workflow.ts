@@ -977,18 +977,35 @@ export async function removeLeadershipUser(opts: {
   const { supersedeSignatures } = await import("@/lib/signatures");
   await supersedeSignatures(user.id, `تنحية عن ${accountRoleLabel(user.role)}`);
 
+  // والعملُ المعلَّق باسمه ينتقل إلى خَلَفِه: المُنحّى لا يَفتح المنصة،
+  // فطلبُ اعتمادٍ ينتظره وتذكرةٌ وُجِّهت إليه يبقيان في بريدٍ مغلق.
+  // أما المنصب فلا يُنقَل — الهيكل يُحسَب، فمن عُيِّن بعده ورث قادته
+  // وأقسامه وأعضاءه في القراءة التالية بلا إجراء.
+  const { handOver } = await import("@/lib/succession");
+  const handover = await handOver({
+    user: {
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email,
+      role: user.role,
+      departmentId: user.departmentId,
+    },
+    byName: opts.performedByName,
+    occasion: "تنحية",
+  });
+
   await appendMemberEvent({
     fullName: user.fullName,
     email: user.email,
     event: "تنحية حساب قيادي",
     roleOrDepartment: accountRoleLabel(user.role),
-    details: `السبب: ${opts.reason} — نفّذه: ${opts.performedByName}`,
+    details: `السبب: ${opts.reason} — نفّذه: ${opts.performedByName}. ${handover.summary}`,
     at: new Date(),
   });
 
   await syncAdminAccountRow(user.id);
 
-  return user;
+  return { ...user, handover: handover.summary };
 }
 
 

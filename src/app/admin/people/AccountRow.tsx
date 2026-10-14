@@ -36,6 +36,8 @@ export function AccountRow({
   const [purgeReason, setPurgeReason] = useState("");
   const [purgeForce, setPurgeForce] = useState(false);
   const [purgeError, setPurgeError] = useState<string | null>(null);
+  /** إيصالُ الحذف وما انتقل بالخلافة — يبقى معروضاً بعد اختفاء النموذج */
+  const [purgeDone, setPurgeDone] = useState<string | null>(null);
   const [mailMsg, setMailMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const t = useTranslations();
 
@@ -193,7 +195,13 @@ export function AccountRow({
       {/* الحذف النهائي — يُزيل الصفّ من القاعدة ويُحرّر البريد لدعوةٍ
           جديدة بنفس البيانات، ويبقى السجل في الإكسل بلا بريد. وهو غير
           التنحية: تلك تُوقف العمل وتُبقي الحساب. */}
-      {purgeOpen && (
+      {purgeDone && (
+        <p className="mt-3 rounded-lg bg-green-50 px-3 py-2 text-xs leading-relaxed text-green-800">
+          {purgeDone}
+        </p>
+      )}
+
+      {purgeOpen && !purgeDone && (
         <div className="mt-4 flex flex-col gap-3 rounded-2xl bg-red-50/70 p-4 ring-1 ring-red-200">
           <p className="text-xs font-bold text-red-900">{t.accounts.purgeTitle}</p>
           <p className="text-xs leading-relaxed text-red-900/80">{t.accounts.purgeHint}</p>
@@ -240,8 +248,18 @@ export function AccountRow({
                     purgeReason,
                     purgeForce
                   );
-                  if (res.error) setPurgeError(res.error);
-                  else setPurgeOpen(false);
+                  if (res.error) {
+                    setPurgeError(res.error);
+                    return;
+                  }
+                  // ما انتقل إلى خَلَفِه يُقال صريحاً: الحذف لا يُسقط
+                  // دعوةً أرسلها ولا طلباً ينتظره — يُورَّث
+                  setPurgeDone(
+                    res.handover && res.handover !== "لا عمل معلَّق باسمه"
+                      ? `حُذف الحساب نهائياً. ${res.handover}.`
+                      : "حُذف الحساب نهائياً — ولا عمل معلَّق كان باسمه."
+                  );
+                  setPurgeOpen(false);
                 });
               }}
               className="inline-flex min-h-11 items-center rounded-xl bg-red-700 px-4 text-sm font-semibold text-white disabled:opacity-50"

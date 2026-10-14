@@ -159,6 +159,8 @@ export async function permanentlyDeleteUserAction(
   email?: string;
   emailFreed?: boolean;
   heldBy?: string | null;
+  /** ما انتقل إلى خَلَفِه — يُعرَض لا يُخمَّن */
+  handover?: string;
 }> {
   const session = await auth();
   if (!session) return { error: "يجب تسجيل الدخول" };
@@ -183,6 +185,7 @@ export async function permanentlyDeleteUserAction(
       email: res.email,
       emailFreed: res.emailFreed,
       heldBy: res.heldBy,
+      handover: res.handover,
     };
   } catch (err) {
     return { error: safeErrorMessage(err) };

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { handOver } from "@/lib/succession";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { sendWelcomePack } from "@/lib/welcome";
 import { syncMemberLifecycleRow, syncAdminAccountRow } from "@/lib/workflow";
@@ -246,6 +247,8 @@ export async function permanentlyDeleteAccount(opts: {
        *  صريحاً: حُرّر أم بقي، وأين بقي. */
       emailFreed: boolean;
       heldBy: string | null;
+      /** ما انتقل إلى خَلَفِه — يُقال للمؤسس لا يُخمَّن */
+      handover?: string;
     }
   | { ok: false; reason: string }
 > {
@@ -287,7 +290,41 @@ export async function permanentlyDeleteAccount(opts: {
       };
     }
 
-    // السجل يُختم قبل الحذف: بعده لا يبقى ما يُكتب
+    // هل باسمه عملٌ لا يُحذف صفُّه وهو قائم؟ الدعوةُ وحدها تكفي لمنع
+    // الحذف في القاعدة، فنعرف قبل أن نكتب شيئاً.
+    const transferNeeded =
+      (await prisma.invite.count({ where: { invitedById: user.id } })) > 0 ||
+      (await prisma.ticket.count({
+        where: { approverUserId: user.id, approvalState: { in: ["awaiting", "reviewing"] } },
+      })) > 0;
+
+    // ── الخلافة قبل الحذف.
+    //
+    // **وهذا سببُ «حدث خطأ غير متوقّع» الذي كان يظهر.** الدعوة تحمل
+    // `invitedById` إلزامياً، فصفُّ من أرسل دعوةً لا يُحذف ما دامت
+    // قائمة: تَرفض القاعدة الحذف فيسقط الإجراء بخطأٍ عام لا يقول
+    // شيئاً. فالنقل شرطُ الحذف لا تحسينٌ بعده — وبه أيضاً لا يبقى
+    // طلبُ اعتمادٍ معتمِدُه محذوف، ولا تذكرةٌ بلا وجهة.
+    const handover = await handOver({
+      user: {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+        departmentId: user.departmentId,
+      },
+      byName: opts.actorName,
+      occasion: "حذف نهائي",
+    });
+    if (!handover.successor && transferNeeded) {
+      return {
+        ok: false,
+        reason:
+          "لا خَلَفَ نشطاً يرث ما باسمه (دعوات أو طلبات مفتوحة) — عيّن بديلاً أولاً، أو نحِّه بدل حذفه",
+      };
+    }
+
+    // السجل يُختم قبل الحذف: بعده لا يبقى صفٌّ يُقرأ منه
     await syncAdminAccountRow(user.id, tombstone);
     await appendMemberEvent({
       fullName: user.fullName,
@@ -306,7 +343,21 @@ export async function permanentlyDeleteAccount(opts: {
     await prisma.leaderSignature.deleteMany({ where: { userId: user.id } });
     await prisma.ticket.updateMany({ where: { raisedByUserId: user.id }, data: { raisedByUserId: null } });
     await prisma.ticket.updateMany({ where: { targetUserId: user.id }, data: { targetUserId: null } });
-    await prisma.user.delete({ where: { id: user.id } });
+    try {
+      await prisma.user.delete({ where: { id: user.id } });
+    } catch (err) {
+      // الشاهدة كُتبت وتوقّع الحذفَ ولم يقع: تُعاد الحالة الحيّة، فلا
+      // يُقرأ في الشيت «حُذف» وصفُّه قائم. والخطأ يُسمّى لا يُعمَّم.
+      await syncAdminAccountRow(user.id);
+      const code = (err as { code?: string }).code;
+      return {
+        ok: false,
+        reason:
+          code === "P2003"
+            ? "ما زال في القاعدة ما يرتبط بهذا الحساب ويمنع حذفه — أعد المحاولة، وإن تكرّر فنحِّه بدل حذفه"
+            : "تعذّر حذف الصفّ — لم يُحذف شيء، والسجل على حاله",
+      };
+    }
 
     // وهل تحرّر البريد؟ سجلُّ ترشّحه قد يبقى يحمله
     const twinLeft = await prisma.member.findUnique({
@@ -319,6 +370,7 @@ export async function permanentlyDeleteAccount(opts: {
       fullName: user.fullName,
       emailFreed: twinLeft === null,
       heldBy: twinLeft ? `سجلّ عضوية ${twinLeft.fullName}` : null,
+      handover: handover.summary,
     };
   }
 

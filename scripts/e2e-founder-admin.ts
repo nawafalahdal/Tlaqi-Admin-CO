@@ -185,7 +185,12 @@ async function cleanup() {
   chk("ولم يبقَ في القاعدة", (await prisma.user.findUnique({ where: { id: lead.id } })) === null);
   const tAfter = await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } });
   chk("**التذكرة باقية لا محذوفة**", true);
-  chk("وارتباطها فُكّ لا كُسر", tAfter.targetUserId === null);
+  // كانت القاعدة أن تُفَكّ وجهتُها إلى `null`. وهذا عطبٌ لا حماية:
+  // تذكرةٌ بلا وجهة تسقط من كل قائمةٍ فلا يراها أحد ولا تُغلَق أبداً.
+  // فصارت تُورَّث: المفتوحة تنتقل إلى خَلَف صاحبها.
+  chk("**ووجهتُها انتقلت إلى الخَلَف لا إلى العدم**",
+      tAfter.targetUserId !== null && tAfter.targetUserId !== lead.id,
+      String(tAfter.targetUserId));
   await prisma.ticket.delete({ where: { id: ticket.id } });
 
   // ١٠ — سجلّ العضوية: البريد محجوزٌ ما دام له توأم؟ لا — حُذف التوأم
