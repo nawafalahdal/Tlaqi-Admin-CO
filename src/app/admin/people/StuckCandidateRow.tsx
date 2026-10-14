@@ -187,7 +187,7 @@ export function StuckCandidateRow({
               type="button"
               onClick={runPurge}
               disabled={pending || confirmEmail.trim().toLowerCase() !== candidate.email.toLowerCase()}
-              className="min-h-11 rounded-xl bg-red-700 px-4 text-sm font-semibold text-white disabled:opacity-40"
+              className="min-h-11 rounded-xl bg-red-700 px-4 text-sm font-semibold text-on-brand disabled:opacity-40"
             >
               {pending ? t.working : t.purgeConfirm}
             </button>

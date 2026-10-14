@@ -11,7 +11,7 @@ import {
   announcementPowers,
 } from "@/lib/announcements";
 import { TicketCard } from "./tickets/TicketCard";
-import { themeFromColor, SUPER_ADMIN_THEME, BRAND } from "@/lib/brand";
+import { themeFromColor, SUPER_ADMIN_THEME, BRAND, brandInk} from "@/lib/brand";
 import { AppHeader, Card, StatusBadge } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { DataTable } from "@/components/DataTable";
@@ -237,7 +237,7 @@ export default async function AdminPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#FAF8F4]">
+    <div className="min-h-screen bg-page">
       <AppHeader
         theme={theme}
         roleName={isSuperAdmin ? ta.founderRole : ta.ceoRole}
@@ -256,7 +256,7 @@ export default async function AdminPage() {
             </p>
             <Link
               href="/admin/profile"
-              className="mt-3 inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-semibold text-white"
+              className="mt-3 inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-semibold text-on-brand"
               style={{ background: theme.accentDark }}
             >
               {dict.adminProfile.bannerCta}
@@ -492,7 +492,7 @@ function StatTile({
 }) {
   return (
     <Card className="p-3.5 sm:p-4">
-      <p className="text-2xl font-bold leading-none" style={{ color: theme.accentDark }}>
+      <p className="text-2xl font-bold leading-none" style={{ color: brandInk(theme) }}>
         {value}
       </p>
       <p className="mt-1.5 text-xs leading-snug text-black/45">{label}</p>

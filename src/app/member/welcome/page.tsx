@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { themeFromColor, BRAND } from "@/lib/brand";
+import { themeFromColor, BRAND, brandInk} from "@/lib/brand";
 import { LogoLockup } from "@/components/Logo";
 import { LogoutButton } from "@/components/LogoutButton";
 import { LocaleToggle } from "@/components/LocaleToggle";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { ProfileForm } from "./ProfileForm";
 
@@ -39,13 +40,14 @@ export default async function WelcomePage() {
       <div className="mb-6 flex w-full max-w-xl items-center justify-between gap-3">
         <LogoLockup height={30} tone="dark" />
         <div className="flex flex-wrap items-center gap-2">
-          <LocaleToggle color={theme.accentDark} />
-          <LogoutButton color={theme.accentDark} />
+          <ThemeToggle color={brandInk(theme)} />
+          <LocaleToggle color={brandInk(theme)} />
+          <LogoutButton color={brandInk(theme)} />
         </div>
       </div>
 
       <div className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-xl sm:p-8">
-        <h1 className="text-xl font-bold" style={{ color: theme.accentDark }}>
+        <h1 className="text-xl font-bold" style={{ color: brandInk(theme) }}>
           {t.welcome.title}
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-black/60">
@@ -58,7 +60,7 @@ export default async function WelcomePage() {
           style={{ background: theme.surface, border: `1px solid ${theme.border}` }}
         >
           <p className="text-xs text-black/45">{t.welcome.invitedAs}</p>
-          <p className="mt-1 text-base font-bold" style={{ color: theme.accentDark }}>
+          <p className="mt-1 text-base font-bold" style={{ color: brandInk(theme) }}>
             {member.department ? `${member.department.name} — ${roleLabel}` : roleLabel}
           </p>
         </div>

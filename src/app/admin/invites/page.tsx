@@ -70,7 +70,7 @@ export default async function AdminInvitesPage() {
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
 
   return (
-    <div className="min-h-screen bg-[#FAF8F4]">
+    <div className="min-h-screen bg-page">
       <AppHeader
         theme={theme}
         roleName={isSuperAdmin ? ta.founderRole : ta.ceoRole}

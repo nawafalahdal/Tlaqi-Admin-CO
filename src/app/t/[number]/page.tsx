@@ -77,7 +77,7 @@ export default async function TicketEntryPage({
             </p>
             <a
               href={session.user.role === "member" ? "/member" : "/admin/tickets"}
-              className="mt-6 inline-block rounded-xl px-5 py-3 text-sm font-semibold text-white"
+              className="mt-6 inline-block rounded-xl px-5 py-3 text-sm font-semibold text-on-brand"
               style={{ background: BRAND.temptress }}
             >
               افتح لوحتي
@@ -106,7 +106,7 @@ export default async function TicketEntryPage({
           </p>
           <a
             href={session.user.role === "member" ? "/member" : "/admin/tickets"}
-            className="mt-6 inline-block rounded-xl px-5 py-3 text-sm font-semibold text-white"
+            className="mt-6 inline-block rounded-xl px-5 py-3 text-sm font-semibold text-on-brand"
             style={{ background: BRAND.temptress }}
           >
             افتح لوحتي

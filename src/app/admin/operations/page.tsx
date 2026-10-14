@@ -93,7 +93,7 @@ export default async function OperationsPage() {
   const deptOptions = departments.map((d) => ({ id: d.id, name: d.name }));
 
   return (
-    <div className="min-h-screen bg-[#FAF8F4]">
+    <div className="min-h-screen bg-page">
       <AppHeader theme={theme} roleName={tOps.role} userName={session.user.name ?? ""}>
         <HeaderActions color={theme.text} />
       </AppHeader>

@@ -30,7 +30,7 @@ export function PrintChart() {
         <button
           type="button"
           onClick={() => window.print()}
-          className="min-h-11 shrink-0 rounded-xl bg-[#C34900] px-5 text-sm font-semibold text-white hover:opacity-90"
+          className="min-h-11 shrink-0 rounded-xl bg-[#C34900] px-5 text-sm font-semibold text-on-brand hover:opacity-90"
         >
           احفظ الهيكل PDF
         </button>

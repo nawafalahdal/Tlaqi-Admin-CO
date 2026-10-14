@@ -66,7 +66,7 @@ export function DepartmentColor({
               else setOpen(false);
             })
           }
-          className="min-h-9 rounded-lg bg-[#341D2B] px-3 text-xs font-semibold text-white disabled:opacity-50"
+          className="min-h-9 rounded-lg bg-[#341D2B] px-3 text-xs font-semibold text-on-brand disabled:opacity-50"
         >
           {pending ? t.creating : t.saveColor}
         </button>

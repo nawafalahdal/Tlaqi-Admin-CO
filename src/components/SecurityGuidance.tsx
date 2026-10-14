@@ -62,7 +62,7 @@ export async function SecurityGuidance({
           <p className="mt-1 text-xs leading-relaxed text-amber-900/85">{t.totpOffBody}</p>
           <Link
             href="/admin/security"
-            className="mt-2.5 inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-semibold text-white"
+            className="mt-2.5 inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-semibold text-on-brand"
             style={{ background: theme.accentDark }}
           >
             {t.totpEnable}

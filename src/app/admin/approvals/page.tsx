@@ -50,7 +50,7 @@ export default async function ApprovalsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#FAF8F4]">
+    <div className="min-h-screen bg-page">
       <AppHeader
         theme={theme}
         roleName={accountRoleLabel(session.user.role)}

@@ -46,7 +46,7 @@ export default async function SignaturePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8F4]">
+    <div className="min-h-screen bg-page">
       <AppHeader theme={theme} roleName={accountRoleLabel(role)} userName={session.user.name ?? ""}>
         <HeaderActions color={theme.text} />
       </AppHeader>

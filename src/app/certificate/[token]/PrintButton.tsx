@@ -7,7 +7,7 @@ export function PrintButton() {
       <button
         type="button"
         onClick={() => window.print()}
-        className="min-h-11 rounded-xl bg-[#C34900] px-5 text-sm font-semibold text-white hover:opacity-90"
+        className="min-h-11 rounded-xl bg-[#C34900] px-5 text-sm font-semibold text-on-brand hover:opacity-90"
       >
         احفظها PDF أو اطبعها
       </button>

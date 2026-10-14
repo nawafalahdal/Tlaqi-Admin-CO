@@ -1,5 +1,6 @@
 "use client";
 
+import { brandInk } from "@/lib/brand";
 import { useState, useTransition } from "react";
 import { submitTerminationAction, withdrawTerminationAction } from "@/app/admin/terminations/actions";
 import { Card, Button } from "@/components/ui";
@@ -65,7 +66,7 @@ export function TerminationRequestCard({
     return (
       <Card className="p-4 sm:p-5">
         <h2 className="text-sm font-bold">طلب إنهاء فترة الإدارة في تَـــلاقِ</h2>
-        <p className="mt-1.5 text-xs font-semibold" style={{ color: theme.accentDark }}>
+        <p className="mt-1.5 text-xs font-semibold" style={{ color: brandInk(theme) }}>
           {LABEL[open.status] ?? open.status}
         </p>
         <dl className="mt-3 flex flex-col gap-1.5 text-xs">

@@ -1,5 +1,6 @@
 "use client";
 
+import { brandInk } from "@/lib/brand";
 import { useState } from "react";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import type { themeFromColor } from "@/lib/brand";
@@ -35,7 +36,7 @@ export function InviteLinkReveal({
       style={{ background: theme.surface, borderColor: theme.accentDark + "55" }}
     >
       <div className="mb-2 flex items-start justify-between gap-2">
-        <p className="text-sm font-bold" style={{ color: theme.accentDark }}>
+        <p className="text-sm font-bold" style={{ color: brandInk(theme) }}>
           {t.misc.inviteIssued}
         </p>
         <button type="button" onClick={onClose} className="text-xs text-black/40 hover:text-black/60">

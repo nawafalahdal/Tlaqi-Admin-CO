@@ -108,7 +108,7 @@ export async function TicketBoard({
                       })}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="rounded-lg px-2.5 py-1 text-xs font-semibold text-white"
+                      className="rounded-lg px-2.5 py-1 text-xs font-semibold text-on-brand"
                       style={{ background: theme.accentDark }}
                     >
                       {tb.addToGoogle}

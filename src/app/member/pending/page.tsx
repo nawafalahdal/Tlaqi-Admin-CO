@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { themeFromColor, BRAND } from "@/lib/brand";
+import { themeFromColor, BRAND, brandInk} from "@/lib/brand";
 import { LogoLockup } from "@/components/Logo";
 import { LogoutButton } from "@/components/LogoutButton";
 import { LocaleToggle } from "@/components/LocaleToggle";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { getLocale, getDictionary } from "@/i18n/server";
 
 /** شاشة ما بعد الاختبار وقبل القرار — المرشّح دخل بحساب حقيقي، فلا يصح أن
@@ -43,8 +44,9 @@ export default async function MemberPendingPage() {
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
-        <LocaleToggle color={theme.accentDark} />
-        <LogoutButton color={theme.accentDark} />
+        <ThemeToggle color={brandInk(theme)} />
+          <LocaleToggle color={brandInk(theme)} />
+        <LogoutButton color={brandInk(theme)} />
       </div>
     </main>
   );

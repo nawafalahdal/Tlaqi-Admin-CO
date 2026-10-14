@@ -1,5 +1,6 @@
 "use client";
 
+import { brandInk } from "@/lib/brand";
 import { useActionState, useState, useTransition, useRef, useEffect } from "react";
 import { addQuestionAction, updateQuestionAction, deleteQuestionAction } from "./actions";
 import { Card, Button } from "@/components/ui";
@@ -90,7 +91,7 @@ function QuestionCard({
               type="button"
               onClick={() => setEditing(true)}
               className="text-xs font-semibold"
-              style={{ color: theme.accentDark }}
+              style={{ color: brandInk(theme) }}
             >
               {t.testEditor.edit}
             </button>
@@ -179,7 +180,7 @@ function QuestionForm({
               checked={correctIndex === i}
               onChange={() => setCorrectIndex(i)}
               className="accent-current"
-              style={{ color: theme.accentDark }}
+              style={{ color: brandInk(theme) }}
             />
             <input
               name={`option${i}`}

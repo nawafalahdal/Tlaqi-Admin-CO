@@ -100,7 +100,7 @@ export function SeatHolderRow({
             }}
             className={`inline-flex min-h-11 shrink-0 items-center rounded-xl px-4 text-xs font-bold ${
               suspect
-                ? "bg-red-600 text-white"
+                ? "bg-red-600 text-on-brand"
                 : "bg-red-50 text-red-800 ring-1 ring-red-300"
             }`}
           >
@@ -158,7 +158,7 @@ export function SeatHolderRow({
                   );
                 });
               }}
-              className="inline-flex min-h-11 items-center rounded-xl bg-red-700 px-4 text-xs font-bold text-white disabled:opacity-50"
+              className="inline-flex min-h-11 items-center rounded-xl bg-red-700 px-4 text-xs font-bold text-on-brand disabled:opacity-50"
             >
               {pending ? "جارِ التنفيذ..." : "احذف نهائياً"}
             </button>

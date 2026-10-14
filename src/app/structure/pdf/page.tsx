@@ -30,7 +30,7 @@ export default async function StructurePdfPage() {
   // الحرس في الخادم: لا تُرسَم ورقةٌ لهيكلٍ ناقص ولو كُتب العنوان يدوياً
   if (!chart.readiness.ready) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#FAF8F4] p-6">
+      <main className="flex min-h-screen items-center justify-center bg-page p-6">
         <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-sm ring-1 ring-black/[0.06]">
           <h1 className="text-base font-bold">النسخة الرسمية غير متاحة بعد</h1>
           <p className="mt-1.5 text-xs leading-relaxed text-black/55">
@@ -50,7 +50,7 @@ export default async function StructurePdfPage() {
           </ul>
           <a
             href="/structure"
-            className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-[#341D2B] px-4 text-sm font-semibold text-white"
+            className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-[#341D2B] px-4 text-sm font-semibold text-on-brand"
           >
             عودة إلى الهيكل
           </a>
@@ -62,7 +62,7 @@ export default async function StructurePdfPage() {
   const today = formatDate(new Date());
 
   return (
-    <main className="min-h-screen bg-[#FAF8F4] p-4 print:bg-white print:p-0">
+    <main className="min-h-screen bg-page p-4 print:bg-white print:p-0">
       <PrintChart />
 
       {/* الورقة: A4 عرضيّ. والنِسَب ثابتة فلا يتمدّد التصميم على الشاشة

@@ -45,7 +45,7 @@ export default async function AdminProfilePage() {
   const roleLabel = accountRoleLabel(user.role);
 
   return (
-    <div className="min-h-screen bg-[#FAF8F4]">
+    <div className="min-h-screen bg-page">
       <AppHeader theme={theme} roleName={roleLabel} userName={user.fullName}>
         <HeaderActions color={theme.text} />
       </AppHeader>

@@ -16,7 +16,7 @@ export function OrgChartLink({ theme }: { theme: ReturnType<typeof themeFromColo
       </p>
       <Link
         href="/structure"
-        className="mt-3 inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-semibold text-white"
+        className="mt-3 inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-semibold text-on-brand"
         style={{ background: theme.base }}
       >
         استعرض الهيكل

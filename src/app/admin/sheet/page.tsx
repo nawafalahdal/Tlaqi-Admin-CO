@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
+import { themeFromColor, SUPER_ADMIN_THEME, brandInk} from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { BackButton } from "@/components/BackButton";
@@ -37,7 +37,7 @@ export default async function SheetPage() {
   }));
 
   return (
-    <div className="min-h-screen bg-[#FAF8F4]">
+    <div className="min-h-screen bg-page">
       <AppHeader theme={theme} roleName={t.admin.founderRole} userName={session.user.name ?? ""}>
         <HeaderActions color={theme.text} />
       </AppHeader>
@@ -57,7 +57,7 @@ export default async function SheetPage() {
               target="_blank"
               rel="noopener noreferrer"
               className="mt-1 inline-flex min-h-11 items-center break-all text-sm font-semibold underline"
-              style={{ color: theme.accentDark }}
+              style={{ color: brandInk(theme) }}
             >
               {sheetUrl}
             </a>

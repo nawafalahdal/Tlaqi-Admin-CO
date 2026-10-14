@@ -86,7 +86,7 @@ export function SecurityForm({ initialEnabled }: { initialEnabled: boolean }) {
           type="button"
           onClick={beginSetup}
           disabled={starting}
-          className="rounded-xl px-4 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+          className="rounded-xl px-4 py-3 text-sm font-semibold text-on-brand transition-opacity hover:opacity-90 disabled:opacity-60"
           style={{ background: BRAND.temptress }}
         >
           {starting ? a.preparing : a.enable2fa}
@@ -122,7 +122,7 @@ export function SecurityForm({ initialEnabled }: { initialEnabled: boolean }) {
         <button
           type="submit"
           disabled={confirmPending}
-          className="rounded-xl px-4 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+          className="rounded-xl px-4 py-3 text-sm font-semibold text-on-brand transition-opacity hover:opacity-90 disabled:opacity-60"
           style={{ background: BRAND.temptress }}
         >
           {confirmPending ? a.confirming : a.confirmEnable}

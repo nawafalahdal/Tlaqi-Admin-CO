@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
+import { themeFromColor, SUPER_ADMIN_THEME, brandInk} from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { BackButton } from "@/components/BackButton";
@@ -31,7 +31,7 @@ export default async function MessagesPage() {
   ]);
 
   return (
-    <div className="min-h-screen bg-[#FAF8F4]">
+    <div className="min-h-screen bg-page">
       <AppHeader theme={theme} roleName={t.admin.founderRole} userName={session.user.name ?? ""}>
         <HeaderActions color={theme.text} />
       </AppHeader>
@@ -106,7 +106,7 @@ function StatTile({
 }) {
   return (
     <Card className="p-3.5 sm:p-4">
-      <p className="text-2xl font-bold leading-none" style={{ color: theme.accentDark }}>
+      <p className="text-2xl font-bold leading-none" style={{ color: brandInk(theme) }}>
         {value}
       </p>
       <p className="mt-1.5 text-xs leading-snug text-black/45">{label}</p>

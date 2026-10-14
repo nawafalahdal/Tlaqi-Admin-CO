@@ -46,3 +46,22 @@ export function themeForDepartment(slug: DepartmentSlug | string) {
   const entry = DEPARTMENT_THEME[slug as DepartmentSlug];
   return themeFromColor(entry ? entry.colorHex : BRAND.temptress);
 }
+
+/** حبرُ الهوية على سطحٍ محايد — يَدكن في الفاتح ويَفتح في الداكن.
+ *
+ *  **العطب الذي يُصلحه:** `accentDark` لونُ القسم مُدكَّناً، يُقرأ جيّداً
+ *  على سطحٍ فاتح ويكاد يختفي على داكن. ورأيتُ ذلك مرسوماً: أرقامُ
+ *  البطاقات في اللوحة صارت شبحاً في السمة الداكنة.
+ *
+ *  و`light-dark()` تختار بحسب `color-scheme` المعلَن على `:root`، فلا
+ *  تحتاج صنفاً ولا متغيّرين. ومن لم يدعمها متصفّحُه تسقط القيمة فيرث
+ *  النصُّ لونَ السمة — يفقد لمسةَ القسم ويبقى مقروءاً، وهذا أهون.
+ */
+export function brandInk(theme: ReturnType<typeof themeFromColor>): string {
+  return `light-dark(${theme.accentDark}, ${theme.surface})`;
+}
+
+/** حدُّ الهوية — المِثل، للإطارات لا للنصّ */
+export function brandInkBorder(theme: ReturnType<typeof themeFromColor>): string {
+  return `light-dark(${theme.accentDark}, ${theme.surfaceStrong})`;
+}

@@ -27,7 +27,7 @@ export default async function OperationsTestPage() {
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
 
   return (
-    <div className="min-h-screen bg-[#FAF8F4]">
+    <div className="min-h-screen bg-page">
       <AppHeader
         theme={theme}
         roleName={t.admin.ceoRole}

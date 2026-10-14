@@ -107,7 +107,7 @@ export function OrgTree({
               >
                 {mine && (
                   <span
-                    className="mt-1.5 rounded-full px-2 py-0.5 text-[9px] font-bold text-white"
+                    className="mt-1.5 rounded-full px-2 py-0.5 text-[9px] font-bold text-on-brand"
                     style={{ background: needsOutline(d.displayColor) ? "#341D2B" : d.displayColor }}
                   >
                     قسمك
@@ -118,7 +118,12 @@ export function OrgTree({
                 <div
                   className="rounded-xl px-3 py-1.5"
                   style={{
-                    background: needsOutline(d.displayColor) ? "#F6F7F1" : `${d.displayColor}14`,
+                    // الأبيضُ شبهُ الأبيض يحتاج سطحاً فاتحاً ليُرى، وذاك
+                    // السطح نفسُه يَعمى عليه الحبرُ في السمة الداكنة —
+                    // فيتبع السمة: فاتحٌ في الفاتح، وغمزةُ ضوءٍ في الداكن
+                    background: needsOutline(d.displayColor)
+                      ? "light-dark(#F6F7F1, rgba(255,255,255,0.09))"
+                      : `${d.displayColor}14`,
                     border: `1.5px solid ${outlineFor(d.displayColor)}`,
                   }}
                 >

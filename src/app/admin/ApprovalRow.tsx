@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { approveMemberAction, rejectMemberAction } from "./actions";
-import { themeFromColor } from "@/lib/brand";
+import { themeFromColor, brandInk} from "@/lib/brand";
 import { Button, Card } from "@/components/ui";
 import { useTranslations } from "@/i18n/LocaleProvider";
 
@@ -54,7 +54,7 @@ export function ApprovalRow({
       <div className="flex items-center gap-4">
         <div className="text-end">
           <p className="text-xs text-black/40">{member.departmentName}</p>
-          <p className="text-sm font-bold" style={{ color: theme.accentDark }}>
+          <p className="text-sm font-bold" style={{ color: brandInk(theme) }}>
             {t.admin.testScoreLabel}: {member.testScore}%
           </p>
         </div>

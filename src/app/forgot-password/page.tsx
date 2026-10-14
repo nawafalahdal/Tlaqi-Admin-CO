@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LogoLockup } from "@/components/Logo";
 import { BRAND } from "@/lib/brand";
 import { LocaleToggle } from "@/components/LocaleToggle";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { ForgotForm } from "./ForgotForm";
 
@@ -15,6 +16,7 @@ export default async function ForgotPasswordPage() {
     >
       <div className="w-full max-w-sm">
         <div className="mb-4 flex justify-end">
+          <ThemeToggle color={BRAND.beige} />
           <LocaleToggle color={BRAND.beige} />
         </div>
         <div className="mb-8 flex justify-center">

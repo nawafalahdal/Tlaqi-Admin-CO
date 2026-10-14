@@ -1,5 +1,6 @@
 "use client";
 
+import { brandInk } from "@/lib/brand";
 import { useTransition } from "react";
 import { reopenInviteAction } from "../../actions";
 import { Card, Button } from "@/components/ui";
@@ -25,7 +26,7 @@ export function NeedsMeetingRow({
         </p>
       </div>
       <div className="flex items-center gap-3">
-        <p className="text-sm font-bold" style={{ color: theme.accentDark }}>
+        <p className="text-sm font-bold" style={{ color: brandInk(theme) }}>
           {t.needsMeetingRow.score}: {member.testScore}%
         </p>
         <Button

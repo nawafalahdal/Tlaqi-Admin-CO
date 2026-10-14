@@ -128,7 +128,7 @@ export function ApprovalDecide({
               type="button"
               disabled={pending}
               onClick={() => run("approved")}
-              className="inline-flex min-h-11 items-center rounded-xl bg-green-700 px-4 text-sm font-bold text-white disabled:opacity-50"
+              className="inline-flex min-h-11 items-center rounded-xl bg-green-700 px-4 text-sm font-bold text-on-brand disabled:opacity-50"
             >
               {pending ? "جارِ الاعتماد..." : "تأكيد الاعتماد"}
             </button>
@@ -166,7 +166,7 @@ export function ApprovalDecide({
               type="button"
               disabled={pending || note.trim().length < 5}
               onClick={() => run(panel === "return" ? "returned" : "rejected")}
-              className={`inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-bold text-white disabled:opacity-50 ${
+              className={`inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-bold text-on-brand disabled:opacity-50 ${
                 panel === "return" ? "bg-amber-700" : "bg-red-700"
               }`}
             >

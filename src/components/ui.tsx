@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { LogoLockup } from "./Logo";
 import { HeaderShell } from "./HeaderShell";
-import { logoToneFor, type themeFromColor } from "@/lib/brand";
+import { logoToneFor, brandInk, brandInkBorder, type themeFromColor } from "@/lib/brand";
 import { readableTextOn } from "@/lib/colors";
 export { StatusBadge } from "./StatusBadge";
 
@@ -59,8 +59,10 @@ export function Card({
   return (
     <div
       id={id}
-      className={`scroll-mt-24 rounded-2xl border bg-white shadow-sm shadow-black/[0.03] ${className}`}
-      style={{ borderColor: "#00000012", ...style }}
+      // الحدُّ من المتغيّر لا من رقمٍ ثابت: `#00000012` على سطحٍ داكن
+      // لا يُرى، فتضيع حدودُ البطاقات كلّها في السمة الداكنة
+      className={`scroll-mt-24 rounded-2xl border border-hairline bg-white shadow-sm shadow-black/[0.03] ${className}`}
+      style={style}
     >
       {children}
     </div>
@@ -86,12 +88,20 @@ export function Button({
 }) {
   const base =
     "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-opacity disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90";
-  const style: React.CSSProperties =
-    variant === "solid"
-      ? { background: theme.accentDark, color: readableTextOn(theme.accentDark) }
-      : variant === "outline"
-      ? { background: "transparent", color: theme.accentDark, border: `1.5px solid ${theme.accentDark}` }
-      : { background: "transparent", color: theme.accentDark };
+
+  const solid = variant === "solid";
+  /** حبرُ الخطّ والشبح يتبع السمة: `accentDark` على سطحٍ داكن لا يُقرأ.
+   *  والمملوء لا يحتاجه — سطحُه ملوَّنٌ في السمتين. */
+  const style: React.CSSProperties = solid
+    ? { background: theme.accentDark, color: readableTextOn(theme.accentDark) }
+    : variant === "outline"
+      ? {
+          background: "transparent",
+          color: brandInk(theme),
+          border: `1.5px solid ${brandInkBorder(theme)}`,
+        }
+      : { background: "transparent", color: brandInk(theme) };
+
   return (
     <button
       type={type}
@@ -107,7 +117,7 @@ export function Button({
 
 export function EmptyState({ label }: { label: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-14 text-center text-sm text-black/40">
+    <div className="flex flex-col items-center justify-center py-14 text-center text-sm text-black/45">
       {label}
     </div>
   );

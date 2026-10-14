@@ -65,7 +65,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         <button
           type="submit"
           disabled={requesting}
-          className="mt-2 rounded-xl px-4 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+          className="mt-2 rounded-xl px-4 py-3 text-sm font-semibold text-on-brand transition-opacity hover:opacity-90 disabled:opacity-60"
           style={{ background: BRAND.temptress }}
         >
           {requesting ? t.login.sendingCode : t.login.continue}
@@ -163,7 +163,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
       <button
         type="submit"
         disabled={submitting}
-        className="mt-2 rounded-xl px-4 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+        className="mt-2 rounded-xl px-4 py-3 text-sm font-semibold text-on-brand transition-opacity hover:opacity-90 disabled:opacity-60"
         style={{ background: BRAND.temptress }}
       >
         {submitting ? t.login.submitting : t.login.submit}

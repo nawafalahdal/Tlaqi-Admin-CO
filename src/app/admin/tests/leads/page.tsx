@@ -26,7 +26,7 @@ export default async function LeadsTestPage() {
   const t = getDictionary(await getLocale());
 
   return (
-    <div className="min-h-screen bg-[#FAF8F4]">
+    <div className="min-h-screen bg-page">
       <AppHeader
         theme={theme}
         roleName={t.admin.ceoRole}

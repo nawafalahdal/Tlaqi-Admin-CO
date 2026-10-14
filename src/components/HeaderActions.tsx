@@ -2,6 +2,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { LogoutButton } from "./LogoutButton";
 import { LocaleToggle } from "./LocaleToggle";
+import { ThemeToggle } from "./ThemeToggle";
 import { getLocale, getDictionary } from "@/i18n/server";
 
 export async function HeaderActions({ color }: { color: string }) {
@@ -13,6 +14,8 @@ export async function HeaderActions({ color }: { color: string }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {/* السمة أولاً: أكثرُ ما يُبدَّل، ويُراد في متناول اليد */}
+      <ThemeToggle color={color} />
       <LocaleToggle color={color} />
       {isAdmin && (
         <Link

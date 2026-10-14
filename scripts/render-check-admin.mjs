@@ -201,6 +201,51 @@ const people = (await page.textContent("body")) ?? "";
 check(!/تعذّر إتمام العملية|Application error/.test(people), "/admin/people — بلا خطأ تشغيل");
 check(people.includes("كرِّمه على إنجاز"), "**/admin/people — زرّ التكريم معروضٌ للمؤسس**");
 
+// ── السمتان: التبديل، والثبات عبر الصفحات، وبلا ومضة
+{
+  const themeOf = () => page.evaluate(() => document.documentElement.dataset.theme);
+  const bodyBg = () =>
+    page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+
+  await page.goto(BASE + "/admin", { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(2500);
+  const first = await themeOf();
+  check(first === "light" || first === "dark", "السمة مكتوبةٌ على الوثيقة", String(first));
+
+  const bgBefore = await bodyBg();
+  await page.locator('button[title="الوضع الداكن"], button[title="الوضع الفاتح"]').first().click();
+  await page.waitForTimeout(700);
+  const second = await themeOf();
+  check(second !== first, "**الزرّ يُبدّل السمة فعلاً**", `${first} ← ${second}`);
+  const bgAfter = await bodyBg();
+  check(bgAfter !== bgBefore, "**وسطحُ الصفحة نفسُه تغيّر — لا الوسمُ وحده**",
+        `${bgBefore} ← ${bgAfter}`);
+
+  // الثبات: تُفتح صفحةٌ أخرى فتبقى السمة
+  await page.goto(BASE + "/admin/people", { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(2500);
+  check((await themeOf()) === second, "**وتثبت عبر الصفحات — تُحفَظ لا تُنسى**");
+
+  // ولا ومضة: الوسم مكتوبٌ في أول HTML يصل، قبل أن يَحيا React
+  // والمقياس موضعُه لا وجودُه: يجب أن يسبق `<body>`، فيُنفَّذ قبل أن
+  // يُرسَم شيء. (قِستُه أولاً بأوّل ٤٠٠ حرفٍ فسقط الفحص والنصُّ موجود
+  // في الحرف ١٦٠٥ — الفحصُ كان الخطأ لا الكود.)
+  const order = await page.evaluate(async () => {
+    const res = await fetch(location.href, { headers: { accept: "text/html" } });
+    const html = await res.text();
+    return { script: html.indexOf("tlaqi-theme"), body: html.indexOf("<body") };
+  });
+  check(order.script > -1 && order.body > -1 && order.script < order.body,
+        "**ونصُّ السمة يسبق `<body>` — فلا ومضةَ بيضاء قبل الداكن**",
+        `script@${order.script} < body@${order.body}`);
+
+  // ورجوعٌ إلى الفاتح حتى لا تتأثّر بقية الفحوص
+  if (second === "dark") {
+    await page.locator('button[title="الوضع الفاتح"]').first().click();
+    await page.waitForTimeout(500);
+  }
+}
+
 check(errors.length === 0, "لا أخطاء جافاسكربت في المتصفح" + (errors.length ? `: ${errors[0]}` : ""));
 
 await browser.close();

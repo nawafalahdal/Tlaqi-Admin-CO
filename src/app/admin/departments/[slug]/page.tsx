@@ -143,7 +143,7 @@ export default async function DepartmentBoardPage({
   const theme = themeFromColor(department.colorHex);
 
   return (
-    <div className="min-h-screen bg-[#FAF8F4]">
+    <div className="min-h-screen bg-page">
       <AppHeader theme={theme} roleName={`${t.deptBoard.adminRolePrefix} ${department.name}`} userName={session.user.name ?? ""}>
         <HeaderActions color={theme.text} />
       </AppHeader>

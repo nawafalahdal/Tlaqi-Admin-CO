@@ -100,7 +100,7 @@ export default async function MemberPortalPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#FAF8F4]">
+    <div className="min-h-screen bg-page">
       <AppHeader
         theme={theme}
         roleName={member.department?.name ?? t.member.roleFallback}

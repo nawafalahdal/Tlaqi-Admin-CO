@@ -188,7 +188,7 @@ export function AccountRow({
                   else setRemoveOpen(false);
                 });
               }}
-              className="inline-flex min-h-11 items-center rounded-xl bg-red-600 px-4 text-sm font-semibold text-white disabled:opacity-50"
+              className="inline-flex min-h-11 items-center rounded-xl bg-red-600 px-4 text-sm font-semibold text-on-brand disabled:opacity-50"
             >
               {pending ? t.actions.working : t.seats.removeConfirm}
             </button>
@@ -289,7 +289,7 @@ export function AccountRow({
                   setPurgeOpen(false);
                 });
               }}
-              className="inline-flex min-h-11 items-center rounded-xl bg-red-700 px-4 text-sm font-semibold text-white disabled:opacity-50"
+              className="inline-flex min-h-11 items-center rounded-xl bg-red-700 px-4 text-sm font-semibold text-on-brand disabled:opacity-50"
             >
               {pending ? t.actions.working : t.accounts.purgeConfirm}
             </button>

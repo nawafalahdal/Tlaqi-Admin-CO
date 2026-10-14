@@ -1,8 +1,35 @@
 @import "tailwindcss";
 
+/* ═══ نظامُ اللونين ═══
+ *
+ *  **الفكرة التي جعلت التبديل ممكناً أصلاً:** المنصة مكتوبةٌ بمئات
+ *  الأصناف من نوع `text-black/50` و`bg-white` و`border-black/10` —
+ *  أكثر من سبعمئة موضع. فتحويلُها واحداً واحداً إلى أصناف دلالية عملٌ
+ *  هائلٌ ومجازفةٌ بكل شاشة. وبدلاً منه: **يُعاد تعريف الأبيض والأسود
+ *  نفسَيهما.** فـ«الأبيض» يصير سطحَ البطاقة و«الأسود» يصير الحبر، ثم
+ *  يُقلَبان مع السمة — فتنقلب المنصة كلُّها بتعريفَين لا بسبعمئة تعديل.
+ *
+ *  وشرطُ نجاح ذلك أن تبقى القيمة متغيّراً لا رقماً: Tailwind يُجمّد
+ *  `text-black/50` إلى `#00000080` حين يكون الأساس رقماً صريحاً، أمّا
+ *  إذا كان `var(...)` فيُخرِج `color-mix` — فيتبع السمة.
+ *
+ *  **ويبقى الأبيض الحقيقي أبيضَ حيث يلزم:** النصّ فوق أزرار الهوية
+ *  (`text-on-brand`) لا يُقلَب، لأن أسطحها ملوّنةٌ داكنةٌ في السمتين.
+ */
+
 :root {
-  --background: #fdfbf6;
-  --foreground: #1a1023;
+  color-scheme: light;
+
+  /* سطحُ الصفحة، وسطحُ البطاقة فوقه، والحبر */
+  --page: #faf8f4;
+  --surface: #ffffff;
+  /* الحبر حبرُ الهوية لا أسودَ خالصاً — أدفأ وأقرب إلى الطباعة */
+  --ink: #1a1023;
+  /* حدٌّ محسوبٌ على السطح: في الفاتح ظلٌّ، وفي الداكن ضوء */
+  --hairline: color-mix(in oklab, var(--ink) 9%, transparent);
+
+  --background: var(--page);
+  --foreground: var(--ink);
 
   --brand-beige: #eef6df;
   --brand-mahogany: #c34900;
@@ -11,7 +38,32 @@
   --brand-ink: #1a1023;
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* رماديٌّ غامقٌ محايد — لا بنفسجيّ.
+   *
+   *  جرّبتُ أولاً داكناً مُشتقّاً من بنفسج الهوية، فجاء اللون ثقيلاً
+   *  على العين وقُرئ خطأً: الهويةُ بنفسجيّةٌ في عناصرها لا في أرضيتها.
+   *  فالأرضيةُ رماديّةٌ محايدة تَترك ألوانَ الأقسام تظهر عليها، وهذا
+   *  أصلاً عملُ الأرضية. */
+  --page: #141416;
+  --surface: #1e1e22;
+  --ink: #ececef;
+  --hairline: color-mix(in oklab, var(--ink) 14%, transparent);
+}
+
+@theme {
+  --color-white: var(--surface);
+  --color-black: var(--ink);
+}
+
 @theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-hairline: var(--hairline);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-brand-beige: var(--brand-beige);
@@ -33,8 +85,78 @@ body {
   color: var(--brand-beige);
 }
 
+/* الانتقال بين السمتين: ليِّنٌ لا مفاجئ — ومحصورٌ في اللون وحده.
+   ولو عُمّم على `all` لتحرّكت المقاسات والظلال مع كل تفاعل. */
+@media (prefers-reduced-motion: no-preference) {
+  :root.theme-switching,
+  :root.theme-switching *,
+  :root.theme-switching *::before,
+  :root.theme-switching *::after {
+    transition:
+      background-color 220ms ease,
+      border-color 220ms ease,
+      color 220ms ease,
+      fill 220ms ease,
+      stroke 220ms ease !important;
+  }
+}
+
+/** النصّ فوق أسطح الهوية — أبيضُ في السمتين.
+ *
+ *  أزرارُ الهوية وترويساتُها ملوّنةٌ داكنة دائماً (البنفسجي، المهوجني)،
+ *  فنصُّها يبقى فاتحاً. ولو تبع القلبَ لصار حبراً داكناً على سطحٍ داكن. */
+.text-on-brand {
+  color: #ffffff;
+}
+
+/* ═══ ألوان الحالة في السمة الداكنة ═══
+ *
+ *  **العطب الذي رأيتُه مرسوماً:** أشرطةُ التنبيه (`bg-amber-50`) بقيت
+ *  كريميّةً فاتحةً على صفحةٍ داكنة — أربعةُ ألواحٍ ساطعةٍ تَصرخ في
+ *  الشاشة، والنصُّ الداكن عليها يُقرأ لكنّ المنظر يقطع السمة.
+ *
+ *  وهذه الأصناف من لوحة Tailwind الثابتة، لا من الأبيض والأسود، فلا
+ *  يَطالها القلب. فتُخرَط هنا خرطاً صريحاً: السطحُ يصير مزيجاً من لون
+ *  الحالة مع سطح البطاقة (فيُرى غمزةً لا لوحاً)، والحبرُ يَفتح ليُقرأ
+ *  عليه. وهي معدودةٌ محصورة — لا تُخمَّن ولا تُعمَّم على كل اللوحة.
+ */
+:root[data-theme="dark"] {
+  /* الأسطح الناعمة: غمزةٌ من لون الحالة على سطح البطاقة */
+  & .bg-red-50 { background-color: color-mix(in oklab, #ef4444 16%, var(--surface)); }
+  & .bg-red-100 { background-color: color-mix(in oklab, #ef4444 22%, var(--surface)); }
+  & .bg-amber-50 { background-color: color-mix(in oklab, #f59e0b 16%, var(--surface)); }
+  & .bg-amber-100 { background-color: color-mix(in oklab, #f59e0b 22%, var(--surface)); }
+  & .bg-green-50,
+  & .bg-emerald-50 { background-color: color-mix(in oklab, #10b981 16%, var(--surface)); }
+  & .bg-green-100,
+  & .bg-emerald-100 { background-color: color-mix(in oklab, #10b981 22%, var(--surface)); }
+
+  /* الأحبار الداكنة تَفتح: حبرُ ٩٠٠ على سطحٍ داكن لا يُقرأ */
+  & .text-red-700, & .text-red-800, & .text-red-900 { color: #fca5a5; }
+  & .text-amber-700, & .text-amber-800, & .text-amber-900 { color: #fcd34d; }
+  & .text-green-700, & .text-green-800, & .text-green-900,
+  & .text-emerald-700, & .text-emerald-800 { color: #6ee7b7; }
+
+  /* حدودُ الحالة تُرفَع قليلاً لتُرى على الداكن */
+  & .ring-red-200, & .ring-red-300 { --tw-ring-color: color-mix(in oklab, #ef4444 45%, transparent); }
+  & .border-red-200, & .border-red-300 { border-color: color-mix(in oklab, #ef4444 45%, transparent); }
+  & .border-amber-200 { border-color: color-mix(in oklab, #f59e0b 45%, transparent); }
+}
+
 /* الصفحات التي تَعرض زرّ الرجوع الطائف: يُوسَّع أسفلُها بقدره فلا يحجب
    آخر سطرٍ فيها. والصنف يُضاف ويُزال مع الزرّ نفسه. */
 body.has-floating-back {
   padding-bottom: 5.5rem;
+}
+
+/* الطباعة تعود إلى الفاتح دائماً: الورقة بيضاء، وحبرُ السمة الداكنة
+   عليها لا يُقرأ — ونسخةُ الهيكل الرسمية تُطبع من الشاشة. */
+@media print {
+  :root,
+  :root[data-theme="dark"] {
+    color-scheme: light;
+    --page: #ffffff;
+    --surface: #ffffff;
+    --ink: #1a1023;
+  }
 }

@@ -36,7 +36,7 @@ export default async function StructurePage() {
   const isMember = session.user.role === "member";
 
   return (
-    <div className="min-h-screen bg-[#FAF8F4]">
+    <div className="min-h-screen bg-page">
       <AppHeader
         theme={theme}
         roleName="الهيكل التنظيمي"
@@ -77,7 +77,7 @@ export default async function StructurePage() {
               </p>
               <Link
                 href="/structure/pdf"
-                className="mt-3 inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-semibold text-white"
+                className="mt-3 inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-semibold text-on-brand"
                 style={{ background: theme.base }}
               >
                 افتح النسخة الرسمية

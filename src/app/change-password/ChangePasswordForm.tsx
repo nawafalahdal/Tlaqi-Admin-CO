@@ -55,7 +55,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
       <button
         type="submit"
         disabled={pending}
-        className="mt-2 rounded-xl px-4 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+        className="mt-2 rounded-xl px-4 py-3 text-sm font-semibold text-on-brand transition-opacity hover:opacity-90 disabled:opacity-60"
         style={{ background: BRAND.temptress }}
       >
         {pending ? t.changePassword.submitting : t.changePassword.submit}
