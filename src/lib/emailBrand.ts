@@ -169,6 +169,8 @@ const KIND_VARIANT: Record<string, EmailVariant> = {
   "قرار إنهاء إدارة": "serious",
   "شهادة إتمام": "celebration",
   "تقدير ثلاثة أشهر": "celebration",
+  // التكريم على إنجاز: احتفاءٌ بأثرٍ وقع — فيأخذ تصميم الاحتفاء لا العام
+  "تكريم إنجاز": "celebration",
   "إعادة فتح الاختبار": "celebration",
 
   // ما يُسجَّل ويُحاسَب عليه
