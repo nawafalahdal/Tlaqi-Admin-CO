@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
@@ -34,6 +35,7 @@ export default async function AdminProfilePage() {
   const departments =
     session.user.role === "super_admin"
       ? await prisma.department.findMany({
+          where: OPEN_DEPARTMENT_WHERE,
           select: { id: true, name: true },
           orderBy: [{ leadershipOnly: "desc" }, { name: "asc" }],
         })

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
 import { isLeadership } from "@/lib/announcements";
 import { sweepTicketEscalation, TICKET_STAGE_LABELS, TICKET_INCLUDE, ticketAuthor, ticketTargetLabel, ticketVisibilityWhere, canRespondToTicket } from "@/lib/tickets";
 import { themeFromColor, SUPER_ADMIN_THEME, brandInk} from "@/lib/brand";
@@ -37,7 +38,7 @@ export default async function TicketsPage() {
       orderBy: { createdAt: "desc" },
       take: 200,
     }),
-    prisma.department.findMany({ orderBy: { name: "asc" } }),
+    prisma.department.findMany({ where: OPEN_DEPARTMENT_WHERE, orderBy: { name: "asc" } }),
     // لا يُوجَّه أحد تذكرةً لنفسه
     prisma.user.findMany({
       where: { isActive: true, id: { not: session.user.id } },

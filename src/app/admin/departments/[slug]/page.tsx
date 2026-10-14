@@ -17,6 +17,7 @@ import { NeedsMeetingRow } from "./NeedsMeetingRow";
 import { RequestCard } from "./RequestCard";
 import { MemberInviteForm } from "./MemberInviteForm";
 import { MemberRoster } from "./MemberRoster";
+import { CommitteesPanel } from "./CommitteesPanel";
 import { OffboardingPanel } from "./OffboardingPanel";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
@@ -24,6 +25,7 @@ import Link from "next/link";
 
 import { AnnouncementList } from "../../hub/AnnouncementList";
 import { AnnouncementComposer } from "../../hub/AnnouncementComposer";
+import { committeesOf } from "@/lib/committees";
 import { announcementsForSession, announcementPowers } from "@/lib/announcements";
 import { CandidateWindow } from "@/components/CandidateWindow";
 import { TicketBoard } from "@/components/TicketBoard";
@@ -63,6 +65,10 @@ export default async function DepartmentBoardPage({
 
   const department = await prisma.department.findUnique({ where: { slug } });
   if (!department) notFound();
+
+  // لجانُه بكل حالاتها: قائدُ القسم يرى المقترحةَ والمردودةَ أيضاً —
+  // هو من اقترحها، فحجبُها عنه يُخفي عليه مصير طلبه
+  const committees = await committeesOf(department.id);
 
   await sweepOverdueRequests(department.id);
   await sweepTicketEscalation();
@@ -190,6 +196,33 @@ export default async function DepartmentBoardPage({
               {t.deptBoard.viewOnlyPrefix} {department.name} {t.deptBoard.viewOnlySuffix}
             </Card>
           )}
+        </section>
+
+        {/* اللجان: قسمٌ داخل القسم — يقترحه قائده ويعتمده التنفيذي */}
+        <section>
+          <Card className="p-5 sm:p-6">
+            <CommitteesPanel
+              parentId={department.id}
+              parentName={department.name}
+              parentColorHex={department.colorHex}
+              canPropose={isOwnDept}
+              theme={theme}
+              committees={committees.map((c) => ({
+                id: c.id,
+                name: c.name,
+                slug: c.slug,
+                colorHex: c.colorHex,
+                leadTitle: c.leadTitle,
+                committeeStatus: c.committeeStatus,
+                requestedByName: c.requestedByName,
+                decidedByName: c.decidedByName,
+                decisionNote: c.decisionNote,
+                lead: c.admins[0] ?? null,
+                memberCount: c._count.members,
+                subCommitteeCount: c._count.committees,
+              }))}
+            />
+          </Card>
         </section>
 
         <section>

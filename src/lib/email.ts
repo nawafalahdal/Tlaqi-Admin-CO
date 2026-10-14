@@ -1315,3 +1315,92 @@ export async function sendTotpNudgeEmail(opts: {
     "تذكير التحقق الثنائي"
   );
 }
+
+/** اقتراحُ لجنةٍ — رسالةٌ واحدة إلى المعتمِد وحده.
+ *
+ *  ولا نسخةَ لأحد: مسارُ اللجنة رسالتان في عمرها كلّه — واحدةٌ تُخبر
+ *  المعتمِد أن أمامه قراراً، وواحدةٌ تُخبر مقترِحها بما قُرِّر. وما
+ *  بينهما يُقرأ على المنصة لا في البريد. */
+export async function sendCommitteeRequestEmail(opts: {
+  to: string;
+  approverName: string;
+  committeeName: string;
+  parentName: string;
+  leadTitle: string;
+  requestedByName: string;
+  reviewUrl: string;
+}) {
+  return send(
+    opts.to,
+    `اقتراح لجنة «${opts.committeeName}» داخل ${opts.parentName}`,
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>مرحباً ${esc(opts.approverName)}،</p>
+      <p>اقترح <strong>${esc(opts.requestedByName)}</strong> لجنةً داخل قسمه، وهي بانتظار قرارك.</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+        ${factRow("اللجنة", opts.committeeName)}
+        ${factRow("داخل قسم", opts.parentName)}
+        ${factRow("مسمّى قائدها", opts.leadTitle)}
+      </table>
+      <p style="font-size:14px">واللجنة لا تُفتح باقتراحها: لا تظهر في الهيكل، ولا تُوجَّه إليها
+         تذكرة، ولا يُدعى لها قائد — حتى تعتمدها. ومتى اعتمدتها صارت قسماً داخل قسمه بلونها
+         ومسمّاها وبنك أسئلتها.</p>
+      <p style="margin:22px 0">
+        <a href="${esc(opts.reviewUrl)}"
+           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
+          افتح طلبات اللجان
+        </a>
+      </p>
+      <p style="font-size:13px;color:#6B6B6B">والردّ لا يقع بلا سبب مكتوب — يقرؤه مقترِحُها.</p>
+    </div>`,
+    "طلب لجنة"
+  );
+}
+
+/** قرارُ اللجنة — لمن اقترحها، فهو صاحب الشأن */
+export async function sendCommitteeDecisionEmail(opts: {
+  to: string;
+  fullName: string;
+  committeeName: string;
+  parentName: string;
+  approved: boolean;
+  note: string | null;
+  decidedByName: string;
+  boardUrl: string;
+}) {
+  const head = opts.approved
+    ? `اعتُمدت لجنة «${opts.committeeName}» — وفُتحت`
+    : `لم تُعتمد لجنة «${opts.committeeName}»`;
+
+  return send(
+    opts.to,
+    head,
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>مرحباً ${esc(opts.fullName)}،</p>
+      <p>${
+        opts.approved
+          ? `اعتمد <strong>${esc(opts.decidedByName)}</strong> لجنة <strong>${esc(opts.committeeName)}</strong> داخل ${esc(opts.parentName)} — وفُتحت الآن.`
+          : `راجع <strong>${esc(opts.decidedByName)}</strong> اقتراحَ لجنة <strong>${esc(opts.committeeName)}</strong> داخل ${esc(opts.parentName)} ولم يعتمدها.`
+      }</p>
+      ${
+        opts.note
+          ? `<p style="margin:0 0 6px;font-weight:bold">${opts.approved ? "ملاحظة المعتمِد:" : "السبب:"}</p>
+             <p style="margin:0 0 18px;padding:12px 14px;background:#F6F4F0;border-radius:10px">${esc(opts.note)}</p>`
+          : ""
+      }
+      ${
+        opts.approved
+          ? `<p style="font-size:14px">وخطوتُك الآن من لوحة قسمك: <strong>ادعُ قائدها</strong> — فيصير قائداً للجنته بمسمّاها،
+               ثم يدعو أعضاءها ويملأ بنك أسئلتهم كما تفعل أنت في قسمك.</p>`
+          : `<p style="font-size:14px">واللجنة لم تُفتح: لا تظهر في الهيكل ولا يُدعى لها أحد. ويمكنك إزالة الاقتراح
+               من لوحة قسمك، أو اقتراحُ لجنةٍ أخرى بما يُعالج السبب أعلاه.</p>`
+      }
+      <p style="margin:22px 0">
+        <a href="${esc(opts.boardUrl)}"
+           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
+          افتح لوحة قسمك
+        </a>
+      </p>
+    </div>`,
+    "قرار لجنة"
+  );
+}

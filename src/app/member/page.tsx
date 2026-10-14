@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
 import { themeFromColor, BRAND } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
@@ -58,7 +59,7 @@ export default async function MemberPortalPage() {
   const unacknowledged = member.warnings.filter((w) => !w.acknowledgedAt).length;
 
   const [departments, tickets, announcements, leadership, colleagues] = await Promise.all([
-    prisma.department.findMany({ orderBy: { name: "asc" } }),
+    prisma.department.findMany({ where: OPEN_DEPARTMENT_WHERE, orderBy: { name: "asc" } }),
     // تذاكره: ما رفعه، وما وُجِّه إليه باسمه، وما وُجِّه إلى قسمه.
     // الأخير كان ناقصاً: مسار العمل اليومي (محتوى ← تصميم ← نشر) يُوجَّه
     // إلى القسم لا إلى شخصٍ بعينه، فكانت تذاكر القسم لا يراها أحد من

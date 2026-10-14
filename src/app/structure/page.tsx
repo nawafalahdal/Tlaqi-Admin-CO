@@ -59,6 +59,9 @@ export default async function StructurePage() {
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
           <Stat label="الأشخاص" value={chart.counts.people} />
           <Stat label="الأقسام" value={chart.counts.departments} />
+          {chart.counts.committees > 0 && (
+            <Stat label="اللجان" value={chart.counts.committees} />
+          )}
           {chart.counts.vacancies > 0 && (
             <span className="rounded-full bg-amber-100 px-3 py-1 font-bold text-amber-900">
               مناصب شاغرة: {chart.counts.vacancies}

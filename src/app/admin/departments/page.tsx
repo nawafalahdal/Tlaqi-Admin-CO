@@ -11,6 +11,8 @@ import { canCreateDepartment, canDeleteDepartment } from "@/lib/departments";
 import { NewDepartmentForm } from "./NewDepartmentForm";
 import { DepartmentColor } from "./DepartmentColor";
 import { DeleteDepartment } from "./DeleteDepartment";
+import { CommitteeRequests } from "./CommitteeRequests";
+import { canDecideCommittee, pendingCommittees, committeeLeadTitle } from "@/lib/committees";
 
 /** فهرس الأقسام وإنشاء قسم جديد.
  *
@@ -30,12 +32,36 @@ export default async function DepartmentsIndexPage() {
   const canCreate = canCreateDepartment(session.user.role);
   const canDelete = canDeleteDepartment(session.user.role);
 
-  const departments = await prisma.department.findMany({
-    orderBy: { name: "asc" },
-    include: {
-      _count: { select: { members: true, admins: true } },
-      testTracks: { include: { _count: { select: { questions: true } } } },
-    },
+  const canDecide = canDecideCommittee(session.user.role);
+
+  const [departments, pending] = await Promise.all([
+    // department-scope: all — صفحةُ الحوكمة: تُعرَض فيها المقترحةُ والمردودة
+    prisma.department.findMany({
+      orderBy: { name: "asc" },
+      include: {
+        _count: { select: { members: true, admins: true } },
+        testTracks: { include: { _count: { select: { questions: true } } } },
+        parent: { select: { id: true, name: true } },
+      },
+    }),
+    // الطابورُ يُقرأ لمن يقرّر وحده: قراءةٌ لا تُجرى لمن لا يملكها
+    canDecide ? pendingCommittees() : Promise.resolve([]),
+  ]);
+
+  /** الأقسامُ الأصيلة أولاً، وكلُّ لجنةٍ تحت أبيها مباشرةً — فتُقرأ
+   *  الصفحةُ شجرةً كالهيكل، لا قائمةً تُخالفه.
+   *
+   *  والمقترحةُ والمردودةُ تُعرضان هنا أيضاً لمن يملك الهيكل: هذه صفحةُ
+   *  الحوكمة لا قائمةَ وجهات — وإخفاءُ المردودة يجعل اقتراحاً مُعاداً
+   *  يبدو جديداً. */
+  const roots = departments.filter((d) => !d.parentId);
+  const childrenOf = (id: string) => departments.filter((d) => d.parentId === id);
+  const ordered = roots.flatMap((root) => {
+    const kids = childrenOf(root.id).flatMap((kid) => [
+      { row: kid, depth: 1 },
+      ...childrenOf(kid.id).map((g) => ({ row: g, depth: 2 })),
+    ]);
+    return [{ row: root, depth: 0 }, ...kids];
   });
 
   return (
@@ -60,12 +86,40 @@ export default async function DepartmentsIndexPage() {
         {/* حدّ الصلاحية مكتوب لا مفترَض */}
         <Card className="p-4 text-xs leading-relaxed text-black/50">{td.scopeNote}</Card>
 
+        {canDecide && (
+          <Card className="p-4 sm:p-5">
+            <h2 className="mb-1 text-sm font-bold">اقتراحات اللجان ({pending.length})</h2>
+            <p className="mb-3 text-xs leading-relaxed text-black/50">
+              اللجنة قسمٌ داخل قسم: يقترحها قائدُ القسم بلونها ومسمّى قائدها، وتُفتح باعتمادك —
+              فيصير لها بنكُ أسئلة، وتظهر في الهيكل فرعاً داخل أبيها، ويدعو قائدُ القسم قيادتَها.
+            </p>
+            <CommitteeRequests
+              theme={theme}
+              requests={pending.map((p) => ({
+                id: p.id,
+                name: p.name,
+                colorHex: p.colorHex,
+                leadTitle: p.leadTitle,
+                requestedByName: p.requestedByName,
+                parentName: p.parent?.name ?? "—",
+                parentColorHex: p.parent?.colorHex ?? "#341D2B",
+              }))}
+            />
+          </Card>
+        )}
+
         <section className="flex flex-col gap-3">
-          {departments.map((d) => {
+          {ordered.map(({ row: d, depth }) => {
             const memberTrack = d.testTracks.find((tr) => tr.scope === "department_member");
             const questionCount = memberTrack?._count.questions ?? 0;
+            const isCommittee = Boolean(d.parentId);
             return (
-              <Card key={d.id} className="p-4">
+              <Card
+                key={d.id}
+                className="p-4"
+                // الإزاحةُ تُقرأ تبعيةً: اللجنةُ تحت أبيها لا بجانبه
+                style={depth > 0 ? { marginInlineStart: `${depth * 1.5}rem` } : undefined}
+              >
                 <div className="flex items-start gap-4">
                   <span
                     className="h-11 w-11 shrink-0 rounded-2xl"
@@ -74,7 +128,27 @@ export default async function DepartmentsIndexPage() {
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-sm font-bold">{d.name}</h2>
+                      <h2 className="text-sm font-bold">
+                        {isCommittee ? `لجنة ${d.name}` : d.name}
+                      </h2>
+                      {isCommittee && (
+                        <span
+                          className="rounded-full px-2.5 py-0.5 text-[11px] font-bold"
+                          style={{ background: `${d.colorHex}1F`, color: d.colorHex }}
+                        >
+                          داخل {d.parent?.name ?? "—"}
+                        </span>
+                      )}
+                      {isCommittee && d.committeeStatus === "pending_review" && (
+                        <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-900">
+                          بانتظار الاعتماد
+                        </span>
+                      )}
+                      {isCommittee && d.committeeStatus === "rejected" && (
+                        <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-[11px] font-bold text-red-700">
+                          لم تُعتمد
+                        </span>
+                      )}
                       {d.leadershipOnly && (
                         <span className="rounded-full bg-[#341D2B] px-2.5 py-0.5 text-[11px] font-bold text-[#EEF6DF]">
                           {td.exceptionalBadge}
@@ -87,9 +161,19 @@ export default async function DepartmentsIndexPage() {
                           يوحي بنقصٍ ليس فيه */}
                       {!d.leadershipOnly && ` · ${td.questionsCount}: ${questionCount}`}
                     </p>
-                    {questionCount === 0 && !d.leadershipOnly && (
-                      <p className="mt-1 text-xs font-semibold text-[#9A2E1C]">{td.emptyTrack}</p>
+                    {isCommittee && (
+                      <p className="mt-0.5 text-xs text-black/40">
+                        مسمّى قائدها: {committeeLeadTitle(d.name, d.leadTitle)}
+                        {d.decisionNote ? ` · ملاحظة القرار: ${d.decisionNote}` : ""}
+                      </p>
                     )}
+                    {/* اللجنةُ التي لم تُعتمد بلا بنكٍ بعد — وذاك ليس نقصاً
+                        يُنذَر به، بل حالُها قبل الفتح */}
+                    {questionCount === 0 &&
+                      !d.leadershipOnly &&
+                      (!isCommittee || d.committeeStatus === "approved") && (
+                        <p className="mt-1 text-xs font-semibold text-[#9A2E1C]">{td.emptyTrack}</p>
+                      )}
                   </div>
                 </div>
                 {(canCreate || canDelete) && (

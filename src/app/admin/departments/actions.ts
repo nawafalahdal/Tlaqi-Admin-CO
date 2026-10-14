@@ -8,6 +8,7 @@ import {
   deleteDepartment,
   assignMemberDepartment,
 } from "@/lib/departments";
+import { decideCommittee } from "@/lib/committees";
 import { prisma } from "@/lib/prisma";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { safeErrorMessage } from "@/lib/safeError";
@@ -130,6 +131,34 @@ export async function assignMemberDepartmentAction(
     revalidatePath("/admin/departments");
     revalidatePath("/admin");
     return { error: null, done: true, departmentName: res.departmentName };
+  } catch (err) {
+    return { error: safeErrorMessage(err) };
+  }
+}
+
+/** قرارُ المدير التنفيذي في لجنةٍ مقترحة: فتحاً أو ردّاً بسببٍ مكتوب */
+export async function decideCommitteeAction(
+  committeeId: string,
+  decision: "approved" | "rejected",
+  note: string
+): Promise<{ error: string | null; done?: boolean; message?: string }> {
+  const session = await auth();
+  if (!session) return { error: "يجب تسجيل الدخول" };
+
+  try {
+    const res = await decideCommittee({ committeeId, decision, note, session });
+    if (!res.ok) return { error: res.reason };
+    revalidatePath("/admin/departments");
+    revalidatePath("/admin");
+    revalidatePath("/structure");
+    return {
+      error: null,
+      done: true,
+      message:
+        res.decision === "approved"
+          ? `فُتحت لجنة «${res.name}» داخل ${res.parentName} — ويدعو قائدُ القسم قيادتها الآن`
+          : `رُدَّ اقتراح «${res.name}» — ووصل السبب مقترِحَها`,
+    };
   } catch (err) {
     return { error: safeErrorMessage(err) };
   }

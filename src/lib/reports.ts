@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
 import { accountRoleLabel } from "@/lib/testTracks";
 
 /** التقارير — ملخّصٌ يبقى بعد أن تُؤرشَف التذاكر.
@@ -51,6 +52,7 @@ export type DepartmentReport = {
 /** ملخّص القادة — للتنفيذي والمؤسس: قسمٌ قسماً */
 export async function departmentsReport(): Promise<DepartmentReport[]> {
   const departments = await prisma.department.findMany({
+    where: OPEN_DEPARTMENT_WHERE,
     orderBy: [{ leadershipOnly: "desc" }, { name: "asc" }],
     select: {
       id: true,

@@ -201,6 +201,59 @@ const people = (await page.textContent("body")) ?? "";
 check(!/تعذّر إتمام العملية|Application error/.test(people), "/admin/people — بلا خطأ تشغيل");
 check(people.includes("كرِّمه على إنجاز"), "**/admin/people — زرّ التكريم معروضٌ للمؤسس**");
 
+// ── اللجان: طابورُ الاعتماد عند من يقرّر، واللجنةُ فرعٌ في الهيكل
+//
+// **وما يُختبَر هنا لا تراه اختباراتُ الطبقة الخلفية:** الطابورُ مكوّنٌ
+// عميل بأزرارٍ وحقل سبب، والشجرةُ تُرسم نفسها تكراراً — وكلاهما قد
+// يُبنى بلا خطأ ثم ينكسر عند أول طلبٍ حقيقي.
+await page.goto(BASE + "/admin/departments", { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(3000);
+const depts = (await page.textContent("body")) ?? "";
+check(!/تعذّر إتمام العملية|Application error/.test(depts), "/admin/departments — بلا خطأ تشغيل");
+check(depts.includes("اقتراحات اللجان"), "**/admin/departments — طابورُ اللجان معروضٌ لمن يقرّر**");
+check(/لجنة المحتوى|لجنة «?المحتوى/.test(depts), "وفيه اللجنةُ المقترحة باسمها");
+check(depts.includes("بانتظار الاعتماد"), "وموسومةٌ بأنها بانتظار الاعتماد");
+check(depts.includes("لجنة التطوير"), "واللجنةُ المعتمدة تُعرَض لجنةً لا قسماً");
+check(depts.includes("داخل التسويق"), "ومنسوبةٌ إلى أبيها صريحاً");
+check(
+  (await page.locator('button:has-text("اعتمدها وافتحها")').count()) > 0,
+  "**وزرُّ الاعتماد مرسومٌ وقابلٌ للضغط**"
+);
+check(
+  (await page.locator('button:has-text("ردّها بسبب")').count()) > 0,
+  "وزرُّ الردّ بسبب كذلك"
+);
+// الردُّ يَطلب سبباً قبل أن يُرسَل — الحرسُ مُعلَنٌ في الواجهة لا مخفيّ
+await page.locator('button:has-text("ردّها بسبب")').first().click();
+await page.waitForTimeout(600);
+const rejectForm = (await page.textContent("body")) ?? "";
+check(rejectForm.includes("سببُ الردّ"), "والردُّ يفتح حقل السبب قبل الإرسال");
+check(
+  await page.locator('button:has-text("أرسل الردّ")').first().isDisabled(),
+  "**وزرُّ الإرسال معطَّلٌ حتى يُكتب السبب**"
+);
+
+// الهيكل: اللجنةُ فرعٌ داخل أبيها لا بطاقةٌ بجانبه
+await page.goto(BASE + "/structure", { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(3000);
+const tree = (await page.textContent("body")) ?? "";
+check(!/تعذّر إتمام العملية|Application error/.test(tree), "/structure — بلا خطأ تشغيل مع اللجان");
+check(tree.includes("لجنة التطوير"), "**/structure — اللجنةُ المعتمدة في الشجرة**");
+check(tree.includes("اللجان"), "وعدّادُ اللجان ظاهر");
+check(!tree.includes("لجنة المحتوى") && !tree.includes("المحتوى"),
+      "**والمقترحةُ غائبةٌ عن الهيكل — الاقتراحُ ليس فتحاً**");
+// والفرعُ مرسومٌ داخل إطار أبيه: ترويسةُ اللجنة تقع داخل عمود التسويق
+const nestedInDom = await page.evaluate(() => {
+  const nodes = [...document.querySelectorAll("span")];
+  const committee = nodes.find((n) => n.textContent?.trim() === "لجنة التطوير");
+  const parent = nodes.find((n) => n.textContent?.trim() === "التسويق");
+  if (!committee || !parent) return "لم يُعثر على الترويستين";
+  // أقربُ عمودِ فرعٍ للتسويق يجب أن يحتوي ترويسةَ اللجنة
+  const col = parent.closest("div.flex-col");
+  return col && col.contains(committee) ? "nested" : "sibling";
+});
+check(nestedInDom === "nested", "**واللجنةُ مرسومةٌ داخل فرع أبيها لا بجانبه**", String(nestedInDom));
+
 // ── السمتان: التبديل، والثبات عبر الصفحات، وبلا ومضة
 {
   const themeOf = () => page.evaluate(() => document.documentElement.dataset.theme);

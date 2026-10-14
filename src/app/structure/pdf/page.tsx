@@ -116,7 +116,9 @@ export default async function StructurePdfPage() {
           style={{ background: `${BRAND.beige}80`, borderTop: `1px solid ${ORG_SENIOR_COLOR}1F` }}
         >
           <span className="font-semibold text-black/60">
-            {chart.counts.people} شخصاً • {chart.counts.departments} أقسام • لا مقاعد شاغرة
+            {chart.counts.people} شخصاً • {chart.counts.departments} أقسام
+            {chart.counts.committees > 0 ? ` • ${chart.counts.committees} لجنة` : ""} • لا مقاعد
+            شاغرة
           </span>
           <span className="text-black/40">
             يُبنى آلياً من سجلّات المنصة — لا يُحرَّر يدوياً • tlaqiteam.site

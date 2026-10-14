@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
 import { isLeadership } from "@/lib/announcements";
 import { sweepOverdueRequests, sweepExpiredCandidateAccounts } from "@/lib/workflow";
 import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere, canRespondToTicket } from "@/lib/tickets";
@@ -48,7 +49,7 @@ export default async function AdminPage() {
 
   const [departments, leadershipQueue, memberQueue, requests, escalatedTickets, announcements] =
     await Promise.all([
-      prisma.department.findMany({ orderBy: { name: "asc" } }),
+      prisma.department.findMany({ where: OPEN_DEPARTMENT_WHERE, orderBy: { name: "asc" } }),
       prisma.member.findMany({
         where: {
           approvalStatus: "pending_review",

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
 import { approverFor } from "@/lib/notify";
 import { singleRecipient } from "@/lib/emailPolicy";
 import { isSigningRole } from "@/lib/signatures";
@@ -1309,7 +1310,10 @@ export async function seatConflicts(): Promise<
   }
 
   // قيادة القسم مفردةٌ لكل قسم لا للمنظمة
-  const departments = await prisma.department.findMany({ select: { id: true, name: true } });
+  const departments = await prisma.department.findMany({
+    where: OPEN_DEPARTMENT_WHERE,
+    select: { id: true, name: true },
+  });
   for (const dept of departments) {
     const rows = await prisma.user.findMany({
       where: { role: "department_admin", isActive: true, departmentId: dept.id },

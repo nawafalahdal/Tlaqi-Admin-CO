@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
 import { sweepOverdueRequests, sweepExpiredCandidateAccounts } from "@/lib/workflow";
 import { sweepTicketEscalation, TICKET_STAGE_LABELS, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere } from "@/lib/tickets";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
@@ -45,7 +46,7 @@ export default async function OperationsPage() {
       orderBy: { dueDate: "asc" },
     }),
     announcementsForSession(session, 8),
-    prisma.department.findMany({ orderBy: { name: "asc" } }),
+    prisma.department.findMany({ where: OPEN_DEPARTMENT_WHERE, orderBy: { name: "asc" } }),
   ]);
 
   const dict = getDictionary(await getLocale());

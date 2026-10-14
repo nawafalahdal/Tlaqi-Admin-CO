@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { BRAND } from "@/lib/brand";
 import { accountRoleLabel } from "@/lib/testTracks";
+import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
 
 /** الهيكل التنظيمي — يُستخرَج ولا يُحرَّر.
  *
@@ -48,6 +49,14 @@ export type OrgDepartment = {
   /** قائد القسم — أو إعلانُ شغور المنصب */
   lead: OrgSeat;
   members: OrgPerson[];
+  /** لجانُه المعتمدة — فروعٌ داخله لا أقساماً بجانبه.
+   *
+   *  واللجنة تُرسَم **داخل** إطار أبيها بلونها هي: فيُقرأ أنها منه لا
+   *  أنها قسمٌ ثالث. والمقترحةُ لم تُعتمد لا تدخل الهيكل أصلاً —
+   *  `OPEN_DEPARTMENT_WHERE` يَحجبها من القراءة. */
+  committees: OrgDepartment[];
+  /** لجنةٌ لا قسمٌ أصيل — يُكتب على ترويستها «لجنة» */
+  isCommittee: boolean;
 };
 
 /** اكتمالُ الهيكل — شرطُ تنزيله نسخةً رسمية.
@@ -74,7 +83,7 @@ export type OrgChart = {
   departments: OrgDepartment[];
   /** معتمدون في المنصة بلا قسم — يُعرضون ولا يُخفَون */
   unassigned: OrgPerson[];
-  counts: { people: number; departments: number; vacancies: number };
+  counts: { people: number; departments: number; committees: number; vacancies: number };
   readiness: OrgReadiness;
 };
 
@@ -83,6 +92,16 @@ export type OrgChart = {
  *  قسمٌ بقائدٍ وعضوٍ واحد ليس فريقاً، والهيكل الذي يُنزَّل رسمياً يقول
  *  إنه كذلك. والعدد قرارُ صاحب المنصة لا اجتهاد. */
 export const MIN_DEPARTMENT_MEMBERS = 2;
+
+/** أقلُّ عددٍ في اللجنة خلا قائدها.
+ *
+ *  واللجنة ليست قسماً في هذا الحدّ: القسمُ فريقُ عملٍ دائم، واللجنةُ
+ *  تُنشأ لعملٍ بعينه وقد تكون قائداً وعضواً. فلو طُبِّق عليها حدُّ
+ *  القسم لمنعت كلُّ لجنةٍ جديدة تنزيلَ الهيكل الرسمي يومَ فتحها —
+ *  ولصار الحدُّ عقوبةً على التنظيم لا حرصاً عليه.
+ *
+ *  أما القائدُ فلازم: لجنةٌ بلا قائدٍ مقعدٌ شاغرٌ في وثيقةٍ رسمية. */
+export const MIN_COMMITTEE_MEMBERS = 1;
 
 /** ألوان العرض — مرتبطةٌ بالمستوى والقسم لا تُختار عشوائياً.
  *
@@ -177,6 +196,24 @@ const MEMBER_SELECT = {
   department: { select: { name: true } },
 } as const;
 
+/** موانعُ اللجان — تُجمَع في العمق كلِّه لا في الطبقة الأولى وحدها.
+ *
+ *  فلجنةٌ فرعيةٌ بلا قائدٍ مقعدٌ شاغرٌ كغيره، وإخفاؤه لأنه في الطبقة
+ *  الثانية يُنزِّل ورقةً تقول «لا مقاعد شاغرة» وفيها مقعد. */
+function collectCommitteeBlockers(dept: OrgDepartment, blockers: string[]) {
+  for (const c of dept.committees) {
+    if (c.lead.kind !== "filled") {
+      blockers.push(`لجنة «${c.name}» في «${dept.name}» بلا قائد`);
+    }
+    if (c.members.length < MIN_COMMITTEE_MEMBERS) {
+      blockers.push(
+        `لجنة «${c.name}»: ${c.members.length} من ${MIN_COMMITTEE_MEMBERS} أعضاء خلا القائد`
+      );
+    }
+    collectCommitteeBlockers(c, blockers);
+  }
+}
+
 /** يبني الهيكل من الحقيقة المسجَّلة. */
 export async function buildOrgChart(): Promise<OrgChart> {
   /** بُرُد أصحاب الحسابات الإدارية النشطة.
@@ -218,12 +255,16 @@ export async function buildOrgChart(): Promise<OrgChart> {
       orderBy: { fullName: "asc" },
     }),
     prisma.department.findMany({
+      // اللجنةُ المقترحةُ أو المردودة لا تدخل الهيكل: الاقتراحُ ليس فتحاً
+      where: OPEN_DEPARTMENT_WHERE,
       orderBy: [{ leadershipOnly: "desc" }, { name: "asc" }],
       select: {
         id: true,
         name: true,
         colorHex: true,
         leadershipOnly: true,
+        parentId: true,
+        committeeStatus: true,
         admins: {
           where: { isActive: true, role: "department_admin" },
           select: USER_SELECT,
@@ -264,11 +305,12 @@ export async function buildOrgChart(): Promise<OrgChart> {
       : [{ kind: "vacant", title: "مسؤول التشغيل" }];
   if (opsOfficers.length === 0) vacancies++;
 
-  const departments: OrgDepartment[] = deptRows.map((d) => {
+  const flat: OrgDepartment[] = deptRows.map((d) => {
     const leadRow = d.admins[0];
+    const isCommittee = Boolean(d.parentId);
     const lead: OrgSeat = leadRow
       ? { kind: "filled", person: personFromUser(leadRow) }
-      : { kind: "vacant", title: `قائد ${d.name}` };
+      : { kind: "vacant", title: isCommittee ? `قائد لجنة ${d.name}` : `قائد ${d.name}` };
     if (!leadRow) vacancies++;
     return {
       id: d.id,
@@ -278,14 +320,30 @@ export async function buildOrgChart(): Promise<OrgChart> {
       leadershipOnly: d.leadershipOnly,
       lead,
       members: d.members.filter(notAlreadyShown).map(personFromMember),
+      committees: [],
+      isCommittee,
     };
   });
+
+  /** الوصلُ: كلُّ لجنةٍ تُعلَّق في أبيها، فتُرسَم داخله لا بجانبه.
+   *
+   *  ولجنةٌ ضاع أبوها من القراءة (حالٌ لا تقع: الأبُ قسمٌ أصيل أو لجنةٌ
+   *  معتمدة، وكلاهما مقروء) تبقى جذراً فتُرى — ولا تُسقَط صامتةً. */
+  const byId = new Map(flat.map((d) => [d.id, d]));
+  const roots: OrgDepartment[] = [];
+  for (const row of deptRows) {
+    const node = byId.get(row.id)!;
+    const parent = row.parentId ? byId.get(row.parentId) : null;
+    if (parent) parent.committees.push(node);
+    else roots.push(node);
+  }
+  const departments = roots;
 
   const people =
     (founder ? 1 : 0) +
     (ceo ? 1 : 0) +
     opsOfficers.length +
-    departments.reduce((n, d) => n + (d.lead.kind === "filled" ? 1 : 0) + d.members.length, 0) +
+    flat.reduce((n, d) => n + (d.lead.kind === "filled" ? 1 : 0) + d.members.length, 0) +
     unassignedMembers.filter(notAlreadyShown).length;
 
   // الإدارة العليا تُرفَع إلى أعلى ولا تُكرَّر تحت الأقسام: هي الطبقة
@@ -309,6 +367,7 @@ export async function buildOrgChart(): Promise<OrgChart> {
         `«${d.name}»: ${d.members.length} من ${MIN_DEPARTMENT_MEMBERS} أعضاء خلا القائد`
       );
     }
+    collectCommitteeBlockers(d, blockers);
   }
   if (senior && senior.members.length === 0 && senior.lead.kind !== "filled") {
     blockers.push("الإدارة العليا بلا أعضاء");
@@ -330,7 +389,13 @@ export async function buildOrgChart(): Promise<OrgChart> {
     senior,
     departments: branches,
     unassigned: unassignedShown,
-    counts: { people, departments: branches.length, vacancies },
+    counts: {
+      people,
+      departments: branches.length,
+      // اللجانُ تُعَدّ وحدها: ليست أقساماً تُجمَع إليها، ولا تُخفى
+      committees: flat.filter((d) => d.isCommittee).length,
+      vacancies,
+    },
     readiness: { ready: blockers.length === 0, blockers },
   };
 }

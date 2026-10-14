@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
@@ -35,7 +36,7 @@ export default async function AdminInvitesPage() {
   await sweepExpiredCandidateAccounts();
 
   const [departments, invites, execSeat, opsSeat] = await Promise.all([
-    prisma.department.findMany({ orderBy: { name: "asc" } }),
+    prisma.department.findMany({ where: OPEN_DEPARTMENT_WHERE, orderBy: { name: "asc" } }),
     prisma.invite.findMany({
       include: { department: true, member: true },
       orderBy: { createdAt: "desc" },
