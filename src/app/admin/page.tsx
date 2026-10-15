@@ -2,10 +2,12 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
+import { OPEN_DEPARTMENT_WHERE, DEPARTMENT_TAKE } from "@/lib/committees";
 import { isLeadership } from "@/lib/announcements";
-import { sweepOverdueRequests, sweepExpiredCandidateAccounts } from "@/lib/workflow";
-import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere, canRespondToTicket } from "@/lib/tickets";
+import { sweepOverdueRequests, sweepExpiredCandidateAccounts,
+  QUEUE_TAKE,
+} from "@/lib/workflow";
+import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere, canRespondToTicket, TICKET_TARGET_USER_SELECT, TICKET_TARGET_MEMBER_SELECT, TICKET_TARGET_TAKE } from "@/lib/tickets";
 import {
   announcementsForSession,
   canPublishAnnouncement,
@@ -27,6 +29,7 @@ import { RaiseAdminTicketForm, type TicketTargetOption } from "./tickets/RaiseAd
 import { accountRoleLabel } from "@/lib/testTracks";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
+import { runDueSweeps } from "@/lib/sweepThrottle";
 
 export default async function AdminPage() {
   const session = await auth();
@@ -40,13 +43,21 @@ export default async function AdminPage() {
 
   const isSuperAdmin = session.user.role === "super_admin";
 
-  await sweepOverdueRequests();
-  await sweepTicketEscalation();
-  await sweepExpiredCandidateAccounts();
+  // الكنسُ مُقنَّنٌ من العَرْض: انظر `@/lib/sweepThrottle` — من يَفوز
+  // بالصفّ يَكنس، فلا خمسُ رحلاتٍ ولا بريدٌ في كل فتحةِ صفحة
+  await runDueSweeps({
+    overdue_requests: () => sweepOverdueRequests(),
+    ticket_escalation: () => sweepTicketEscalation(),
+    candidate_expiry: () => sweepExpiredCandidateAccounts(),
+  });
 
   const [departments, leadershipQueue, memberQueue, requests, escalatedTickets, announcements] =
     await Promise.all([
-      prisma.department.findMany({ where: OPEN_DEPARTMENT_WHERE, orderBy: { name: "asc" } }),
+      prisma.department.findMany({
+      where: OPEN_DEPARTMENT_WHERE,
+      orderBy: { name: "asc" },
+      take: DEPARTMENT_TAKE,
+    }),
       prisma.member.findMany({
         where: {
           approvalStatus: "pending_review",
@@ -55,6 +66,7 @@ export default async function AdminPage() {
         },
         include: { department: true, invite: true },
         orderBy: { createdAt: "asc" },
+        take: QUEUE_TAKE,
       }),
       prisma.member.findMany({
         where: {
@@ -108,12 +120,15 @@ export default async function AdminPage() {
   const [ticketPeople, ticketMembers] = await Promise.all([
     prisma.user.findMany({
       where: { isActive: true, id: { not: session.user.id } },
+      select: TICKET_TARGET_USER_SELECT,
       orderBy: [{ role: "asc" }, { fullName: "asc" }],
+      take: TICKET_TARGET_TAKE,
     }),
     prisma.member.findMany({
       where: { isActive: true, approvalStatus: "approved" },
-      include: { department: true },
+      select: TICKET_TARGET_MEMBER_SELECT,
       orderBy: { fullName: "asc" },
+      take: TICKET_TARGET_TAKE,
     }),
   ]);
 

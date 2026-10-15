@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
+import { OPEN_DEPARTMENT_WHERE, DEPARTMENT_TAKE } from "@/lib/committees";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
@@ -23,6 +23,7 @@ import {
 } from "@/lib/workflow";
 import { SeatOccupied } from "@/components/SeatOccupied";
 import { getLocale, getDictionary } from "@/i18n/server";
+import { runDueSweeps } from "@/lib/sweepThrottle";
 
 export default async function AdminInvitesPage() {
   const session = await auth();
@@ -33,10 +34,14 @@ export default async function AdminInvitesPage() {
 
   const isSuperAdmin = session.user.role === "super_admin";
 
-  await sweepExpiredCandidateAccounts();
+  await runDueSweeps({ candidate_expiry: () => sweepExpiredCandidateAccounts() });
 
   const [departments, invites, execSeat, opsSeat] = await Promise.all([
-    prisma.department.findMany({ where: OPEN_DEPARTMENT_WHERE, orderBy: { name: "asc" } }),
+    prisma.department.findMany({
+      where: OPEN_DEPARTMENT_WHERE,
+      orderBy: { name: "asc" },
+      take: DEPARTMENT_TAKE,
+    }),
     prisma.invite.findMany({
       include: { department: true, member: true },
       orderBy: { createdAt: "desc" },

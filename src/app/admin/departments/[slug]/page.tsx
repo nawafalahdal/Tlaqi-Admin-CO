@@ -6,8 +6,9 @@ import {
   candidateHoursLeft,
   sweepOverdueRequests,
   sweepExpiredCandidateAccounts,
+  QUEUE_TAKE,
 } from "@/lib/workflow";
-import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere, canRespondToTicket } from "@/lib/tickets";
+import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere, canRespondToTicket, TICKET_LIST_TAKE } from "@/lib/tickets";
 import { TicketCard } from "../../tickets/TicketCard";
 import { themeFromColor } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
@@ -38,6 +39,7 @@ import { approvedGoals } from "@/lib/goals";
 import { announcementsForSession, announcementPowers } from "@/lib/announcements";
 import { CandidateWindow } from "@/components/CandidateWindow";
 import { TicketBoard } from "@/components/TicketBoard";
+import { runDueSweeps } from "@/lib/sweepThrottle";
 
 function isCertificateEligible(decidedAt: Date | null) {
   if (!decidedAt) return false;
@@ -110,9 +112,11 @@ export default async function DepartmentBoardPage({
   const canReviewHere = canGovernPeriod(session.user.role);
   const plans = await planCounts();
 
-  await sweepOverdueRequests(department.id);
-  await sweepTicketEscalation();
-  await sweepExpiredCandidateAccounts();
+  await runDueSweeps({
+    overdue_requests: () => sweepOverdueRequests(department.id),
+    ticket_escalation: () => sweepTicketEscalation(),
+    candidate_expiry: () => sweepExpiredCandidateAccounts(),
+  });
 
   const [
     approvalQueue,
@@ -142,11 +146,13 @@ export default async function DepartmentBoardPage({
         invite: { targetRole: "member" },
       },
       orderBy: { createdAt: "asc" },
+      take: QUEUE_TAKE,
     }),
     prisma.request.findMany({
       where: { targetDepartmentId: department.id },
       include: { linkedMember: true },
       orderBy: { createdAt: "desc" },
+      take: QUEUE_TAKE,
     }),
     prisma.member.findMany({
       where: {
@@ -156,6 +162,7 @@ export default async function DepartmentBoardPage({
         invite: { targetRole: "member" },
       },
       orderBy: { fullName: "asc" },
+      take: QUEUE_TAKE,
     }),
     // قاعدة الرؤية المشتركة: تشمل ما وُجِّه إلى قائد القسم باسمه وما
     // رفعه هو — وكلاهما كان يسقط من الاستعلام المكتوب هنا بيد
@@ -163,6 +170,7 @@ export default async function DepartmentBoardPage({
       where: openTicketsWhere(session),
       include: TICKET_INCLUDE,
       orderBy: { stageDueAt: "asc" },
+      take: TICKET_LIST_TAKE,
     }),
     prisma.member.findMany({
       where: {
@@ -172,6 +180,7 @@ export default async function DepartmentBoardPage({
         isActive: true,
       },
       orderBy: { createdAt: "desc" },
+      take: QUEUE_TAKE,
     }),
     announcementsForSession(session, 6),
     // من بدأ خروجه ولم يكتمل ختامه — ويبقى معروضاً بعد الإغلاق مرةً

@@ -75,7 +75,7 @@ export function OrgCard({
         aria-hidden
       />
       <div className="flex flex-col items-center px-3 pb-3 pt-3 text-center">
-        <Portrait avatarData={person.avatarData} name={person.fullName} color={color} className={dims.photo} />
+        <Portrait src={person.avatarUrl} name={person.fullName} color={color} className={dims.photo} />
         <p className={`mt-2 font-bold leading-tight text-black/85 ${dims.name}`}>{person.fullName}</p>
         <p className={`mt-0.5 leading-snug text-black/55 ${dims.title}`}>{person.title}</p>
         {person.scope && (
@@ -106,23 +106,25 @@ export function OrgCard({
  *  المستوى. فالهيكل يبقى مقروءاً متناسقاً قبل أن يرفع أحدٌ صورته،
  *  ويبقى واضحاً أن الصورة ناقصة. */
 function Portrait({
-  avatarData,
+  src,
   name,
   color,
   className,
 }: {
-  avatarData: string | null;
+  src: string | null;
   name: string;
   color: string;
   className: string;
 }) {
-  if (avatarData) {
+  if (src) {
     return (
       // الصورة مُوحَّدةٌ عند الاستلام إلى مربّع ٥١٢ شفّاف الخلفية، فـ
       // `object-contain` يُظهرها كاملةً ولا يقطع رأساً
-      // eslint-disable-next-line @next/next/no-img-element -- data URL مخزَّنة، لا مصدر خارجي يُحسَّن
+      // eslint-disable-next-line @next/next/no-img-element -- مسارٌ داخليٌّ خلف الجلسة، لا يمرّ بمُحسِّن الصور
       <img
-        src={avatarData}
+        src={src}
+        loading="lazy"
+        decoding="async"
         alt={name}
         className={`${className} rounded-full object-contain`}
         style={{ background: `${color}14` }}

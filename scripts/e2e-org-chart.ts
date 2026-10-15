@@ -85,8 +85,15 @@ const F = { actorRole: "super_admin", actorName: "المؤسس" };
     ?? (gone.founder.kind === "filled" ? gone.founder.person : null);
   if (sample) {
     const keys = Object.keys(sample).sort().join(",");
-    chk("**البطاقة أربعة حقول فقط — بلا بريد ولا جوّال**",
-        keys === "avatarData,fullName,id,scope,title", keys);
+    chk("**البطاقة خمسةُ حقولٍ فقط — بلا بريد ولا جوّال**",
+        keys === "avatarUrl,fullName,id,scope,title", keys);
+    // والصورةُ رابطٌ لا بيانات: كانت data URL تُدمَج في الصفحة فبلغت
+    // صفحةُ الهيكل ٣١٩٩ ك.ب منها ٢٤٥٧ ك.ب وثيقةٌ واحدة. فالحقلُ الآن
+    // مسارٌ يُخزَّن في المتصفّح — وهذا الفحصُ يَمنع عودةَ الدمج.
+    chk("**وصورتُه رابطٌ يُخزَّن لا بياناتٌ تُدمَج في الصفحة**",
+        sample.avatarUrl === null ||
+          (sample.avatarUrl.startsWith("/api/avatar/") && !sample.avatarUrl.startsWith("data:")),
+        String(sample.avatarUrl));
   }
 
   // ── ٧) المرقَّى لا يُعرَض مرّتين

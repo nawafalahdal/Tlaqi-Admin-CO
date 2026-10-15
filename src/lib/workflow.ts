@@ -694,6 +694,7 @@ export async function remindRequest(requestId: string, fromName: string) {
 
   const admins = await prisma.user.findMany({
     where: { role: "department_admin", departmentId: request.targetDepartmentId },
+    select: { email: true },
   });
 
   await sendRequestReminderEmail({
@@ -1332,3 +1333,12 @@ export async function seatConflicts(): Promise<
 
   return conflicts;
 }
+
+/** حدُّ طوابير الاعتماد والقوائم المعروضة في اللوحات.
+ *
+ *  **ولماذا حدٌّ أصلاً على طابورٍ لا يُنتظَر أن يطول:** لأن الحدَّ يُعلَن
+ *  ولا يُفترَض. استعلامٌ بلا `take` عقدُه «أعطِني كلَّ شيء» — وهو يَصدق
+ *  اليوم وعشرةُ صفوفٍ في الجدول، ويَنكسر يومَ تَكبر المنصة بلا أن يتغيّر
+ *  سطرٌ واحد. والترتيبُ هنا بالأقدم فالأقدم (الطابورُ يُعالَج من رأسه)،
+ *  فما يُقطَع هو الذيلُ الذي لا يُعالَج في هذه الجلسة على كل حال. */
+export const QUEUE_TAKE = 200;

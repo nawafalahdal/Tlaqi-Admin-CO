@@ -77,8 +77,11 @@ export function ticketTargetLabel(ticket: FullTicket) {
 }
 
 async function emailsForDepartmentAdmins(departmentId: string) {
+  // العنوانُ وحده: هذه الدالّةُ لا تُريد إلا بريداً، وجلبُ `passwordHash`
+  // و`totpSecret` و`avatarData` معه حَملٌ وخطرٌ بلا مقابل
   const admins = await prisma.user.findMany({
     where: { role: "department_admin", departmentId, isActive: true },
+    select: { email: true },
   });
   return admins.map((a) => a.email);
 }
@@ -86,13 +89,19 @@ async function emailsForDepartmentAdmins(departmentId: string) {
 /** بريد المدير التنفيذي. إن لم يكن هناك تنفيذي نشط تذهب للإدارة العليا بدلاً
  *  من أن تضيع التذكرة في الفراغ — التصعيد لا يجوز أن ينتهي عند لا أحد. */
 async function emailsForExecutive() {
-  const execs = await prisma.user.findMany({ where: { role: "executive", isActive: true } });
+  const execs = await prisma.user.findMany({
+    where: { role: "executive", isActive: true },
+    select: { email: true },
+  });
   if (execs.length > 0) return execs.map((e) => e.email);
   return emailsForFounder();
 }
 
 async function emailsForFounder() {
-  const founders = await prisma.user.findMany({ where: { role: "super_admin", isActive: true } });
+  const founders = await prisma.user.findMany({
+    where: { role: "super_admin", isActive: true },
+    select: { email: true },
+  });
   return founders.map((f) => f.email);
 }
 
@@ -747,3 +756,32 @@ export function canRespondToTicket(
       return role === "super_admin";
   }
 }
+
+/** حقولُ وجهةِ التذكرة — ما تَعرضه القائمةُ لا أكثر.
+ *
+ *  **وهذا ليس تحسينَ أداءٍ وحده.** كانت قوائمُ الوجهات تُنادى بلا
+ *  `select`، فتُجلَب أعمدةُ `User` كلُّها إلى عَرْض الصفحة — ومنها
+ *  `passwordHash` و`totpSecret` و`avatarData`. أما الصفحةُ فلا تَعرض
+ *  إلا اسماً وصفة. فجلبُ سرٍّ لا يُعرَض توسيعٌ لسطح الخطر بلا فائدة،
+ *  مع ميجاباتٍ من الصور في الطريق.
+ */
+export const TICKET_TARGET_USER_SELECT = {
+  id: true,
+  fullName: true,
+  role: true,
+} as const;
+
+export const TICKET_TARGET_MEMBER_SELECT = {
+  id: true,
+  fullName: true,
+  department: { select: { name: true } },
+} as const;
+
+/** حدُّ قوائم الوجهات — المنصةُ داخلية، ومن تجاوزها لم يَعُد قائمةً تُقرأ */
+export const TICKET_TARGET_TAKE = 300;
+
+/** حدُّ قوائم التذاكر المعروضة — اللوحةُ تُقرأ، ولا تُقرأ ألفُ تذكرة.
+ *
+ *  والترتيبُ بالأحدث، فما يُقطَع هو الأقدم — وهو ما لا يُنظَر إليه في
+ *  لوحةِ عمل. والسجلُّ الكامل في ملفّ الإكسل المرجعي، لا في الشاشة. */
+export const TICKET_LIST_TAKE = 200;

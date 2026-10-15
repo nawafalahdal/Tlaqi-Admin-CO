@@ -50,10 +50,12 @@ async function shrinkForUpload(file: File): Promise<File> {
     ctx.drawImage(bitmap, 0, 0, w, h);
     bitmap.close();
     const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob((b) => resolve(b), "image/png")
+      // WebP في الرفع كما في التخزين: نصفُ الحِمل صعوداً، والخادمُ يُعيد
+      // الترميزَ على كل حال فلا فرقَ في المخرَج
+      canvas.toBlob((b) => resolve(b), "image/webp", 0.92)
     );
     if (!blob) return file;
-    return new File([blob], "avatar.png", { type: "image/png" });
+    return new File([blob], "avatar.webp", { type: "image/webp" });
   } catch {
     return file;
   }

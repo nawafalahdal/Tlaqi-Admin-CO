@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { avatarUrl } from "@/lib/avatarUrl";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { saveAvatar, clearAvatar } from "@/lib/avatars";
@@ -65,20 +66,23 @@ export async function clearMyAvatarAction(): Promise<{ error: string | null; don
   }
 }
 
-/** صورتي الحالية — لتُعاين قبل الاستبدال */
+/** صورتي الحالية — رابطُها لا بياناتُها.
+ *
+ *  كانت تُعيد data URL فيُرسَل ميجابايتٌ في جوابِ إجراءِ خادمٍ لمجرّد
+ *  معاينةٍ بعد الرفع. والرابطُ يَكفي، والصورةُ في مخزَن المتصفّح أصلاً. */
 export async function myAvatar(): Promise<string | null> {
   const session = await auth();
   if (!session) return null;
-  if (session.user.role === "member") {
-    const m = await prisma.member.findUnique({
-      where: { id: session.user.id },
-      select: { avatarData: true },
-    });
-    return m?.avatarData ?? null;
-  }
-  const u = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { avatarData: true },
-  });
-  return u?.avatarData ?? null;
+  const kind = session.user.role === "member" ? "member" : "user";
+  const row =
+    kind === "member"
+      ? await prisma.member.findUnique({
+          where: { id: session.user.id },
+          select: { avatarVersion: true },
+        })
+      : await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { avatarVersion: true },
+        });
+  return avatarUrl(kind, session.user.id, row?.avatarVersion ?? null);
 }

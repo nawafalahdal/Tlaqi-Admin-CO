@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
+import { OPEN_DEPARTMENT_WHERE, DEPARTMENT_TAKE } from "@/lib/committees";
 import { isLeadership } from "@/lib/announcements";
-import { sweepTicketEscalation, TICKET_STAGE_LABELS, TICKET_INCLUDE, ticketAuthor, ticketTargetLabel, ticketVisibilityWhere, canRespondToTicket } from "@/lib/tickets";
+import { sweepTicketEscalation, TICKET_STAGE_LABELS, TICKET_INCLUDE, ticketAuthor, ticketTargetLabel, ticketVisibilityWhere, canRespondToTicket, TICKET_TARGET_USER_SELECT, TICKET_TARGET_MEMBER_SELECT, TICKET_TARGET_TAKE } from "@/lib/tickets";
 import { themeFromColor, SUPER_ADMIN_THEME, brandInk} from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
@@ -14,6 +14,7 @@ import { RaiseAdminTicketForm, type TicketTargetOption } from "./RaiseAdminTicke
 import { ROLE_LABELS, accountRoleLabel } from "@/lib/testTracks";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
+import { runDueSweeps } from "@/lib/sweepThrottle";
 
 /** صفحة التذاكر الخاصة — كل التذاكر في مكان واحد بدل تفرّقها بين اللوحات.
  *  المفتوحة تُعرض ببطاقات قابلة للإجراء، والمغلقة بجدول مرجعي. */
@@ -25,7 +26,7 @@ export default async function TicketsPage() {
   const allowed = ["super_admin", "executive", "operations_officer", "department_admin"];
   if (!allowed.includes(session.user.role)) redirect("/admin");
 
-  await sweepTicketEscalation();
+  await runDueSweeps({ ticket_escalation: () => sweepTicketEscalation() });
 
   const t = getDictionary(await getLocale());
   const tt = t.ticketsPage;
@@ -38,16 +39,23 @@ export default async function TicketsPage() {
       orderBy: { createdAt: "desc" },
       take: 200,
     }),
-    prisma.department.findMany({ where: OPEN_DEPARTMENT_WHERE, orderBy: { name: "asc" } }),
+    prisma.department.findMany({
+      where: OPEN_DEPARTMENT_WHERE,
+      orderBy: { name: "asc" },
+      take: DEPARTMENT_TAKE,
+    }),
     // لا يُوجَّه أحد تذكرةً لنفسه
     prisma.user.findMany({
       where: { isActive: true, id: { not: session.user.id } },
+      select: TICKET_TARGET_USER_SELECT,
       orderBy: [{ role: "asc" }, { fullName: "asc" }],
+      take: TICKET_TARGET_TAKE,
     }),
     prisma.member.findMany({
       where: { isActive: true, approvalStatus: "approved" },
-      include: { department: true },
+      select: TICKET_TARGET_MEMBER_SELECT,
       orderBy: { fullName: "asc" },
+      take: TICKET_TARGET_TAKE,
     }),
   ]);
 

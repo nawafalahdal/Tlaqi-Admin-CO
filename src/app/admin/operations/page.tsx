@@ -1,13 +1,13 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
+import { OPEN_DEPARTMENT_WHERE, DEPARTMENT_TAKE } from "@/lib/committees";
 import { AlertsPanel } from "@/components/AlertsPanel";
 import { PlansLink } from "@/components/PlansLink";
 import { planCounts } from "@/lib/plans";
 import { alertsForUser } from "@/lib/alerts";
 import { sweepOverdueRequests, sweepExpiredCandidateAccounts } from "@/lib/workflow";
-import { sweepTicketEscalation, TICKET_STAGE_LABELS, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere } from "@/lib/tickets";
+import { sweepTicketEscalation, TICKET_STAGE_LABELS, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere, TICKET_TARGET_USER_SELECT, TICKET_TARGET_MEMBER_SELECT, TICKET_TARGET_TAKE } from "@/lib/tickets";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card, StatusBadge } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
@@ -24,6 +24,7 @@ import { AnnouncementList } from "../hub/AnnouncementList";
 import { RaiseAdminTicketForm, type TicketTargetOption } from "../tickets/RaiseAdminTicketForm";
 import { accountRoleLabel } from "@/lib/testTracks";
 import { TicketBoard } from "@/components/TicketBoard";
+import { runDueSweeps } from "@/lib/sweepThrottle";
 
 function isOverdue(dueAt: Date) {
   return Date.now() > dueAt.getTime();
@@ -34,9 +35,11 @@ export default async function OperationsPage() {
   if (!session) redirect("/login");
   if (session.user.role !== "operations_officer") redirect("/admin");
 
-  await sweepOverdueRequests();
-  await sweepTicketEscalation();
-  await sweepExpiredCandidateAccounts();
+  await runDueSweeps({
+    overdue_requests: () => sweepOverdueRequests(),
+    ticket_escalation: () => sweepTicketEscalation(),
+    candidate_expiry: () => sweepExpiredCandidateAccounts(),
+  });
 
   const [tickets, requests, announcements, departments] = await Promise.all([
     prisma.ticket.findMany({
@@ -50,7 +53,11 @@ export default async function OperationsPage() {
       orderBy: { dueDate: "asc" },
     }),
     announcementsForSession(session, 8),
-    prisma.department.findMany({ where: OPEN_DEPARTMENT_WHERE, orderBy: { name: "asc" } }),
+    prisma.department.findMany({
+      where: OPEN_DEPARTMENT_WHERE,
+      orderBy: { name: "asc" },
+      take: DEPARTMENT_TAKE,
+    }),
   ]);
 
   const alerts = await alertsForUser(session);
@@ -66,12 +73,15 @@ export default async function OperationsPage() {
   const [ticketPeople, ticketMembers] = await Promise.all([
     prisma.user.findMany({
       where: { isActive: true, id: { not: session.user.id } },
+      select: TICKET_TARGET_USER_SELECT,
       orderBy: [{ role: "asc" }, { fullName: "asc" }],
+      take: TICKET_TARGET_TAKE,
     }),
     prisma.member.findMany({
       where: { isActive: true, approvalStatus: "approved" },
-      include: { department: true },
+      select: TICKET_TARGET_MEMBER_SELECT,
       orderBy: { fullName: "asc" },
+      take: TICKET_TARGET_TAKE,
     }),
   ]);
 

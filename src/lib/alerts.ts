@@ -52,7 +52,8 @@ export async function alertsForUser(session: Session): Promise<Alert[]> {
       totpEnabled: true,
       mustChangePassword: true,
       profileCompletedAt: true,
-      avatarData: true,
+      // الختمُ يَكفي للسؤال «أله صورة؟» — ولا يَجلب ميجاباتٍ ليُجيب بحرف
+      avatarVersion: true,
       phone: true,
       jobTitle: true,
       departmentId: true,
@@ -131,7 +132,7 @@ export async function alertsForUser(session: Session): Promise<Alert[]> {
   const missing: string[] = [];
   if (!me.jobTitle?.trim()) missing.push("المسمّى الوظيفي");
   if (!me.phone?.trim()) missing.push("رقم الجوال");
-  if (!me.avatarData) missing.push("الصورة الشخصية");
+  if (!me.avatarVersion) missing.push("الصورة الشخصية");
   if (!me.departmentId && role === "super_admin") missing.push("قسمك في الهيكل");
   if (missing.length > 0) {
     alerts.push({
@@ -329,7 +330,7 @@ export async function alertsForMember(opts: {
   memberId: string;
   mustChangePassword: boolean;
   profileCompletedAt: Date | null;
-  avatarData: string | null;
+  avatarVersion: Date | null;
   phone: string | null;
   unacknowledgedWarnings: number;
 }): Promise<Alert[]> {
@@ -376,7 +377,7 @@ export async function alertsForMember(opts: {
 
   const missing: string[] = [];
   if (!opts.phone?.trim()) missing.push("رقم الجوال");
-  if (!opts.avatarData) missing.push("الصورة الشخصية");
+  if (!opts.avatarVersion) missing.push("الصورة الشخصية");
   if (!opts.profileCompletedAt) missing.push("بيانات التخصص والشعبة");
   if (missing.length > 0) {
     alerts.push({

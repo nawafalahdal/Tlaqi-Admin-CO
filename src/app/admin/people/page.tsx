@@ -27,6 +27,7 @@ import {
 import { ROLE_LABELS } from "@/lib/testTracks";
 import { loginHealthFor, loginHealthNotes, loginHealthBlocked } from "@/lib/loginHealth";
 import { canAward } from "@/lib/awards";
+import { runDueSweeps } from "@/lib/sweepThrottle";
 
 /** إدارة الأعضاء والهيكل التنظيمي — موضعٌ واحد للشخص وموقعه وقسمه.
  *
@@ -51,7 +52,7 @@ export default async function PeoplePage() {
   const t = getDictionary(await getLocale());
   const tm = t.membersPage;
 
-  await sweepExpiredCandidateAccounts();
+  await runDueSweeps({ candidate_expiry: () => sweepExpiredCandidateAccounts() });
 
   const [me, accounts, allMembers, removedUsers, allDepartments, plans] =
     await Promise.all([

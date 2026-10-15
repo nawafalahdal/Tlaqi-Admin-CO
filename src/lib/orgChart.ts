@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { BRAND } from "@/lib/brand";
 import { accountRoleLabel } from "@/lib/testTracks";
 import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
+import { avatarUrl } from "@/lib/avatarUrl";
 
 /** الهيكل التنظيمي — يُستخرَج ولا يُحرَّر.
  *
@@ -28,7 +29,8 @@ export type OrgPerson = {
   title: string;
   /** القسم أو المسؤولية — يُعرض حين يُوضّح شيئاً زائداً على المسمّى */
   scope: string | null;
-  avatarData: string | null;
+  /** رابطُ صورته، أو `null` إن لم يرفع — ولا تُحمَل الصورةُ في الصفحة */
+  avatarUrl: string | null;
 };
 
 /** مقعدٌ في الهيكل: إمّا شاغلُه أو إعلانُ شغوره.
@@ -152,7 +154,7 @@ function personFromUser(u: {
   fullName: string;
   jobTitle: string | null;
   role: string;
-  avatarData: string | null;
+  avatarVersion: Date | null;
   department?: { name: string } | null;
 }): OrgPerson {
   const roleLabel = accountRoleLabel(u.role);
@@ -161,20 +163,20 @@ function personFromUser(u: {
   // «التسويق»، أما «أخصائية» فتحتاج
   const deptName = u.department?.name ?? null;
   const scope = deptName && !title.includes(deptName) ? deptName : null;
-  return { id: u.id, fullName: u.fullName, title, scope, avatarData: u.avatarData };
+  return { id: u.id, fullName: u.fullName, title, scope, avatarUrl: avatarUrl("user", u.id, u.avatarVersion) };
 }
 
 function personFromMember(m: {
   id: string;
   fullName: string;
   jobTitle: string | null;
-  avatarData: string | null;
+  avatarVersion: Date | null;
   department?: { name: string } | null;
 }): OrgPerson {
   const title = m.jobTitle?.trim() || "عضو";
   const deptName = m.department?.name ?? null;
   const scope = deptName && !title.includes(deptName) ? deptName : null;
-  return { id: m.id, fullName: m.fullName, title, scope, avatarData: m.avatarData };
+  return { id: m.id, fullName: m.fullName, title, scope, avatarUrl: avatarUrl("member", m.id, m.avatarVersion) };
 }
 
 const USER_SELECT = {
@@ -182,7 +184,8 @@ const USER_SELECT = {
   fullName: true,
   jobTitle: true,
   role: true,
-  avatarData: true,
+  // الختمُ لا البيانات: الصورةُ تُطلَب من مسارها، فلا تُحمَل في الاستعلام
+  avatarVersion: true,
   department: { select: { name: true } },
 } as const;
 
@@ -192,7 +195,7 @@ const MEMBER_SELECT = {
   // البريد يُقرأ ليُطرَح التوأم القيادي، ولا يُعرَض في البطاقة
   email: true,
   jobTitle: true,
-  avatarData: true,
+  avatarVersion: true,
   department: { select: { name: true } },
 } as const;
 

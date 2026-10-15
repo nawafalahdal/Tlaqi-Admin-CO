@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
+import { avatarUrl } from "@/lib/avatarUrl";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
+import { OPEN_DEPARTMENT_WHERE, DEPARTMENT_TAKE } from "@/lib/committees";
 import { themeFromColor, BRAND } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
@@ -23,10 +24,11 @@ import { TerminationRequestCard } from "@/components/TerminationRequestCard";
 import { openRequestFor } from "@/lib/termination";
 import { formatDate } from "@/lib/format";
 import { RaiseTicketForm } from "./RaiseTicketForm";
-import { sweepTicketEscalation, ticketVisibilityWhere } from "@/lib/tickets";
+import { sweepTicketEscalation, ticketVisibilityWhere, TICKET_TARGET_USER_SELECT, TICKET_TARGET_TAKE, TICKET_LIST_TAKE } from "@/lib/tickets";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { announcementsForSession } from "@/lib/announcements";
 import { AnnouncementList } from "@/app/admin/hub/AnnouncementList";
+import { runDueSweeps } from "@/lib/sweepThrottle";
 
 export default async function MemberPortalPage() {
   const session = await auth();
@@ -47,7 +49,7 @@ export default async function MemberPortalPage() {
   const theme = themeFromColor(member.department?.colorHex ?? BRAND.temptress);
   const t = getDictionary(await getLocale());
 
-  await sweepTicketEscalation();
+  await runDueSweeps({ ticket_escalation: () => sweepTicketEscalation() });
   const openTermination = await openRequestFor(session.user.id);
 
   if (!member.isActive) {
@@ -66,7 +68,11 @@ export default async function MemberPortalPage() {
 
   const [departments, tickets, announcements, leadership, colleagues, plans] =
     await Promise.all([
-    prisma.department.findMany({ where: OPEN_DEPARTMENT_WHERE, orderBy: { name: "asc" } }),
+    prisma.department.findMany({
+      where: OPEN_DEPARTMENT_WHERE,
+      orderBy: { name: "asc" },
+      take: DEPARTMENT_TAKE,
+    }),
     // تذاكره: ما رفعه، وما وُجِّه إليه باسمه، وما وُجِّه إلى قسمه.
     // الأخير كان ناقصاً: مسار العمل اليومي (محتوى ← تصميم ← نشر) يُوجَّه
     // إلى القسم لا إلى شخصٍ بعينه، فكانت تذاكر القسم لا يراها أحد من
@@ -74,9 +80,17 @@ export default async function MemberPortalPage() {
     prisma.ticket.findMany({
       where: ticketVisibilityWhere(session),
       orderBy: { createdAt: "desc" },
+      take: TICKET_LIST_TAKE,
     }),
     announcementsForSession(session, 6),
-    prisma.user.findMany({ where: { isActive: true }, orderBy: { fullName: "asc" } }),
+    // الاسمُ والصفةُ وحدهما: القائمةُ لا تَعرض غيرَهما، وجلبُ الحساب
+    // كلِّه يَجرّ `passwordHash` و`totpSecret` و`avatarData` بلا مُستعمِل
+    prisma.user.findMany({
+      where: { isActive: true },
+      select: TICKET_TARGET_USER_SELECT,
+      orderBy: { fullName: "asc" },
+      take: TICKET_TARGET_TAKE,
+    }),
     // زملاء قسمه: هم طرف مسار العمل اليومي (محتوى ← تصميم ← نشر)
     prisma.member.findMany({
       where: {
@@ -85,7 +99,9 @@ export default async function MemberPortalPage() {
         departmentId: member.departmentId,
         id: { not: member.id },
       },
+      select: { id: true, fullName: true },
       orderBy: { fullName: "asc" },
+      take: TICKET_TARGET_TAKE,
     }),
     // عدّانِ لا جلبُ وثائق: المدخلُ يقول كم فيه وكم جَدَّ، لا يَعرضها
     planCounts(),
@@ -97,7 +113,7 @@ export default async function MemberPortalPage() {
     memberId: member.id,
     mustChangePassword: member.mustChangePassword,
     profileCompletedAt: member.profileCompletedAt,
-    avatarData: member.avatarData,
+    avatarVersion: member.avatarVersion,
     phone: member.phone,
     unacknowledgedWarnings: unacknowledged,
   });
@@ -148,7 +164,7 @@ export default async function MemberPortalPage() {
         {/* البريد الترحيبي وشروط الحماية للجميع — العضو كالقائد في هذا */}
         <section className="flex flex-col gap-4">
           {/* صورته في الهيكل — للأعضاء كما للقادة */}
-          <AvatarUpload current={member.avatarData} theme={theme} />
+          <AvatarUpload current={avatarUrl("member", member.id, member.avatarVersion)} theme={theme} />
           <OrgChartLink theme={theme} />
           <PlansLink theme={theme} docCount={plans.total} freshCount={plans.fresh} />
           <WelcomeMailCard

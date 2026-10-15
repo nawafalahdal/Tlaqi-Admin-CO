@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { avatarUrl } from "@/lib/avatarUrl";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
@@ -60,7 +61,7 @@ export default async function AdminProfilePage() {
         </div>
 
         {/* الصورة الشخصية — لكل شخصٍ لا للقادة وحدهم */}
-        <AvatarUpload current={user.avatarData} theme={theme} />
+        <AvatarUpload current={avatarUrl("user", session.user.id, user.avatarVersion)} theme={theme} />
 
         {/* قسم المؤسس: لم يُسأل عنه يوم أُنشئ حسابه، فيُسجّله مرّة */}
         {session.user.role === "super_admin" && (
