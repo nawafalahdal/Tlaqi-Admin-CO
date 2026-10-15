@@ -2,7 +2,6 @@
 
 import { useState, useTransition, useActionState } from "react";
 import { startTotpSetupAction, confirmTotpSetupAction, disableTotpAction } from "./actions";
-import { BRAND } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
 
 export function SecurityForm({ initialEnabled }: { initialEnabled: boolean }) {
@@ -86,8 +85,7 @@ export function SecurityForm({ initialEnabled }: { initialEnabled: boolean }) {
           type="button"
           onClick={beginSetup}
           disabled={starting}
-          className="rounded-xl px-4 py-3 text-sm font-semibold text-on-brand transition-opacity hover:opacity-90 disabled:opacity-60"
-          style={{ background: BRAND.temptress }}
+          className="btn-brand rounded-xl px-4 py-3 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
         >
           {starting ? a.preparing : a.enable2fa}
         </button>
@@ -122,8 +120,7 @@ export function SecurityForm({ initialEnabled }: { initialEnabled: boolean }) {
         <button
           type="submit"
           disabled={confirmPending}
-          className="rounded-xl px-4 py-3 text-sm font-semibold text-on-brand transition-opacity hover:opacity-90 disabled:opacity-60"
-          style={{ background: BRAND.temptress }}
+          className="btn-brand rounded-xl px-4 py-3 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
         >
           {confirmPending ? a.confirming : a.confirmEnable}
         </button>

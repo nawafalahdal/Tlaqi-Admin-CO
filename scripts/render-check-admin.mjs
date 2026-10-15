@@ -303,7 +303,15 @@ check(
   check(first === "light" || first === "dark", "السمة مكتوبةٌ على الوثيقة", String(first));
 
   const bgBefore = await bodyBg();
-  await page.locator('button[title="الوضع الداكن"], button[title="الوضع الفاتح"]').first().click();
+  // المفتاحُ يُنتقى بدوره وصنفه لا بعنوانه: العنوانُ نصٌّ يُترجَم ويُحرَّر،
+  // و`role="switch"` عقدٌ لا يَتغيّر — والفحصُ لا يَسقط بتحرير كلمة.
+  const themeSwitch = page.locator('button.theme-switch[role="switch"]').first();
+  check(await themeSwitch.count() > 0, "**مفتاحُ السمة موجودٌ في الترويسة**");
+  const checkedBefore = await themeSwitch.getAttribute("aria-checked");
+  check(checkedBefore === (first === "dark" ? "true" : "false"),
+        "**وقبضتُه تقول ما تقوله الوثيقة — لا حالتان تختلفان**",
+        `aria-checked=${checkedBefore} / data-theme=${first}`);
+  await themeSwitch.click();
   await page.waitForTimeout(700);
   const second = await themeOf();
   check(second !== first, "**الزرّ يُبدّل السمة فعلاً**", `${first} ← ${second}`);
@@ -330,8 +338,11 @@ check(
         `script@${order.script} < body@${order.body}`);
 
   // ورجوعٌ إلى الفاتح حتى لا تتأثّر بقية الفحوص
+  check((await page.locator('button.theme-switch[role="switch"]').first()
+          .getAttribute("aria-checked")) === (second === "dark" ? "true" : "false"),
+        "وبعد الانتقال إلى صفحةٍ أخرى تبقى القبضةُ على المُطبَّق");
   if (second === "dark") {
-    await page.locator('button[title="الوضع الفاتح"]').first().click();
+    await page.locator('button.theme-switch[role="switch"]').first().click();
     await page.waitForTimeout(500);
   }
 }
@@ -340,8 +351,8 @@ check(
 {
   await page.goto(BASE + "/admin", { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(1500);
-  await page.locator('button[title="الوضع الداكن"]').first().click();
-  await page.waitForTimeout(800);
+  const toDark = page.locator('button.theme-switch[aria-checked="false"]').first();
+  if (await toDark.count()) { await toDark.click(); await page.waitForTimeout(800); }
 
   /** إضاءةُ لونٍ محسوبٍ أياً كان فضاؤه.
    *
@@ -413,8 +424,34 @@ check(
 
   await page.goto(BASE + "/admin", { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(1200);
-  const back = page.locator('button[title="الوضع الفاتح"]').first();
+  const back = page.locator('button.theme-switch[aria-checked="true"]').first();
   if (await back.count()) { await back.click(); await page.waitForTimeout(500); }
+}
+
+// ── والمفتاحُ في شاشة الدخول كذلك: قبل أيّ تسجيل، وقبضتُه تتحرّك
+//
+//    (ولوحُ الإرشاد البيج يُقاس في `scripts/check-theme-switch.mjs`:
+//     هو لا يُرسَم إلا في الخطوة الثانية من الدخول، فيُقاس صنفُه من
+//     الورقة المنشورة لا موضعُه في هذه الصفحة.)
+{
+  await page.goto(BASE + "/login", { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(2500);
+  const sw = page.locator('button.theme-switch[role="switch"]').first();
+  check((await sw.count()) > 0, "**والمفتاحُ في شاشة الدخول — قبل أيّ تسجيل**");
+  const knobX = () =>
+    page.evaluate(() => {
+      const k = document.querySelector(".theme-switch__knob");
+      const t = document.querySelector(".theme-switch__track");
+      if (!k || !t) return null;
+      return Math.round(k.getBoundingClientRect().left - t.getBoundingClientRect().left);
+    });
+  const x1 = await knobX();
+  await sw.click();
+  await page.waitForTimeout(700);
+  const x2 = await knobX();
+  check(x1 !== null && x2 !== null && Math.abs(x2 - x1) > 10,
+        "**وقبضتُه تَنتقل من طرفٍ إلى طرف — حركةٌ تُرى لا وسمٌ يُقرأ**",
+        `${x1}px ← ${x2}px`);
 }
 
 check(errors.length === 0, "لا أخطاء جافاسكربت في المتصفح" + (errors.length ? `: ${errors[0]}` : ""));

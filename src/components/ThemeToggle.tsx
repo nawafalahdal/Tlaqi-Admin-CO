@@ -1,6 +1,7 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, type CSSProperties } from "react";
+import { useLocale } from "@/i18n/LocaleProvider";
 
 export type ThemeChoice = "light" | "dark";
 
@@ -70,30 +71,44 @@ export function applyTheme(next: ThemeChoice) {
   window.setTimeout(() => root.classList.remove("theme-switching"), 260);
 }
 
-/** زرّ التبديل بين الفاتح والداكن — في ترويسة كل صفحة، لكل من يفتح
- *  المنصة: المؤسس والقائد والعضو سواء.
+/** مفتاحُ السمة — في كلِّ شاشةٍ من المنصة، لكلِّ من يفتحها: المؤسّس
+ *  والقائدُ والعضوُ والمرشَّحُ وهو في اختباره سواء.
  *
- *  ويُلوَّن بلون الترويسة الذي يُمرَّر إليه كبقية أزرارها، فلا يشذّ عنها
- *  في سمةٍ ولا في قسم.
+ *  **ولماذا يُعرَض الحالُ لا البديل:** الزرُّ الذي يقول «داكن» يُربك —
+ *  أهو وصفٌ لما أنا فيه أم لما سأصير إليه؟ فصار مفتاحاً: الشمسُ
+ *  والهلالُ مرسومان معاً، والقبضةُ واقفةٌ على المُطبَّق، و`aria-checked`
+ *  يقول للقارئ الآليّ ما تقوله القبضةُ للعين.
+ *
+ *  ويُلوَّن بلون الترويسة التي يسكنها كبقيّة أزرارها، فلا يشذّ عنها في
+ *  سمةٍ ولا في قسم — واللونُ يُمرَّر متغيّراً واحداً (`--tsw`) تُشتَقّ
+ *  منه بقيّةُ الطبقات في CSS.
  */
 export function ThemeToggle({ color }: { color: string }) {
   const theme = useSyncExternalStore(subscribe, readTheme, serverTheme);
-  const next: ThemeChoice = theme === "dark" ? "light" : "dark";
+  // النصُّ يُقرأ من المعجم لا يُمرَّر من ثلاثين موضعاً: المفتاحُ واحدٌ،
+  // فليكن مصدرُ كلمتيه واحداً كذلك
+  const { t } = useLocale();
+  const isDark = theme === "dark";
+  const next: ThemeChoice = isDark ? "light" : "dark";
 
   return (
     <button
       type="button"
-      aria-label={next === "dark" ? "التبديل إلى الوضع الداكن" : "التبديل إلى الوضع الفاتح"}
-      title={next === "dark" ? "الوضع الداكن" : "الوضع الفاتح"}
+      role="switch"
+      aria-checked={isDark}
+      aria-label={next === "dark" ? t.common.themeToDark : t.common.themeToLight}
+      title={next === "dark" ? t.common.themeToDark : t.common.themeToLight}
       onClick={() => applyTheme(next)}
-      className="inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold opacity-90 transition-opacity hover:opacity-100"
-      style={{ color, border: `1px solid ${color}55` }}
+      className="theme-switch"
+      style={{ "--tsw": color } as CSSProperties}
     >
-      {/* الأيقونة من الخطّ نفسه: لا ملفَّ يُحمَّل ولا مكتبةَ أيقونات */}
-      <span aria-hidden className="text-sm leading-none">
-        {theme === "dark" ? "☀" : "☾"}
+      <span aria-hidden className="theme-switch__icon theme-switch__icon--sun">☀</span>
+      <span aria-hidden className="theme-switch__track">
+        <span className="theme-switch__knob" />
       </span>
-      <span className="hidden sm:inline">{theme === "dark" ? "فاتح" : "داكن"}</span>
+      <span aria-hidden className="theme-switch__icon theme-switch__icon--moon">☾</span>
+      {/* النصُّ يُطوى على الجوّال: المفتاحُ نفسُه يَكفي، والمساحةُ تَضيق */}
+      <span className="hidden sm:inline">{isDark ? t.common.themeDark : t.common.themeLight}</span>
     </button>
   );
 }

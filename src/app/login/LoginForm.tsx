@@ -2,7 +2,6 @@
 
 import { useActionState, useState } from "react";
 import { loginAction, requestLoginCodeAction, type LoginStep1 } from "./actions";
-import { BRAND } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
 
 const FIELD =
@@ -65,8 +64,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         <button
           type="submit"
           disabled={requesting}
-          className="mt-2 rounded-xl px-4 py-3 text-sm font-semibold text-on-brand transition-opacity hover:opacity-90 disabled:opacity-60"
-          style={{ background: BRAND.temptress }}
+          className="btn-brand mt-2 rounded-xl px-4 py-3 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
         >
           {requesting ? t.login.sendingCode : t.login.continue}
         </button>
@@ -163,8 +161,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
       <button
         type="submit"
         disabled={submitting}
-        className="mt-2 rounded-xl px-4 py-3 text-sm font-semibold text-on-brand transition-opacity hover:opacity-90 disabled:opacity-60"
-        style={{ background: BRAND.temptress }}
+        className="btn-brand mt-2 rounded-xl px-4 py-3 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
       >
         {submitting ? t.login.submitting : t.login.submit}
       </button>

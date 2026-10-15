@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LogoLockup } from "@/components/Logo";
 import { BRAND } from "@/lib/brand";
 import { getLocale, getDictionary } from "@/i18n/server";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 /** الروابط القديمة لم تعد تفتح اختباراً: صار لكل مرشّح حساب ببريد وكلمة مرور
  *  مؤقتة منذ لحظة إنشائه، والاختبار داخل حسابه. تبقى هذه الصفحة لئلا تُرجع
@@ -14,6 +15,9 @@ export default async function LegacyInvitePage() {
       className="flex min-h-screen flex-col items-center justify-center gap-6 px-4"
       style={{ background: BRAND.temptress }}
     >
+      <div className="flex w-full max-w-md justify-end">
+        <ThemeToggle color={BRAND.beige} />
+      </div>
       <LogoLockup height={32} tone="light" />
       <div className="w-full max-w-md rounded-3xl bg-white p-6 text-center shadow-xl sm:p-8">
         <h1 className="mb-3 text-lg font-bold">{t.legacyInvite.title}</h1>

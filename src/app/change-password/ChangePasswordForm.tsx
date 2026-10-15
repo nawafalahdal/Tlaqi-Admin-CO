@@ -2,7 +2,6 @@
 
 import { useActionState } from "react";
 import { changePasswordAction } from "./actions";
-import { BRAND } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
 
 export function ChangePasswordForm({ forced }: { forced: boolean }) {
@@ -55,8 +54,7 @@ export function ChangePasswordForm({ forced }: { forced: boolean }) {
       <button
         type="submit"
         disabled={pending}
-        className="mt-2 rounded-xl px-4 py-3 text-sm font-semibold text-on-brand transition-opacity hover:opacity-90 disabled:opacity-60"
-        style={{ background: BRAND.temptress }}
+        className="btn-brand mt-2 rounded-xl px-4 py-3 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
       >
         {pending ? t.changePassword.submitting : t.changePassword.submit}
       </button>
