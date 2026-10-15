@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { lastWeekdayAt, SATURDAY } from "@/lib/riyadh";
 
 /** ما يبقى في المنصة وما يُحال إلى الإكسل.
  *
@@ -23,12 +24,6 @@ import { prisma } from "@/lib/prisma";
  *  والقاعدة تُنظَّف على مهل.
  */
 
-/** فرق توقيت الرياض عن UTC — ثابتٌ لا صيفيَّ فيه */
-const RIYADH_OFFSET_HOURS = 3;
-
-/** يوم السبت في تقويم جافاسكربت (الأحد = ٠) */
-const SATURDAY = 6;
-
 /** ساعة الاختفاء بتوقيت الرياض — بعد الاجتماع الأسبوعي */
 const CUTOFF_HOUR_RIYADH = 22;
 
@@ -43,27 +38,10 @@ export const EMAIL_LOG_RETENTION_DAYS = 30;
  *  تُحسَب بالنقل إلى توقيت الرياض ثم الرجوع — فلا تُقارَن ساعةٌ بساعةٍ
  *  من منطقتين. */
 export function lastWeeklyCutoff(now: Date = new Date()): Date {
-  const riyadh = new Date(now.getTime() + RIYADH_OFFSET_HOURS * 3600_000);
-  const day = riyadh.getUTCDay();
-
-  // كم يوماً مضى منذ آخر سبت؟ واليومُ نفسه يُحسَب سبتاً إن تجاوزت الساعة
-  let daysSinceSaturday = (day - SATURDAY + 7) % 7;
-  if (daysSinceSaturday === 0 && riyadh.getUTCHours() < CUTOFF_HOUR_RIYADH) {
-    daysSinceSaturday = 7;
-  }
-
-  const cutoffRiyadh = new Date(
-    Date.UTC(
-      riyadh.getUTCFullYear(),
-      riyadh.getUTCMonth(),
-      riyadh.getUTCDate() - daysSinceSaturday,
-      CUTOFF_HOUR_RIYADH,
-      0,
-      0,
-      0
-    )
-  );
-  return new Date(cutoffRiyadh.getTime() - RIYADH_OFFSET_HOURS * 3600_000);
+  // الحسابُ في `@/lib/riyadh` وحدَه: كان مكتوباً هنا ثم احتاجته فتراتُ
+  // التنفيذ، ومنطقُ المناطق الزمنية إن كُرِّر انحرف — يُصلَح في موضعٍ
+  // ويبقى الآخر على خطئه، والخطأُ هنا يُزيح يوماً كاملاً.
+  return lastWeekdayAt(SATURDAY, CUTOFF_HOUR_RIYADH, 0, now);
 }
 
 /** التذكرةُ المغلقة قبل هذا الحدّ أُحيلت إلى الإكسل ولم تعد تُعرَض */

@@ -215,6 +215,16 @@ model Department {
   signatures    LeaderSignature[]
   tickets       Ticket[]       @relation("TicketTargetDepartment")
   announcements Announcement[]
+
+  // نظامُ التنفيذ الاستراتيجي
+  objectives    DepartmentObjective[]
+  weekPlans     WeekPlan[]
+  planTasks     PlanTask[]
+
+  /// «لجانُ هذا القسم» سؤالٌ يُسأل في كل قراءةٍ للوحة القسم وللهيكل.
+  /// (كان الفهرسُ مكتوباً في ترحيلِ اللجان وحدَه ولم يُصرَّح به هنا،
+  /// فكاد فرقُ المخطّط التالي يُسقطه.)
+  @@index([parentId])
 }
 
 /// حساب إداري (قائد قسم / تنفيذي / الإدارة العليا) — يُنشأ إما مباشرة (بذرة النظام)
@@ -269,6 +279,13 @@ model User {
   approvalsPending    Ticket[]             @relation("TicketApprover")
   approvalsGranted    Ticket[]             @relation("TicketApprovedBy")
   approvalDecisions   ApprovalDecision[]   @relation("ApprovalDecider")
+
+  // نظامُ التنفيذ الاستراتيجي
+  goalsAccountable StrategicGoal[]       @relation("GoalAccountable")
+  goalsOwned       StrategicGoal[]       @relation("GoalOwner")
+  milestonesOwned  Milestone[]           @relation("MilestoneOwner")
+  objectivesLed    DepartmentObjective[] @relation("ObjectiveLead")
+  tasksOwned       PlanTask[]            @relation("TaskOwnerUser")
 }
 
 /// دعوة مقفلة بالاسم والإيميل — لا تسجيل عام. targetRole يحدد المسار:
@@ -388,6 +405,7 @@ model Member {
   ticketsAssigned Ticket[]        @relation("TicketTargetMember")
   dateEdits       MemberDateEdit[]
   terminationRequests TerminationRequest[]
+  tasksOwned      PlanTask[]      @relation("TaskOwnerMember")
 
   // الكنس اليومي يسأل: من لم تصله شهادة تقديره؟ فيُجاب رخيصاً
   @@index([appreciationSentAt])
@@ -833,4 +851,577 @@ model PlanDoc {
   updatedAt      DateTime     @updatedAt
 
   @@index([order])
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  نظامُ التنفيذ الاستراتيجي: هدفٌ ← محطةٌ شهرية ← هدفُ قسم ← أسبوعُ
+//  تنفيذٍ ← مهمّةٌ ← تسليمٌ ← تحقُّقُ التنفيذي ← مراجعةُ السبت.
+//
+//  **وأهمُّ قرارٍ فيه كلِّه:** المهمّةُ **صفٌّ واحدٌ يَعبر الأسابيع**، لا
+//  صفٌّ جديدٌ كل أسبوع. فما لم يكتمل يبقى هو هو — بمعرّفه وموعده الأصلي
+//  وصاحبه وتاريخه — ويُنقَل إلى خطة الأسبوع التالي ويُعَدّ ترحيلُه.
+//  ولو أُنشئ له صفٌّ جديدٌ لانقطع تاريخُه، ولَبدا في التقارير عملاً
+//  جديداً في كل أسبوع — وهذا بالضبط ما يُخفي التأخّر.
+// ═══════════════════════════════════════════════════════════════════
+
+/// أولويةُ العمل — تُقرأ ويُرتَّب بها، ولا تُغيّر الصلاحيات
+enum WorkPriority {
+  critical
+  high
+  normal
+  low
+}
+
+/// حالةُ الهدف الاستراتيجي في مساره من الاقتراح إلى الحكم عليه
+enum GoalStatus {
+  /// يُكتَب ولم يُرسَل بعد
+  draft
+  /// اقترحه قائدُ قسمٍ أو كُتب وأُرسل — ينتظر اعتماد الإدارة
+  proposed
+  /// اعتُمد: صار التزاماً تنظيمياً
+  approved
+  /// رُدّ بسببٍ مكتوب
+  rejected
+  /// اعتُمد وبدأ العمل عليه
+  active
+  /// تحقّق بمعاييره
+  achieved
+  /// انقضى موعدُه ولم يتحقّق — ويبقى مكتوباً لا يُمحى
+  missed
+  /// أُلغي بقرارٍ مسجَّل
+  cancelled
+}
+
+/// حالةُ هدف القسم أو المحطة الشهرية
+enum ObjectiveStatus {
+  proposed
+  approved
+  rejected
+  active
+  at_risk
+  done
+  missed
+  cancelled
+}
+
+/// حالةُ **فترة** التنفيذ الأسبوعية — وهي تنظيميةٌ لا قسمية.
+///
+/// فتحُ الأسبوع قرارُ الإدارة لا حدثُ تقويم: لا يُفتَح لأن الساعة بلغت
+/// السبت، بل لأن المراجعة تمّت وأُذن بالفتح صراحةً.
+enum PeriodState {
+  /// تُبنى خططُ الأقسام فيها
+  draft
+  /// رُفعت للمراجعة التنفيذية
+  submitted
+  /// اعتُمدت للعرض في اجتماع السبت
+  approved_for_review
+  /// الاجتماع قائمٌ والمراجعةُ لم تكتمل
+  awaiting_review
+  /// اكتملت المراجعة وتنتظر إذن الفتح
+  awaiting_opening
+  /// مفتوحةٌ للتنفيذ — وهي وحدها التي يُكتَب فيها
+  open
+  /// أُغلقت ورُحِّل ما لم يكتمل
+  closed
+  /// أُعيد فتحُها باستثناءٍ مسجَّل
+  reopened
+}
+
+/// حالةُ خطة قسمٍ داخل فترة
+enum WeekPlanState {
+  draft
+  submitted
+  approved
+  returned
+}
+
+/// حالةُ تنفيذ المهمّة — **منفصلةٌ عن التأخّر**.
+///
+/// التأخّرُ يُحسَب من الموعد لا يُخزَّن حالةً: مهمّةٌ «قيد التنفيذ»
+/// ومتأخّرةٌ معاً حالٌ واقعة، ولو جُعل التأخّرُ حالةً لأزاح ما قبله
+/// فلا يُعرَف أهي تُنفَّذ أم متوقّفة.
+enum TaskExecState {
+  not_started
+  in_progress
+  /// رُفع تسليمُها وتنتظر تحقّق التنفيذي — وليست مكتملة
+  submitted
+  /// تحقّق منها التنفيذي: وهذه وحدها تُحسَب إنجازاً
+  verified
+  /// رُدَّت للتصحيح بملاحظات
+  returned
+  /// حُكم عليها بعدم الاكتمال في المراجعة
+  incomplete
+  /// متوقّفةٌ على معوّقٍ أو تبعيّة
+  blocked
+  /// أُسقط الالتزام بقرارٍ مُصرَّح به — **ولا يُحسَب إنجازاً**
+  waived
+  /// أُلغيت
+  cancelled
+  /// حلّ محلَّها التزامٌ آخر
+  superseded
+  /// أُجّلت إلى محطةٍ لاحقة بقرار
+  deferred
+}
+
+/// قرارُ المراجعة على تسليمٍ أو مهمّة
+enum ReviewDecisionKind {
+  verified
+  returned
+  incomplete
+  flagged
+}
+
+/// نوعُ التغيير المُصرَّح به على التزامٍ قائم — يُسجَّل كلُّه
+enum ChangeKind {
+  deadline_change
+  reassign
+  scope_change
+  defer
+  waive
+  cancel
+  supersede
+  lock_exception
+  dependency_resolution
+  reopen_period
+  emergency_open
+  priority_change
+  weight_change
+}
+
+/// حالةُ اجتماع المراجعة
+enum MeetingStatus {
+  scheduled
+  held
+  cancelled
+  rescheduled
+}
+
+/// هدفٌ استراتيجيٌّ للمنظمة — ولا يصير التزاماً إلا باعتماد الإدارة
+model StrategicGoal {
+  id          String     @id @default(cuid())
+  title       String
+  description String
+  /// لماذا هذا الهدف، وما الأثر المتوقَّع — يُكتَبان ولا يُفترَضان
+  rationale   String
+  impact      String?
+
+  /// المسؤول التنفيذي عنه، ومالكُه الذي يقوده يومياً
+  accountableUserId String?
+  accountable       User?   @relation("GoalAccountable", fields: [accountableUserId], references: [id], onDelete: SetNull)
+  ownerUserId       String?
+  owner             User?   @relation("GoalOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+
+  startDate DateTime
+  dueDate   DateTime
+  /// كيف يُعرَف أنه تحقّق — معيارٌ يُقاس لا نيّةٌ تُقال
+  successCriteria String
+  baselineValue   String?
+  targetValue     String?
+
+  priority WorkPriority @default(normal)
+  status   GoalStatus   @default(draft)
+
+  proposedById   String?
+  proposedByName String?
+  approvedAt     DateTime?
+  approvedById   String?
+  approvedByName String?
+  decisionNote   String?
+
+  createdByName String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  milestones Milestone[]
+  objectives DepartmentObjective[]
+  tasks      PlanTask[]
+  changes    WorkChange[]
+
+  @@index([status, dueDate])
+}
+
+/// محطةٌ شهرية: نتيجةٌ تُسلَّم في شهرٍ بعينه — لا قسمةٌ حسابيةٌ للهدف
+model Milestone {
+  id      String        @id @default(cuid())
+  goalId  String
+  goal    StrategicGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  title          String
+  expectedResult String
+  acceptanceCriteria String
+
+  ownerUserId String?
+  owner       User?   @relation("MilestoneOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+
+  startDate DateTime
+  dueDate   DateTime
+  order     Int             @default(0)
+  status    ObjectiveStatus @default(approved)
+  /// ما يُفعَل إن تعثّرت — يُكتَب حين تُعلَن معرَّضةً للخطر
+  correctivePlan String?
+
+  objectives DepartmentObjective[]
+  tasks      PlanTask[]
+
+  @@index([goalId, dueDate])
+}
+
+/// هدفُ قسمٍ — يقترحه قائدُه، ويرتبط بهدفٍ تنظيميٍّ حيث ينطبق
+model DepartmentObjective {
+  id           String         @id @default(cuid())
+  departmentId String
+  department   Department     @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  goalId       String?
+  goal         StrategicGoal? @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  milestoneId  String?
+  milestone    Milestone?     @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+
+  title       String
+  description String?
+  acceptanceCriteria String?
+  dueDate     DateTime?
+  priority    WorkPriority    @default(normal)
+  status      ObjectiveStatus @default(proposed)
+
+  /// قائدُ القسم المسؤول — ومن اقترحه، ومن قرّر فيه
+  leadUserId     String?
+  lead           User?     @relation("ObjectiveLead", fields: [leadUserId], references: [id], onDelete: SetNull)
+  proposedByName String
+  approvedAt     DateTime?
+  approvedByName String?
+  decisionNote   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks PlanTask[]
+
+  @@index([departmentId, status])
+}
+
+/// فترةُ تنفيذٍ أسبوعية — تنظيميةٌ واحدة، تُفتَح بإذنٍ وتُغلَق بترحيل
+model ExecutionPeriod {
+  id        String      @id @default(cuid())
+  /// بداية الأسبوع — سبتٌ بتوقيت الرياض، وهي مفتاحُ التفرّد
+  weekStart DateTime    @unique
+  weekEnd   DateTime
+  state     PeriodState @default(draft)
+
+  submittedAt DateTime?
+  approvedAt  DateTime?
+  /// الفتح: صريحٌ ومُصرَّحٌ به ومُسجَّل — ولا يقع بمرور الوقت
+  openedAt     DateTime?
+  openedById   String?
+  openedByName String?
+  /// فتحٌ استثنائيٌّ قبل اكتمال المراجعة — بسببٍ مكتوب وعددِ ما بقي
+  emergencyOpen     Boolean @default(false)
+  emergencyReason   String?
+  unresolvedAtOpen  Int     @default(0)
+
+  closedAt     DateTime?
+  closedById   String?
+  closedByName String?
+
+  reopenCount  Int       @default(0)
+  reopenedAt   DateTime?
+  reopenReason String?
+
+  plans      WeekPlan[]
+  meeting    ReviewMeeting?
+  tasks      PlanTask[]        @relation("TaskCurrentPeriod")
+  carriedIn  TaskCarryover[]   @relation("CarryTo")
+  carriedOut TaskCarryover[]   @relation("CarryFrom")
+  reviews    TaskReview[]
+
+  @@index([state])
+}
+
+/// خطةُ قسمٍ داخل فترة — بها تُرفَع التزاماتُ القسم وتُعتمَد
+model WeekPlan {
+  id       String          @id @default(cuid())
+  periodId String
+  period   ExecutionPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  departmentId String
+  department   Department  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  state WeekPlanState @default(draft)
+
+  submittedAt    DateTime?
+  submittedByName String?
+  approvedAt     DateTime?
+  approvedByName String?
+  decisionNote   String?
+
+  /// طاقةُ القسم في الأسبوع بوحدات الوزن — تُضبَط ولا تُخمَّن في الكود
+  capacityPoints Int?
+  /// إقرارُ التحميل الزائد: لا تُعتمَد خطةٌ متجاوزةٌ إلا بقرارٍ مكتوب
+  overloadAcknowledged Boolean @default(false)
+  overloadNote         String?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks PlanTask[]
+
+  @@unique([periodId, departmentId])
+  @@index([departmentId, state])
+}
+
+/// مهمّةٌ في خطةِ أسبوع — **صفٌّ واحدٌ يَعبر الأسابيع لا صفٌّ لكل أسبوع**
+model PlanTask {
+  id String @id @default(cuid())
+
+  /// خطةُ الأسبوع التي هي فيها الآن، وفترتُها — تتبدّلان بالترحيل
+  planId   String?
+  plan     WeekPlan?        @relation(fields: [planId], references: [id], onDelete: SetNull)
+  periodId String?
+  period   ExecutionPeriod? @relation("TaskCurrentPeriod", fields: [periodId], references: [id], onDelete: SetNull)
+
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  goalId      String?
+  goal        StrategicGoal?       @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  milestoneId String?
+  milestone   Milestone?           @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  objectiveId String?
+  objective   DepartmentObjective? @relation(fields: [objectiveId], references: [id], onDelete: SetNull)
+
+  title       String
+  description String?
+  /// متى تُعَدّ منجَزة — وبلا هذا لا تُعتمَد التزاماً
+  acceptanceCriteria String
+  /// ما يُسلَّم فعلاً: ملفٌّ أو منشورٌ أو تقرير
+  deliverable String?
+
+  /// صاحبُها: حسابٌ إداريٌّ أو عضو — واحدٌ لا كلاهما
+  ownerUserId   String?
+  ownerUser     User?   @relation("TaskOwnerUser", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  ownerMemberId String?
+  ownerMember   Member? @relation("TaskOwnerMember", fields: [ownerMemberId], references: [id], onDelete: SetNull)
+
+  priority WorkPriority @default(normal)
+  /// وزنُها في حساب الإنجاز — متساويةٌ ما لم يُفرَّق بينها بقرار
+  weight   Int          @default(1)
+
+  /// **الموعدُ الأصلي لا يتبدّل أبداً** — وبه يُقاس التأخّر مهما مُدِّد
+  originalDueAt DateTime
+  /// الموعدُ المعتمَد الآن — يتبدّل بقرارٍ مسجَّل وحده
+  dueAt         DateTime
+
+  execState TaskExecState @default(not_started)
+
+  /// ما أعلنه صاحبُها — **ولا يرفع الإنجاز المعتمَد**
+  reportedDoneAt  DateTime?
+  reportedByName  String?
+  /// تحقُّقُ التنفيذي — وهو وحده ما يُحسَب
+  verifiedAt      DateTime?
+  verifiedById    String?
+  verifiedByName  String?
+
+  blockedReason String?
+
+  /// الترحيل: كم مرّةً رُحِّلت، وكم مرّةً على التوالي، ومن أين جاءت
+  carryoverCount        Int     @default(0)
+  consecutiveCarryover  Int     @default(0)
+  carriedFromPeriodId   String?
+  /// سببُ عدم الاكتمال وخطةُ التصحيح — **مطلوبان لترحيلها**
+  carryReason           String?
+  correctivePlan        String?
+
+  waivedAt      DateTime?
+  waivedReason  String?
+  supersededById String?
+
+  createdByName String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  submissions  TaskSubmission[]
+  reviews      TaskReview[]
+  changes      WorkChange[]
+  carryovers   TaskCarryover[]
+  dependsOn    TaskDependency[] @relation("Dependent")
+  requiredFor  TaskDependency[] @relation("Dependency")
+
+  @@index([periodId, execState])
+  @@index([departmentId, execState])
+  @@index([ownerUserId, execState])
+  @@index([ownerMemberId, execState])
+  @@index([dueAt])
+}
+
+/// تبعيّةٌ بين مهمّتين — تُحَلّ بقرارٍ أو بإنجاز ما تعتمد عليه
+model TaskDependency {
+  id              String   @id @default(cuid())
+  taskId          String
+  task            PlanTask @relation("Dependent", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOnTaskId String
+  dependsOn       PlanTask @relation("Dependency", fields: [dependsOnTaskId], references: [id], onDelete: Cascade)
+  note            String?
+  resolvedAt      DateTime?
+  resolvedByName  String?
+  createdAt       DateTime @default(now())
+
+  @@unique([taskId, dependsOnTaskId])
+}
+
+/// سجلُّ ترحيلٍ واحد: من فترةٍ إلى فترة، بسببه وخطةِ تصحيحه.
+///
+/// والتفرّدُ على (المهمّة، الفترةِ المُرحَّلِ إليها) هو ما يجعل الكنس
+/// **لا يُكرِّر**: تشغيلُه مرّتين في الليلة نفسها لا يَزيد عدّاداً ولا
+/// يكتب صفّاً ثانياً.
+model TaskCarryover {
+  id           String          @id @default(cuid())
+  taskId       String
+  task         PlanTask        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  fromPeriodId String
+  fromPeriod   ExecutionPeriod @relation("CarryFrom", fields: [fromPeriodId], references: [id], onDelete: Cascade)
+  toPeriodId   String
+  toPeriod     ExecutionPeriod @relation("CarryTo", fields: [toPeriodId], references: [id], onDelete: Cascade)
+
+  /// الحالةُ التي كانت عليها لحظةَ الترحيل — فلا يُقرأ لاحقاً غيرُها
+  stateAtCarry TaskExecState
+  reason         String?
+  correctivePlan String?
+  decidedByName  String?
+  createdAt      DateTime @default(now())
+
+  @@unique([taskId, toPeriodId])
+  @@index([toPeriodId])
+}
+
+/// تسليمُ عملٍ بدليله — يُراكَم ولا يُستبدَل.
+///
+/// والتسليمُ المردودُ يبقى: لو كُتب فوقه لَما عُرف ما رُدَّ ولا لماذا.
+model TaskSubmission {
+  id     String   @id @default(cuid())
+  taskId String
+  task   PlanTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  note String
+  /// الدليل: رابطٌ خارجيٌّ أو ملفٌّ مرفوع — بحدِّ المنصة نفسِه
+  evidenceUrl      String?
+  evidenceFileName String?
+  evidenceMime     String?
+  evidenceSize     Int?
+  evidenceData     Bytes?
+
+  submittedById   String?
+  submittedByName String
+  submittedAt     DateTime @default(now())
+
+  reviews TaskReview[]
+
+  @@index([taskId, submittedAt])
+}
+
+/// قرارُ مراجعةٍ على مهمّة — سجلٌّ لا يُعدَّل ولا يُحذف
+model TaskReview {
+  id     String   @id @default(cuid())
+  taskId String
+  task   PlanTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  submissionId String?
+  submission   TaskSubmission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+  periodId String?
+  period   ExecutionPeriod? @relation(fields: [periodId], references: [id], onDelete: SetNull)
+
+  decision     ReviewDecisionKind
+  note         String?
+  reviewerId   String?
+  reviewerName String
+  decidedAt    DateTime           @default(now())
+
+  @@index([taskId, decidedAt])
+}
+
+/// تغييرٌ مُصرَّحٌ به على التزام: ما كان، وما صار، ومن قرّر، ولماذا.
+///
+/// وهو سجلُّ التدقيق كلِّه: تمديدُ موعدٍ، ونقلُ مسؤولية، وإسقاطُ
+/// التزام، وفتحٌ استثنائيٌّ — كلُّها صفوفٌ هنا لا حقولٌ تُكتَب فوقها.
+model WorkChange {
+  id   String     @id @default(cuid())
+  kind ChangeKind
+
+  taskId String?
+  task   PlanTask? @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  goalId String?
+  goal   StrategicGoal? @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  periodId String?
+
+  reason       String
+  previousJson Json?
+  nextJson     Json?
+  effectiveAt  DateTime?
+
+  actorId   String?
+  actorName String
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
+  @@index([kind, createdAt])
+}
+
+/// إعداداتُ اجتماع المراجعة الأسبوعي — ولا ساعةَ مكتوبةٌ في الكود
+model MeetingConfig {
+  id String @id @default("main")
+  /// يومُ الأسبوع: ٦ = السبت (تقويم جافاسكربت)
+  weekday         Int     @default(6)
+  hour            Int     @default(21)
+  minute          Int     @default(0)
+  durationMinutes Int     @default(60)
+  timezone        String  @default("Asia/Riyadh")
+  organizerId     String?
+  organizerName   String?
+  locationOrUrl   String?
+  agendaTemplate  String?
+  updatedByName   String?
+  updatedAt       DateTime @updatedAt
+}
+
+/// اجتماعُ مراجعةٍ لفترةٍ بعينها — واحدٌ لا يتكرّر
+model ReviewMeeting {
+  id       String          @id @default(cuid())
+  periodId String          @unique
+  period   ExecutionPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  scheduledAt     DateTime
+  durationMinutes Int           @default(60)
+  timezone        String        @default("Asia/Riyadh")
+  organizerName   String?
+  locationOrUrl   String?
+  status          MeetingStatus @default(scheduled)
+
+  heldAt        DateTime?
+  rescheduledAt DateTime?
+  cancelledAt   DateTime?
+  notes         String?
+
+  /// مراحلُ الأجندة المُنجَزة — تُعلَّم صراحةً ولا تُستنتَج
+  stagesDoneJson Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  decisions MeetingDecision[]
+
+  @@index([scheduledAt])
+}
+
+/// قرارُ اجتماعٍ ومتابعتُه — ولا يُغيّر التزاماً معتمَداً بنفسه
+model MeetingDecision {
+  id        String        @id @default(cuid())
+  meetingId String
+  meeting   ReviewMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  text          String
+  ownerUserId   String?
+  dueAt         DateTime?
+  createdByName String
+  createdAt     DateTime  @default(now())
+  doneAt        DateTime?
+
+  @@index([meetingId, createdAt])
 }
