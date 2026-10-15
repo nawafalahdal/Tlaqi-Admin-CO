@@ -130,14 +130,20 @@ function sess(role: string, id: string, name: string, departmentId: string | nul
     );
   }
 
-  // ══ الفترات: الجارية والقادمة
-  const thisWeek = await ensurePeriod(periodStartFor());
-  const nextWeek = await ensurePeriod(nextPeriodStartFor());
+  // ══ الفترات — **معزولةٌ عن أسبوع المنصة الحقيقي.**
+  //
+  // كانت تَستعمل `periodStartFor()` أي أسبوعَ المنصة الجاري، فسقط الفحصُ
+  // أولَ مرّةٍ وُجدت فيها بياناتٌ حقيقية: الأسبوعُ كان مفتوحاً فعلاً
+  // والفحصُ يَفترضه «قيد البناء». واختبارٌ يتأثّر بحال القاعدة ليس
+  // اختباراً. فيُبنى على أسابيعَ بعيدةٍ لا يَسكنها أحد — وتُحذَف بعده.
+  const FAR = periodStartFor(new Date(Date.now() + 200 * DAY));
+  const thisWeek = await ensurePeriod(FAR);
+  const nextWeek = await ensurePeriod(new Date(FAR.getTime() + 7 * DAY));
   cleanupPeriods.push(thisWeek.id, nextWeek.id);
   chk("٢ · الفترتان تُنشآن ولا تُكرَّران", thisWeek.id !== nextWeek.id);
   chk(
     "ونداءُ الإنشاء ثانيةً يُعيد الصفَّ نفسَه",
-    (await ensurePeriod(periodStartFor())).id === thisWeek.id
+    (await ensurePeriod(FAR)).id === thisWeek.id
   );
 
   // ══ ١٦/١٤/١٥) القفلُ قبل الفتح
@@ -167,7 +173,7 @@ function sess(role: string, id: string, name: string, departmentId: string | nul
       planId: plan.id,
       title: "بلا صاحب",
       acceptanceCriteria: "معيار",
-      dueAt: new Date(Date.now() + 2 * DAY),
+      dueAt: new Date(thisWeek.weekStart.getTime() + 2 * DAY),
       session: L,
     });
     chk("مهمّةٌ بلا صاحبٍ تُرفَض", noOwner.ok === false, noOwner.ok === false ? noOwner.reason : "مرّت!");
@@ -177,7 +183,7 @@ function sess(role: string, id: string, name: string, departmentId: string | nul
       title: "بلا معيار",
       acceptanceCriteria: "   ",
       ownerUserId: worker.id,
-      dueAt: new Date(Date.now() + 2 * DAY),
+      dueAt: new Date(thisWeek.weekStart.getTime() + 2 * DAY),
       session: L,
     });
     chk("ومهمّةٌ بلا معيارِ إنجازٍ تُرفَض", noCriteria.ok === false,
@@ -188,7 +194,7 @@ function sess(role: string, id: string, name: string, departmentId: string | nul
       title: "من عضو",
       acceptanceCriteria: "معيار",
       ownerUserId: worker.id,
-      dueAt: new Date(Date.now() + 2 * DAY),
+      dueAt: new Date(thisWeek.weekStart.getTime() + 2 * DAY),
       session: M,
     });
     chk("ولا يَبني العضوُ خطةَ القسم", byMember.ok === false,
@@ -196,7 +202,9 @@ function sess(role: string, id: string, name: string, departmentId: string | nul
   }
 
   // ثلاثُ مهامٍّ بأوزانٍ مختلفة
-  const due = new Date(Date.now() + 2 * DAY);
+  // المواعيدُ داخل أسبوعِها: موعدٌ قبل بدايةِ الأسبوع التزامٌ لا يُوفى،
+  // والنظامُ يَمنعه — فيُبنى الفحصُ على مواعيدَ داخل الأسبوع نفسِه.
+  const due = new Date(thisWeek.weekStart.getTime() + 3 * DAY);
   const t1 = await createTask({
     planId: plan.id, title: `تصميم الحملة ${STAMP}`, acceptanceCriteria: "ثلاثة تصاميم معتمَدة",
     deliverable: "ملف PDF", ownerUserId: worker.id, dueAt: due, weight: 3, priority: "high",
@@ -346,14 +354,14 @@ function sess(role: string, id: string, name: string, departmentId: string | nul
   // ══ ٢٠/١٠) تمديدُ الموعد يَحفظ الأصلي
   {
     const byWorker = await changeTaskDeadline({
-      taskId: t2.id, newDueAt: new Date(Date.now() + 9 * DAY), reason: "أحتاج وقتاً", session: W,
+      taskId: t2.id, newDueAt: new Date(thisWeek.weekStart.getTime() + 9 * DAY), reason: "أحتاج وقتاً", session: W,
     });
     chk("١١ · ولا يُمدِّد صاحبُ المهمّة موعدَها المعتمَد", byWorker.ok === false,
         byWorker.ok === false ? byWorker.reason.slice(0, 60) : "مرّ!");
 
     const original = (await prisma.planTask.findUniqueOrThrow({ where: { id: t2.id } })).originalDueAt;
     const extended = await changeTaskDeadline({
-      taskId: t2.id, newDueAt: new Date(Date.now() + 9 * DAY),
+      taskId: t2.id, newDueAt: new Date(thisWeek.weekStart.getTime() + 9 * DAY),
       reason: "تأخّر اعتماد المحتوى من قسمٍ آخر", session: E,
     });
     chk("١٠ · والتنفيذي يُمدِّده بسببٍ مكتوب", extended.ok, extended.ok ? "" : extended.reason);
@@ -611,7 +619,7 @@ function sess(role: string, id: string, name: string, departmentId: string | nul
       if (ms.ok) {
         const shared = await createTask({
           planId: nextPlan.id, title: `مهمّة مشتركة ${STAMP}`, acceptanceCriteria: "معيار",
-          ownerUserId: worker.id, dueAt: new Date(Date.now() + 5 * DAY), weight: 4,
+          ownerUserId: worker.id, dueAt: new Date(nextWeek.weekStart.getTime() + 5 * DAY), weight: 4,
           goalId: goal.id, milestoneId: ms.id, session: L,
         });
         chk("ومهمّةٌ تتبع الهدفَ ومحطّتَه أُنشئت", shared.ok, shared.ok ? "" : shared.reason);
@@ -753,6 +761,22 @@ function sess(role: string, id: string, name: string, departmentId: string | nul
       where: { periodId: racy.id, kind: { in: ["lock_exception", "emergency_open"] } },
     });
     chk("ويُسجَّل الفتحُ مرّةً واحدة", opens === 1, String(opens));
+  }
+
+  // ══ ٢٢/٢٥) التقويم: يُشتقّ، ويُصفّى بالصلاحية، ولا يَكسر ما قبله
+  {
+    const { calendarEntries, monthGrid, todayKey } = await import("@/lib/orgCalendar");
+    const grid = monthGrid(new Date());
+    const asExec = await calendarEntries({ session: E, from: grid.from, to: grid.to });
+    const asMember = await calendarEntries({ session: M, from: grid.from, to: grid.to });
+    chk("٢٥ · التقويمُ يُشتقّ من السجلّات لا من جدولِ أحداث", asExec.length >= 0);
+    chk(
+      "والمُراجِعُ يرى أكثرَ ممّا يرى عضوٌ لا قسمَ له — والتصفيةُ في الاستعلام",
+      asExec.length >= asMember.length,
+      `${asExec.length} مقابل ${asMember.length}`
+    );
+    chk("ومفاتيحُ أيامه بتوقيت الرياض", /^\d{4}-\d{2}-\d{2}$/.test(todayKey()), todayKey());
+    chk("وشبكةُ الشهر ٤٢ يوماً تبدأ بالسبت", grid.days.length === 42);
   }
 
   // ── تنظيف

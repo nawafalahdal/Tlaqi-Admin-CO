@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { Session } from "next-auth";
 import { canDecideCommittee } from "@/lib/committees";
 import { canManagePlans } from "@/lib/plans";
+import { canGovernPeriod, OUTSTANDING_STATES } from "@/lib/execution";
 
 /** تنبيهاتُ الصفحة الرئيسية — ما على هذا الشخص أن يفعله الآن.
  *
@@ -34,6 +35,10 @@ export type Alert = {
   href: string;
   cta: string;
 };
+
+function canReviewRole(role: string) {
+  return role === "executive" || role === "super_admin";
+}
 
 /** يبني تنبيهاتِ صاحبِ حسابٍ إداري (مؤسس، تنفيذي، مسؤول تشغيل، قائد قسم) */
 export async function alertsForUser(session: Session): Promise<Alert[]> {
@@ -220,6 +225,88 @@ export async function alertsForUser(session: Session): Promise<Alert[]> {
     });
   }
 
+  // ── التنفيذ الاستراتيجي: ما عليه فيه، وما ينتظر قرارَه
+  const [myOpenTasks, myOverdueTasks, awaitingVerify, carryNeedsPlan, unopenedNext] =
+    await Promise.all([
+      prisma.planTask.count({
+        where: { ownerUserId: userId, execState: { in: OUTSTANDING_STATES } },
+      }),
+      prisma.planTask.count({
+        where: {
+          ownerUserId: userId,
+          execState: { in: OUTSTANDING_STATES },
+          dueAt: { lt: new Date() },
+        },
+      }),
+      canReviewRole(role)
+        ? prisma.planTask.count({ where: { execState: "submitted" } })
+        : Promise.resolve(0),
+      // المُرحَّلُ بلا إقرارٍ في قسمه — يَمنع اعتمادَ خطة الأسبوع
+      role === "department_admin" && me.departmentId
+        ? prisma.planTask.count({
+            where: {
+              departmentId: me.departmentId,
+              carryoverCount: { gt: 0 },
+              carryReason: null,
+              execState: { in: OUTSTANDING_STATES },
+            },
+          })
+        : Promise.resolve(0),
+      canGovernPeriod(role)
+        ? prisma.executionPeriod.count({ where: { state: "awaiting_opening" } })
+        : Promise.resolve(0),
+    ]);
+
+  if (myOverdueTasks > 0) {
+    alerts.push({
+      id: "exec-overdue",
+      tone: "danger",
+      title: `${myOverdueTasks} التزاماً تأخّر عن موعده وهو باسمك`,
+      body: "وما لم يكتمل لا يَختفي بانتهاء الأسبوع: يُرحَّل بموعده الأصلي ويُطلَب سببُه وخطةُ تصحيحه.",
+      href: "/admin/execution",
+      cta: "افتحها",
+    });
+  } else if (myOpenTasks > 0) {
+    alerts.push({
+      id: "exec-open",
+      tone: "info",
+      title: `${myOpenTasks} التزاماً قائماً باسمك هذا الأسبوع`,
+      body: "لكلٍّ معيارُ إنجازٍ ومُراجِع — والتحقّقُ لا يقع على إعلانٍ بل على دليل.",
+      href: "/admin/execution",
+      cta: "افتحها",
+    });
+  }
+  if (awaitingVerify > 0) {
+    alerts.push({
+      id: "exec-verify",
+      tone: "warn",
+      title: `${awaitingVerify} تسليماً ينتظر تحقّقك`,
+      body: "ولا يُحتسَب أيٌّ منها إنجازاً معتمَداً قبل قرارك — والنسبةُ تُقرأ كما هي.",
+      href: "/admin/execution/review",
+      cta: "راجِعها",
+    });
+  }
+  if (carryNeedsPlan > 0) {
+    alerts.push({
+      id: "exec-carry",
+      tone: "warn",
+      title: `${carryNeedsPlan} التزاماً مُرحَّلاً بلا سببٍ وخطةِ تصحيح`,
+      body: "ولا تُرفَع خطةُ قسمك ولا تُعتمَد قبل إقرارهما — الترحيلُ التزامٌ يُعاد إقرارُه.",
+      href: "/admin",
+      cta: "أقِرَّها",
+    });
+  }
+  if (unopenedNext > 0) {
+    alerts.push({
+      id: "exec-open-week",
+      tone: "warn",
+      title: "اكتملت المراجعةُ وأسبوعٌ ينتظر إذنَ الفتح",
+      body: "ولا يُفتَح بمرور التقويم — الإذنُ قرارُك الصريح.",
+      href: "/admin/execution",
+      cta: "افتحه",
+    });
+  }
+
   // ── الخطط: خبرٌ لا نقص
   if (freshPlans > 0) {
     alerts.push({
@@ -331,6 +418,38 @@ export async function alertsForMember(opts: {
       cta: "تابِعه",
     });
   }
+  const [myOpen, myOverdue] = await Promise.all([
+    prisma.planTask.count({
+      where: { ownerMemberId: opts.memberId, execState: { in: OUTSTANDING_STATES } },
+    }),
+    prisma.planTask.count({
+      where: {
+        ownerMemberId: opts.memberId,
+        execState: { in: OUTSTANDING_STATES },
+        dueAt: { lt: new Date() },
+      },
+    }),
+  ]);
+  if (myOverdue > 0) {
+    alerts.push({
+      id: "exec-overdue",
+      tone: "danger",
+      title: `${myOverdue} التزاماً تأخّر عن موعده وهو باسمك`,
+      body: "ولا يَختفي بانتهاء الأسبوع: يُرحَّل بموعده الأصلي ويُطلَب سببُه وخطةُ تصحيحه.",
+      href: "/member",
+      cta: "افتحها",
+    });
+  } else if (myOpen > 0) {
+    alerts.push({
+      id: "exec-open",
+      tone: "info",
+      title: `${myOpen} التزاماً قائماً باسمك`,
+      body: "لكلٍّ معيارُ إنجازٍ ودليلٌ يُرفَع — والتحقّقُ من مسؤولك لا منك.",
+      href: "/member",
+      cta: "افتحها",
+    });
+  }
+
   if (freshPlans > 0) {
     alerts.push({
       id: "plans",

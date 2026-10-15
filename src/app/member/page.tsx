@@ -16,6 +16,8 @@ import { PlansLink } from "@/components/PlansLink";
 import { planCounts } from "@/lib/plans";
 import { AlertsPanel } from "@/components/AlertsPanel";
 import { alertsForMember } from "@/lib/alerts";
+import { MyTasks } from "@/components/execution/MyTasks";
+import { myTasks } from "@/lib/executionViews";
 import { GovernanceCharter } from "@/components/GovernanceCharter";
 import { TerminationRequestCard } from "@/components/TerminationRequestCard";
 import { openRequestFor } from "@/lib/termination";
@@ -89,6 +91,8 @@ export default async function MemberPortalPage() {
     planCounts(),
   ]);
 
+  const tasks = await myTasks({ memberId: member.id });
+
   const alerts = await alertsForMember({
     memberId: member.id,
     mustChangePassword: member.mustChangePassword,
@@ -130,6 +134,9 @@ export default async function MemberPortalPage() {
       <main className="mx-auto flex max-w-2xl flex-col gap-8 px-4 py-6 sm:px-5 sm:py-8">
         {/* ما ينتظره أوّلاً — ولا يُقرأ بالتجوال في الصفحات */}
         <AlertsPanel alerts={alerts} />
+
+        {/* ما عليه هذا الأسبوع — بمعاييره وأدلّته */}
+        <MyTasks tasks={tasks} theme={theme} />
         <section>
           <Card className="p-4 sm:p-6">
             <p className="text-xs text-black/40">{t.member.memberOf}</p>

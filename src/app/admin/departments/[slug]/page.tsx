@@ -30,6 +30,11 @@ import Link from "next/link";
 import { AnnouncementList } from "../../hub/AnnouncementList";
 import { AnnouncementComposer } from "../../hub/AnnouncementComposer";
 import { committeesOf } from "@/lib/committees";
+import { WeekPlanPanel } from "@/components/execution/WeekPlanPanel";
+import { currentAndNextPeriod, canGovernPeriod, canPlanDepartment, stateLabel } from "@/lib/execution";
+import { assessWeekPlan, DEFAULT_CAPACITY_POINTS } from "@/lib/carryover";
+import { periodTasks, assignableOwners } from "@/lib/executionViews";
+import { approvedGoals } from "@/lib/goals";
 import { announcementsForSession, announcementPowers } from "@/lib/announcements";
 import { CandidateWindow } from "@/components/CandidateWindow";
 import { TicketBoard } from "@/components/TicketBoard";
@@ -75,6 +80,34 @@ export default async function DepartmentBoardPage({
   const committees = await committeesOf(department.id);
   // ما ينتظر القائدَ شخصياً — ومركزُ الخطط يُقرأ من لوحته كما من لوحة غيره
   const alerts = isOwnDept ? await alertsForUser(session) : [];
+
+  // ── خطةُ التنفيذ الأسبوعية لهذا القسم: الجارية والقادمة
+  const { current: curPeriod, next: nextPeriod } = await currentAndNextPeriod();
+  const [curPlan, nextPlan, owners, goalList, deptObjectives] = await Promise.all([
+    prisma.weekPlan.findUnique({
+      where: { periodId_departmentId: { periodId: curPeriod.id, departmentId: department.id } },
+      select: { id: true, state: true, decisionNote: true, capacityPoints: true },
+    }),
+    prisma.weekPlan.findUnique({
+      where: { periodId_departmentId: { periodId: nextPeriod.id, departmentId: department.id } },
+      select: { id: true, state: true, decisionNote: true, capacityPoints: true },
+    }),
+    assignableOwners(department.id),
+    approvedGoals(),
+    prisma.departmentObjective.findMany({
+      where: { departmentId: department.id, status: { in: ["approved", "active"] } },
+      select: { id: true, title: true },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
+  const [curTasks, nextTasks, curReport, nextReport] = await Promise.all([
+    periodTasks(curPeriod.id, department.id),
+    periodTasks(nextPeriod.id, department.id),
+    curPlan ? assessWeekPlan(curPlan.id) : Promise.resolve(null),
+    nextPlan ? assessWeekPlan(nextPlan.id) : Promise.resolve(null),
+  ]);
+  const canPlanHere = canPlanDepartment(session, department.id);
+  const canReviewHere = canGovernPeriod(session.user.role);
   const plans = await planCounts();
 
   await sweepOverdueRequests(department.id);
@@ -208,6 +241,53 @@ export default async function DepartmentBoardPage({
 
         <section>
           <PlansLink theme={theme} docCount={plans.total} freshCount={plans.fresh} />
+        </section>
+
+        {/* ── خطةُ التنفيذ الأسبوعية: الجاريةُ تُنفَّذ، والقادمةُ تُبنى */}
+        <section className="flex flex-col gap-4">
+          <Card className="p-4 sm:p-5">
+            <WeekPlanPanel
+              title={`خطةُ الأسبوع الجاري — ${stateLabel(curPeriod.state)}`}
+              plan={curPlan}
+              periodId={curPeriod.id}
+              departmentId={department.id}
+              periodState={curPeriod.state}
+              tasks={curTasks}
+              owners={owners}
+              goals={goalList.map((g) => ({ id: g.id, title: g.title }))}
+              objectives={deptObjectives}
+              capacity={curPlan?.capacityPoints ?? DEFAULT_CAPACITY_POINTS}
+              report={curReport}
+              canPlan={canPlanHere}
+              canReview={canReviewHere}
+              theme={theme}
+              readOnlyNote={
+                curPeriod.state === "open" || curPeriod.state === "reopened"
+                  ? undefined
+                  : `الأسبوعُ «${stateLabel(curPeriod.state)}» — ولا يُكتَب فيه تنفيذٌ قبل فتحه بإذن الإدارة.`
+              }
+            />
+          </Card>
+
+          <Card className="p-4 sm:p-5">
+            <WeekPlanPanel
+              title={`خطةُ الأسبوع القادم — ${stateLabel(nextPeriod.state)}`}
+              plan={nextPlan}
+              periodId={nextPeriod.id}
+              departmentId={department.id}
+              periodState={nextPeriod.state}
+              tasks={nextTasks}
+              owners={owners}
+              goals={goalList.map((g) => ({ id: g.id, title: g.title }))}
+              objectives={deptObjectives}
+              capacity={nextPlan?.capacityPoints ?? DEFAULT_CAPACITY_POINTS}
+              report={nextReport}
+              canPlan={canPlanHere}
+              canReview={canReviewHere}
+              theme={theme}
+              readOnlyNote="تُبنى الآن وتُرفَع للاعتماد — ولا يُكتَب فيها تنفيذٌ حتى تُفتَح بإذن الإدارة بعد مراجعة السبت."
+            />
+          </Card>
         </section>
 
         {/* اللجان: قسمٌ داخل القسم — يقترحه قائده ويعتمده التنفيذي */}

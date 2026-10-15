@@ -10,6 +10,9 @@ import { purgeExpiredLoginCodes } from "@/lib/loginCodes";
 import { sweepThreeMonthAppreciation } from "@/lib/appreciation";
 import { sweepEffectiveTerminations } from "@/lib/termination";
 import { purgeArchivedTickets, purgeOldEmailLogs } from "@/lib/retention";
+import { currentAndNextPeriod } from "@/lib/execution";
+import { sweepCarryover } from "@/lib/carryover";
+import { ensureMeeting } from "@/lib/reviewMeeting";
 
 export const dynamic = "force-dynamic";
 
@@ -51,8 +54,22 @@ export async function GET(request: Request) {
   const archivedTickets = await purgeArchivedTickets();
   const purgedEmailLogs = await purgeOldEmailLogs();
 
+  // ── نظامُ التنفيذ: تُنشأ الفترتان وتُرحَّل بقايا الأسبوع المنصرم.
+  //
+  // **والكنسُ لا يَفتح أسبوعاً أبداً.** الفتحُ قرارٌ إداريٌّ صريح، ولو
+  // فُتح هنا لصار حدثاً تقويمياً: يبدأ الأسبوع والمراجعةُ لم تقع. فهذا
+  // يُنشئ الصفَّ ويُرحّل ويُغلق المنصرم — ويقف.
+  const { current, next } = await currentAndNextPeriod();
+  const carry = await sweepCarryover({});
+  // واجتماعُ المراجعة يُنشَأ مع الفترة ولا يتكرّر — التفرّدُ يَمنعه
+  await ensureMeeting(current.id);
+  await ensureMeeting(next.id);
+
   return NextResponse.json({
     ok: true,
+    carried: carry?.carried ?? 0,
+    carrySkipped: carry?.skipped ?? 0,
+    carryEscalated: carry?.escalated ?? 0,
     reminded,
     expiredAccounts,
     purgedCodes,
