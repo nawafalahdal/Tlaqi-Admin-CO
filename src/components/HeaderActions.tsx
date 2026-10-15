@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { LogoutButton } from "./LogoutButton";
 import { LocaleToggle } from "./LocaleToggle";
 import { ThemeToggle } from "./ThemeToggle";
+import { ImproveButton } from "./ImproveButton";
 import { getLocale, getDictionary } from "@/i18n/server";
 
 export async function HeaderActions({ color }: { color: string }) {
@@ -17,6 +18,8 @@ export async function HeaderActions({ color }: { color: string }) {
       {/* السمة أولاً: أكثرُ ما يُبدَّل، ويُراد في متناول اليد */}
       <ThemeToggle color={color} />
       <LocaleToggle color={color} />
+      {/* و«تحسين» ثالثُهم: الملاحظةُ تُقال حيث رُئيت أو تُفقَد */}
+      <ImproveButton color={color} />
       {isAdmin && (
         <Link
           href="/admin/security"

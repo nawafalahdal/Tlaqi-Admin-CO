@@ -3,6 +3,7 @@ import type { Session } from "next-auth";
 import { canDecideCommittee } from "@/lib/committees";
 import { canManagePlans } from "@/lib/plans";
 import { canGovernPeriod, OUTSTANDING_STATES } from "@/lib/execution";
+import { improvementCounts } from "@/lib/improvements";
 
 /** تنبيهاتُ الصفحة الرئيسية — ما على هذا الشخص أن يفعله الآن.
  *
@@ -322,6 +323,34 @@ export async function alertsForUser(session: Session): Promise<Alert[]> {
     });
   }
 
+  // ── مركزُ التحسين: ما ينتظر شهادتي، وما ينتظر قراري
+  //
+  //    والشهادةُ تتصدّر القرار: ملاحظةٌ أُصلحت وتَنتظر صاحبَها تقف إلى
+  //    الأبد إن لم يُقَل له، فيُقفَل عليها الصندوق.
+  {
+    const { inbox, awaitingMe } = await improvementCounts(session);
+    if (awaitingMe > 0) {
+      alerts.push({
+        id: "improve-mine",
+        tone: "warn",
+        title: `${awaitingMe} ملاحظةٌ أُصلحت وتَنتظر تجربتَك`,
+        body: "جرّبها واشهَد: لا تُغلَق ملاحظةٌ بإقرار من أصلحها وحده.",
+        href: "/admin/improvements",
+        cta: "جرّبها",
+      });
+    }
+    if (inbox > 0) {
+      alerts.push({
+        id: "improve-inbox",
+        tone: "info",
+        title: `${inbox} ملاحظةُ تحسينٍ في الصندوق`,
+        body: "رُفعت من زرّ «تحسين» وتَنتظر تصنيفاً أو بدءَ عمل.",
+        href: "/admin/improvements",
+        cta: "افتح الصندوق",
+      });
+    }
+  }
+
   return alerts;
 }
 
@@ -460,6 +489,34 @@ export async function alertsForMember(opts: {
       href: "/plans",
       cta: "اقرأها",
     });
+  }
+
+  // ── مركزُ التحسين: ما ينتظر شهادتي، وما ينتظر قراري
+  //
+  //    والشهادةُ تتصدّر القرار: ملاحظةٌ أُصلحت وتَنتظر صاحبَها تقف إلى
+  //    الأبد إن لم يُقَل له، فيُقفَل عليها الصندوق.
+  {
+    const { inbox, awaitingMe } = await improvementCounts({ user: { id: opts.memberId, role: "member" } } as Session);
+    if (awaitingMe > 0) {
+      alerts.push({
+        id: "improve-mine",
+        tone: "warn",
+        title: `${awaitingMe} ملاحظةٌ أُصلحت وتَنتظر تجربتَك`,
+        body: "جرّبها واشهَد: لا تُغلَق ملاحظةٌ بإقرار من أصلحها وحده.",
+        href: "/admin/improvements",
+        cta: "جرّبها",
+      });
+    }
+    if (inbox > 0) {
+      alerts.push({
+        id: "improve-inbox",
+        tone: "info",
+        title: `${inbox} ملاحظةُ تحسينٍ في الصندوق`,
+        body: "رُفعت من زرّ «تحسين» وتَنتظر تصنيفاً أو بدءَ عمل.",
+        href: "/admin/improvements",
+        cta: "افتح الصندوق",
+      });
+    }
   }
 
   return alerts;

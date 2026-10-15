@@ -444,6 +444,14 @@ export async function sweepTicketEscalation() {
       status: { in: ["open", "in_progress"] },
       stage: { in: ["department", "lead_escalation", "ceo_escalation"] },
       stageDueAt: { lt: new Date() },
+      // **ملاحظاتُ التحسين خارج ساعة التصعيد.**
+      //
+      // مهلةُ التذكرة يومان ثم تَصعد إلى القائد فالتنفيذي فالمؤسس،
+      // ومعها بريدٌ في كل مرحلة. وفكرةٌ عن لونِ زرٍّ لا تَستحقّ ذلك:
+      // لو مرّت على المسار نفسِه لبلغت المؤسسَ في يومين ثلاثَ مرّات.
+      // ووجهتُها المؤسسُ ابتداءً، فليس بعده من يُصعَّد إليه أصلاً.
+      // (والمهلةُ تُكتَب عليها لأن العمودَ لازم، ولا تُقرأ هنا.)
+      improvementKind: null,
     },
     include: TICKET_INCLUDE,
   });
