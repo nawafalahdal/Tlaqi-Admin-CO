@@ -1404,3 +1404,50 @@ export async function sendCommitteeDecisionEmail(opts: {
     "قرار لجنة"
   );
 }
+
+/** ردُّ تسليمٍ للتصحيح — **الرسالةُ الوحيدة في نظام التنفيذ كلِّه.**
+ *
+ *  ## لماذا واحدةٌ فقط؟
+ *
+ *  حدُّ الإرسال الشهريُّ محدود، وصاحبُ المنصة طلب صراحةً ألّا تمتلئ
+ *  البرُد بما يُقرأ على المنصة. وكلُّ أحداث التنفيذ — إسنادُ مهمّة،
+ *  وفتحُ أسبوع، وطلبُ تحقّق، وترحيلٌ يحتاج إقراراً، وقرارُ تمديد —
+ *  **تُقرأ في لوحة «ما ينتظرك»** أولَ ما يُفتَح الحساب، ولها وجهاتُها.
+ *
+ *  **والردُّ وحده يخرج إلى البريد**، لسببٍ واحد: صاحبُه قد يَحسب عملَه
+ *  منتهياً فلا يَفتح المنصة أياماً، والمهلةُ تمضي عليه وهو يَظنّ أنه
+ *  سلّم. فهذا خبرٌ **يُغيّر ما سيفعله اليوم**، لا تحديثُ حالة. */
+export async function sendWorkReturnedEmail(opts: {
+  to: string;
+  fullName: string;
+  taskTitle: string;
+  reason: string;
+  dueLabel: string;
+  taskUrl: string;
+}) {
+  return send(
+    opts.to,
+    `يحتاج تصحيحاً: ${opts.taskTitle}`,
+    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
+      <p>مرحباً ${esc(opts.fullName)}،</p>
+      <p>راجَعت الإدارةُ تسليمَك في <strong>${esc(opts.taskTitle)}</strong> وأعادته للتصحيح —
+         <strong>ولم يُحتسَب منجَزاً بعد</strong>.</p>
+      <p style="margin:0 0 6px;font-weight:bold">السبب كما كُتب:</p>
+      <p style="margin:0 0 18px;padding:12px 14px;background:#F6F4F0;border-radius:10px">${esc(opts.reason)}</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
+        ${factRow("الموعد", opts.dueLabel)}
+      </table>
+      <p style="font-size:14px">وتسليمُك السابق محفوظٌ لم يُمحَ: عدِّل ما طُلب وارفعه ثانيةً،
+         فيُراجَع من جديد.</p>
+      <p style="margin:22px 0">
+        <a href="${esc(opts.taskUrl)}"
+           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
+          افتح الالتزام
+        </a>
+      </p>
+      <p style="font-size:13px;color:#6B6B6B">وهذه الرسالةُ الوحيدة التي يُرسلها نظامُ التنفيذ:
+         بقيةُ ما ينتظرك يُقرأ في لوحة «ما ينتظرك» على المنصة.</p>
+    </div>`,
+    "ردّ تسليم"
+  );
+}

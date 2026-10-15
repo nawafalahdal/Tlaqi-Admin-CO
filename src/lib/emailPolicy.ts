@@ -38,6 +38,7 @@ export type EmailEvent =
   | "termination.decision"
   | "signature.request"
   | "announcement.broadcast"
+  | "execution.work_returned"
   // ── ما يُكتم
   | "ticket.escalated"
   | "ticket.withdrawn"
@@ -48,10 +49,19 @@ export type EmailEvent =
   | "test.failed"
   | "test.reopened"
   | "window.reminder"
-  | "totp.nudge";
+  | "totp.nudge"
+  | "execution.task_assigned"
+  | "execution.verified"
+  | "execution.week_opened"
+  | "execution.carryover"
+  | "execution.deadline_changed";
 
 export const EMAIL_POLICY: Record<EmailEvent, { send: boolean; why: string }> = {
   // ═══ يُرسَل: لا يُعرَف إلا بالبريد، أو يُوجب فعلاً ═══
+  "execution.work_returned": {
+    send: true,
+    why: "صاحبُه يَحسب عملَه منتهياً فلا يَفتح المنصة، والمهلةُ تمضي — وهذا الخبرُ وحدَه يُغيّر ما يفعله اليوم",
+  },
   "auth.login_code": { send: true, why: "العامل الثاني نفسه — لا دخول بدونه" },
   "auth.password_reset": { send: true, why: "طلبه صاحبه، والرابط لا يصل بغيره" },
   "member.credentials": {
@@ -113,6 +123,28 @@ export const EMAIL_POLICY: Record<EmailEvent, { send: boolean; why: string }> = 
   "test.reopened": { send: false, why: "الاختبار يُفتَح في بوابته — يراه حين يدخل" },
   "window.reminder": { send: false, why: "المهلة مكتوبةٌ في رسالة الدخول الأولى وفي بوابته" },
   "totp.nudge": { send: false, why: "نُخزةٌ لا خبر — وصفحة الحماية تقولها لمن يفتحها" },
+  // ═══ يُكتَم: نظامُ التنفيذ كلُّه يُقرأ في «ما ينتظرك» على المنصة ═══
+  "execution.task_assigned": {
+    send: false,
+    why: "الإسنادُ يُقرأ في لوحة «ما ينتظرك» أولَ ما يُفتَح الحساب — ورسالةٌ لكل مهمّةٍ تُغرِق البريد",
+  },
+  "execution.verified": {
+    send: false,
+    why: "التحقّقُ خبرٌ سارٌّ لا فعلَ بعده — يُقرأ على البطاقة",
+  },
+  "execution.week_opened": {
+    send: false,
+    why: "فتحُ الأسبوع حدثٌ تنظيميٌّ يراه الجميع في لوحاتهم",
+  },
+  "execution.carryover": {
+    send: false,
+    why: "الترحيلُ وإقرارُه يَظهران في خطة القسم وفي تنبيهات قائده",
+  },
+  "execution.deadline_changed": {
+    send: false,
+    why: "التمديدُ يُقرأ على البطاقة نفسها مع الموعد الأصلي",
+  },
+
 };
 
 export function emailAllowed(event: EmailEvent): boolean {

@@ -357,6 +357,34 @@ export async function reviewTask(opts: {
     }),
   ]);
 
+  // ── الرسالةُ الوحيدة: الردُّ للتصحيح.
+  //
+  // وصاحبُ العمل قد يَحسب عملَه منتهياً فلا يَفتح المنصة أياماً —
+  // فهذا خبرٌ يُغيّر ما سيفعله اليوم. وما سواه يُقرأ في «ما ينتظرك».
+  if (opts.decision === "returned") {
+    const owner = await prisma.planTask.findUnique({
+      where: { id: task.id },
+      select: {
+        dueAt: true,
+        ownerUser: { select: { email: true, fullName: true, isActive: true } },
+        ownerMember: { select: { email: true, fullName: true, isActive: true } },
+      },
+    });
+    const person = owner?.ownerUser ?? owner?.ownerMember ?? null;
+    if (person?.isActive && person.email) {
+      const { sendWorkReturnedEmail } = await import("@/lib/email");
+      const { countdownLabel } = await import("@/lib/riyadh");
+      await sendWorkReturnedEmail({
+        to: person.email,
+        fullName: person.fullName,
+        taskTitle: task.title,
+        reason: note ?? "—",
+        dueLabel: owner ? countdownLabel(owner.dueAt) : "—",
+        taskUrl: `${process.env.APP_BASE_URL || "http://localhost:3000"}/admin/execution`,
+      });
+    }
+  }
+
   const msg: Record<string, string> = {
     verified: `تحقّقتَ من «${task.title}» — وتُحتسَب الآن في الإنجاز المعتمَد`,
     returned: "رُدَّت للتصحيح — ووصل السببُ صاحبَها، والتسليمُ السابق محفوظ",

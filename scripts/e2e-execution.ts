@@ -763,6 +763,79 @@ function sess(role: string, id: string, name: string, departmentId: string | nul
     chk("ويُسجَّل الفتحُ مرّةً واحدة", opens === 1, String(opens));
   }
 
+  // ══ ٢٢) الإشعارات: واحدةٌ لا غير، ولمن يَلزمه الفعلُ وحده
+  {
+    const before = await prisma.emailLog.count();
+    const far2 = await ensurePeriod(new Date(FAR.getTime() + 70 * DAY));
+    cleanupPeriods.push(far2.id);
+    await prisma.executionPeriod.update({ where: { id: far2.id }, data: { state: "open" } });
+    const p2 = await ensureWeekPlan(far2.id, dept.id);
+    // صاحبُها عضوٌ **نشط**: البريدُ لا يُرسَل لحسابٍ مُنحّىً (وهذا صحيح)،
+    // و`worker` في هذا الفحص مُعطَّلٌ عمداً لئلا يَشغَل مقعداً في الهيكل.
+    const owner = await prisma.member.create({
+      data: {
+        fullName: `منفّذةٌ نشطة ${STAMP}`,
+        email: `exec-owner-${STAMP}@example.test`,
+        departmentId: dept.id,
+        approvalStatus: "approved",
+        isActive: true,
+        inviteId: (
+          await prisma.invite.create({
+            data: {
+              fullName: "منفّذة", email: `exec-owner-inv-${STAMP}@example.test`,
+              targetRole: "member",
+              testTrackId: (
+                await prisma.testTrack.findFirstOrThrow({ where: { scope: "department_member" } })
+              ).id,
+              invitedById: exec.id, status: "used",
+            },
+          })
+        ).id,
+      },
+    });
+    const W2 = sess("member", owner.id, owner.fullName, dept.id);
+
+    const t = await createTask({
+      planId: p2.id, title: `للردّ ${STAMP}`, acceptanceCriteria: "معيار",
+      ownerMemberId: owner.id, dueAt: new Date(far2.weekStart.getTime() + 2 * DAY), session: L,
+    });
+    if (t.ok) {
+      // إسنادٌ وتحديثٌ وتسليم: ثلاثةُ أحداثٍ — ولا بريدَ في شيءٍ منها
+      await updateTaskState({ taskId: t.id, state: "in_progress", session: W2 });
+      await submitTaskWork({
+        taskId: t.id, note: "سلّمتُه", evidenceUrl: "https://tlaqiteam.site/x", session: W2,
+      });
+      const afterSubmit = await prisma.emailLog.count();
+      chk(
+        "٢٢ · **ولا بريدَ على إسنادٍ ولا تسليمٍ ولا تحديثِ حالة** — تُقرأ على المنصة",
+        afterSubmit === before,
+        `${afterSubmit - before} رسالة`
+      );
+
+      // والتحقّقُ كذلك لا بريدَ له
+      const verified = await reviewTask({ taskId: t.id, decision: "verified", session: E });
+      const afterVerify = await prisma.emailLog.count();
+      chk("ولا على التحقّق", verified.ok && afterVerify === before, `${afterVerify - before}`);
+
+      // أما الردُّ للتصحيح فرسالةٌ واحدة — صاحبُها قد يَحسب عملَه منتهياً
+      await prisma.planTask.update({ where: { id: t.id }, data: { execState: "submitted" } });
+      const returned = await reviewTask({
+        taskId: t.id, decision: "returned", note: "ينقصه تقريرُ الأرقام", session: E,
+      });
+      const afterReturn = await prisma.emailLog.count();
+      chk("٢٢ · **والردُّ للتصحيح وحده يُرسَل** — خبرٌ يُغيّر ما يفعله اليوم",
+          returned.ok && afterReturn === before + 1, `${afterReturn - before} رسالة`);
+      const row = await prisma.emailLog.findFirst({ orderBy: { createdAt: "desc" } });
+      chk("ووسمُها «ردّ تسليم» ولمستلمٍ واحد",
+          row?.kind === "ردّ تسليم" && row?.recipient === owner.email,
+          `${row?.kind} → ${row?.recipient}`);
+
+      await prisma.planTask.deleteMany({ where: { id: t.id } });
+      await prisma.member.delete({ where: { id: owner.id } });
+      await prisma.invite.deleteMany({ where: { email: { contains: `exec-owner-inv-${STAMP}` } } });
+    }
+  }
+
   // ══ ٢٢/٢٥) التقويم: يُشتقّ، ويُصفّى بالصلاحية، ولا يَكسر ما قبله
   {
     const { calendarEntries, monthGrid, todayKey } = await import("@/lib/orgCalendar");
