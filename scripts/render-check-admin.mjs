@@ -254,6 +254,43 @@ const nestedInDom = await page.evaluate(() => {
 });
 check(nestedInDom === "nested", "**واللجنةُ مرسومةٌ داخل فرع أبيها لا بجانبه**", String(nestedInDom));
 
+// ── مركز الخطط: نبذةٌ للجميع، ووثائقُ مرقَّمة، وأدواتٌ لمن يملكها
+await page.goto(BASE + "/plans", { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(3000);
+const plans = (await page.textContent("body")) ?? "";
+check(!/تعذّر إتمام العملية|Application error/.test(plans), "/plans — بلا خطأ تشغيل");
+check(plans.includes("وثائق التوجّه"), "**/plans — النبذة تتصدّر الصفحة**");
+check(/خطة تَـــلاقِ ٢٠٢٦/.test(plans), "وفيه الوثائق بعناوينها");
+check(plans.includes("الوثائق والملفات"), "وعنوانُ القائمة مع عددها");
+check(
+  (await page.locator('a:has-text("افتح الملف")').count()) >= 1,
+  "**وزرُّ فتح الملف مرسومٌ على الوثيقة المرفوعة**"
+);
+check(
+  (await page.locator('a:has-text("افتح الرابط")').count()) >= 1,
+  "وزرُّ فتح الرابط على المادة الخارجية"
+);
+check(plans.includes("أضف وثيقة"), "**وأدواتُ الإضافة ظاهرةٌ للمؤسس**");
+check(plans.includes("نبذة المركز"), "ومعها تحريرُ النبذة");
+// الترتيب: السهمُ الأول معطَّلٌ على أوّل وثيقة — الواجهةُ تعرف موضعها
+const upButtons = page.locator('button[title="قدّمها"]');
+check((await upButtons.count()) >= 2, "وسهما الترتيب على كل وثيقة");
+check(await upButtons.first().isDisabled(), "**والسهمُ معطَّلٌ على الأولى — لا يُضغَط ليُرَدّ**");
+
+// والملفُّ يُفتَح فعلاً بنوعه لا بصفحةِ خطأ
+const fileHref = await page.locator('a:has-text("افتح الملف")').first().getAttribute("href");
+const res = await page.request.get(BASE + fileHref);
+check(res.status() === 200, `ومسارُ الملف يستجيب (${res.status()})`);
+check(
+  (res.headers()["content-type"] ?? "").includes("application/pdf"),
+  "**وبنوعه المُعلَن — PDF**",
+  res.headers()["content-type"]
+);
+check(
+  (res.headers()["x-content-type-options"] ?? "") === "nosniff",
+  "ومعه nosniff — فلا يُخمَّن نوعٌ آخر"
+);
+
 // ── السمتان: التبديل، والثبات عبر الصفحات، وبلا ومضة
 {
   const themeOf = () => page.evaluate(() => document.documentElement.dataset.theme);
@@ -297,6 +334,87 @@ check(nestedInDom === "nested", "**واللجنةُ مرسومةٌ داخل فر
     await page.locator('button[title="الوضع الفاتح"]').first().click();
     await page.waitForTimeout(500);
   }
+}
+
+// ── الداكن: الأسطحُ الحالة لا تبقى كريميّةً صارخةً ولا حبرُها داكناً
+{
+  await page.goto(BASE + "/admin", { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(1500);
+  await page.locator('button[title="الوضع الداكن"]').first().click();
+  await page.waitForTimeout(800);
+
+  /** إضاءةُ لونٍ محسوبٍ أياً كان فضاؤه.
+   *
+   *  **والفحصُ كان هو المخطئ أولاً لا الكود:** الأسطحُ الداكنة مبنيّةٌ
+   *  بـ`color-mix`، فيُعيدها المتصفّح `oklab(0.32 …)` لا `rgb(...)`.
+   *  وكان المُحلِّل يقرأ `rgb` وحدها فيُعيد `null` فيسقط الفحصُ ولونُ
+   *  السطح داكنٌ فعلاً. فصار القياسُ على **البكسل المرسوم**: يُملأ به
+   *  قماشٌ بمقاس ١×١ وتُقرأ بايتاتُه — وهذا يَصدق في كل فضاء لون. */
+  const lum = async (css) =>
+    page.evaluate((value) => {
+      const c = document.createElement("canvas");
+      c.width = c.height = 1;
+      const ctx = c.getContext("2d", { willReadFrequently: true });
+      if (!ctx) return null;
+      ctx.fillStyle = "#000000";
+      ctx.fillStyle = value;
+      ctx.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+      if (a === 0) return null;
+      return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    }, css);
+  const probes = await page.evaluate(() => {
+    const out = [];
+    for (const sel of [".bg-amber-50", ".bg-red-50", ".bg-emerald-50", ".bg-green-50"]) {
+      const el = document.querySelector(sel);
+      if (el) {
+        const cs = getComputedStyle(el);
+        out.push({ sel, bg: cs.backgroundColor, fg: cs.color });
+      }
+    }
+    return out;
+  });
+  for (const p of probes) {
+    const bg = await lum(p.bg);
+    check(bg !== null && bg < 0.45, `الداكن: سطحُ ${p.sel} غَمِق ولم يبقَ لوحاً ساطعاً`, p.bg);
+  }
+  // وحبرُ الحالة يَفتح ليُقرأ على السطح الداكن
+  const inks = await page.evaluate(() => {
+    const out = [];
+    for (const sel of [".text-amber-900", ".text-red-700", ".text-red-800", ".text-emerald-800"]) {
+      const el = document.querySelector(sel);
+      if (el) out.push({ sel, fg: getComputedStyle(el).color });
+    }
+    return out;
+  });
+  for (const p of inks) {
+    const fg = await lum(p.fg);
+    check(fg !== null && fg > 0.5, `الداكن: حبرُ ${p.sel} فَتَح فيُقرأ`, p.fg);
+  }
+
+  // ومركزُ الخطط في الداكن: رقمُ الوثيقة يُقرأ على سطحه
+  await page.goto(BASE + "/plans", { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(2000);
+  const darkPlans = (await page.textContent("body")) ?? "";
+  check(!/تعذّر إتمام العملية|Application error/.test(darkPlans), "/plans في الداكن — بلا خطأ");
+  const contrast = await page.evaluate(() => {
+    const el = [...document.querySelectorAll("span")].find((n) => n.textContent?.trim() === "1");
+    if (!el) return null;
+    const cs = getComputedStyle(el);
+    return { fg: cs.color, bg: cs.backgroundColor };
+  });
+  if (contrast) {
+    const fg = await lum(contrast.fg);
+    const bg = await lum(contrast.bg);
+    check(fg !== null && bg !== null && Math.abs(fg - bg) > 0.25,
+      "**الداكن: رقمُ الوثيقة يُقرأ على سطحه — لا حبرٌ غامقٌ على غامق**",
+      `${contrast.fg} على ${contrast.bg}`);
+  }
+
+  await page.goto(BASE + "/admin", { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(1200);
+  const back = page.locator('button[title="الوضع الفاتح"]').first();
+  if (await back.count()) { await back.click(); await page.waitForTimeout(500); }
 }
 
 check(errors.length === 0, "لا أخطاء جافاسكربت في المتصفح" + (errors.length ? `: ${errors[0]}` : ""));

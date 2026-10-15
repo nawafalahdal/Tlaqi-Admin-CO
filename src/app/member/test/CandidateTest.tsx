@@ -112,7 +112,7 @@ export function CandidateTest({
               style={
                 selected
                   ? { background: theme.surface, borderColor: theme.accentDark, color: theme.accentDark }
-                  : { borderColor: "#00000014", color: "#1A1023" }
+                  : { borderColor: "var(--hairline)", color: "var(--ink)" }
               }
             >
               {opt}

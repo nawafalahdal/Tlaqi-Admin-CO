@@ -17,8 +17,6 @@ import { sendCommitteeRequestEmail, sendCommitteeDecisionEmail } from "@/lib/ema
  *  ما يمنع أن يصير الهيكلُ شجرةً تنمو بلا إذنٍ من أحد.
  */
 
-const HEX = /^#[0-9a-fA-F]{6}$/;
-
 function baseUrl() {
   return process.env.APP_BASE_URL || "http://localhost:3000";
 }
@@ -127,13 +125,19 @@ export type CommitteeResult =
 
 /** يقترح لجنةً داخل قسم — ولا يفتحها.
  *
- *  واللونُ يجب أن يختلف عن لون أبيها وعن ألوان أخواتها: اللجنةُ تُقرأ
- *  في الهيكل بلونها، فلونٌ مكرَّرٌ يجعلها تبدو امتداداً لغيرها. وهذا
- *  شرطُ صاحب المنصة صريحاً: «ولونها يكون مختلف». */
+ *  **ولا لونَ لها تختاره.** كانت تختار لوناً مميّزاً، فصار في الهيكل
+ *  لونٌ سادسٌ وسابع لا يدلّ على شيء: اللجنةُ **من** قسمها، فلونٌ غريبٌ
+ *  عنه يقطع نسبَها إليه ويُقرأ قسماً مستقلاً. فصارت تأخذ لون قسمها
+ *  نفسَه، ويُميَّزها شكلُها لا لونُها: إطارٌ متقطّعٌ، ووسمُ «لجنة» على
+ *  ترويستها، ووسمٌ على بطاقة قائدها وكلِّ عضوٍ فيها — فتُعرَف لجنةً
+ *  بأعضائها وقائدها من النظرة الأولى، وتبقى من قسمها لوناً.
+ *
+ *  واللونُ يُحفَظ في صفّها مع ذلك: نسخةٌ من لون أبيها يوم الاقتراح،
+ *  تُبقي الصفَّ قائماً بذاته إن قُرئ وحده. أمّا العرضُ فيُشتقّ من
+ *  الأب في كل قراءة — فإن غُيّر لونُ القسم تبعته لجانُه بلا إجراء. */
 export async function requestCommittee(opts: {
   parentId: string;
   name: string;
-  colorHex: string;
   leadTitle?: string | null;
   session: Session;
 }): Promise<CommitteeResult> {
@@ -142,11 +146,9 @@ export async function requestCommittee(opts: {
   }
 
   const name = opts.name.trim();
-  const colorHex = opts.colorHex.trim();
   const leadTitle = opts.leadTitle?.trim() || null;
 
   if (!name) return { ok: false, reason: "اسم اللجنة مطلوب" };
-  if (!HEX.test(colorHex)) return { ok: false, reason: "اللون يجب أن يكون بصيغة #RRGGBB" };
 
   const parent = await prisma.department.findUnique({
     where: { id: opts.parentId },
@@ -156,7 +158,7 @@ export async function requestCommittee(opts: {
       colorHex: true,
       committeeStatus: true,
       leadershipOnly: true,
-      committees: { select: { colorHex: true, name: true } },
+      committees: { select: { name: true } },
     },
   });
   if (!parent) return { ok: false, reason: "القسم غير موجود" };
@@ -182,14 +184,8 @@ export async function requestCommittee(opts: {
     return { ok: false, reason: "يوجد قسم أو لجنة بهذا الاسم بالفعل" };
   }
 
-  const taken = colorHex.toLowerCase();
-  if (parent.colorHex.toLowerCase() === taken) {
-    return { ok: false, reason: `هذا لونُ «${parent.name}» نفسه — للجنة لونٌ يميّزها` };
-  }
-  const sibling = parent.committees.find((c) => c.colorHex.toLowerCase() === taken);
-  if (sibling) {
-    return { ok: false, reason: `هذا لونُ لجنة «${sibling.name}» — اختر لوناً يميّزها عنها` };
-  }
+  // لونُ اللجنة لونُ قسمها — يُنسَخ في صفّها ويُشتقّ في العرض
+  const colorHex = parent.colorHex;
 
   const approver = await committeeApprover();
   const slug = await uniqueSlug(slugify(name));
@@ -217,7 +213,7 @@ export async function requestCommittee(opts: {
     email: "",
     roleOrDepartment: `${parent.name} ← ${name}`,
     event: "اقتراح لجنة داخل قسم",
-    details: `اللون: ${colorHex} — مسمّى قائدها: ${committeeLeadTitle(name, leadTitle)} — بانتظار اعتماد ${approver?.label ?? "الإدارة"}`,
+    details: `لونُ قسمها: ${colorHex} — مسمّى قائدها: ${committeeLeadTitle(name, leadTitle)} — بانتظار اعتماد ${approver?.label ?? "الإدارة"}`,
     at: now,
   });
 

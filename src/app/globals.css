@@ -139,8 +139,33 @@ body {
 
   /* حدودُ الحالة تُرفَع قليلاً لتُرى على الداكن */
   & .ring-red-200, & .ring-red-300 { --tw-ring-color: color-mix(in oklab, #ef4444 45%, transparent); }
-  & .border-red-200, & .border-red-300 { border-color: color-mix(in oklab, #ef4444 45%, transparent); }
-  & .border-amber-200 { border-color: color-mix(in oklab, #f59e0b 45%, transparent); }
+  & .ring-amber-200 { --tw-ring-color: color-mix(in oklab, #f59e0b 45%, transparent); }
+  & .ring-green-200, & .ring-emerald-200 { --tw-ring-color: color-mix(in oklab, #10b981 45%, transparent); }
+  & .border-red-200, & .border-red-300, & .border-red-400 { border-color: color-mix(in oklab, #ef4444 45%, transparent); }
+  & .border-amber-200, & .border-amber-300, & .border-amber-400, & .border-amber-500 { border-color: color-mix(in oklab, #f59e0b 45%, transparent); }
+  & .border-green-200, & .border-green-400, & .border-emerald-200 { border-color: color-mix(in oklab, #10b981 45%, transparent); }
+
+  /* الأحبار الباقية: ٦٠٠ كالـ٧٠٠، و٩٠٠ الأخضر كأخويه */
+  & .text-red-600 { color: #fca5a5; }
+  & .text-emerald-900 { color: #6ee7b7; }
+
+  /* ═══ الألوان المكتوبة بقيمها ═══
+   *
+   *  **عطبٌ ثانٍ من جنس الأول:** بعض الحالات مكتوبةٌ بقيمةٍ صريحة لا
+   *  بصنفٍ من اللوحة — `text-[#9A2E1C]` و`bg-[#FBE5E1]` وأخواتهما، وهي
+   *  من هوية تَـــلاقِ لا من Tailwind. فلم يَطُلها الخرطُ أعلاه وبقيت
+   *  كما هي: حبرٌ عنّابيٌّ داكنٌ على سطحٍ داكن لا يُقرأ، ولوحةٌ ورديّةٌ
+   *  فاتحةٌ تَصرخ في شاشةٍ ليلية.
+   *
+   *  وتُخرَط هنا بأعيانها — ومواضعُها معدودةٌ محصورة: شاراتُ التأخّر،
+   *  وشاراتُ الإنجاز، وشريطُ الوداع، وبنكُ الأسئلة الفارغ. */
+  & .text-\[\#9A2E1C\] { color: #fca5a5; }
+  & .border-\[\#9A2E1C\] { border-color: color-mix(in oklab, #ef4444 45%, transparent); }
+  & .bg-\[\#FBE5E1\] { background-color: color-mix(in oklab, #ef4444 18%, var(--surface)); }
+  & .text-\[\#8A5A00\] { color: #fcd34d; }
+  & .bg-\[\#FFF1DE\] { background-color: color-mix(in oklab, #f59e0b 18%, var(--surface)); }
+  & .text-\[\#1F6B3A\] { color: #6ee7b7; }
+  & .bg-\[\#E3F3E8\] { background-color: color-mix(in oklab, #10b981 18%, var(--surface)); }
 }
 
 /* الصفحات التي تَعرض زرّ الرجوع الطائف: يُوسَّع أسفلُها بقدره فلا يحجب

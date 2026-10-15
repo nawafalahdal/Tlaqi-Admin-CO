@@ -355,7 +355,6 @@ export async function requestCommitteeAction(
     const res = await requestCommittee({
       parentId: String(formData.get("parentId") ?? ""),
       name: String(formData.get("name") ?? ""),
-      colorHex: String(formData.get("colorHex") ?? ""),
       leadTitle: String(formData.get("leadTitle") ?? ""),
       session,
     });

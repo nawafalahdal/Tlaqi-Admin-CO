@@ -18,6 +18,10 @@ import { RequestCard } from "./RequestCard";
 import { MemberInviteForm } from "./MemberInviteForm";
 import { MemberRoster } from "./MemberRoster";
 import { CommitteesPanel } from "./CommitteesPanel";
+import { AlertsPanel } from "@/components/AlertsPanel";
+import { PlansLink } from "@/components/PlansLink";
+import { planCounts } from "@/lib/plans";
+import { alertsForUser } from "@/lib/alerts";
 import { OffboardingPanel } from "./OffboardingPanel";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
@@ -69,6 +73,9 @@ export default async function DepartmentBoardPage({
   // لجانُه بكل حالاتها: قائدُ القسم يرى المقترحةَ والمردودةَ أيضاً —
   // هو من اقترحها، فحجبُها عنه يُخفي عليه مصير طلبه
   const committees = await committeesOf(department.id);
+  // ما ينتظر القائدَ شخصياً — ومركزُ الخطط يُقرأ من لوحته كما من لوحة غيره
+  const alerts = isOwnDept ? await alertsForUser(session) : [];
+  const plans = await planCounts();
 
   await sweepOverdueRequests(department.id);
   await sweepTicketEscalation();
@@ -155,6 +162,7 @@ export default async function DepartmentBoardPage({
       </AppHeader>
 
       <main className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-6 sm:px-5 sm:py-8">
+        <AlertsPanel alerts={alerts} />
         <section>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-base font-bold sm:text-lg">{t.hub.announcementsTitle}</h2>
@@ -196,6 +204,10 @@ export default async function DepartmentBoardPage({
               {t.deptBoard.viewOnlyPrefix} {department.name} {t.deptBoard.viewOnlySuffix}
             </Card>
           )}
+        </section>
+
+        <section>
+          <PlansLink theme={theme} docCount={plans.total} freshCount={plans.fresh} />
         </section>
 
         {/* اللجان: قسمٌ داخل القسم — يقترحه قائده ويعتمده التنفيذي */}

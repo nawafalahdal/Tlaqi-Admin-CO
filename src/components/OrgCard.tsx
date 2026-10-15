@@ -15,11 +15,19 @@ export function OrgCard({
   color,
   size = "md",
   highlight = false,
+  committee = null,
 }: {
   person: OrgPerson;
   /** لون المستوى أو القسم — يُحمَل شريطاً وحدّاً لا سطحاً كاملاً */
   color: string;
   size?: "lg" | "md" | "sm";
+  /** اسمُ اللجنة إن كان صاحبُ البطاقة فيها — قائداً أو عضواً.
+   *
+   *  **واللجنةُ تُعرَف بشكلها لا بلونها:** لونُها لونُ قسمها، فلو لم
+   *  تُوسَم بطاقاتُها لقُرئ أهلُها أعضاءَ القسم مباشرةً. فيُرسَم على
+   *  البطاقة حدٌّ متقطّعٌ ووسمٌ باسم اللجنة — فيُعرَف أنه منها، ويبقى
+   *  لونُه لونَ قسمه فيُعرَف أنه من القسم أيضاً. */
+  committee?: string | null;
   /** بطاقةُ من يُشاهد — تُميَّز ليعرف موضعه من الهيكل.
    *
    *  والهيكل يُقرأ بعشرات البطاقات، فالعضو يبحث عن نفسه فيها بعينه.
@@ -39,9 +47,17 @@ export function OrgCard({
       className={`${dims.box} relative shrink-0 overflow-hidden rounded-2xl bg-white shadow-sm ${
         highlight
           ? "ring-2 ring-offset-2 ring-offset-page shadow-md"
-          : "ring-1 ring-black/[0.07]"
+          : committee
+            ? "border border-dashed"
+            : "ring-1 ring-black/[0.07]"
       }`}
-      style={highlight ? { ["--tw-ring-color" as string]: "#C34900" } : undefined}
+      style={
+        highlight
+          ? { ["--tw-ring-color" as string]: "#C34900" }
+          : committee
+            ? { borderColor: `${outlineFor(color)}80` }
+            : undefined
+      }
     >
       {highlight && (
         <span className="absolute start-0 top-0 z-10 rounded-ee-lg bg-[#C34900] px-1.5 py-0.5 text-[9px] font-bold text-on-brand print:bg-[#C34900]">
@@ -64,6 +80,20 @@ export function OrgCard({
         <p className={`mt-0.5 leading-snug text-black/55 ${dims.title}`}>{person.title}</p>
         {person.scope && (
           <p className={`mt-0.5 leading-snug text-black/35 ${dims.title}`}>{person.scope}</p>
+        )}
+        {committee && (
+          <span
+            className="mt-1.5 rounded-full border border-dashed px-2 py-0.5 text-[9px] font-bold"
+            style={{
+              borderColor: `${outlineFor(color)}99`,
+              // حبرُ الوسم يتبع السمة: لونُ القسم قد يكون داكناً جداً أو
+              // فاتحاً جداً، وكلاهما يَعمى على سطحٍ من جنسه
+              color: `light-dark(${outlineFor(color)}, var(--ink))`,
+              background: `${color}12`,
+            }}
+          >
+            لجنة {committee}
+          </span>
         )}
       </div>
     </div>
@@ -113,9 +143,20 @@ function Portrait({
 }
 
 /** مقعدٌ شاغر — يُعلَن شاغراً ولا يُسنَد إلى أحد */
-export function VacantCard({ title, color }: { title: string; color: string }) {
+export function VacantCard({
+  title,
+  color,
+  committee = null,
+}: {
+  title: string;
+  color: string;
+  committee?: string | null;
+}) {
   return (
-    <div className="w-[152px] shrink-0 overflow-hidden rounded-2xl border border-dashed border-black/20 bg-black/[0.02]">
+    <div
+      className="w-[152px] shrink-0 overflow-hidden rounded-2xl border border-dashed bg-black/[0.02]"
+      style={{ borderColor: committee ? `${outlineFor(color)}80` : "color-mix(in oklab, var(--ink) 20%, transparent)" }}
+    >
       <div className="h-1.5 w-full opacity-40" style={{ background: color }} aria-hidden />
       <div className="flex flex-col items-center px-3 pb-3 pt-3 text-center">
         <span className="flex h-16 w-16 items-center justify-center rounded-full border border-dashed border-black/20 text-xl text-black/25">
@@ -133,12 +174,15 @@ export function SeatCard({
   color,
   size,
   viewerId,
+  committee = null,
 }: {
   seat: OrgSeat;
   color: string;
   size?: "lg" | "md" | "sm";
   /** معرّف من يُشاهد — تُميَّز به بطاقتُه أينما وقعت */
   viewerId?: string;
+  /** اسمُ اللجنة إن كان المقعدُ فيها */
+  committee?: string | null;
 }) {
   return seat.kind === "filled" ? (
     <OrgCard
@@ -146,8 +190,9 @@ export function SeatCard({
       color={color}
       size={size}
       highlight={Boolean(viewerId) && seat.person.id === viewerId}
+      committee={committee}
     />
   ) : (
-    <VacantCard title={seat.title} color={color} />
+    <VacantCard title={seat.title} color={color} committee={committee} />
   );
 }

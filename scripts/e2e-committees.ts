@@ -67,27 +67,16 @@ function sess(role: string, departmentId: string | null, id: string, name = "ا�
   const foreign = await requestCommittee({
     parentId: parent.id,
     name: `لجنة دخيلة ${STAMP}`,
-    colorHex: "#1F6F8B",
     session: sess("department_admin", "قسم-آخر", "ghost"),
   });
   chk("ويُفرَض في الخادم لا بإخفاء زرّ", foreign.ok === false,
       foreign.ok === false ? foreign.reason : "مرّ!");
 
-  // ── ٢) اللون لا بدّ أن يميّزها
-  const sameAsParent = await requestCommittee({
-    parentId: parent.id,
-    name: `لجنة بلون أبيها ${STAMP}`,
-    colorHex: "#c34900",
-    session: leadSess,
-  });
-  chk("لونُ الأب يُرفَض — ولو بحروفٍ صغيرة", sameAsParent.ok === false,
-      sameAsParent.ok === false ? sameAsParent.reason : "مرّ!");
 
   // ── ٣) الاقتراح يُنشئ صفّاً ساكناً: لا بنك أسئلة، ولا ظهور
   const dev = await requestCommittee({
     parentId: parent.id,
     name: `التطوير ${STAMP}`,
-    colorHex: "#1F6F8B",
     leadTitle: `مسؤول لجنة التطوير`,
     session: leadSess,
   });
@@ -126,21 +115,13 @@ function sess(role: string, departmentId: string | null, id: string, name = "ا�
     (await committeesOf(parent.id)).some((c) => c.id === dev.id)
   );
 
-  // ── ٤) لونُ أختها يُرفَض كذلك
-  const sameAsSibling = await requestCommittee({
-    parentId: parent.id,
-    name: `لجنة ثانية ${STAMP}`,
-    colorHex: "#1F6F8B",
-    session: leadSess,
-  });
-  chk("لونُ لجنةٍ أختٍ يُرفَض", sameAsSibling.ok === false,
-      sameAsSibling.ok === false ? sameAsSibling.reason : "مرّ!");
+  // ── ٤) لونُها لونُ قسمها — نسخةً في صفّها واشتقاقاً في العرض
+  chk("ولونُها لونُ قسمها لا لوناً خاصاً", row.colorHex === "#C34900", row.colorHex);
 
   // ── ٥) لا تُفرَّع لجنةٌ قبل أن تُفتح
   const prematureChild = await requestCommittee({
     parentId: dev.id,
     name: `فرعٌ قبل الفتح ${STAMP}`,
-    colorHex: "#7A4EAB",
     session: sess("executive", null, exec.id),
   });
   chk("ولا تُفرَّع لجنةٌ لم تُعتمد", prematureChild.ok === false,
@@ -202,7 +183,8 @@ function sess(role: string, departmentId: string | null, id: string, name = "ا�
   const nested = parentNode?.committees.find((c) => c.id === dev.id);
   chk("بل فرعٌ داخله", Boolean(nested));
   chk("ويُعلَم أنها لجنة", nested?.isCommittee === true);
-  chk("بلونها هي لا بلون أبيها", nested?.colorHex === "#1F6F8B");
+  chk("وتُعرَض بلون أبيها لا بلونٍ غريب", nested?.displayColor === parentNode?.displayColor,
+      `${nested?.displayColor} / ${parentNode?.displayColor}`);
   chk("ومقعدُ قيادتها يُعلَن شاغراً باسمها",
       nested?.lead.kind === "vacant" &&
         nested.lead.title === `قائد لجنة ${decided.name}`,
@@ -218,7 +200,6 @@ function sess(role: string, departmentId: string | null, id: string, name = "ا�
   const sub = await requestCommittee({
     parentId: dev.id,
     name: `لجنة فرعية ${STAMP}`,
-    colorHex: "#7A4EAB",
     session: sess("executive", null, exec.id, exec.fullName),
   });
   chk("لجنةٌ داخل لجنةٍ معتمدة تُقبل", sub.ok, sub.ok ? "" : sub.reason);
@@ -232,7 +213,6 @@ function sess(role: string, departmentId: string | null, id: string, name = "ا�
     const deep = await requestCommittee({
       parentId: sub.id,
       name: `طبقة رابعة ${STAMP}`,
-      colorHex: "#0F766E",
       session: sess("executive", null, exec.id, exec.fullName),
     });
     chk(`وما بعد ${MAX_COMMITTEE_DEPTH} مستويَين يُمنَع بحدٍّ يُسمّى`, deep.ok === false,
@@ -254,7 +234,6 @@ function sess(role: string, departmentId: string | null, id: string, name = "ا�
   const spare = await requestCommittee({
     parentId: parent.id,
     name: `لجنة تُسحَب ${STAMP}`,
-    colorHex: "#B38B2D",
     session: leadSess,
   });
   if (spare.ok) {

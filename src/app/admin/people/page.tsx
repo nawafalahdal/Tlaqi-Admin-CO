@@ -15,6 +15,8 @@ import { BackButton } from "@/components/BackButton";
 import { DataTable } from "@/components/DataTable";
 import { FounderMemberControls } from "@/components/FounderMemberControls";
 import { OrgChartLink } from "@/components/OrgChartLink";
+import { PlansLink } from "@/components/PlansLink";
+import { planCounts } from "@/lib/plans";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
 import {
@@ -51,7 +53,8 @@ export default async function PeoplePage() {
 
   await sweepExpiredCandidateAccounts();
 
-  const [me, accounts, allMembers, removedUsers, allDepartments] = await Promise.all([
+  const [me, accounts, allMembers, removedUsers, allDepartments, plans] =
+    await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
       select: { welcomeEmailSentAt: true },
@@ -91,6 +94,8 @@ export default async function PeoplePage() {
       select: { id: true, name: true },
       orderBy: [{ leadershipOnly: "desc" }, { name: "asc" }],
     }),
+    // عدّانِ لا جلبُ وثائق: المدخلُ يقول كم فيه وكم جَدَّ، لا يَعرضها
+    planCounts(),
   ]);
 
   // مَن وصلته بطاقتُه فعلاً — من السجل لا من الحقل وحده. قراءةٌ واحدة
@@ -263,6 +268,7 @@ export default async function PeoplePage() {
             وحده، فلا يُدخَل الشخص مرتين */}
         <div className="mb-4">
           <OrgChartLink theme={theme} />
+          <PlansLink theme={theme} docCount={plans.total} freshCount={plans.fresh} />
         </div>
 
         <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">

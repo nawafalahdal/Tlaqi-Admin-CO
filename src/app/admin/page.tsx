@@ -19,6 +19,8 @@ import { DataTable } from "@/components/DataTable";
 import { TicketBoard } from "@/components/TicketBoard";
 import { ApprovalQueue } from "./ApprovalQueue";
 import { SeatConflicts } from "@/components/SeatConflicts";
+import { AlertsPanel } from "@/components/AlertsPanel";
+import { alertsForUser } from "@/lib/alerts";
 import { AnnouncementComposer } from "./hub/AnnouncementComposer";
 import { AnnouncementList } from "./hub/AnnouncementList";
 import { RaiseAdminTicketForm, type TicketTargetOption } from "./tickets/RaiseAdminTicketForm";
@@ -41,11 +43,6 @@ export default async function AdminPage() {
   await sweepOverdueRequests();
   await sweepTicketEscalation();
   await sweepExpiredCandidateAccounts();
-
-  const me = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { profileCompletedAt: true },
-  });
 
   const [departments, leadershipQueue, memberQueue, requests, escalatedTickets, announcements] =
     await Promise.all([
@@ -148,12 +145,19 @@ export default async function AdminPage() {
     where: { approverUserId: session.user.id, approvalState: { in: ["awaiting", "reviewing"] } },
   });
 
+  const alerts = await alertsForUser(session);
+
   const quickLinks = [
     // الهيكل أولاً: هو خريطة المنظمة، ويراه الجميع
     {
       href: "/structure",
       title: "الهيكل التنظيمي",
       desc: "المؤسس والإدارة العليا وقادة الأقسام والأعضاء — يُبنى وحده من بيانات المنصة، وللعرض فقط",
+    },
+    {
+      href: "/plans",
+      title: "خطط تَـــلاقِ ووثائقها",
+      desc: "نبذةُ المنصة وخطّتُها وأهدافُها وأهمُّ ملفّاتها — يقرؤها الجميع، ويرفعها المؤسس والتنفيذي",
     },
     { href: "/admin/profile", title: dict.adminProfile.title, desc: dict.adminProfile.subtitle },
     ...(isSuperAdmin || session.user.role === "executive"
@@ -248,22 +252,11 @@ export default async function AdminPage() {
       </AppHeader>
 
       <main className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-6 sm:px-5 sm:py-8">
-        {/* اللقب لا يُغني عن السجلّ: من يقود الفريق جزءٌ منه */}
-        {me && !me.profileCompletedAt && (
-          <Card className="border-r-4 p-4 sm:p-5" style={{ borderRightColor: theme.accentDark }}>
-            <h2 className="text-sm font-bold">{dict.adminProfile.bannerTitle}</h2>
-            <p className="mt-1 text-xs leading-relaxed text-black/55">
-              {dict.adminProfile.bannerBody}
-            </p>
-            <Link
-              href="/admin/profile"
-              className="mt-3 inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-semibold text-on-brand"
-              style={{ background: theme.accentDark }}
-            >
-              {dict.adminProfile.bannerCta}
-            </Link>
-          </Card>
-        )}
+        {/* **ما ينتظرك أولاً.** كان هنا شريطٌ واحدٌ لنقص البيانات وحده،
+            وبقي ما سواه مبعثراً في الصفحات: توقيعٌ مطلوب، واعتمادٌ ينتظر،
+            وتحقّقٌ ثنائيٌّ غيرُ مُفعَّل، وتذكرةٌ تأخّرت. فجُمع كلُّه في
+            لوحةٍ واحدةٍ لكلٍّ سطرُه ووجهتُه — وترتفع كلُّها عند السلامة. */}
+        <AlertsPanel alerts={alerts} />
 
         {/* التذاكر أولاً: هي قناة العمل، فمكانها صدر اللوحة */}
         <TicketBoard tickets={boardTickets} theme={theme} viewerId={session.user.id} />

@@ -334,8 +334,13 @@ export async function buildOrgChart(): Promise<OrgChart> {
   for (const row of deptRows) {
     const node = byId.get(row.id)!;
     const parent = row.parentId ? byId.get(row.parentId) : null;
-    if (parent) parent.committees.push(node);
-    else roots.push(node);
+    if (parent) {
+      // **لونُ اللجنة لونُ قسمها** — يُشتقّ هنا لا يُقرأ من صفّها: فإن
+      // غُيّر لونُ القسم تبعته لجانُه في القراءة التالية بلا إجراء.
+      // وتمييزُها بشكلها لا بلونها: إطارٌ متقطّعٌ ووسمُ «لجنة».
+      node.displayColor = parent.displayColor;
+      parent.committees.push(node);
+    } else roots.push(node);
   }
   const departments = roots;
 

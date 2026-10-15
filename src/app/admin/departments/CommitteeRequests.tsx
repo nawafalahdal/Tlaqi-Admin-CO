@@ -78,9 +78,10 @@ function RequestRow({
   return (
     <div className="rounded-2xl border border-black/5 p-3.5">
       <div className="flex items-start gap-3">
+        {/* اللونُ لونُ القسم، والإطارُ المتقطّعُ هو ما يقول «لجنة» */}
         <span
-          className="mt-0.5 h-9 w-9 shrink-0 rounded-xl"
-          style={{ background: r.colorHex, boxShadow: `0 0 0 2px ${r.parentColorHex}33` }}
+          className="mt-0.5 h-9 w-9 shrink-0 rounded-xl border-2 border-dashed"
+          style={{ background: `${r.parentColorHex}2E`, borderColor: r.parentColorHex }}
           aria-hidden
         />
         <div className="min-w-0 flex-1">
@@ -89,7 +90,8 @@ function RequestRow({
             <span className="font-medium text-black/45">داخل {r.parentName}</span>
           </h3>
           <p className="mt-0.5 text-xs text-black/45">
-            مسمّى قائدها: {r.leadTitle?.trim() || `قائد لجنة ${r.name}`}
+            تأخذ لون «{r.parentName}» بإطارٍ متقطّعٍ يميّزها · مسمّى قائدها:{" "}
+            {r.leadTitle?.trim() || `قائد لجنة ${r.name}`}
             {r.requestedByName ? ` · اقترحها ${r.requestedByName}` : ""}
           </p>
         </div>

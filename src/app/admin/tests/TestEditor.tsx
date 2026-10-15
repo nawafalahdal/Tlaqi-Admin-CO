@@ -113,8 +113,13 @@ function QuestionCard({
             className="rounded-lg border px-3 py-2 text-xs"
             style={
               i === question.correctIndex
-                ? { background: "#E3F3E8", borderColor: "#1F6B3A66", color: "#1F6B3A" }
-                : { borderColor: "#00000014", color: "#1A1023" }
+                ? {
+                    // تتبع السمة: الأخضرُ الفاتح يَعمى عليه حبرُه في الداكن
+                    background: "light-dark(#E3F3E8, color-mix(in oklab, #10b981 18%, var(--surface)))",
+                    borderColor: "#1F6B3A66",
+                    color: "light-dark(#1F6B3A, #6ee7b7)",
+                  }
+                : { borderColor: "var(--hairline)", color: "var(--ink)" }
             }
           >
             {opt}

@@ -133,8 +133,14 @@ export default async function DepartmentsIndexPage() {
                       </h2>
                       {isCommittee && (
                         <span
-                          className="rounded-full px-2.5 py-0.5 text-[11px] font-bold"
-                          style={{ background: `${d.colorHex}1F`, color: d.colorHex }}
+                          className="rounded-full border border-dashed px-2.5 py-0.5 text-[11px] font-bold"
+                          style={{
+                            background: `${d.colorHex}1F`,
+                            borderColor: `${d.colorHex}99`,
+                            // لونُ القسم خامٌّ قد يَعمى على سطحٍ داكن —
+                            // فالحبرُ يتبع السمة لا اللونَ وحده
+                            color: `light-dark(${d.colorHex}, var(--ink))`,
+                          }}
                         >
                           داخل {d.parent?.name ?? "—"}
                         </span>

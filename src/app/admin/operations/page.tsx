@@ -2,6 +2,10 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
+import { AlertsPanel } from "@/components/AlertsPanel";
+import { PlansLink } from "@/components/PlansLink";
+import { planCounts } from "@/lib/plans";
+import { alertsForUser } from "@/lib/alerts";
 import { sweepOverdueRequests, sweepExpiredCandidateAccounts } from "@/lib/workflow";
 import { sweepTicketEscalation, TICKET_STAGE_LABELS, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere } from "@/lib/tickets";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
@@ -48,6 +52,9 @@ export default async function OperationsPage() {
     announcementsForSession(session, 8),
     prisma.department.findMany({ where: OPEN_DEPARTMENT_WHERE, orderBy: { name: "asc" } }),
   ]);
+
+  const alerts = await alertsForUser(session);
+  const plans = await planCounts();
 
   const dict = getDictionary(await getLocale());
   const tOps = dict.operations;
@@ -100,6 +107,9 @@ export default async function OperationsPage() {
       </AppHeader>
 
       <main className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-6 sm:px-5 sm:py-8">
+        <AlertsPanel alerts={alerts} />
+
+        <PlansLink theme={theme} docCount={plans.total} freshCount={plans.fresh} />
         <section>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>

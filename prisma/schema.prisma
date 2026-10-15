@@ -778,3 +778,59 @@ model TicketTally {
   withdrawn Int @default(0)
   updatedAt DateTime @updatedAt
 }
+
+/// نوعُ المادة في مركز الخطط: ملفٌّ مرفوع أو رابطٌ خارجي
+enum PlanItemKind {
+  file
+  link
+}
+
+/// نبذةُ مركز الخطط — صفٌّ واحدٌ لا جدولُ صفوف.
+///
+/// النبذةُ وثيقةٌ واحدةٌ تُحرَّر لا سجلٌّ يُضاف إليه، فصفُّها واحدٌ
+/// بمعرّفٍ ثابت (`main`) يُكتب فوقه. ولو كانت صفوفاً لاحتاجت سؤالاً عن
+/// «أيُّها المعروضة الآن؟» — سؤالٌ لا جواب له إلا حقلٌ آخر.
+model PlanLibrary {
+  id            String   @id @default("main")
+  /// «من نحن، ولماذا، وكيف» — نصٌّ حرٌّ يُعرَض فوق الملفات
+  intro         String   @default("")
+  /// عنوانٌ للمركز يُغيَّر من الواجهة، فلا يُنشَر تغييرُ كلمة
+  heading       String   @default("خطط تَـــلاقِ")
+  updatedByName String?
+  updatedAt     DateTime @updatedAt
+}
+
+/// مادةٌ في مركز الخطط: ملفٌّ يُرفَع أو رابطٌ يُشار إليه.
+///
+/// **والملفُّ يُخزَّن في القاعدة لا في مخزنٍ خارجي.** وهذا موافقٌ لما
+/// في المنصة أصلاً: الصورةُ الشخصية وتوقيعُ القائد يُخزَّنان فيها
+/// كذلك، ولا مخزنَ ملفّاتٍ هنا. والحدُّ مفروضٌ (`MAX_PLAN_FILE_BYTES`)
+/// فلا يُثقَل صفٌّ بما لا تحتمله قراءته، ومن كان ملفُّه أكبر فله
+/// الرابط — وهو السبب في وجود النوعَين لا الترف.
+///
+/// **و`data` لا تُقرأ في القوائم أبداً:** القائمةُ تُنتقى حقولُها
+/// صراحةً، والبايتاتُ لا تُطلَب إلا في مسار التنزيل وحده. ولو قُرئت مع
+/// القائمة لَحُمِّلت كلُّ الملفّات في كل فتحةِ صفحة.
+model PlanDoc {
+  id             String       @id @default(cuid())
+  /// ترتيبُها كما رتّبه المؤسس أو التنفيذي — رقمٌ يُقرأ ويُبدَّل
+  order          Int
+  title          String
+  /// سطرٌ تحت العنوان يقول ما فيه — اختياري
+  note           String?
+  kind           PlanItemKind
+
+  fileName       String?
+  mimeType       String?
+  byteSize       Int?
+  data           Bytes?
+
+  linkUrl        String?
+
+  uploadedById   String?
+  uploadedByName String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([order])
+}

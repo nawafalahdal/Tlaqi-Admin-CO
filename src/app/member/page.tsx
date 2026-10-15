@@ -12,6 +12,10 @@ import { WelcomeMailCard } from "@/components/WelcomeMailCard";
 import { SecurityGuidance } from "@/components/SecurityGuidance";
 import { AvatarUpload } from "@/components/AvatarUpload";
 import { OrgChartLink } from "@/components/OrgChartLink";
+import { PlansLink } from "@/components/PlansLink";
+import { planCounts } from "@/lib/plans";
+import { AlertsPanel } from "@/components/AlertsPanel";
+import { alertsForMember } from "@/lib/alerts";
 import { GovernanceCharter } from "@/components/GovernanceCharter";
 import { TerminationRequestCard } from "@/components/TerminationRequestCard";
 import { openRequestFor } from "@/lib/termination";
@@ -58,7 +62,8 @@ export default async function MemberPortalPage() {
 
   const unacknowledged = member.warnings.filter((w) => !w.acknowledgedAt).length;
 
-  const [departments, tickets, announcements, leadership, colleagues] = await Promise.all([
+  const [departments, tickets, announcements, leadership, colleagues, plans] =
+    await Promise.all([
     prisma.department.findMany({ where: OPEN_DEPARTMENT_WHERE, orderBy: { name: "asc" } }),
     // تذاكره: ما رفعه، وما وُجِّه إليه باسمه، وما وُجِّه إلى قسمه.
     // الأخير كان ناقصاً: مسار العمل اليومي (محتوى ← تصميم ← نشر) يُوجَّه
@@ -80,7 +85,18 @@ export default async function MemberPortalPage() {
       },
       orderBy: { fullName: "asc" },
     }),
+    // عدّانِ لا جلبُ وثائق: المدخلُ يقول كم فيه وكم جَدَّ، لا يَعرضها
+    planCounts(),
   ]);
+
+  const alerts = await alertsForMember({
+    memberId: member.id,
+    mustChangePassword: member.mustChangePassword,
+    profileCompletedAt: member.profileCompletedAt,
+    avatarData: member.avatarData,
+    phone: member.phone,
+    unacknowledgedWarnings: unacknowledged,
+  });
 
   const ticketTargets = [
     ...departments.map((d) => ({
@@ -112,6 +128,8 @@ export default async function MemberPortalPage() {
       </AppHeader>
 
       <main className="mx-auto flex max-w-2xl flex-col gap-8 px-4 py-6 sm:px-5 sm:py-8">
+        {/* ما ينتظره أوّلاً — ولا يُقرأ بالتجوال في الصفحات */}
+        <AlertsPanel alerts={alerts} />
         <section>
           <Card className="p-4 sm:p-6">
             <p className="text-xs text-black/40">{t.member.memberOf}</p>
@@ -125,6 +143,7 @@ export default async function MemberPortalPage() {
           {/* صورته في الهيكل — للأعضاء كما للقادة */}
           <AvatarUpload current={member.avatarData} theme={theme} />
           <OrgChartLink theme={theme} />
+          <PlansLink theme={theme} docCount={plans.total} freshCount={plans.fresh} />
           <WelcomeMailCard
             theme={theme}
             sentAt={member.welcomeEmailSentAt ? formatDate(member.welcomeEmailSentAt) : null}

@@ -33,8 +33,6 @@ export type CommitteeRow = {
   subCommitteeCount: number;
 };
 
-const SWATCHES = ["#1F6F8B", "#7A4EAB", "#B38B2D", "#3F7D20", "#C2185B", "#0F766E"];
-
 export function CommitteesPanel({
   parentId,
   parentName,
@@ -45,25 +43,22 @@ export function CommitteesPanel({
 }: {
   parentId: string;
   parentName: string;
-  /** لونُ القسم نفسه — يُمنَع على لجانه، والواجهةُ تُعلن المنعَ قبل الضغط */
+  /** لونُ القسم — ولجانُه تأخذه، ويُميّزها شكلُها لا لونُها */
   parentColorHex: string;
   committees: CommitteeRow[];
   theme: ReturnType<typeof themeFromColor>;
   canPropose: boolean;
 }) {
-  // **الواجهةُ تُطعَم الحرسَ نفسَه الذي يفرضه الخادم:** الألوان المأخوذة
-  // تُعطَّل في اللوحة ولا يُنتظَر بها رفضٌ بعد الإرسال.
-  const taken = new Set(
-    [parentColorHex, ...committees.map((c) => c.colorHex)].map((c) => c.toLowerCase())
-  );
   return (
     <div className="flex flex-col gap-4">
       <div>
         <h2 className="text-sm font-bold">اللجان داخل {parentName}</h2>
         <p className="mt-1 text-xs leading-relaxed text-black/50">
-          اللجنة قسمٌ داخل قسمك: لها اسمُها ولونُها ومسمّى قائدها، ولقائدها لوحةٌ ودعواتٌ وبنك
-          أسئلةٍ كلوحتك — في نطاق لجنته وحدها. ولا تُفتح باقتراحها: القرار للمدير التنفيذي، وما لم
-          يُعتمد لا يظهر في الهيكل ولا تُوجَّه إليه تذكرةٌ ولا يُدعى له أحد.
+          اللجنة قسمٌ داخل قسمك: لها اسمُها ومسمّى قائدها، ولقائدها لوحةٌ ودعواتٌ وبنك أسئلةٍ
+          كلوحتك — في نطاق لجنته وحدها. و<strong>لونُها لونُ قسمك</strong>، فهي منه لا بجانبه؛
+          ويُميّزها في الهيكل شكلُها: إطارٌ متقطّعٌ، ووسمُ «لجنة» على ترويستها وعلى بطاقة قائدها
+          وكلِّ عضوٍ فيها. ولا تُفتح باقتراحها: القرار للمدير التنفيذي، وما لم يُعتمد لا يظهر في
+          الهيكل ولا تُوجَّه إليه تذكرةٌ ولا يُدعى له أحد.
         </p>
       </div>
 
@@ -75,7 +70,9 @@ export function CommitteesPanel({
         </ul>
       )}
 
-      {canPropose && <ProposeForm parentId={parentId} theme={theme} taken={taken} />}
+      {canPropose && (
+        <ProposeForm parentId={parentId} theme={theme} parentColorHex={parentColorHex} />
+      )}
     </div>
   );
 }
@@ -258,22 +255,17 @@ function InviteLeadForm({
 function ProposeForm({
   parentId,
   theme,
-  taken,
+  parentColorHex,
 }: {
   parentId: string;
   theme: ReturnType<typeof themeFromColor>;
-  taken: Set<string>;
+  parentColorHex: string;
 }) {
   const [state, formAction, pending] = useActionState(requestCommitteeAction, {
     error: null,
     success: false,
   });
   const [open, setOpen] = useState(false);
-  // اللونُ الأول الحرّ لا الأول مطلقاً: فلا يُفتَح النموذجُ على لونٍ
-  // مرفوضٍ سلفاً يُرسَل ثم يُرَدّ
-  const [color, setColor] = useState(
-    SWATCHES.find((c) => !taken.has(c.toLowerCase())) ?? SWATCHES[0]
-  );
   const [name, setName] = useState("");
   const [handledSuccess, setHandledSuccess] = useState(false);
 
@@ -330,53 +322,24 @@ function ProposeForm({
         </label>
       </div>
 
+      {/* معاينةُ ما سيُرسَم: لونُ القسم، وشكلُ اللجنة — لا مُنتقي ألوان.
+          فاللونُ لم يعد خياراً، والمعاينةُ تُغني عن شرحٍ طويل. */}
       <div className="flex flex-col gap-2 text-sm">
-        <span className="font-medium text-black/70">لون اللجنة</span>
-        <div className="flex flex-wrap gap-2">
-          {SWATCHES.map((c) => {
-            const used = taken.has(c.toLowerCase());
-            return (
-              <button
-                key={c}
-                type="button"
-                disabled={used}
-                onClick={() => setColor(c)}
-                aria-label={used ? `${c} — مأخوذ` : c}
-                title={used ? "هذا اللون مأخوذ في هذا القسم" : c}
-                className={`h-9 w-9 rounded-full border-2 transition-transform ${
-                  color === c ? "scale-110 border-black/60" : "border-black/10"
-                } ${used ? "cursor-not-allowed opacity-25" : ""}`}
-                style={{ background: c }}
-              />
-            );
-          })}
-        </div>
+        <span className="font-medium text-black/70">هكذا ستظهر في الهيكل</span>
         <div className="flex items-center gap-2">
-          <input
-            type="color"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-            className="h-10 w-14 cursor-pointer rounded-lg border border-black/10 bg-white p-1"
-          />
-          <input
-            name="colorHex"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-            dir="ltr"
-            pattern="#[0-9a-fA-F]{6}"
-            required
-            className="min-h-11 w-32 rounded-xl border border-black/10 bg-white px-3.5 text-sm outline-none focus:border-black/30"
-          />
+          <span
+            className="rounded-xl border-dashed px-3 py-1.5 text-xs font-bold"
+            style={{
+              background: `${parentColorHex}14`,
+              border: `1.5px dashed ${parentColorHex}`,
+            }}
+          >
+            لجنة {name.trim() || "..."}
+          </span>
+          <span className="text-xs text-black/45">
+            بلون قسمك، وبإطارٍ متقطّعٍ يقول إنها لجنة
+          </span>
         </div>
-        {taken.has(color.toLowerCase()) && (
-          <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
-            هذا اللون مأخوذ في هذا القسم — اختر غيره قبل الإرسال.
-          </p>
-        )}
-        <span className="text-xs leading-relaxed text-black/45">
-          ولا بدّ أن يختلف عن لون قسمك وعن ألوان لجانه: اللجنة تُقرأ في الهيكل بلونها، فلونٌ
-          مكرَّرٌ يجعلها تبدو امتداداً لغيرها.
-        </span>
       </div>
 
       {state.error && (
@@ -384,7 +347,7 @@ function ProposeForm({
       )}
 
       <div className="flex flex-wrap gap-2">
-        <Button theme={theme} type="submit" disabled={pending || taken.has(color.toLowerCase())}>
+        <Button theme={theme} type="submit" disabled={pending}>
           {pending ? "جارٍ الإرسال..." : "أرسل الاقتراح للتنفيذي"}
         </Button>
         <Button theme={theme} variant="outline" type="button" onClick={() => setOpen(false)}>

@@ -128,10 +128,11 @@ export function OrgTree({
 
 /** فرعٌ في الشجرة: قسمٌ أو لجنة — ويرسم نفسه بنفسه في العمق كلِّه.
  *
- *  **واللجنةُ تُرسَم داخل إطار أبيها لا بجانبه.** فلو عُرضت صفّاً مع
- *  الأقسام لقُرئت قسماً ثالثاً، وهي قسمٌ داخل قسم. ولونها لونُها هي —
- *  يختلف عن أبيها بشرطٍ يُفرَض عند الاقتراح — فيُرى أنها فرعٌ مستقلٌّ
- *  بذاته داخل سلسلةٍ واحدة.
+ *  **واللجنةُ تُرسَم داخل إطار أبيها لا بجانبه، وبلونه لا بلونٍ غريب.**
+ *  فلو عُرضت صفّاً مع الأقسام لقُرئت قسماً ثالثاً، ولو حملت لوناً
+ *  خاصاً بها لانقطع نسبُها إلى قسمها. فهي بلون قسمها، ويُميّزها
+ *  **شكلُها**: إطارٌ متقطّعٌ حولها، ووسمُ «لجنة» على ترويستها، ووسمٌ
+ *  على بطاقة قائدها وكلِّ عضوٍ فيها.
  *
  *  والتكرارُ ذاتيٌّ (`Branch` يُنادي نفسه) لأن المسار نفسه يدور: لجنةٌ
  *  في لجنة. والعمقُ محدودٌ عند الاقتراح لا عند الرسم. */
@@ -176,7 +177,7 @@ function Branch({
       {/* ساقُ الفرع تصل الشريطَ بترويسة القسم */}
       <span className="block h-4 w-px" style={{ background: stem }} aria-hidden />
       <div
-        className="rounded-xl px-3 py-1.5"
+        className={`rounded-xl px-3 py-1.5 ${dept.isCommittee ? "border-dashed" : ""}`}
         style={{
           // الأبيضُ شبهُ الأبيض يحتاج سطحاً فاتحاً ليُرى، وذاك
           // السطح نفسُه يَعمى عليه الحبرُ في السمة الداكنة —
@@ -184,17 +185,23 @@ function Branch({
           background: needsOutline(dept.displayColor)
             ? "light-dark(#F6F7F1, rgba(255,255,255,0.09))"
             : `${dept.displayColor}14`,
-          border: `1.5px solid ${stem}`,
+          border: `1.5px ${dept.isCommittee ? "dashed" : "solid"} ${stem}`,
         }}
       >
         <span className="text-xs font-bold text-black/80">
-          {/* «لجنة» تُكتب على الترويسة: اللون يميّزها والكلمةُ تُسمّيها */}
+          {/* لونُها لونُ قسمها، فالكلمةُ والتقطيعُ هما ما يُميّزانها */}
           {dept.isCommittee ? `لجنة ${dept.name}` : dept.name}
         </span>
       </div>
       <span className="block h-4 w-px" style={{ background: stem }} aria-hidden />
 
-      <SeatCard seat={dept.lead} color={dept.displayColor} size={seatSize} viewerId={viewerId} />
+      <SeatCard
+        seat={dept.lead}
+        color={dept.displayColor}
+        size={seatSize}
+        viewerId={viewerId}
+        committee={dept.isCommittee ? dept.name : null}
+      />
 
       {dept.members.length > 0 && (
         <>
@@ -211,6 +218,7 @@ function Branch({
                   color={dept.displayColor}
                   size="sm"
                   highlight={m.id === viewerId}
+                  committee={dept.isCommittee ? dept.name : null}
                 />
               ))}
             </div>
