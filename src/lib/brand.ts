@@ -21,16 +21,51 @@ export const DEPARTMENT_THEME: Record<
 
 export const SUPER_ADMIN_THEME = { name: "الإدارة العليا", colorHex: BRAND.temptress };
 
-/** يبني لوحة ألوان كاملة (خلفية/نص/حدّ/زر) من لون القسم الأساسي */
+/** يبني لوحة ألوان كاملة (خلفية/نص/حدّ/زر) من لون القسم الأساسي.
+ *
+ *  ## الأسطحُ تَنقلب مع السمة — وهذا إصلاحُ عطبٍ رُئي في لقطة شاشة
+ *
+ *  **العطب:** كان `surface` لوناً فاتحاً مشتقّاً من لون القسم، يُوضَع
+ *  في `style` مباشرةً. والأنماطُ السطرية لا تَنقلب مع السمة أبداً — لا
+ *  `@media` يَطالها ولا `[data-theme]`. فبقيت الأسطحُ بيضاءَ في الوضع
+ *  الداكن: لوحٌ ساطعٌ في شاشةِ ليلٍ، وحبرٌ فاتحٌ كُتب عليه فلم يُقرأ
+ *  حرف. ورأيتُه في صفحة الترحيب بعضوٍ جديد — أوّلُ شاشةٍ يَفتحها من
+ *  ينضمّ إلى الفريق.
+ *
+ *  **والعلاج `light-dark()` لا صنفٌ ثانٍ:** الدالّةُ تَتبع
+ *  `color-scheme`، والمنصةُ تَكتبه على الجذر مع السمة. فقيمةٌ واحدةٌ
+ *  تَحمل الوجهين، وتَصلح في `style` السطريّ كما تَصلح في ورقة الأنماط
+ *  — ولا تُكرَّر الأصنافُ ولا تُفتَح شجرةُ شروطٍ في كل مكوّن.
+ *
+ *  **وما يُبنى عليه نصٌّ يَنقلب معه:** `onSurface` هو حبرُ هذا السطح،
+ *  ويَنقلب حيث ينقلب. وكان الحبرُ `accentDark` — وهو داكنٌ دائماً
+ *  (لأنه يُستعمَل أيضاً حدّاً بإلحاق شفافية: `accentDark + "55"`)،
+ *  فلو قُلب لانكسر ذلك الاستعمال. فبقي كما هو، وجاء `onSurface` إلى
+ *  جانبه لما يُكتَب على السطح.
+ */
 export function themeFromColor(colorHex: string) {
   const isLight = readableTextOn(colorHex) === BRAND.ink;
+  const lightSurface = shade(colorHex, isLight ? 0.55 : 0.85);
+  const lightSurfaceStrong = shade(colorHex, isLight ? 0.2 : 0.65);
+  const lightBorder = shade(colorHex, isLight ? -0.1 : 0.4);
+  const accentDark = shade(colorHex, isLight ? -0.35 : -0.1);
+
   return {
     base: colorHex,
     text: readableTextOn(colorHex),
-    surface: shade(colorHex, isLight ? 0.55 : 0.85),
-    surfaceStrong: shade(colorHex, isLight ? 0.2 : 0.65),
-    border: shade(colorHex, isLight ? -0.1 : 0.4),
-    accentDark: shade(colorHex, isLight ? -0.35 : -0.1),
+
+    /** سطحُ البطاقة المصبوغ بلون القسم — فاتحٌ في الفاتح، غمزةٌ في الداكن */
+    surface: `light-dark(${lightSurface}, color-mix(in oklab, ${colorHex} 20%, var(--surface)))`,
+    surfaceStrong: `light-dark(${lightSurfaceStrong}, color-mix(in oklab, ${colorHex} 32%, var(--surface)))`,
+    border: `light-dark(${lightBorder}, color-mix(in oklab, ${colorHex} 42%, transparent))`,
+
+    /** حبرُ ما يُكتَب على `surface` — يَنقلب معه فيُقرأ في السمتين */
+    onSurface: `light-dark(${accentDark}, color-mix(in oklab, ${colorHex} 35%, var(--ink)))`,
+
+    /** لونٌ داكنٌ صريحٌ يبقى **قيمةً سداسية**: تُلحَق به شفافيةٌ نصّاً
+     *  في مواضع (`accentDark + "55"`)، ويُستعمَل في قوالب البريد حيث لا
+     *  `light-dark()` ولا متغيّرات. */
+    accentDark,
   };
 }
 

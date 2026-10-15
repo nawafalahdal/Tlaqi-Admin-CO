@@ -26,7 +26,7 @@ export function WarningCard({
             {t.member.warningAcknowledged}
           </span>
         ) : (
-          <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: theme.surface, color: theme.accentDark }}>
+          <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: theme.surface, color: theme.onSurface }}>
             {t.member.warningUnacknowledged}
           </span>
         )}

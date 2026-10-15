@@ -7,6 +7,7 @@ import { SecurityForm } from "./SecurityForm";
 import { BackButton } from "@/components/BackButton";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ControlGroup } from "@/components/ControlGroup";
 
 const ROLE_HOME: Record<string, string> = {
   super_admin: "/admin",
@@ -37,7 +38,9 @@ export default async function SecurityPage() {
     >
       <div className="w-full max-w-sm">
         <div className="mb-4 flex justify-end">
-          <ThemeToggle color={BRAND.beige} />
+      <ControlGroup color={BRAND.beige}>
+        <ThemeToggle />
+      </ControlGroup>
         </div>
         <div className="mb-8 flex justify-center">
           <LogoLockup height={34} tone="light" />

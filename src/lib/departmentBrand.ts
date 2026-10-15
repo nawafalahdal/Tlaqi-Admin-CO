@@ -1,4 +1,5 @@
 import { BRAND, themeFromColor, logoToneFor } from "@/lib/brand";
+import { shade, readableTextOn } from "@/lib/colors";
 
 /** هوية القسم: لونه ونبرته ونصُّ ترحيبه — في ملفٍّ واحد.
  *
@@ -135,7 +136,9 @@ export function departmentBrand(
     name: key ?? "تَـــلاقِ",
     primary,
     secondary: theme.text === BRAND.ink ? BRAND.mahogany : BRAND.beige,
-    light: theme.surface,
+    // قيمةٌ سداسيةٌ صريحة لا `light-dark()`: هذا الكائنُ يُقرأ في قوالب
+    // البريد، والبريدُ لا يَعرف دوالَّ CSS ولا متغيّراتِها
+    light: shade(primary, readableTextOn(primary) === BRAND.ink ? 0.55 : 0.85),
     dark: theme.accentDark,
     logoTone: logoToneFor(theme),
     copy,

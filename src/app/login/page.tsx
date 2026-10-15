@@ -3,6 +3,7 @@ import { LoginForm } from "./LoginForm";
 import { BRAND } from "@/lib/brand";
 import { LocaleToggle } from "@/components/LocaleToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ControlGroup, ControlDivider } from "@/components/ControlGroup";
 import { getLocale, getDictionary } from "@/i18n/server";
 
 export default async function LoginPage({
@@ -20,8 +21,11 @@ export default async function LoginPage({
     >
       <div className="w-full max-w-sm">
         <div className="mb-4 flex justify-end">
-          <ThemeToggle color={BRAND.beige} />
-          <LocaleToggle color={BRAND.beige} />
+      <ControlGroup color={BRAND.beige}>
+        <ThemeToggle />
+        <ControlDivider />
+        <LocaleToggle />
+      </ControlGroup>
         </div>
         <div className="mb-8 flex justify-center">
           <LogoLockup height={34} tone="light" />

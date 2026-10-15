@@ -79,7 +79,7 @@ export function TicketCard({
         >
           {statusLabel}
         </span>
-        <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: theme.surface, color: theme.accentDark }}>
+        <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: theme.surface, color: theme.onSurface }}>
           {stageLabel}
         </span>
         <span className="text-xs text-black/40">

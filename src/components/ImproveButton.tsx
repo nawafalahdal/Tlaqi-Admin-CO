@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useId, useRef, useState, type CSSProperties } from "react";
+import { useActionState, useId, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { submitImprovementAction, type ImproveState } from "@/app/improve/actions";
+import { SparkIcon } from "./icons";
 
 /** زرُّ «تحسين» — في ترويسة كل شاشة، إلى جانب اللغة والسمة.
  *
@@ -26,7 +27,7 @@ import { submitImprovementAction, type ImproveState } from "@/app/improve/action
  *  `Escape` يُغلقه، والنقرُ خارجَه يُغلقه، والتركيزُ يعود إلى الزرّ بعده.
  *  ودرجٌ يُفتَح ولا يُغلَق إلا بزرٍّ واحدٍ في زاويته سجنٌ صغير.
  */
-export function ImproveButton({ color }: { color: string }) {
+export function ImproveButton() {
   const [open, setOpen] = useState(false);
   const [context, setContext] = useState("");
   const [kind, setKind] = useState<"bug" | "confusing" | "idea">("bug");
@@ -78,13 +79,12 @@ export function ImproveButton({ color }: { color: string }) {
         onClick={openDrawer}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="improve-btn"
-        style={{ "--tsw": color } as CSSProperties}
+        // `improve-btn` مِقبضٌ ثابتٌ يُنتقى به في الفحص، و`ctl-group__item`
+        // هو ما يَحمل الشكل — فلا يُنتقى الزرُّ بنصِّه الذي يُترجَم
+        className="ctl-group__item improve-btn"
       >
-        <span aria-hidden className="improve-btn__spark">
-          ✦
-        </span>
-        <span>تحسين</span>
+        <SparkIcon className="improve-btn__spark" />
+        <span className="ctl-group__label">تحسين</span>
       </button>
 
       {open && (

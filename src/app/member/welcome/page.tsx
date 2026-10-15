@@ -6,6 +6,7 @@ import { LogoLockup } from "@/components/Logo";
 import { LogoutButton } from "@/components/LogoutButton";
 import { LocaleToggle } from "@/components/LocaleToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ControlGroup, ControlDivider } from "@/components/ControlGroup";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { ProfileForm } from "./ProfileForm";
 
@@ -40,8 +41,11 @@ export default async function WelcomePage() {
       <div className="mb-6 flex w-full max-w-xl items-center justify-between gap-3">
         <LogoLockup height={30} tone="dark" />
         <div className="flex flex-wrap items-center gap-2">
-          <ThemeToggle color={brandInk(theme)} />
-          <LocaleToggle color={brandInk(theme)} />
+      <ControlGroup color={brandInk(theme)}>
+        <ThemeToggle />
+        <ControlDivider />
+        <LocaleToggle />
+      </ControlGroup>
           <LogoutButton color={brandInk(theme)} />
         </div>
       </div>

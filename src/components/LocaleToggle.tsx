@@ -1,18 +1,37 @@
 "use client";
 
 import { useLocale } from "@/i18n/LocaleProvider";
+import { GlobeIcon } from "./icons";
 
-export function LocaleToggle({ color }: { color: string }) {
-  const { locale, t, setLocale } = useLocale();
+/** زرُّ اللغة — ساكنُ شريطِ الأدوات مع السمة و«تحسين».
+ *
+ *  **واللافتةُ تقول ما يَنتقل إليه لا ما هو فيه.** وهذا خلافُ مفتاح
+ *  السمة عمداً: المفتاحُ له قبضةٌ تُرى فتَقول الحالَ بلا كلمة، أما
+ *  الزرُّ فلا قبضةَ له — فلو كُتب عليه «العربية» وهو في العربية لقُرئ
+ *  لافتةً لا زرّاً، ولم يَعرف أحدٌ أين يَضغط ليُغيّر.
+ *
+ *  والنصُّ يُكتَب بلغته هو (`English` بالإنجليزية، `العربية` بالعربية)
+ *  فيَعرفه من يَطلبه ولو لم يَقرأ الأخرى.
+ *
+ *  ولا حدَّ له ولا سطح: الإطارُ إطارُ المجموعة.
+ */
+export function LocaleToggle() {
+  const { locale, setLocale } = useLocale();
+  const next = locale === "ar" ? "en" : "ar";
+  const label = next === "en" ? "English" : "العربية";
 
   return (
     <button
       type="button"
-      onClick={() => setLocale(locale === "ar" ? "en" : "ar")}
-      className="rounded-lg px-3 py-1.5 text-xs font-semibold opacity-90 hover:opacity-100"
-      style={{ color, border: `1px solid ${color}55` }}
+      onClick={() => setLocale(next)}
+      // الزرُّ يُنفّذ الانتقالَ فعلاً — واللافتةُ وحدها لا تُبدَّل
+      aria-label={next === "en" ? "Switch to English" : "التبديل إلى العربية"}
+      title={next === "en" ? "Switch to English" : "التبديل إلى العربية"}
+      lang={next}
+      className="ctl-group__item"
     >
-      {t.common.localeToggle}
+      <GlobeIcon className="ctl-group__icon" />
+      <span className="ctl-group__label">{label}</span>
     </button>
   );
 }

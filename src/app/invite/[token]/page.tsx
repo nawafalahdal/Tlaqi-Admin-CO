@@ -3,6 +3,7 @@ import { LogoLockup } from "@/components/Logo";
 import { BRAND } from "@/lib/brand";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ControlGroup } from "@/components/ControlGroup";
 
 /** الروابط القديمة لم تعد تفتح اختباراً: صار لكل مرشّح حساب ببريد وكلمة مرور
  *  مؤقتة منذ لحظة إنشائه، والاختبار داخل حسابه. تبقى هذه الصفحة لئلا تُرجع
@@ -16,7 +17,9 @@ export default async function LegacyInvitePage() {
       style={{ background: BRAND.temptress }}
     >
       <div className="flex w-full max-w-md justify-end">
-        <ThemeToggle color={BRAND.beige} />
+      <ControlGroup color={BRAND.beige}>
+        <ThemeToggle />
+      </ControlGroup>
       </div>
       <LogoLockup height={32} tone="light" />
       <div className="w-full max-w-md rounded-3xl bg-white p-6 text-center shadow-xl sm:p-8">

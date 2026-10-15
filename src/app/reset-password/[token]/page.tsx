@@ -5,6 +5,7 @@ import { getLocale, getDictionary } from "@/i18n/server";
 import { checkResetToken } from "@/lib/passwordReset";
 import { ResetForm } from "./ResetForm";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ControlGroup } from "@/components/ControlGroup";
 
 export default async function ResetPasswordPage({
   params,
@@ -22,7 +23,9 @@ export default async function ResetPasswordPage({
     >
       <div className="w-full max-w-sm">
         <div className="mb-4 flex justify-end">
-          <ThemeToggle color={BRAND.beige} />
+      <ControlGroup color={BRAND.beige}>
+        <ThemeToggle />
+      </ControlGroup>
         </div>
         <div className="mb-8 flex justify-center">
           <LogoLockup height={34} tone="light" />
@@ -47,7 +50,7 @@ export default async function ResetPasswordPage({
               </p>
               <Link
                 href="/forgot-password"
-                className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[var(--brand-temptress)] px-4 text-sm font-semibold text-[var(--brand-beige)]"
+                className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-xl btn-brand px-4 text-sm font-semibold"
               >
                 {t.reset.requestNew}
               </Link>

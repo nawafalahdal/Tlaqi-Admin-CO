@@ -4,6 +4,7 @@ import { LogoutButton } from "./LogoutButton";
 import { LocaleToggle } from "./LocaleToggle";
 import { ThemeToggle } from "./ThemeToggle";
 import { ImproveButton } from "./ImproveButton";
+import { ControlGroup, ControlDivider } from "./ControlGroup";
 import { getLocale, getDictionary } from "@/i18n/server";
 
 export async function HeaderActions({ color }: { color: string }) {
@@ -15,11 +16,15 @@ export async function HeaderActions({ color }: { color: string }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {/* السمة أولاً: أكثرُ ما يُبدَّل، ويُراد في متناول اليد */}
-      <ThemeToggle color={color} />
-      <LocaleToggle color={color} />
-      {/* و«تحسين» ثالثُهم: الملاحظةُ تُقال حيث رُئيت أو تُفقَد */}
-      <ImproveButton color={color} />
+      {/* أدواتُ العرض الثلاث في شريطٍ واحد — انظر `ControlGroup` */}
+      <ControlGroup color={color}>
+        <ThemeToggle />
+        <ControlDivider />
+        <LocaleToggle />
+        <ControlDivider />
+        {/* و«تحسين» ثالثُهم: الملاحظةُ تُقال حيث رُئيت أو تُفقَد */}
+        <ImproveButton />
+      </ControlGroup>
       {isAdmin && (
         <Link
           href="/admin/security"

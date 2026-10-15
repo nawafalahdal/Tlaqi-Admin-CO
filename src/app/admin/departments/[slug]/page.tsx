@@ -531,7 +531,7 @@ export default async function DepartmentBoardPage({
             <Link
               href="/admin/reports"
               className="rounded-lg px-3 py-1.5 text-xs font-semibold"
-              style={{ background: theme.surface, color: theme.accentDark }}
+              style={{ background: theme.surface, color: theme.onSurface }}
             >
               افتح التقارير
             </Link>
@@ -547,7 +547,7 @@ export default async function DepartmentBoardPage({
             <Link
               href={`/admin/departments/${slug}/test`}
               className="rounded-lg px-3 py-1.5 text-xs font-semibold"
-              style={{ background: theme.surface, color: theme.accentDark }}
+              style={{ background: theme.surface, color: theme.onSurface }}
             >
               {t.admin.editQuestions}
             </Link>

@@ -50,7 +50,11 @@ export function CandidateTest({
         <div
           className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full text-2xl"
           style={{
-            background: result.passed ? "#E3F3E8" : theme.surface,
+            // لوحُ النجاح يَنقلب مع السمة كغيره: كان `#E3F3E8` سطريّاً، وهو
+            // لوحٌ فاتحٌ يَصرخ في شاشةٍ ليلية وحبرُه المقلوبُ لا يُقرأ عليه
+            background: result.passed
+              ? "light-dark(#E3F3E8, color-mix(in oklab, #10b981 18%, var(--surface)))"
+              : theme.surface,
             color: result.passed ? "#1F6B3A" : theme.accentDark,
           }}
         >
@@ -111,7 +115,7 @@ export function CandidateTest({
               className="min-h-11 rounded-xl border px-4 py-3 text-start text-sm font-medium transition-colors"
               style={
                 selected
-                  ? { background: theme.surface, borderColor: theme.accentDark, color: theme.accentDark }
+                  ? { background: theme.surface, borderColor: theme.border, color: theme.onSurface }
                   : { borderColor: "var(--hairline)", color: "var(--ink)" }
               }
             >

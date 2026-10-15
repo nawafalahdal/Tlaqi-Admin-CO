@@ -219,66 +219,108 @@ body.has-floating-back {
   color: #ffffff;
 }
 
-/* ═══ مفتاحُ السمة ═══
+/* ═══ شريطُ أدوات العرض: اللغةُ والسمةُ و«تحسين» ═══
  *
- *  **لماذا مفتاحٌ لا زرّ نصّي:** الزرّ النصّي يقول «داكن» فيُقرأ سؤالاً:
- *  هل هذه حالتي الآن أم ما سأصير إليه؟ والمفتاحُ لا يُسأل — الشمسُ
- *  والهلالُ معروضان معاً، والقبضةُ واقفةٌ على المُطبَّق، فيُرى الحالُ
- *  والبديلُ في نظرةٍ واحدة.
+ *  **العطبُ الذي يُصلحه، كما رُئي في لقطةِ شاشةٍ من الجوّال:** كانت
+ *  الثلاثةُ أزراراً مستقلّة، فجاءت كأنها من ثلاثة تطبيقات — مستطيلٌ
+ *  بزوايا صغيرة، وقرصٌ أطولُ منه، وبينهما فجوةٌ لا قاعدةَ لها. والعينُ
+ *  تَقرأ ذلك إهمالاً لا تصميماً.
  *
- *  **ويتلوّن بما حوله لا بلونٍ خاصّ:** يُمرَّر إليه `--tsw` لونُ الترويسة
- *  التي يسكنها — بنفسجيُّ الإدارة، أو لونُ القسم، أو بيجُ شاشة الدخول —
- *  فيُشتَقّ منه الحدُّ والسطحُ والقبضة بـ`color-mix`. فهو واحدٌ في المنصة
- *  كلّها ولا يشذّ عن أيّ قسمٍ أو سمة.
+ *  فصارت في إطارٍ واحد: حدٌّ واحدٌ يَلفّها، وارتفاعٌ واحدٌ لكلِّها،
+ *  وفواصلُ شعريّةٌ بدل الفجوات.
  *
- *  والإزاحةُ منطقيّةٌ لا فيزيائية (`inset-inline-start`): يَعرف العربيةَ
- *  والإنجليزيةَ من اتجاه الصفحة بلا متغيّرٍ يُضبَط بيدنا في كلٍّ منهما.
+ *  **والارتفاعُ ٤٤ بكسلاً ليس ذوقاً:** هو أصغرُ هدفٍ يُصيبه الإبهامُ
+ *  على الجوّال بلا خطأ. وكانت ٣٢ بكسلاً، فكان النقرُ رمياً.
+ *
+ *  واللونُ يُمرَّر متغيّراً واحداً (`--ctl`) تُشتَقّ منه كلُّ الطبقات،
+ *  فلا يشذّ الشريطُ عن قسمٍ ولا سمة.
  */
-.theme-switch {
-  --tsw-ink: var(--tsw, currentColor);
-  --tsw-track: 2.5rem;
-  --tsw-knob: 1.15rem;
-  --tsw-pad: 0.2rem;
+.ctl-group {
+  --ctl-ink: var(--ctl, currentColor);
+  display: inline-flex;
+  align-items: stretch;
+  /* `isolate` يَحبس الفواصلَ داخله فلا تَخرج عن الحدّ المستدير */
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in oklab, var(--ctl-ink) 30%, transparent);
+  background: color-mix(in oklab, var(--ctl-ink) 8%, transparent);
+  color: var(--ctl-ink);
+}
 
+.ctl-group__item {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  min-height: 2rem;
-  padding-block: 0.25rem;
-  padding-inline: 0.55rem;
-  border-radius: 9999px;
-  border: 1px solid color-mix(in oklab, var(--tsw-ink) 32%, transparent);
-  background: color-mix(in oklab, var(--tsw-ink) 7%, transparent);
-  color: var(--tsw-ink);
+  /* ٤٤ بكسلاً: هدفُ الإبهام */
+  min-height: 2.75rem;
+  padding-inline: 0.85rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
   font: inherit;
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.78rem;
+  font-weight: 700;
   line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
-.theme-switch:hover {
-  background: color-mix(in oklab, var(--tsw-ink) 14%, transparent);
-  border-color: color-mix(in oklab, var(--tsw-ink) 48%, transparent);
+.ctl-group__item:hover {
+  background: color-mix(in oklab, var(--ctl-ink) 15%, transparent);
 }
 
-/* الهالةُ من اللون نفسه فتُرى على أيّ سطحٍ تحته — لا أزرقُ المتصفّح */
-.theme-switch:focus-visible {
-  outline: 2px solid var(--tsw-ink);
-  outline-offset: 2px;
+/* الهالةُ داخلَ الحدّ (`inset`) فلا تُقطَع عند حافّة الشريط */
+.ctl-group__item:focus-visible {
+  outline: 2px solid var(--ctl-ink);
+  outline-offset: -3px;
+  border-radius: 9999px;
 }
 
-/* الشمسُ والهلالُ يُحفّان المضمارَ ولا يَسكنانه.
- *
- *  **وهذا ما أصلحتُه بعد أن رأيتُه مرسوماً:** كانا داخله أوّلاً،
- *  فكانت القبضةُ تَقف على المُطبَّق منهما فتَحجبه — يُخفى العلامةُ
- *  التي من أجلها وُضعت. فصارا خارجَه: يبقيان مرئيَّين دائماً، ويَسطع
- *  أحدُهما ويَخفت الآخر، والقبضةُ تُشير بينهما. */
+.ctl-group__icon {
+  flex: none;
+  font-size: 0.95rem;
+  opacity: 0.85;
+}
+
+/* اللافتةُ تُطوى في الضيق، والأيقونةُ والقبضةُ تَكفيان.
+   والتصنيفُ `0.001px` لا `none`: القارئُ الآليّ يَبقى يَقرؤها. */
+.ctl-group__label {
+  display: none;
+}
+
+@media (min-width: 420px) {
+  .ctl-group__label {
+    display: inline;
+  }
+}
+
+.ctl-group__sep {
+  flex: none;
+  width: 1px;
+  background: color-mix(in oklab, var(--ctl-ink) 24%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ctl-group,
+  .ctl-group__item {
+    transition:
+      background-color 180ms ease,
+      border-color 180ms ease;
+  }
+}
+
+/* ── مفتاحُ السمة داخل الشريط: شمسٌ ومضمارٌ وهلال */
+.theme-switch {
+  --tsw-track: 2.1rem;
+  --tsw-knob: 0.95rem;
+  --tsw-pad: 0.16rem;
+}
+
 .theme-switch__icon {
   flex: none;
-  font-size: 0.72rem;
-  line-height: 1;
+  font-size: 0.82rem;
   opacity: 0.4;
 }
 
@@ -291,13 +333,13 @@ body.has-floating-back {
   position: relative;
   flex: none;
   width: var(--tsw-track);
-  height: 1.4rem;
+  height: 1.25rem;
   border-radius: 9999px;
-  background: color-mix(in oklab, var(--tsw-ink) 16%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--tsw-ink) 22%, transparent);
+  background: color-mix(in oklab, var(--ctl-ink) 20%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--ctl-ink) 26%, transparent);
 }
 
-/* الإزاحةُ منطقيّةٌ لا فيزيائية: يَعرف العربيةَ والإنجليزيةَ من اتجاه
+/* الإزاحةُ منطقيّةٌ لا فيزيائية: تَعرف العربيةَ والإنجليزيةَ من اتجاه
    الصفحة بلا متغيّرٍ يُضبَط بيدنا في كلٍّ منهما */
 .theme-switch__knob {
   position: absolute;
@@ -307,96 +349,47 @@ body.has-floating-back {
   height: var(--tsw-knob);
   transform: translateY(-50%);
   border-radius: 9999px;
-  background: var(--tsw-ink);
-  box-shadow: 0 1px 3px color-mix(in oklab, #000 38%, transparent);
+  background: var(--ctl-ink);
+  box-shadow: 0 1px 2px color-mix(in oklab, #000 40%, transparent);
 }
 
 .theme-switch[aria-checked="true"] .theme-switch__knob {
   inset-inline-start: calc(var(--tsw-track) - var(--tsw-knob) - var(--tsw-pad));
 }
 
-/* الحركةُ زينةٌ تُطفأ لمن طلب تقليلها — والمفتاحُ يبقى مفهوماً بلا حركة */
 @media (prefers-reduced-motion: no-preference) {
-  .theme-switch,
-  .theme-switch__track {
-    transition:
-      background-color 180ms ease,
-      border-color 180ms ease;
-  }
   .theme-switch__knob {
-    transition: inset-inline-start 280ms cubic-bezier(0.2, 0.9, 0.2, 1);
+    transition: inset-inline-start 260ms cubic-bezier(0.2, 0.9, 0.2, 1);
   }
   .theme-switch__icon {
-    transition: opacity 220ms ease;
+    transition: opacity 200ms ease;
   }
   .theme-switch:active .theme-switch__knob {
-    scale: 0.9;
+    scale: 0.88;
   }
 }
 
-/* لا مفتاحَ على الورق: الورقةُ لا تُبدَّل سمتُها */
-@media print {
-  .theme-switch {
-    display: none;
-  }
-}
-
-/* ═══ زرُّ «تحسين» ودرجُه ═══
- *
- *  **ولماذا يَلمع قليلاً:** الزرُّ الذي لا يُرى لا يُضغَط، وملاحظةٌ لا
- *  تُقال تُفقَد. فيَحمل وميضاً خفيفاً يَشدّ العينَ في الترويسة من بين
- *  اللغة والسمة — ولا يَصرخ: هو ثالثُهم لا سيّدُهم.
- *
- *  ويَتلوّن بلون الترويسة كأخوَيه (`--tsw` نفسُه)، فلا يشذّ عن قسمٍ ولا
- *  سمة.
- */
-.improve-btn {
-  --tsw-ink: var(--tsw, currentColor);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  min-height: 2rem;
-  padding-inline: 0.7rem;
-  border-radius: 9999px;
-  border: 1px solid color-mix(in oklab, var(--tsw-ink) 42%, transparent);
-  background: color-mix(in oklab, var(--tsw-ink) 12%, transparent);
-  color: var(--tsw-ink);
-  font: inherit;
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.improve-btn:hover {
-  background: color-mix(in oklab, var(--tsw-ink) 22%, transparent);
-  border-color: color-mix(in oklab, var(--tsw-ink) 60%, transparent);
-}
-
-.improve-btn:focus-visible {
-  outline: 2px solid var(--tsw-ink);
-  outline-offset: 2px;
-}
-
+/* ── زرُّ «تحسين» داخل الشريط: وميضٌ خفيفٌ يَشدّ العين بلا صراخ */
 .improve-btn__spark {
-  font-size: 0.7rem;
-  line-height: 1;
+  flex: none;
+  font-size: 0.9rem;
 }
 
-/* الوميضُ لمن لم يَطلب تقليلَ الحركة — وبطيءٌ لا يُلِحّ */
 @media (prefers-reduced-motion: no-preference) {
-  .improve-btn {
-    transition:
-      background-color 180ms ease,
-      border-color 180ms ease;
-  }
   .improve-btn__spark {
-    animation: improve-spark 3.4s ease-in-out infinite;
+    animation: improve-spark 3.6s ease-in-out infinite;
   }
   @keyframes improve-spark {
-    0%, 70%, 100% { opacity: 0.65; }
-    82% { opacity: 1; }
+    0%, 72%, 100% { opacity: 0.7; }
+    84% { opacity: 1; }
+  }
+}
+
+/* لا شريطَ ولا درجَ على الورق */
+@media print {
+  .ctl-group,
+  .improve-sheet {
+    display: none;
   }
 }
 
@@ -453,14 +446,6 @@ body.has-floating-back {
   @keyframes improve-rise {
     from { transform: translateY(14px); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
-  }
-}
-
-/* لا زرَّ ولا درجَ على الورق */
-@media print {
-  .improve-btn,
-  .improve-sheet {
-    display: none;
   }
 }
 

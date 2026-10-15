@@ -180,7 +180,7 @@ export default async function OperationsPage() {
                       <StatusBadge status={t.status} />
                       <span
                         className="rounded-full px-2.5 py-1 text-xs font-semibold"
-                        style={{ background: theme.surface, color: theme.accentDark }}
+                        style={{ background: theme.surface, color: theme.onSurface }}
                       >
                         {dict.ticketStage.admin[t.stage] ?? TICKET_STAGE_LABELS[t.stage]}
                       </span>

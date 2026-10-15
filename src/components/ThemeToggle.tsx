@@ -1,7 +1,8 @@
 "use client";
 
-import { useSyncExternalStore, type CSSProperties } from "react";
+import { useSyncExternalStore } from "react";
 import { useLocale } from "@/i18n/LocaleProvider";
+import { SunIcon, MoonIcon } from "./icons";
 
 export type ThemeChoice = "light" | "dark";
 
@@ -71,22 +72,23 @@ export function applyTheme(next: ThemeChoice) {
   window.setTimeout(() => root.classList.remove("theme-switching"), 260);
 }
 
-/** مفتاحُ السمة — في كلِّ شاشةٍ من المنصة، لكلِّ من يفتحها: المؤسّس
- *  والقائدُ والعضوُ والمرشَّحُ وهو في اختباره سواء.
+/** مفتاحُ السمة — ساكنُ شريطِ الأدوات مع اللغة و«تحسين».
  *
  *  **ولماذا يُعرَض الحالُ لا البديل:** الزرُّ الذي يقول «داكن» يُربك —
  *  أهو وصفٌ لما أنا فيه أم لما سأصير إليه؟ فصار مفتاحاً: الشمسُ
- *  والهلالُ مرسومان معاً، والقبضةُ واقفةٌ على المُطبَّق، و`aria-checked`
- *  يقول للقارئ الآليّ ما تقوله القبضةُ للعين.
+ *  والهلالُ مرسومان على طرفيه، والقبضةُ واقفةٌ على المُطبَّق،
+ *  و`aria-checked` يقول للقارئ الآليّ ما تقوله القبضةُ للعين.
  *
- *  ويُلوَّن بلون الترويسة التي يسكنها كبقيّة أزرارها، فلا يشذّ عنها في
- *  سمةٍ ولا في قسم — واللونُ يُمرَّر متغيّراً واحداً (`--tsw`) تُشتَقّ
- *  منه بقيّةُ الطبقات في CSS.
+ *  **والأيقونتان مرسومتانِ لا حرفانِ** — انظر `@/components/icons`:
+ *  كانتا `☀` و`☾`، وليستا في خطّ المنصة أصلاً، فكان كلُّ جهازٍ يَرسمهما
+ *  بخطٍّ يَختاره بنفسه. وظهرت الشمسُ على الآيفون نجمةً مشوّهة.
+ *
+ *  ولا حدَّ له ولا سطحَ: الإطارُ إطارُ المجموعة، فلا تُرسَم حدودٌ فوق
+ *  حدود.
  */
-export function ThemeToggle({ color }: { color: string }) {
+export function ThemeToggle() {
   const theme = useSyncExternalStore(subscribe, readTheme, serverTheme);
-  // النصُّ يُقرأ من المعجم لا يُمرَّر من ثلاثين موضعاً: المفتاحُ واحدٌ،
-  // فليكن مصدرُ كلمتيه واحداً كذلك
+  // النصُّ يُقرأ من المعجم لا يُمرَّر من ثلاثين موضعاً
   const { t } = useLocale();
   const isDark = theme === "dark";
   const next: ThemeChoice = isDark ? "light" : "dark";
@@ -99,16 +101,17 @@ export function ThemeToggle({ color }: { color: string }) {
       aria-label={next === "dark" ? t.common.themeToDark : t.common.themeToLight}
       title={next === "dark" ? t.common.themeToDark : t.common.themeToLight}
       onClick={() => applyTheme(next)}
-      className="theme-switch"
-      style={{ "--tsw": color } as CSSProperties}
+      className="ctl-group__item theme-switch"
     >
-      <span aria-hidden className="theme-switch__icon theme-switch__icon--sun">☀</span>
+      <SunIcon className="theme-switch__icon theme-switch__icon--sun" />
       <span aria-hidden className="theme-switch__track">
         <span className="theme-switch__knob" />
       </span>
-      <span aria-hidden className="theme-switch__icon theme-switch__icon--moon">☾</span>
-      {/* النصُّ يُطوى على الجوّال: المفتاحُ نفسُه يَكفي، والمساحةُ تَضيق */}
-      <span className="hidden sm:inline">{isDark ? t.common.themeDark : t.common.themeLight}</span>
+      <MoonIcon className="theme-switch__icon theme-switch__icon--moon" />
+      {/* النصُّ يُطوى على الجوّال: القبضةُ والأيقونتان تَكفيان */}
+      <span className="ctl-group__label">
+        {isDark ? t.common.themeDark : t.common.themeLight}
+      </span>
     </button>
   );
 }

@@ -34,7 +34,7 @@ export function ForgotForm() {
       <button
         type="submit"
         disabled={pending}
-        className="min-h-11 rounded-xl bg-[var(--brand-temptress)] px-4 text-sm font-semibold text-[var(--brand-beige)] disabled:opacity-50"
+        className="min-h-11 rounded-xl btn-brand px-4 text-sm font-semibold disabled:opacity-50"
       >
         {pending ? t.sending : t.submit}
       </button>

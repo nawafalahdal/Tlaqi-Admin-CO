@@ -6,6 +6,7 @@ import { LogoLockup } from "@/components/Logo";
 import { LogoutButton } from "@/components/LogoutButton";
 import { LocaleToggle } from "@/components/LocaleToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ControlGroup, ControlDivider } from "@/components/ControlGroup";
 import { getLocale, getDictionary } from "@/i18n/server";
 
 /** شاشة ما بعد الاختبار وقبل القرار — المرشّح دخل بحساب حقيقي، فلا يصح أن
@@ -44,8 +45,11 @@ export default async function MemberPendingPage() {
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
-        <ThemeToggle color={brandInk(theme)} />
-          <LocaleToggle color={brandInk(theme)} />
+      <ControlGroup color={brandInk(theme)}>
+        <ThemeToggle />
+        <ControlDivider />
+        <LocaleToggle />
+      </ControlGroup>
         <LogoutButton color={brandInk(theme)} />
       </div>
     </main>

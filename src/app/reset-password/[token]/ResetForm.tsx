@@ -21,7 +21,7 @@ export function ResetForm({ token }: { token: string }) {
         </div>
         <Link
           href="/login"
-          className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-[var(--brand-temptress)] px-4 text-sm font-semibold text-[var(--brand-beige)]"
+          className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-xl btn-brand px-4 text-sm font-semibold"
         >
           {t.goToLogin}
         </Link>
@@ -49,7 +49,7 @@ export function ResetForm({ token }: { token: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="min-h-11 rounded-xl bg-[var(--brand-temptress)] px-4 text-sm font-semibold text-[var(--brand-beige)] disabled:opacity-50"
+        className="min-h-11 rounded-xl btn-brand px-4 text-sm font-semibold disabled:opacity-50"
       >
         {pending ? t.saving : t.submit}
       </button>

@@ -33,7 +33,7 @@ export function InviteLinkReveal({
   return (
     <div
       className="rounded-xl border p-4"
-      style={{ background: theme.surface, borderColor: theme.accentDark + "55" }}
+      style={{ background: theme.surface, borderColor: theme.border }}
     >
       <div className="mb-2 flex items-start justify-between gap-2">
         <p className="text-sm font-bold" style={{ color: brandInk(theme) }}>

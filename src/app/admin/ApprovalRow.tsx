@@ -39,7 +39,7 @@ export function ApprovalRow({
       <div className="flex items-center gap-3">
         <span
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold"
-          style={{ background: theme.surface, color: theme.accentDark }}
+          style={{ background: theme.surface, color: theme.onSurface }}
         >
           {member.fullName.slice(0, 1)}
         </span>

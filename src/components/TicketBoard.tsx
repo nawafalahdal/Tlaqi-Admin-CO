@@ -73,7 +73,7 @@ export async function TicketBoard({
               <Card key={x.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 p-3.5">
                   <span
                     className="shrink-0 rounded-full px-2 py-0.5 text-xs font-bold"
-                    style={{ background: theme.surface, color: theme.accentDark }}
+                    style={{ background: theme.surface, color: theme.onSurface }}
                   >
                     #{x.ticketNumber}
                   </span>
