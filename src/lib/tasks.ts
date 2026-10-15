@@ -3,6 +3,7 @@ import type { Session } from "next-auth";
 import type { TaskExecState, WorkPriority, Prisma } from "@prisma/client";
 import { assertPeriodWritable, canPlanDepartment, canReviewWork } from "@/lib/execution";
 import { MAX_PLAN_FILE_BYTES, ALLOWED_PLAN_TYPES } from "@/lib/planFormats";
+import { checkExternalLink, type LinkSource } from "@/lib/externalLinks";
 
 /** المهامُّ: إسنادُها، وتحديثُها، وتسليمُها، والتحقّقُ منها.
  *
@@ -215,17 +216,14 @@ export async function submitTaskWork(opts: {
   const note = opts.note.trim();
   if (!note) return { ok: false, reason: "وصفُ ما أُنجز مطلوب — والمُراجِعُ يقرؤه قبل الدليل" };
 
-  const url = opts.evidenceUrl?.trim() || null;
-  if (url) {
-    let parsed: URL;
-    try {
-      parsed = new URL(url);
-    } catch {
-      return { ok: false, reason: "رابطُ الدليل غير صالح — يبدأ بـhttps://" };
-    }
-    if (parsed.protocol !== "https:") {
-      return { ok: false, reason: "رابطُ الدليل يجب أن يبدأ بـhttps://" };
-    }
+  // دليلُ التسليم يمرّ بقائمة السماح كمادّةِ الخطط: الدليلُ يُنقَر من
+  // لوحةِ المُراجِع، فهو موضعُ ثقةٍ كغيره
+  const raw = opts.evidenceUrl?.trim() || null;
+  let url: string | null = null;
+  if (raw) {
+    const checked = checkExternalLink(raw, EVIDENCE_LINK_SOURCES);
+    if (!checked.ok) return { ok: false, reason: `رابطُ الدليل: ${checked.reason}` };
+    url = checked.url;
   }
 
   const file = opts.file && opts.file.bytes.byteLength > 0 ? opts.file : null;
@@ -600,3 +598,6 @@ export function isOverdue(
   }
   return task.dueAt.getTime() < now.getTime();
 }
+
+/** مصادرُ دليل التسليم — كمادّةِ الخطط: وثيقةٌ أو تصميم، لا اجتماع */
+export const EVIDENCE_LINK_SOURCES: readonly LinkSource[] = ["drive", "docs", "canva"];

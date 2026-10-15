@@ -49,7 +49,7 @@ function sess(role: string, id: string, name = "اختبار"): Session {
 
   const byLead = await addPlanDoc({
     title: `وثيقة قائد ${STAMP}`,
-    linkUrl: "https://example.com/x",
+    linkUrl: "https://drive.google.com/file/d/1XyZ/view",
     session: L,
   });
   chk("ويُفرَض في الخادم لا بإخفاء زرّ", byLead.ok === false,
@@ -66,7 +66,7 @@ function sess(role: string, id: string, name = "اختبار"): Session {
 
   const both = await addPlanDoc({
     title: `الاثنان ${STAMP}`,
-    linkUrl: "https://example.com/a",
+    linkUrl: "https://drive.google.com/file/d/1AaA/view",
     file: { name: "a.pdf", type: "application/pdf", bytes: new Uint8Array([1, 2, 3]) },
     session: F,
   });
@@ -117,7 +117,7 @@ function sess(role: string, id: string, name = "اختبار"): Session {
 
   const second = await addPlanDoc({
     title: `الأهداف ${STAMP}`,
-    linkUrl: "https://tlaqiteam.site/goals",
+    linkUrl: "https://docs.google.com/document/d/1Goals/edit",
     session: E,
   });
   chk("والتنفيذي يضيف رابطاً", second.ok, second.ok ? "" : second.reason);
@@ -189,6 +189,21 @@ function sess(role: string, id: string, name = "اختبار"): Session {
   const delByMember = await removePlanDoc({ id: made[0], session: M });
   chk("ولا يحذف عضوٌ مادةً", delByMember.ok === false,
       delByMember.ok === false ? delByMember.reason : "مرّ!");
+
+  // ── الروابطُ لا تُقبَل إلا من المصادر المعتمَدة
+  //
+  //    وهذا ليس تضييقاً للراحة: حقلٌ يَقبل رابطاً ويُعرَض لكل من في
+  //    المنصة موضعُ ثقةٍ يُنقَر. فمن وضع نطاقاً يُشبه درايف قاد الناسَ
+  //    إلى صفحةٍ تَسألهم كلمةَ مرورهم وهم يَحسبونها جوجل.
+  for (const [url, why] of [
+    ["https://dropbox.com/s/x/plan.pdf", "**ونطاقٌ خارج المصادر يُرفَض**"],
+    ["https://drive.google.com.evil.co/file/d/1/view", "**ونطاقٌ يُشبه درايف يُرفَض**"],
+    ["javascript:alert(1)", "**و`javascript:` يُرفَض**"],
+    ["https://meet.google.com/abc-defg-hij", "ورابطُ اجتماعٍ ليس وثيقةَ خطّة"],
+  ] as const) {
+    const bad = await addPlanDoc({ title: "مادةٌ برابطٍ مرفوض", linkUrl: url, session: F });
+    chk(why, bad.ok === false, bad.ok === false ? bad.reason : "قُبل!");
+  }
 
   // ── تنظيف
   for (const id of made) await prisma.planDoc.deleteMany({ where: { id } });

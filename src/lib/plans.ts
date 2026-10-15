@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Session } from "next-auth";
 import { appendMemberEvent } from "@/lib/googleSheets";
+import { checkExternalLink, type LinkSource } from "@/lib/externalLinks";
 import {
   MAX_PLAN_FILE_BYTES,
   ALLOWED_PLAN_TYPES,
@@ -149,18 +150,17 @@ export async function addPlanDoc(opts: {
     return { ok: false, reason: "ملفٌّ أو رابطٌ لا كلاهما — فالمادةُ الواحدة لها مصدرٌ واحد" };
   }
 
+  // الرابطُ يمرّ بقائمة السماح — انظر `@/lib/externalLinks`.
+  //
+  // وكان الحرسُ هنا `https` وحده، وهو يَمنع `javascript:` و`data:` ولا
+  // يَمنع نطاقاً يُشبه درايف يَسوق الناسَ إلى صفحةِ تصيُّد. فصار
+  // النطاقُ مفحوصاً بالتحليل: درايفُ ومستنداتُ جوجل وكانفا — لا ميت،
+  // فالاجتماعُ ليس وثيقةً في مركز خطط.
+  let checkedLink: string | null = null;
   if (link) {
-    // الرابطُ يُقيَّد بـhttps: ‏`javascript:` و`data:` في رابطٍ يُعرَض
-    // للجميع بابُ تنفيذٍ في أصل المنصة، لا مجرّد رابطٍ خاطئ
-    let parsed: URL;
-    try {
-      parsed = new URL(link);
-    } catch {
-      return { ok: false, reason: "الرابط غير صالح — يبدأ بـhttps://" };
-    }
-    if (parsed.protocol !== "https:") {
-      return { ok: false, reason: "الرابط يجب أن يبدأ بـhttps:// — لا يُقبل غيره" };
-    }
+    const checked = checkExternalLink(link, PLAN_LINK_SOURCES);
+    if (!checked.ok) return { ok: false, reason: checked.reason };
+    checkedLink = checked.url;
   }
 
   if (file) {
@@ -193,7 +193,7 @@ export async function addPlanDoc(opts: {
       mimeType: file?.type ?? null,
       byteSize: file ? file.bytes.byteLength : null,
       data: file ? Buffer.from(file.bytes) : null,
-      linkUrl: link,
+      linkUrl: checkedLink,
       uploadedById: opts.session.user.id,
       uploadedByName: opts.session.user.name ?? "—",
     },
@@ -341,3 +341,9 @@ export async function planCounts(days = 7) {
   ]);
   return { total, fresh };
 }
+
+/** مصادرُ مركز الخطط: وثائقُ وتصاميمُ — لا اجتماعات.
+ *
+ *  والاجتماعُ له موضعُه في الإعلانات والتقويم، ومادةٌ في مركزِ خططٍ
+ *  تَقود إلى غرفةِ اجتماعٍ انتهت تُقرأ عطباً. */
+export const PLAN_LINK_SOURCES: readonly LinkSource[] = ["drive", "docs", "canva"];

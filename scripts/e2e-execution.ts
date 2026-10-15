@@ -276,7 +276,7 @@ function sess(role: string, id: string, name: string, departmentId: string | nul
     const submitted = await submitTaskWork({
       taskId: t1.id,
       note: "التصاميم الثلاثة جاهزة ومعتمَدة من القسم",
-      evidenceUrl: "https://tlaqiteam.site/evidence/1",
+      evidenceUrl: "https://drive.google.com/file/d/1Evidence/view",
       session: W,
     });
     chk("٤ · والتسليمُ بدليلٍ يُقبَل", submitted.ok, submitted.ok ? "" : submitted.reason);
@@ -803,7 +803,7 @@ function sess(role: string, id: string, name: string, departmentId: string | nul
       // إسنادٌ وتحديثٌ وتسليم: ثلاثةُ أحداثٍ — ولا بريدَ في شيءٍ منها
       await updateTaskState({ taskId: t.id, state: "in_progress", session: W2 });
       await submitTaskWork({
-        taskId: t.id, note: "سلّمتُه", evidenceUrl: "https://tlaqiteam.site/x", session: W2,
+        taskId: t.id, note: "سلّمتُه", evidenceUrl: "https://drive.google.com/file/d/1Second/view", session: W2,
       });
       const afterSubmit = await prisma.emailLog.count();
       chk(

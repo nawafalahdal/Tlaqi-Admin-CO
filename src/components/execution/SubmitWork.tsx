@@ -87,13 +87,20 @@ export function SubmitWork({
       </div>
 
       {mode === "link" ? (
-        <input
-          name="evidenceUrl"
-          type="url"
-          dir="ltr"
-          placeholder="https://..."
-          className="min-h-11 rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-black/30"
-        />
+        <div className="flex flex-col gap-1.5">
+          <input
+            name="evidenceUrl"
+            type="url"
+            dir="ltr"
+            placeholder="https://drive.google.com/…"
+            className="min-h-11 rounded-xl border border-black/10 bg-white px-3 text-sm outline-none focus:border-black/30"
+          />
+          {/* المصادرُ تُقال قبل الرفض: من يَعرف المقبولَ لا يُجرّب المرفوض */}
+          <span className="text-xs text-black/45">
+            من <b>جوجل درايف</b> أو <b>مستندات جوجل</b> أو <b>كانفا</b>. وتأكّد أن
+            المُراجِع يَملك صلاحيةَ فتحه — المنصةُ تَحفظ الرابطَ ولا تَملك الملف.
+          </span>
+        </div>
       ) : (
         <input
           type="file"

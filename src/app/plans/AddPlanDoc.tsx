@@ -134,10 +134,14 @@ export function AddPlanDoc({ theme }: { theme: ReturnType<typeof themeFromColor>
             name="linkUrl"
             type="url"
             dir="ltr"
-            placeholder="https://..."
+            placeholder="https://drive.google.com/…"
             className="min-h-11 rounded-xl border border-black/10 bg-white px-3.5 text-sm outline-none focus:border-black/30"
           />
-          <span className="text-xs text-black/45">يبدأ بـhttps:// — ولا يُقبل غيره.</span>
+          <span className="text-xs text-black/45">
+            {/* القاعدةُ تُقال قبل الرفض لا بعده: من يَعرف المقبولَ لا
+                يُجرّب المرفوض */}
+            من <b>جوجل درايف</b> أو <b>مستندات جوجل</b> أو <b>كانفا</b> — ويبدأ بـhttps://
+          </span>
         </label>
       )}
 
