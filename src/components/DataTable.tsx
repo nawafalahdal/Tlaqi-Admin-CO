@@ -22,7 +22,7 @@ export function DataTable({
   emptyLabel: string;
 }) {
   if (rows.length === 0) {
-    return <Card className="p-8 text-center text-sm text-black/40">{emptyLabel}</Card>;
+    return <Card className="p-8 text-center text-sm text-black/60">{emptyLabel}</Card>;
   }
 
   const primary = columns.find((c) => c.primary) ?? columns[0];
@@ -38,8 +38,8 @@ export function DataTable({
             <dl className="mt-3 flex flex-col gap-2">
               {rest.map((c) => (
                 <div key={c.key} className="flex items-start justify-between gap-3">
-                  <dt className="shrink-0 text-xs text-black/40">{c.label}</dt>
-                  <dd className="min-w-0 text-end text-sm text-black/70">{row.cells[c.key]}</dd>
+                  <dt className="shrink-0 text-xs font-medium text-black/60">{c.label}</dt>
+                  <dd className="min-w-0 text-end text-sm text-black/80">{row.cells[c.key]}</dd>
                 </div>
               ))}
             </dl>
@@ -51,7 +51,7 @@ export function DataTable({
       <Card className="hidden overflow-hidden sm:block">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-black/5 text-start text-xs text-black/40">
+            <tr className="border-b border-black/10 bg-black/[0.025] text-start text-xs text-black/65">
               {columns.map((c) => (
                 <th key={c.key} className="px-4 py-3 text-start font-medium">
                   {c.label}

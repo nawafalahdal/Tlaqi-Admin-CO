@@ -61,7 +61,7 @@ export function Card({
       id={id}
       // الحدُّ من المتغيّر لا من رقمٍ ثابت: `#00000012` على سطحٍ داكن
       // لا يُرى، فتضيع حدودُ البطاقات كلّها في السمة الداكنة
-      className={`scroll-mt-24 rounded-2xl border border-hairline bg-white shadow-sm shadow-black/[0.03] ${className}`}
+      className={`scroll-mt-24 rounded-2xl border border-hairline bg-white shadow-sm shadow-black/[0.06] ${className}`}
       style={style}
     >
       {children}
@@ -87,7 +87,7 @@ export function Button({
   className?: string;
 }) {
   const base =
-    "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-opacity disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90";
+    "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-transparent px-4 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 hover:brightness-95";
 
   const solid = variant === "solid";
   /** حبرُ الخطّ والشبح يتبع السمة: `accentDark` على سطحٍ داكن لا يُقرأ.
