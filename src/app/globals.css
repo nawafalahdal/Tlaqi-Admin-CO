@@ -108,6 +108,20 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-cairo), "Cairo", Tahoma, sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--brand-mahogany) 62%, transparent);
+  outline-offset: 3px;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
 }
 
 ::selection {
