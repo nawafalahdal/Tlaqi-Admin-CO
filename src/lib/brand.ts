@@ -8,18 +8,40 @@ export const BRAND = {
   ink: "#1A1023",
 } as const;
 
-export type DepartmentSlug = "marketing" | "hr" | "tech";
+export type DepartmentSlug = "senior-administration" | "marketing" | "technical" | "hr";
 
+/** The single visual identity registry for the platform's official departments.
+ * Database identifiers remain unchanged; this registry only maps known names/slugs
+ * to semantic identity colors used by badges, navigation, charts, and headers.
+ */
 export const DEPARTMENT_THEME: Record<
   DepartmentSlug,
-  { name: string; colorHex: string }
+  { name: string; colorHex: string; token: string }
 > = {
-  marketing: { name: "التسويق", colorHex: BRAND.mahogany },
-  hr: { name: "الموارد البشرية", colorHex: BRAND.beige },
-  tech: { name: "التقنية", colorHex: BRAND.greenSheen },
+  "senior-administration": { name: "الإدارة العليا", colorHex: BRAND.temptress, token: "senior-admin" },
+  marketing: { name: "التسويق", colorHex: BRAND.mahogany, token: "marketing" },
+  technical: { name: "التقنية", colorHex: BRAND.greenSheen, token: "technical" },
+  hr: { name: "الموارد البشرية", colorHex: BRAND.beige, token: "hr" },
 };
 
-export const SUPER_ADMIN_THEME = { name: "الإدارة العليا", colorHex: BRAND.temptress };
+export const SUPER_ADMIN_THEME = DEPARTMENT_THEME["senior-administration"];
+
+const DEPARTMENT_NAME_TO_SLUG: Record<string, DepartmentSlug> = Object.fromEntries(
+  Object.entries(DEPARTMENT_THEME).map(([slug, value]) => [value.name, slug as DepartmentSlug]),
+);
+
+/** Resolve a database slug or official Arabic name without changing stored records. */
+export function departmentSlugFor(value: string | null | undefined): DepartmentSlug | null {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) return null;
+  if (normalized in DEPARTMENT_THEME) return normalized as DepartmentSlug;
+  return DEPARTMENT_NAME_TO_SLUG[value!.trim()] ?? null;
+}
+
+export function departmentIdentity(value: string | null | undefined) {
+  const slug = departmentSlugFor(value);
+  return slug ? DEPARTMENT_THEME[slug] : null;
+}
 
 /** يبني لوحة ألوان كاملة (خلفية/نص/حدّ/زر) من لون القسم الأساسي.
  *
@@ -77,9 +99,9 @@ export function logoToneFor(theme: ReturnType<typeof themeFromColor>): "light" |
   return theme.text === BRAND.ink ? "dark" : "light";
 }
 
-export function themeForDepartment(slug: DepartmentSlug | string) {
-  const entry = DEPARTMENT_THEME[slug as DepartmentSlug];
-  return themeFromColor(entry ? entry.colorHex : BRAND.temptress);
+export function themeForDepartment(value: DepartmentSlug | string) {
+  const identity = departmentIdentity(value);
+  return themeFromColor(identity?.colorHex ?? BRAND.temptress);
 }
 
 /** حبرُ الهوية على سطحٍ محايد — يَدكن في الفاتح ويَفتح في الداكن.

@@ -20,13 +20,22 @@
 :root {
   color-scheme: light;
 
-  /* سطحُ الصفحة، وسطحُ البطاقة فوقه، والحبر */
-  --page: #faf8f4;
+  /* Semantic foundation: warm paper, clear surfaces, and readable ink. */
+  --page: #f7f5f2;
   --surface: #ffffff;
-  /* الحبر حبرُ الهوية لا أسودَ خالصاً — أدفأ وأقرب إلى الطباعة */
-  --ink: #1a1023;
-  /* حدٌّ محسوبٌ على السطح: في الفاتح ظلٌّ، وفي الداكن ضوء */
-  --hairline: color-mix(in oklab, var(--ink) 9%, transparent);
+  --surface-raised: #ffffff;
+  --ink: #231923;
+  --ink-muted: #625963;
+  --hairline: #ddd8d5;
+  --border-strong: #b9b0ad;
+  --brand-primary: #341d2b;
+  --brand-action: #7f2f32;
+  --brand-accent: #c34900;
+  --focus: #a33b37;
+  --success: #1f6b3a;
+  --warning: #8a5a00;
+  --danger: #9a2e1c;
+  --info: #30406b;
 
   --background: var(--page);
   --foreground: var(--ink);
@@ -36,6 +45,16 @@
   --brand-temptress: #341d2b;
   --brand-green: #67c090;
   --brand-ink: #1a1023;
+
+  /* Department identity tokens: identity is intentionally separate from workflow status. */
+  --department-senior-admin: #341d2b;
+  --department-marketing: #c34900;
+  --department-technical: #2f8f63;
+  --department-hr: #9a7b3f;
+  --department-senior-admin-surface: color-mix(in oklab, var(--department-senior-admin) 12%, var(--surface));
+  --department-marketing-surface: color-mix(in oklab, var(--department-marketing) 12%, var(--surface));
+  --department-technical-surface: color-mix(in oklab, var(--department-technical) 12%, var(--surface));
+  --department-hr-surface: color-mix(in oklab, var(--department-hr) 14%, var(--surface));
 
   /* اللوحُ الناعم — بيجُ الهوية يُستعمل لوحاً للإرشاد والتكريم.
    *
@@ -60,6 +79,22 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
+
+  --page: #151416;
+  --surface: #202024;
+  --surface-raised: #29292e;
+  --ink: #f1eef0;
+  --ink-muted: #c0b8bd;
+  --hairline: #4a454a;
+  --border-strong: #6d656b;
+  --brand-primary: #e1b9c4;
+  --brand-action: #c34900;
+  --brand-accent: #f08a52;
+  --focus: #f08a52;
+  --success: #6ee7b7;
+  --warning: #fcd34d;
+  --danger: #fca5a5;
+  --info: #a9b8ed;
 
   /* رماديٌّ غامقٌ محايد — لا بنفسجيّ.
    *
@@ -108,6 +143,20 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-cairo), "Cairo", Tahoma, sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--brand-mahogany) 62%, transparent);
+  outline-offset: 3px;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
 }
 
 ::selection {

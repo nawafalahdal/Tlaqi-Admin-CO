@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { updateDepartmentColorAction } from "./actions";
 import { useTranslations } from "@/i18n/LocaleProvider";
 
-const SWATCHES = ["#C34900", "#341D2B", "#67C090", "#1F6F8B", "#B38B2D", "#7A4EAB", "#C2185B", "#3F7D20"];
+const SWATCHES = ["#341D2B", "#C34900", "#67C090", "#EEF6DF", "#1F6F8B", "#B38B2D", "#7A4EAB", "#C2185B"];
 
 /** تغيير لون قسم من فهرس الأقسام — في مكانه الصحيح الآن.
  *  كان داخل لوحة القسم، ولوحة القسم ما عادت تُفتح لمن يملك الهيكل. */
@@ -66,7 +66,7 @@ export function DepartmentColor({
               else setOpen(false);
             })
           }
-          className="min-h-9 rounded-lg bg-[#341D2B] px-3 text-xs font-semibold text-on-brand disabled:opacity-50"
+          className="btn-brand min-h-9 rounded-lg px-3 text-xs font-semibold disabled:opacity-50"
         >
           {pending ? t.creating : t.saveColor}
         </button>

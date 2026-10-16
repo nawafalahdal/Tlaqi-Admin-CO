@@ -30,7 +30,7 @@ export function HeaderShell({
 
   return (
     <>
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-5 sm:py-4">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
         <div className="min-w-0 shrink">
           {homeHref ? (
             <Link href={homeHref} aria-label={t.actions.home} className="inline-flex">
