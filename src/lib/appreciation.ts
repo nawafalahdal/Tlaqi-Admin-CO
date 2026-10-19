@@ -118,6 +118,8 @@ export async function sweepThreeMonthAppreciation(): Promise<number> {
       noFurtherEmail: false,
       stepDownAt: null,
       offboardingClosedAt: null,
+      // شهادةُ «ثلاثة أشهر عضواً» للعضو وحده — لا لصفِّ مرشّحٍ قياديٍّ اعتُمد
+      invite: { targetRole: "member" },
     },
     select: { id: true, decidedAt: true, joinDate: true },
   });

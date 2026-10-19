@@ -29,6 +29,7 @@ import { getLocale, getDictionary } from "@/i18n/server";
 import { announcementsForSession } from "@/lib/announcements";
 import { AnnouncementList } from "@/app/admin/hub/AnnouncementList";
 import { runDueSweeps } from "@/lib/sweepThrottle";
+import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 
 export default async function MemberPortalPage() {
   const session = await auth();
@@ -94,8 +95,7 @@ export default async function MemberPortalPage() {
     // زملاء قسمه: هم طرف مسار العمل اليومي (محتوى ← تصميم ← نشر)
     prisma.member.findMany({
       where: {
-        isActive: true,
-        approvalStatus: "approved",
+        ...ROSTER_MEMBER_WHERE,
         departmentId: member.departmentId,
         id: { not: member.id },
       },

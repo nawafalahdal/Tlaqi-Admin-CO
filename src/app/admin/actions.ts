@@ -11,6 +11,8 @@ import {
   syncMemberLifecycleRow,
 } from "@/lib/workflow";
 import { getTrackForTarget } from "@/lib/testTracks";
+import { canDecideCandidate } from "@/lib/permissions";
+import type { InviteTargetRole } from "@prisma/client";
 import { safeErrorMessage } from "@/lib/safeError";
 import { correctMemberDate, sendWelcomeToMember } from "@/lib/founderActions";
 import { revalidatePath } from "next/cache";
@@ -26,6 +28,17 @@ async function requireSession() {
 function canManageDepartment(session: Session, departmentId: string | null) {
   if (session.user.role === "super_admin" || session.user.role === "executive") return true;
   return session.user.role === "department_admin" && session.user.departmentId === departmentId;
+}
+
+/** يَحسم أمرَ مرشّحٍ من يملك منحَ منصبه — انظر `canDecideCandidate` */
+function mayDecide(
+  session: Session,
+  member: { departmentId: string | null; invite: { targetRole: InviteTargetRole } }
+) {
+  return canDecideCandidate(
+    { role: session.user.role, departmentId: session.user.departmentId },
+    { targetRole: member.invite.targetRole, departmentId: member.departmentId }
+  );
 }
 
 /** المؤسس فقط يُصدر دعوة لحساب تنفيذي (CEO) جديد */
@@ -148,8 +161,11 @@ export async function createOperationsOfficerInviteAction(
 
 export async function approveMemberAction(memberId: string) {
   const session = await requireSession();
-  const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
-  if (!canManageDepartment(session, member.departmentId)) throw new Error("غير مصرح لك بهذا الإجراء");
+  const member = await prisma.member.findUniqueOrThrow({
+    where: { id: memberId },
+    include: { invite: { select: { targetRole: true } } },
+  });
+  if (!mayDecide(session, member)) throw new Error("غير مصرح لك بهذا الإجراء");
   const { tempPassword } = await approveMember(memberId);
   revalidatePath("/admin");
   revalidatePath("/admin/departments");
@@ -158,8 +174,11 @@ export async function approveMemberAction(memberId: string) {
 
 export async function rejectMemberAction(memberId: string) {
   const session = await requireSession();
-  const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
-  if (!canManageDepartment(session, member.departmentId)) throw new Error("غير مصرح لك بهذا الإجراء");
+  const member = await prisma.member.findUniqueOrThrow({
+    where: { id: memberId },
+    include: { invite: { select: { targetRole: true } } },
+  });
+  if (!mayDecide(session, member)) throw new Error("غير مصرح لك بهذا الإجراء");
   await rejectMember(memberId);
   revalidatePath("/admin");
   revalidatePath("/admin/departments");
@@ -167,8 +186,11 @@ export async function rejectMemberAction(memberId: string) {
 
 export async function reopenInviteAction(memberId: string) {
   const session = await requireSession();
-  const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
-  if (!canManageDepartment(session, member.departmentId)) throw new Error("غير مصرح لك بهذا الإجراء");
+  const member = await prisma.member.findUniqueOrThrow({
+    where: { id: memberId },
+    include: { invite: { select: { targetRole: true } } },
+  });
+  if (!mayDecide(session, member)) throw new Error("غير مصرح لك بهذا الإجراء");
   await reopenInviteForMember(memberId);
   revalidatePath("/admin");
   revalidatePath("/admin/departments");

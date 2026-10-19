@@ -3,6 +3,7 @@ import { appendMemberEvent } from "@/lib/googleSheets";
 import { sendAnnouncementEmail } from "@/lib/email";
 import type { AnnouncementAudience } from "@prisma/client";
 import type { Session } from "next-auth";
+import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 
 /** الأدوار التي تملك نشر إعلان.
  *
@@ -188,8 +189,7 @@ async function announcementRecipients(
       ? []
       : await prisma.member.findMany({
           where: {
-            isActive: true,
-            approvalStatus: "approved",
+            ...ROSTER_MEMBER_WHERE,
             ...(audience === "department" && departmentId ? { departmentId } : {}),
           },
           select: { email: true },

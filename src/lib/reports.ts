@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
 import { accountRoleLabel } from "@/lib/testTracks";
+import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 
 /** التقارير — ملخّصٌ يبقى بعد أن تُؤرشَف التذاكر.
  *
@@ -65,7 +66,7 @@ export async function departmentsReport(): Promise<DepartmentReport[]> {
         take: 1,
       },
       _count: {
-        select: { members: { where: { isActive: true, approvalStatus: "approved" } } },
+        select: { members: { where: ROSTER_MEMBER_WHERE } },
       },
     },
   });
@@ -116,7 +117,7 @@ export type MemberReport = {
  */
 export async function membersReport(departmentId: string): Promise<MemberReport[]> {
   const members = await prisma.member.findMany({
-    where: { departmentId, isActive: true, approvalStatus: "approved" },
+    where: { ...ROSTER_MEMBER_WHERE, departmentId },
     select: {
       id: true,
       fullName: true,

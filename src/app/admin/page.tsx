@@ -30,6 +30,8 @@ import { accountRoleLabel } from "@/lib/testTracks";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { runDueSweeps } from "@/lib/sweepThrottle";
+import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
+import { canDecideCandidate } from "@/lib/permissions";
 
 export default async function AdminPage() {
   const session = await auth();
@@ -51,7 +53,7 @@ export default async function AdminPage() {
     candidate_expiry: () => sweepExpiredCandidateAccounts(),
   });
 
-  const [departments, leadershipQueue, memberQueue, requests, escalatedTickets, announcements] =
+  const [departments, allLeadershipCandidates, memberQueue, requests, escalatedTickets, announcements] =
     await Promise.all([
       prisma.department.findMany({
       where: OPEN_DEPARTMENT_WHERE,
@@ -111,6 +113,14 @@ export default async function AdminPage() {
   const annPowers = announcementPowers(session);
   const deptOptions = departments.map((d) => ({ id: d.id, name: d.name }));
 
+  // كلٌّ يرى ما يَحسمه وحده: المرشّحُ التنفيذيُّ للمؤسس لا للرئيس القائم.
+  // والخادم يفرض الشرط نفسه — هذا ليُعرض زرٌّ لا يُرفَض ضغطُه.
+  const leadershipQueue = allLeadershipCandidates.filter((m) =>
+    canDecideCandidate(
+      { role: session.user.role, departmentId: session.user.departmentId },
+      { targetRole: m.invite.targetRole, departmentId: m.departmentId }
+    )
+  );
   const pendingCount = leadershipQueue.length + memberQueue.length;
   const openRequests = requests.filter((r) => r.status !== "done").length;
 
@@ -125,7 +135,7 @@ export default async function AdminPage() {
       take: TICKET_TARGET_TAKE,
     }),
     prisma.member.findMany({
-      where: { isActive: true, approvalStatus: "approved" },
+      where: ROSTER_MEMBER_WHERE,
       select: TICKET_TARGET_MEMBER_SELECT,
       orderBy: { fullName: "asc" },
       take: TICKET_TARGET_TAKE,

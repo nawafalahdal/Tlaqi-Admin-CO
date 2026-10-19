@@ -3,6 +3,7 @@ import { BRAND } from "@/lib/brand";
 import { accountRoleLabel } from "@/lib/testTracks";
 import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
 import { avatarUrl } from "@/lib/avatarUrl";
+import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 
 /** الهيكل التنظيمي — يُستخرَج ولا يُحرَّر.
  *
@@ -286,7 +287,7 @@ export async function buildOrgChart(): Promise<OrgChart> {
   ]);
 
   const unassignedMembers = await prisma.member.findMany({
-    where: { isActive: true, approvalStatus: "approved", departmentId: null },
+    where: { ...ROSTER_MEMBER_WHERE, departmentId: null },
     select: MEMBER_SELECT,
     orderBy: { fullName: "asc" },
   });

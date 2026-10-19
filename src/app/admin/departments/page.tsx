@@ -13,6 +13,7 @@ import { DepartmentColor } from "./DepartmentColor";
 import { DeleteDepartment } from "./DeleteDepartment";
 import { CommitteeRequests } from "./CommitteeRequests";
 import { canDecideCommittee, pendingCommittees, committeeLeadTitle } from "@/lib/committees";
+import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 
 /** فهرس الأقسام وإنشاء قسم جديد.
  *
@@ -39,7 +40,7 @@ export default async function DepartmentsIndexPage() {
     prisma.department.findMany({
       orderBy: { name: "asc" },
       include: {
-        _count: { select: { members: true, admins: true } },
+        _count: { select: { members: { where: ROSTER_MEMBER_WHERE }, admins: { where: { isActive: true } } } },
         testTracks: { include: { _count: { select: { questions: true } } } },
         parent: { select: { id: true, name: true } },
       },

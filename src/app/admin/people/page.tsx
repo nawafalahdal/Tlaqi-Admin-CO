@@ -28,6 +28,7 @@ import { ROLE_LABELS } from "@/lib/testTracks";
 import { loginHealthFor, loginHealthNotes, loginHealthBlocked } from "@/lib/loginHealth";
 import { canAward } from "@/lib/awards";
 import { runDueSweeps } from "@/lib/sweepThrottle";
+import { isRosterMember } from "@/lib/roster";
 
 /** إدارة الأعضاء والهيكل التنظيمي — موضعٌ واحد للشخص وموقعه وقسمه.
  *
@@ -149,7 +150,7 @@ export default async function PeoplePage() {
   const mayAward = canAward(session.user.role);
 
   const members = allMembers
-    .filter((m) => m.approvalStatus === "approved" && m.isActive)
+    .filter(isRosterMember)
     .sort(
       (a, b) =>
         (a.department?.name ?? "").localeCompare(b.department?.name ?? "", "ar") ||

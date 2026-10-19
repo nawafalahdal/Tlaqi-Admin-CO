@@ -15,6 +15,7 @@ import { ROLE_LABELS, accountRoleLabel } from "@/lib/testTracks";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { runDueSweeps } from "@/lib/sweepThrottle";
+import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 
 /** صفحة التذاكر الخاصة — كل التذاكر في مكان واحد بدل تفرّقها بين اللوحات.
  *  المفتوحة تُعرض ببطاقات قابلة للإجراء، والمغلقة بجدول مرجعي. */
@@ -52,7 +53,7 @@ export default async function TicketsPage() {
       take: TICKET_TARGET_TAKE,
     }),
     prisma.member.findMany({
-      where: { isActive: true, approvalStatus: "approved" },
+      where: ROSTER_MEMBER_WHERE,
       select: TICKET_TARGET_MEMBER_SELECT,
       orderBy: { fullName: "asc" },
       take: TICKET_TARGET_TAKE,

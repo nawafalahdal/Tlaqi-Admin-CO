@@ -1,0 +1,62 @@
+/** يتحقق أن كل قائمةِ «أعضاءٍ معتمَدين» تمرّ بشرط القائمة.
+ *
+ *  **الضمانة التي يحرسها:** صفُّ المرشّح القيادي (رئيسٌ تنفيذي، مسؤول
+ *  متابعة وتشغيل، قائدُ قسم) يبقى `approved` في `Member` بعد ترقيته إلى
+ *  حسابٍ إداري. فكلُّ قائمةٍ تسأل `approvalStatus: "approved"` وحده تُعيد
+ *  الرئيسَ التنفيذيَّ عضواً عادياً — وهي الحادثةُ المُبلَّغ عنها.
+ *
+ *  فكلُّ قائمةٍ كهذه إمّا تمرّ بـ`ROSTER_MEMBER_WHERE`، أو تُسمّي المنصب
+ *  الذي تريده (`targetRole`)، أو تُعلن بسطرٍ مكتوب:
+ *  `// member-roster: all — <السبب>`.
+ */
+import { readFileSync, readdirSync, statSync } from "fs";
+import { join } from "path";
+
+function walk(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) walk(full, out);
+    else if (/\.(ts|tsx)$/.test(full)) out.push(full);
+  }
+  return out;
+}
+
+const CALL = /prisma\.member\.(findMany|findFirst|count)\s*\(/g;
+const ESCAPE = /member-roster:\s*all/;
+
+let failed = false;
+let scoped = 0;
+let declared = 0;
+
+for (const file of walk("src")) {
+  if (file.endsWith(join("lib", "roster.ts"))) continue;
+  const source = readFileSync(file, "utf8");
+  for (const match of source.matchAll(CALL)) {
+    const at = match.index ?? 0;
+    const window = source.slice(at, at + 500);
+    const before = source.slice(Math.max(0, at - 240), at);
+    const line = source.slice(0, at).split("\n").length;
+    // ما لا يسأل عن «المعتمَد» ليس قائمةَ أعضاء: مرشّحون، أو بحثٌ ببريد
+    if (!/approvalStatus:\s*"approved"/.test(window) && !window.includes("ROSTER_MEMBER_WHERE")) continue;
+    if (window.includes("ROSTER_MEMBER_WHERE") || window.includes("targetRole")) {
+      scoped++;
+      continue;
+    }
+    if (ESCAPE.test(before) || ESCAPE.test(window)) {
+      declared++;
+      continue;
+    }
+    console.error(
+      `✗ ${file}:${line} — قائمةُ أعضاءٍ معتمَدين تَعُدّ القادةَ المرقَّين أعضاءً: مرّرها بـROSTER_MEMBER_WHERE، أو أعلن «member-roster: all» بسببه`
+    );
+    failed = true;
+  }
+}
+
+if (scoped === 0) {
+  console.error("✗ لم يُعثر على أي قائمة أعضاء — تغيّر شكل النداء وبطل الفحص");
+  failed = true;
+}
+
+if (failed) process.exit(1);
+console.log(`✓ قوائم الأعضاء: ${scoped} بشرط القائمة، ${declared} معلَنةٌ بالكل`);

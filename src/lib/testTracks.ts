@@ -8,21 +8,26 @@ import type { Session } from "next-auth";
  *  مسؤول تشغيل ← اختبار موحّد (يملكه المؤسس أو التنفيذي)
  *  تنفيذي ← اختبار التنفيذيين (يملكه المؤسس فقط) */
 export async function getTrackForTarget(targetRole: InviteTargetRole, departmentId: string | null) {
-  if (targetRole === "member") {
-    if (!departmentId) throw new Error("دعوة عضو تتطلب قسماً");
-    return prisma.testTrack.findUniqueOrThrow({
-      where: { scope_departmentId: { scope: "department_member", departmentId } },
-    });
+  // **لماذا لا `findFirstOrThrow`:** خطأُ «لم يُعثر» من Prisma ليس `Error`
+  // عادياً، فتُخفيه `safeErrorMessage` خلف «حدث خطأ غير متوقع». وهو عينُ
+  // ما رآه الرئيس التنفيذي حين دعا مسؤول المتابعة والتشغيل: دورُ مسؤول
+  // التشغيل أُضيف بترحيلٍ لم يُنشئ بنكَ أسئلته، فلم يكن له صفٌّ في الإنتاج.
+  // والآن يُنشئه الترحيل، ويُسمّى النقصُ باسمه إن وقع.
+  if (targetRole === "member" && !departmentId) throw new Error("دعوة عضو تتطلب قسماً");
+  const scope = targetRole === "member" ? "department_member" : targetRole;
+  const track = await prisma.testTrack.findFirst({
+    where: targetRole === "member" ? { scope: "department_member", departmentId } : { scope },
+    include: { _count: { select: { questions: true } } },
+  });
+  const label = ROLE_LABELS[targetRole];
+  if (!track) {
+    throw new Error(`لا يوجد بنكُ أسئلةٍ لمنصب «${label}» بعد. افتح صفحة اختباره وأضف أسئلته أولاً.`);
   }
-  // department_admin/operations_officer/executive: صف وحيد بلا قسم — NULL في
-  // Postgres لا يصلح لمفتاح upsert/findUnique المركّب، فنبحث بـ scope فقط
-  if (targetRole === "department_admin") {
-    return prisma.testTrack.findFirstOrThrow({ where: { scope: "department_admin" } });
+  // بنكٌ فارغ يُسقط المرشّح آلياً: لا سؤال = ٠٪ = رسوب. فيُرفض قبل أن يُدعى أحد.
+  if (track._count.questions === 0) {
+    throw new Error(`بنكُ أسئلة «${label}» فارغ — أضف أسئلته من صفحة الاختبار قبل الدعوة، وإلا رسب المرشّح آلياً.`);
   }
-  if (targetRole === "operations_officer") {
-    return prisma.testTrack.findFirstOrThrow({ where: { scope: "operations_officer" } });
-  }
-  return prisma.testTrack.findFirstOrThrow({ where: { scope: "executive" } });
+  return track;
 }
 
 /** حقل options مخزّن كـ Json في Prisma — هذا يحوّله لمصفوفة نصوص مكتوبة للواجهة */

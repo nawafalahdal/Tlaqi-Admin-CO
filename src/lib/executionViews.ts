@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { isOverdue } from "@/lib/tasks";
 import { countdownLabel } from "@/lib/riyadh";
 import type { TaskView } from "@/components/execution/TaskCard";
+import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 
 /** تحويلُ صفوف المهامّ إلى ما تَعرضه البطاقة.
  *
@@ -119,7 +120,7 @@ export async function assignableOwners(departmentId: string) {
       orderBy: { fullName: "asc" },
     }),
     prisma.member.findMany({
-      where: { isActive: true, approvalStatus: "approved", departmentId },
+      where: { ...ROSTER_MEMBER_WHERE, departmentId },
       select: { id: true, fullName: true },
       orderBy: { fullName: "asc" },
     }),

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { Session } from "next-auth";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { sendCommitteeRequestEmail, sendCommitteeDecisionEmail } from "@/lib/email";
+import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 
 /** اللجان — قسمٌ داخل قسم، يقترحه قائدُ القسم ويعتمده المدير التنفيذي.
  *
@@ -438,7 +439,7 @@ export async function committeesOf(parentId: string) {
         where: { isActive: true, role: "department_admin" },
         select: { id: true, fullName: true, jobTitle: true },
       },
-      _count: { select: { members: true, committees: true } },
+      _count: { select: { members: { where: ROSTER_MEMBER_WHERE }, committees: true } },
     },
   });
 }

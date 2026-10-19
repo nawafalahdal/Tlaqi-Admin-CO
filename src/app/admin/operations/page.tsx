@@ -25,6 +25,7 @@ import { RaiseAdminTicketForm, type TicketTargetOption } from "../tickets/RaiseA
 import { accountRoleLabel } from "@/lib/testTracks";
 import { TicketBoard } from "@/components/TicketBoard";
 import { runDueSweeps } from "@/lib/sweepThrottle";
+import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 
 function isOverdue(dueAt: Date) {
   return Date.now() > dueAt.getTime();
@@ -78,7 +79,7 @@ export default async function OperationsPage() {
       take: TICKET_TARGET_TAKE,
     }),
     prisma.member.findMany({
-      where: { isActive: true, approvalStatus: "approved" },
+      where: ROSTER_MEMBER_WHERE,
       select: TICKET_TARGET_MEMBER_SELECT,
       orderBy: { fullName: "asc" },
       take: TICKET_TARGET_TAKE,

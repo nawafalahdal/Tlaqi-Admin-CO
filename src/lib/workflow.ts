@@ -241,7 +241,8 @@ export async function submitTestAttempt(opts: { memberId: string; answers: Recor
   await appendTestResult({
     fullName: updated.fullName,
     email: updated.email,
-    track: updated.department?.name ?? (updated.invite.targetRole === "executive" ? "الإدارة التنفيذية" : "قيادة قسم"),
+    // المسارُ يُسمّى بمنصبه: مرشّحُ المتابعة والتشغيل ليس «قيادة قسم»
+    track: updated.department?.name ?? ROLE_LABELS[updated.invite.targetRole],
     score,
     passed,
     at: new Date(),
