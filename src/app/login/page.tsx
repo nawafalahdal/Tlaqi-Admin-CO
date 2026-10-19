@@ -16,11 +16,12 @@ export default async function LoginPage({
 
   return (
     <main
-      className="flex min-h-screen items-center justify-center px-4"
+      className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-8 sm:px-6"
       style={{ background: BRAND.temptress }}
     >
-      <div className="w-full max-w-sm">
-        <div className="mb-4 flex justify-end">
+      <div aria-hidden className="pointer-events-none absolute inset-0 opacity-20" style={{ background: `radial-gradient(circle at 15% 15%, ${BRAND.greenSheen}, transparent 34%), radial-gradient(circle at 90% 85%, ${BRAND.mahogany}, transparent 32%)` }} />
+      <div className="relative w-full max-w-md">
+        <div className="mb-5 flex justify-end">
       <ControlGroup color={BRAND.beige}>
         <ThemeToggle />
         <ControlDivider />
@@ -31,7 +32,7 @@ export default async function LoginPage({
           <LogoLockup height={34} tone="light" />
         </div>
 
-        <div className="rounded-3xl bg-white p-8 shadow-xl">
+        <div className="rounded-3xl bg-white p-6 shadow-2xl shadow-black/20 sm:p-8">
           <h1 className="mb-1 text-lg font-bold text-black/90">{t.login.title}</h1>
           <p className="mb-6 text-sm text-black/50">{t.login.subtitle}</p>
 

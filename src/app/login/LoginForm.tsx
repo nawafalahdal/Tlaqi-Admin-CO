@@ -5,7 +5,7 @@ import { loginAction, requestLoginCodeAction, type LoginStep1 } from "./actions"
 import { useTranslations } from "@/i18n/LocaleProvider";
 
 const FIELD =
-  "min-h-11 rounded-xl border border-black/10 px-4 py-3 text-sm outline-none focus:border-[var(--brand-temptress)] focus:ring-2 focus:ring-[var(--brand-temptress)]/15";
+  "min-h-11 rounded-xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition-shadow placeholder:text-black/35 focus:border-[var(--brand-temptress)] focus:ring-2 focus:ring-[var(--brand-temptress)]/15";
 
 /** الدخول على خطوتين: كلمة المرور أولاً، ثم رمز يصل إلى البريد.
  *
