@@ -6,6 +6,7 @@ import { departmentBrand } from "@/lib/departmentBrand";
 import { syncAdminAccountRow, syncMemberLifecycleRow } from "@/lib/workflow";
 import { SOCIAL_LINKS, appBaseUrl } from "@/lib/emailBrand";
 import { bannerUrl } from "@/lib/bannerToken";
+import { reasonFor, type SendOutcome } from "@/lib/emailOutcome";
 
 /** الوسم الرسمي. يُضبط من البيئة ليُغيَّر دون نشر جديد. */
 export const BRAND_HASHTAG = process.env.BRAND_HASHTAG || "#تلاقي";
@@ -68,52 +69,117 @@ export type WelcomeSubject =
 export async function welcomeAlreadyDelivered(opts: {
   email: string;
   welcomeEmailSentAt: Date | null;
-}): Promise<boolean> {
-  if (opts.welcomeEmailSentAt) return true;
+}): Promise<"delivered" | "not_delivered" | "unknown"> {
+  if (opts.welcomeEmailSentAt) return "delivered";
   try {
     const logged = await prisma.emailLog.count({
       where: { recipient: opts.email, kind: "ترحيب", status: "أُرسلت" },
     });
-    return logged > 0;
+    return logged > 0 ? "delivered" : "not_delivered";
   } catch {
-    // تعذّر قراءة السجل لا يعني أنها لم تصل — والأحوط ألّا نُرسل ثانيةً
-    return true;
+    // **ولا يُقال «وصلت» حيث لا دليل.** كان يُعاد `true` هنا «احتياطاً
+    // ألّا نُرسل ثانيةً» — فصار تعثُّرُ استعلامٍ يُغلق البابَ نهائياً
+    // ويُقال لصاحبه إنها أُرسلت وهي لم تُرسَل. والجهلُ يُقال جهلاً:
+    // الاستدعاءُ يُترجمه إلى «تعذّر التحقّق — أعِد المحاولة».
+    return "unknown";
   }
 }
+
+/** مهلةُ الحجز — خمسُ دقائق.
+ *
+ *  أطولُ من أيّ نداءٍ لمزوّد البريد بكثير، وأقصرُ من أن يُحبَس أحدٌ
+ *  خارج بطاقته إن ماتت لامبدا في منتصف المحاولة. */
+export const WELCOME_CLAIM_TTL_MS = 5 * 60_000;
 
 /** يَحجز حقَّ الإرسال مرّةً واحدة — في القاعدة لا في الذاكرة.
  *
  *  **المرّة الواحدة لا تُفرَض بفحصٍ قبل الإرسال.** الفحص ثم الإرسال
  *  يمرّ منه متسابقان: نقرأ «لم تُرسَل» مرّتين فتُرسَل مرّتان — وهذا
  *  وقع فعلاً حين ضُغط زرٌّ بطيء ضغطتين. فالشرط يُكتب في `where`:
- *  `welcomeEmailSentAt: null` جزءٌ من التحديث نفسه، فمن كتب أولاً
- *  حجز الحقّ ومن تأخّر وجد `count === 0`.
+ *  من كتب أولاً حجز الحقّ ومن تأخّر وجد `count === 0`.
  *
- *  والحجز قبل الإرسال لا بعده. ولو فشل الإرسال بعده بقي الحقّ محجوزاً
- *  بلا رسالةٍ وصلت — فيُفَكّ الحجز صريحاً عند الفشل. */
+ *  **والحجزُ في عمودٍ غيرِ عمودِ القبول — وهذا إصلاحُ الحادثة.** كان
+ *  الحجزُ يُكتَب في `welcomeEmailSentAt` نفسِه ثم يُمسَح عند الإخفاق.
+ *  وبين الكتابة والمسح نداءٌ شبكيٌّ إلى مزوّد البريد. فإن انقطع
+ *  التنفيذُ هناك بقي ختمُ القبول مكتوباً ولم تُرسَل رسالة — فيقول
+ *  الشيتُ «✓ وصلت بطاقة الانضمام»، ويُردّ زرُّ الإرسال بـ«أُرسلت من
+ *  قبل» إلى الأبد، ولا أثرَ يُفسّر شيئاً. وهي الأعراضُ الثلاثة
+ *  المُبلَّغ عنها.
+ *
+ *  **وللحجز مهلة.** حجزٌ بلا مهلةٍ يُبدِّل قفلاً أبدياً بقفلٍ أبديٍّ
+ *  آخر: لو انقطع التنفيذُ بعد الحجز لبقي الصفُّ محجوزاً إلى الأبد. فما
+ *  مضى عليه أكثرُ من `WELCOME_CLAIM_TTL_MS` يُعَدّ منقطعاً ويُدَّعى من
+ *  جديد — والشرطُ كلُّه في `where` فلا يُقرأ ثم يُقرَّر.
+ */
 async function claimWelcomeSend(
   subject: WelcomeSubject,
   at: Date,
   /** بريدُه — يُفحَص به سجلُّ البريد لمن لم يُكتب حقلُه */
   email?: string
-): Promise<boolean> {
-  if (email && (await welcomeAlreadyDelivered({ email, welcomeEmailSentAt: null }))) {
-    return false;
+): Promise<{ claimed: true } | { claimed: false; reason: string }> {
+  if (email) {
+    const delivered = await welcomeAlreadyDelivered({ email, welcomeEmailSentAt: null });
+    if (delivered === "delivered") return { claimed: false, reason: ALREADY_SENT };
+    if (delivered === "unknown") {
+      // تعذّرت قراءةُ السجلّ: لا يُقال «أُرسلت من قبل» — ذلك ادّعاءٌ بلا
+      // دليل ويُغلق البابَ نهائياً. يُقال «تعذّر التحقّق» وتُعاد المحاولة.
+      return {
+        claimed: false,
+        reason: "تعذّر التحقّقُ من سجلّ البريد الآن — أعِد المحاولة بعد قليل",
+      };
+    }
   }
-  const where = { id: subject.id, welcomeEmailSentAt: null } as const;
-  const data = { welcomeEmailSentAt: at };
+
+  const stale = new Date(at.getTime() - WELCOME_CLAIM_TTL_MS);
+  const where = {
+    id: subject.id,
+    welcomeEmailSentAt: null,
+    // حجزٌ حرٌّ أو حجزٌ انقضت مهلتُه
+    OR: [{ welcomeClaimedAt: null }, { welcomeClaimedAt: { lt: stale } }],
+  };
+  const data = { welcomeClaimedAt: at };
   const written =
     subject.kind === "user"
       ? await prisma.user.updateMany({ where, data })
       : await prisma.member.updateMany({ where, data });
-  return written.count > 0;
+
+  if (written.count > 0) return { claimed: true };
+  // لم يُحجَز: إمّا أن القبولَ مختومٌ سلفاً أو أن محاولةً جاريةً لم تَنقضِ
+  const row =
+    subject.kind === "user"
+      ? await prisma.user.findUnique({
+          where: { id: subject.id },
+          select: { welcomeEmailSentAt: true },
+        })
+      : await prisma.member.findUnique({
+          where: { id: subject.id },
+          select: { welcomeEmailSentAt: true },
+        });
+  return {
+    claimed: false,
+    reason: row?.welcomeEmailSentAt
+      ? ALREADY_SENT
+      : "محاولةُ إرسالٍ جاريةٌ الآن — انتظر دقيقةً ثم أعِد المحاولة",
+  };
 }
 
-/** يُفَكّ الحجز إن لم تصل الرسالة — فلا يُحرَم صاحبها من بطاقته بإخفاقٍ
- *  في البريد. والشرط على الوقت نفسه: لا يُفَكّ حجزُ إرسالٍ آخر نجح. */
+/** يُختَم القبولُ بعد أن يَقبل المزوّدُ فعلاً — ويُفَكّ الحجزُ معه.
+ *
+ *  وهذا هو الموضعُ الوحيد الذي يُكتَب فيه `welcomeEmailSentAt`. فما
+ *  يُقرأ في الشيت وفي الواجهة لا يَسبق الواقع. */
+async function stampWelcomeAccepted(subject: WelcomeSubject, at: Date) {
+  const where = { id: subject.id } as const;
+  const data = { welcomeEmailSentAt: at, welcomeClaimedAt: null };
+  if (subject.kind === "user") await prisma.user.updateMany({ where, data });
+  else await prisma.member.updateMany({ where, data });
+}
+
+/** يُفَكّ الحجز إن لم تَقبل الرسالةُ — فلا يُحرَم صاحبها من بطاقته
+ *  بإخفاقٍ في البريد. والشرط على الوقت نفسه: لا يُفَكّ حجزُ محاولةٍ
+ *  أخرى جارية. */
 async function releaseWelcomeClaim(subject: WelcomeSubject, at: Date) {
-  const where = { id: subject.id, welcomeEmailSentAt: at } as const;
-  const data = { welcomeEmailSentAt: null };
+  const where = { id: subject.id, welcomeClaimedAt: at } as const;
+  const data = { welcomeClaimedAt: null };
   if (subject.kind === "user") await prisma.user.updateMany({ where, data });
   else await prisma.member.updateMany({ where, data });
 }
@@ -124,7 +190,10 @@ const ALREADY_SENT =
 export async function sendWelcomePack(
   subject: WelcomeSubject,
   occasion: "approved" | "resend" = "resend"
-): Promise<{ ok: true; to: string } | { ok: false; reason: string }> {
+): Promise<
+  | { ok: true; to: string; providerId?: string | null }
+  | { ok: false; reason: string; outcome?: SendOutcome }
+> {
   const portalUrl = `${appBaseUrl()}/${subject.kind === "member" ? "member" : "admin"}`;
 
   if (subject.kind === "user") {
@@ -139,9 +208,8 @@ export async function sendWelcomePack(
 
     // الحجز قبل الإرسال — وما بعده إمّا رسالةٌ وصلت أو حجزٌ يُفَكّ
     const at = new Date();
-    if (!(await claimWelcomeSend(subject, at, user.email))) {
-      return { ok: false, reason: ALREADY_SENT };
-    }
+    const claim = await claimWelcomeSend(subject, at, user.email);
+    if (!claim.claimed) return { ok: false, reason: claim.reason };
 
     const sent = await sendWelcomeEmail({
       to: user.email,
@@ -160,10 +228,16 @@ export async function sendWelcomePack(
       occasion,
     });
     if (sent.skipped) {
+      // الحجزُ يُفَكّ فيُعاد الزرُّ قابلاً للضغط — ولا تُحرَم بطاقةٌ
+      // بإخفاقِ بريد
       await releaseWelcomeClaim(subject, at);
-      return { ok: false, reason: "تعذّر إرسال البريد الآن" };
+      // والسببُ يُقال بعينه: من يَقرأ «رفضها المزوّد — النطاق غير
+      // موثَّق» يَعرف أين يَذهب، ومن يَقرأ «تعذّر» لا يَعرف شيئاً
+      return { ok: false, reason: reasonFor(sent.outcome), outcome: sent.outcome };
     }
 
+    // الختمُ بعد القبول لا قبله — انظر `stampWelcomeAccepted`
+    await stampWelcomeAccepted(subject, at);
     await prisma.user.update({
       where: { id: user.id },
       data: { welcomeEmailCount: { increment: 1 } },
@@ -187,7 +261,11 @@ export async function sendWelcomePack(
     );
     await syncAdminAccountRow(user.id);
 
-    return { ok: true, to: user.email };
+    return {
+      ok: true,
+      to: user.email,
+      providerId: sent.outcome.state === "accepted" ? sent.outcome.providerId : null,
+    };
   }
 
   const member = await prisma.member.findUnique({
@@ -202,9 +280,8 @@ export async function sendWelcomePack(
   const roleLabel = accountRoleLabel(member.invite.targetRole);
 
   const at = new Date();
-  if (!(await claimWelcomeSend(subject, at, member.email))) {
-    return { ok: false, reason: ALREADY_SENT };
-  }
+  const claim = await claimWelcomeSend(subject, at, member.email);
+  if (!claim.claimed) return { ok: false, reason: claim.reason };
 
   const sent = await sendWelcomeEmail({
     to: member.email,
@@ -224,9 +301,10 @@ export async function sendWelcomePack(
   });
   if (sent.skipped) {
     await releaseWelcomeClaim(subject, at);
-    return { ok: false, reason: "تعذّر إرسال البريد الآن" };
+    return { ok: false, reason: reasonFor(sent.outcome), outcome: sent.outcome };
   }
 
+  await stampWelcomeAccepted(subject, at);
   await prisma.member.update({
     where: { id: member.id },
     data: { welcomeEmailCount: { increment: 1 } },

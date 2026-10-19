@@ -8,6 +8,7 @@ import { wrapEmail, htmlToText, variantForKind, appBaseUrl, SOCIAL_HANDLE } from
 import { welcomeParagraphs } from "@/lib/departmentBrand";
 import { readableTextOn } from "@/lib/colors";
 import { emailAllowed, policyReason, type EmailEvent } from "@/lib/emailPolicy";
+import { resultOf, type SendResult } from "@/lib/emailOutcome";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FROM = process.env.EMAIL_FROM || "تَـــلاقِ <hello@tlaqiteam.site>";
@@ -33,7 +34,13 @@ async function logEmail(
     | "أُرسلت"
     | "لم تُرسل (البريد معطّل)"
     | "فشل الإرسال"
-    | "لم تُرسل (سياسة التقليل)"
+    | "لم تُرسل (سياسة التقليل)",
+  /** جوابُ المزوّد — معرّفُ القبول أو سببُ الرفض بنصّه.
+   *
+   *  وبدونه كان السجلُّ يقول «فشل الإرسال» ولا يقول لماذا، وسجلُّ
+   *  المنصة المستضيفة لا يُبقي شيئاً بعد ساعة — فيضيع الجوابُ الوحيد
+   *  الذي يُفيد. */
+  diag?: { providerId?: string | null; failureKind?: string; failureDetail?: string }
 ) {
   const at = new Date();
   // قاعدة البيانات أولاً لأنها مصدر صفحة "سجل الرسائل" داخل المنصة،
@@ -41,7 +48,17 @@ async function logEmail(
   // رسالة وصلت فعلاً ثم تعذّر تسجيلها تبقى واصلة.
   try {
     await prisma.emailLog.createMany({
-      data: recipients.map((recipient) => ({ recipient, kind, subject, status, createdAt: at })),
+      data: recipients.map((recipient) => ({
+        recipient,
+        kind,
+        subject,
+        status,
+        createdAt: at,
+        providerId: diag?.providerId ?? null,
+        failureKind: diag?.failureKind ?? null,
+        // مقصوصٌ: أثرٌ كاملٌ لا يُحفَظ في سجلٍّ يُقرأ في المنصة
+        failureDetail: diag?.failureDetail ? diag.failureDetail.slice(0, 500) : null,
+      })),
     });
   } catch (err) {
     console.error("تعذّر تسجيل البريد في قاعدة البيانات:", err);
@@ -72,12 +89,13 @@ async function suppressed(
   to: string | string[],
   kind: string,
   subject: string
-): Promise<{ skipped: true; suppressed: true } | null> {
+): Promise<(SendResult & { suppressed: true }) | null> {
   if (emailAllowed(event)) return null;
   const all = (Array.isArray(to) ? to : [to]).filter(Boolean);
-  console.warn(`[email:policy] كُتم «${event}» — ${policyReason(event)}`);
+  const why = policyReason(event);
+  console.warn(`[email:policy] كُتم «${event}» — ${why}`);
   if (all.length > 0) await logEmail(all, kind, subject, "لم تُرسل (سياسة التقليل)");
-  return { skipped: true, suppressed: true };
+  return { ...resultOf({ state: "suppressed_policy", why }), suppressed: true };
 }
 
 async function withoutClosedRecipients(recipients: string[]): Promise<string[]> {
@@ -104,11 +122,11 @@ async function send(
   hero?: { src: string; width: number; height: number; alt: string }
 ) {
   const all = Array.isArray(to) ? to.filter(Boolean) : [to].filter(Boolean);
-  if (all.length === 0) return { skipped: true };
+  if (all.length === 0) return resultOf({ state: "no_recipient" });
 
   // رسالة الوداع نفسها تمرّ قبل أن يُرفع العلم، فلا تحجب نفسها
   const recipients = await withoutClosedRecipients(all);
-  if (recipients.length === 0) return { skipped: true };
+  if (recipients.length === 0) return resultOf({ state: "suppressed_closed" });
 
   if (!resend) {
     // لا نطبع محتوى الرسالة كاملاً (قد يحمل كلمة مرور مؤقتة أو رابطاً حساساً) — فقط عنوانها ومستلمها
@@ -116,7 +134,7 @@ async function send(
       `[email:disabled] لم يُضبط RESEND_API_KEY — تم تجاهل إرسال بريد بعنوان "${subject}" إلى: ${recipients.join(", ")}`
     );
     await logEmail(recipients, kind, subject, "لم تُرسل (البريد معطّل)");
-    return { skipped: true };
+    return resultOf({ state: "provider_disabled" });
   }
   try {
     // الهوية تُضاف هنا لا في كل دالة: متن الرسالة يصف ما حدث، والغلاف
@@ -148,16 +166,28 @@ async function send(
       },
     });
     if (result.error) {
+      const name = result.error.name ?? "خطأٌ غيرُ مسمّى";
+      const message = result.error.message ?? "بلا نصّ";
       console.error("رفض Resend إرسال البريد:", result.error);
-      await logEmail(recipients, kind, subject, "فشل الإرسال");
-      return { skipped: true, error: true };
+      await logEmail(recipients, kind, subject, "فشل الإرسال", {
+        failureKind: name,
+        failureDetail: message,
+      });
+      return resultOf({ state: "provider_rejected", name, message });
     }
-    await logEmail(recipients, kind, subject, "أُرسلت");
-    return { skipped: false };
+    // المعرّفُ هو الدليلُ الوحيد على القبول — يُحفَظ ليُراجَع به عند
+    // المزوّد نفسِه لو سُئل عن رسالةٍ بعد أسابيع
+    const providerId = result.data?.id ?? null;
+    await logEmail(recipients, kind, subject, "أُرسلت", { providerId });
+    return resultOf({ state: "accepted", providerId });
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error("فشل إرسال البريد:", err);
-    await logEmail(recipients, kind, subject, "فشل الإرسال");
-    return { skipped: true, error: true };
+    await logEmail(recipients, kind, subject, "فشل الإرسال", {
+      failureKind: "انقطاعٌ قبل بلوغ المزوّد",
+      failureDetail: message,
+    });
+    return resultOf({ state: "transport_failed", message });
   }
 }
 
@@ -170,16 +200,16 @@ async function send(
  */
 async function sendPrebuilt(to: string | string[], subject: string, html: string, kind: string) {
   const all = Array.isArray(to) ? to.filter(Boolean) : [to].filter(Boolean);
-  if (all.length === 0) return { skipped: true };
+  if (all.length === 0) return resultOf({ state: "no_recipient" });
   const recipients = await withoutClosedRecipients(all);
-  if (recipients.length === 0) return { skipped: true };
+  if (recipients.length === 0) return resultOf({ state: "suppressed_closed" });
 
   if (!resend) {
     console.warn(
       `[email:disabled] لم يُضبط RESEND_API_KEY — تم تجاهل إرسال بريد بعنوان "${subject}" إلى: ${recipients.join(", ")}`
     );
     await logEmail(recipients, kind, subject, "لم تُرسل (البريد معطّل)");
-    return { skipped: true };
+    return resultOf({ state: "provider_disabled" });
   }
   try {
     const result = await resend.emails.send({
@@ -193,16 +223,28 @@ async function sendPrebuilt(to: string | string[], subject: string, html: string
       },
     });
     if (result.error) {
+      const name = result.error.name ?? "خطأٌ غيرُ مسمّى";
+      const message = result.error.message ?? "بلا نصّ";
       console.error("رفض Resend إرسال البريد:", result.error);
-      await logEmail(recipients, kind, subject, "فشل الإرسال");
-      return { skipped: true, error: true };
+      await logEmail(recipients, kind, subject, "فشل الإرسال", {
+        failureKind: name,
+        failureDetail: message,
+      });
+      return resultOf({ state: "provider_rejected", name, message });
     }
-    await logEmail(recipients, kind, subject, "أُرسلت");
-    return { skipped: false };
+    // المعرّفُ هو الدليلُ الوحيد على القبول — يُحفَظ ليُراجَع به عند
+    // المزوّد نفسِه لو سُئل عن رسالةٍ بعد أسابيع
+    const providerId = result.data?.id ?? null;
+    await logEmail(recipients, kind, subject, "أُرسلت", { providerId });
+    return resultOf({ state: "accepted", providerId });
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error("فشل إرسال البريد:", err);
-    await logEmail(recipients, kind, subject, "فشل الإرسال");
-    return { skipped: true, error: true };
+    await logEmail(recipients, kind, subject, "فشل الإرسال", {
+      failureKind: "انقطاعٌ قبل بلوغ المزوّد",
+      failureDetail: message,
+    });
+    return resultOf({ state: "transport_failed", message });
   }
 }
 
