@@ -26,6 +26,7 @@ import { accountRoleLabel } from "@/lib/testTracks";
 import { TicketBoard } from "@/components/TicketBoard";
 import { runDueSweeps } from "@/lib/sweepThrottle";
 import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
+import { WorkspaceOverview } from "@/components/dashboard/WorkspaceOverview";
 
 function isOverdue(dueAt: Date) {
   return Date.now() > dueAt.getTime();
@@ -118,10 +119,12 @@ export default async function OperationsPage() {
       </AppHeader>
 
       <main className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-6 sm:px-5 sm:py-8">
+        <WorkspaceOverview session={session} showDepartments />
+
         <AlertsPanel alerts={alerts} />
 
         <PlansLink theme={theme} docCount={plans.total} freshCount={plans.fresh} />
-        <section>
+        <section id="announcements" className="scroll-mt-24">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold sm:text-lg">{tHub.announcementsTitle}</h2>

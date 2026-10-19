@@ -130,7 +130,9 @@ export default async function CalendarPage({
               return (
                 <div
                   key={day.key}
-                  className={`min-h-[92px] border-b border-s border-black/5 p-1.5 ${
+                  // مِرساةُ اليوم: التقويمُ المختصر في اللوحة يقف عليها
+                  id={`d-${day.key}`}
+                  className={`min-h-[92px] scroll-mt-24 border-b border-s border-black/5 p-1.5 ${
                     day.inMonth ? "" : "bg-black/[0.02]"
                   }`}
                 >

@@ -30,6 +30,7 @@ import { announcementsForSession } from "@/lib/announcements";
 import { AnnouncementList } from "@/app/admin/hub/AnnouncementList";
 import { runDueSweeps } from "@/lib/sweepThrottle";
 import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
+import { WorkspaceOverview } from "@/components/dashboard/WorkspaceOverview";
 
 export default async function MemberPortalPage() {
   const session = await auth();
@@ -148,6 +149,8 @@ export default async function MemberPortalPage() {
       </AppHeader>
 
       <main className="mx-auto flex max-w-2xl flex-col gap-8 px-4 py-6 sm:px-5 sm:py-8">
+        <WorkspaceOverview session={session} />
+
         {/* ما ينتظره أوّلاً — ولا يُقرأ بالتجوال في الصفحات */}
         <AlertsPanel alerts={alerts} />
 
@@ -195,7 +198,7 @@ export default async function MemberPortalPage() {
           <GovernanceCharter theme={theme} />
         </section>
 
-        <section>
+        <section id="announcements" className="scroll-mt-24">
           <h2 className="mb-3 text-base font-bold sm:text-lg">{t.hub.announcementsTitle}</h2>
           <AnnouncementList
             viewerId={null}

@@ -1,6 +1,6 @@
-import { LogoLockup } from "@/components/Logo";
+import { ThemedLockup } from "@/components/Logo";
+import { NavGlyph } from "@/components/icons";
 import { LoginForm } from "./LoginForm";
-import { BRAND } from "@/lib/brand";
 import { LocaleToggle } from "@/components/LocaleToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ControlGroup, ControlDivider } from "@/components/ControlGroup";
@@ -15,26 +15,29 @@ export default async function LoginPage({
   const t = getDictionary(await getLocale());
 
   return (
-    <main
-      className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-8 sm:px-6"
-      style={{ background: BRAND.temptress }}
-    >
-      <div aria-hidden className="pointer-events-none absolute inset-0 opacity-20" style={{ background: `radial-gradient(circle at 15% 15%, ${BRAND.greenSheen}, transparent 34%), radial-gradient(circle at 90% 85%, ${BRAND.mahogany}, transparent 32%)` }} />
-      <div className="relative w-full max-w-md">
-        <div className="mb-5 flex justify-end">
-      <ControlGroup color={BRAND.beige}>
-        <ThemeToggle />
-        <ControlDivider />
-        <LocaleToggle />
-      </ControlGroup>
+    // صفحةُ الدخول بتصميم الأرشيف: أرضيةٌ محايدةٌ بلون السمة، وبطاقةٌ واحدة.
+    // كانت أرضيتُها بنفسجيةً ثابتةً لا تتبع السمة — والدخولُ أوّلُ ما يُرى.
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-page px-4 py-8 sm:px-6">
+      <div aria-hidden className="login-glow login-glow--a" />
+      <div aria-hidden className="login-glow login-glow--b" />
+      <div className="relative w-full max-w-[448px]">
+        <div className="mb-8 flex justify-end">
+          <ControlGroup color="var(--ink)">
+            <ThemeToggle />
+            <ControlDivider />
+            <LocaleToggle />
+          </ControlGroup>
         </div>
         <div className="mb-8 flex justify-center">
-          <LogoLockup height={34} tone="light" />
+          <ThemedLockup height={34} />
         </div>
 
-        <div className="rounded-3xl bg-white p-6 shadow-2xl shadow-black/20 sm:p-8">
-          <h1 className="mb-1 text-lg font-bold text-black/90">{t.login.title}</h1>
-          <p className="mb-6 text-sm text-black/50">{t.login.subtitle}</p>
+        <div className="login-card">
+          <p className="login-card__eyebrow">
+            <NavGlyph name="lock" /> {t.login.secureAccess}
+          </p>
+          <h1 className="mb-1 text-2xl font-bold">{t.login.title}</h1>
+          <p className="mb-7 text-sm leading-6 text-black/50">{t.login.subtitle}</p>
 
           {passwordChanged && (
             <p className="mb-4 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">
@@ -45,7 +48,7 @@ export default async function LoginPage({
           <LoginForm callbackUrl={callbackUrl || "/"} />
         </div>
 
-        <p className="mt-6 text-center text-xs" style={{ color: BRAND.beige, opacity: 0.6 }}>
+        <p className="mt-6 text-center text-xs text-black/45">
           {t.login.footer} © {new Date().getFullYear()}
         </p>
       </div>

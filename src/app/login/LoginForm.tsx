@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { loginAction, requestLoginCodeAction, type LoginStep1 } from "./actions";
 import { useTranslations } from "@/i18n/LocaleProvider";
+import { NavGlyph } from "@/components/icons";
 
 const FIELD =
   "min-h-11 rounded-xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition-shadow placeholder:text-black/35 focus:border-[var(--brand-temptress)] focus:ring-2 focus:ring-[var(--brand-temptress)]/15";
@@ -15,6 +16,7 @@ const FIELD =
 export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
   const t = useTranslations();
   const [creds, setCreds] = useState({ email: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
 
   const [step1, requestCode, requesting] = useActionState<LoginStep1, FormData>(
     requestLoginCodeAction,
@@ -39,22 +41,38 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
             defaultValue={creds.email}
             onChange={(e) => setCreds((c) => ({ ...c, email: e.target.value }))}
             placeholder="name@tlaqiteam.site"
+            dir="ltr"
             className={FIELD}
           />
         </label>
 
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium text-black/70">{t.login.password}</span>
-          <input
-            name="password"
-            type="password"
-            required
-            autoComplete="current-password"
-            defaultValue={creds.password}
-            onChange={(e) => setCreds((c) => ({ ...c, password: e.target.value }))}
-            placeholder="••••••••"
-            className={FIELD}
-          />
+          {/* الغلافُ باتجاه الحقل نفسه (ltr): هامشُ الحقل والزرُّ على الجهة ذاتها */}
+          <span className="relative" dir="ltr">
+            <input
+              name="password"
+              type={showPassword ? "text" : "password"}
+              required
+              autoComplete="current-password"
+              defaultValue={creds.password}
+              onChange={(e) => setCreds((c) => ({ ...c, password: e.target.value }))}
+              placeholder="••••••••"
+              dir="ltr"
+              className={`${FIELD} w-full pe-12`}
+            />
+            {/* إظهارُ ما كُتب: أخطاءُ كلمة المرور على الجوال أكثرُ أسباب تعثّر الدخول */}
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? t.login.hidePassword : t.login.showPassword}
+              aria-pressed={showPassword}
+              title={showPassword ? t.login.hidePassword : t.login.showPassword}
+              className="absolute inset-y-0 end-0 inline-flex w-12 items-center justify-center text-lg text-black/45 hover:text-black/75"
+            >
+              <NavGlyph name={showPassword ? "eyeOff" : "eye"} />
+            </button>
+          </span>
         </label>
 
         {step1.error && (

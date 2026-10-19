@@ -32,6 +32,7 @@ import { getLocale, getDictionary } from "@/i18n/server";
 import { runDueSweeps } from "@/lib/sweepThrottle";
 import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 import { canDecideCandidate } from "@/lib/permissions";
+import { WorkspaceOverview } from "@/components/dashboard/WorkspaceOverview";
 
 export default async function AdminPage() {
   const session = await auth();
@@ -291,6 +292,10 @@ export default async function AdminPage() {
             وبقي ما سواه مبعثراً في الصفحات: توقيعٌ مطلوب، واعتمادٌ ينتظر،
             وتحقّقٌ ثنائيٌّ غيرُ مُفعَّل، وتذكرةٌ تأخّرت. فجُمع كلُّه في
             لوحةٍ واحدةٍ لكلٍّ سطرُه ووجهتُه — وترتفع كلُّها عند السلامة. */}
+        {/* رأسُ المساحة بتصميم الأرشيف: الهدفُ القادم، والإعلانات، والاجتماعات،
+            ولمحةُ الأقسام، والتقويم — من بيانات المنصة لا من أمثلته */}
+        <WorkspaceOverview session={session} showDepartments />
+
         <AlertsPanel alerts={alerts} />
 
         {/* التذاكر أولاً: هي قناة العمل، فمكانها صدر اللوحة */}
@@ -305,7 +310,7 @@ export default async function AdminPage() {
         </section>
 
         {/* الإعلانات */}
-        <section>
+        <section id="announcements" className="scroll-mt-24">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-bold sm:text-lg">{t.announcementsTitle}</h2>

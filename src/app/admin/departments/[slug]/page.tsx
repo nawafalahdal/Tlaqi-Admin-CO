@@ -40,6 +40,7 @@ import { announcementsForSession, announcementPowers } from "@/lib/announcements
 import { CandidateWindow } from "@/components/CandidateWindow";
 import { TicketBoard } from "@/components/TicketBoard";
 import { runDueSweeps } from "@/lib/sweepThrottle";
+import { WorkspaceOverview } from "@/components/dashboard/WorkspaceOverview";
 
 function isCertificateEligible(decidedAt: Date | null) {
   if (!decidedAt) return false;
@@ -204,8 +205,10 @@ export default async function DepartmentBoardPage({
       </AppHeader>
 
       <main className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-6 sm:px-5 sm:py-8">
+        {/* رأسُ المساحة لقائد القسم في قسمه — لا لمن يزور القسم من فوق */}
+        {isOwnDept && <WorkspaceOverview session={session} />}
         <AlertsPanel alerts={alerts} />
-        <section>
+        <section id="announcements" className="scroll-mt-24">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-base font-bold sm:text-lg">{t.hub.announcementsTitle}</h2>
             {/* القسم يخاطب أهله بنفسه: «تفاعلوا مع هذا المنشور»، «اختبار
