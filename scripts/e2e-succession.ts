@@ -165,17 +165,28 @@ const STAMP = Date.now();
       (afterLeadGone?.members.length ?? 0) === membersUnderLead,
       `${membersUnderLead} → ${afterLeadGone?.members.length ?? 0}`);
 
-  // ── ولا يُنقَل طلبٌ إلى صاحبه: الخَلَفُ لا يعتمد طلبَ نفسه
+  // ── ولا يُنقَل طلبٌ إلى صاحبه: الخَلَفُ لا يعتمد طلبَ نفسه.
+  //    المعتمِدُ المنقولُ منه حسابٌ مؤقّتٌ لهذا الاختبار، لا المؤسس: النقلُ
+  //    يأخذ **كلَّ** ما ينتظر صاحبَه، فلو نُقل من المؤسس لذهبت دعواته
+  //    وتذاكره الحقيقية إلى حساب الاختبار — وبها كان التنظيفُ يسقط بقيد
+  //    الدعوة كلما كان للمؤسس دعوةٌ قائمة.
+  const approver = await prisma.user.create({
+    data: {
+      fullName: `معتمِد مؤقّت ${STAMP}`, email: `approver-${STAMP}@example.test`,
+      passwordHash: "x", role: "executive", isActive: true,
+    },
+  });
   const selfTicket = await raiseTicket({
-    raisedByUserId: newCeo.id, targetUserId: founder.id,
+    raisedByUserId: newCeo.id, targetUserId: approver.id,
     subject: `طلب التنفيذي الجديد ${STAMP}`, description: "رفعه الخَلَف نفسه",
   });
   await requestApproval({
     ticketId: selfTicket.id, requesterUserId: newCeo.id,
-    kind: "initiative", approverUserId: founder.id,
+    kind: "initiative", approverUserId: approver.id,
   });
+  const founderInvitesBefore = await prisma.invite.count({ where: { invitedById: founder.id } });
   const counts = await transferResponsibilities({
-    fromUserId: founder.id, toUserId: newCeo.id, byName: "اختبار",
+    fromUserId: approver.id, toUserId: newCeo.id, byName: "اختبار",
   });
   const selfAfter = await prisma.ticket.findUniqueOrThrow({
     where: { id: selfTicket.id }, select: { approverUserId: true },
@@ -184,6 +195,8 @@ const STAMP = Date.now();
       selfAfter.approverUserId !== newCeo.id,
       `${selfAfter.approverUserId === founder.id ? "بقي عند المؤسس" : String(selfAfter.approverUserId)}`);
   chk("والنقل يُحصي ما نقله", typeof counts.invites === "number");
+  chk("**ولا يمسّ النقلُ ما ليس للمنقول منه — دعواتُ المؤسس باقيةٌ له**",
+      (await prisma.invite.count({ where: { invitedById: founder.id } })) === founderInvitesBefore);
 
   // إعادة ما كان
   await prisma.approvalDecision.deleteMany({
@@ -193,7 +206,7 @@ const STAMP = Date.now();
     where: { id: { in: [ticketForApproval.id, openTicket.id, selfTicket.id] } },
   });
   await prisma.invite.deleteMany({ where: { email: `invitee-${STAMP}@example.test` } });
-  await prisma.user.deleteMany({ where: { id: newCeo.id } });
+  await prisma.user.deleteMany({ where: { id: { in: [newCeo.id, approver.id] } } });
 
   console.log(log.join("\n"));
   const failed = log.some((l) => l.startsWith("✗"));
