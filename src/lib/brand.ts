@@ -35,6 +35,8 @@ export function departmentSlugFor(value: string | null | undefined): DepartmentS
   const normalized = value?.trim().toLowerCase();
   if (!normalized) return null;
   if (normalized in DEPARTMENT_THEME) return normalized as DepartmentSlug;
+  // المعرّفُ المخزَّن في القاعدة للقسم التقني هو `tech` لا `technical`
+  if (normalized === "tech") return "technical";
   return DEPARTMENT_NAME_TO_SLUG[value!.trim()] ?? null;
 }
 

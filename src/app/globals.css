@@ -424,6 +424,52 @@ body.has-floating-back {
   font-size: 0.9rem;
 }
 
+/* ── «تحسين» العائم ──────────────────────────────────────────────
+ *  دائرةٌ في الزاوية السفلى من جهة نهاية السطر (يساراً في العربية،
+ *  يميناً في الإنجليزية — `inset-inline-end`). تتّسع لاسمها على
+ *  الشاشات الواسعة، وتبقى دائرةً بأيقونةٍ على الجوال لئلا تغطّي
+ *  محتوى. ٥٦ بكسل: هدفُ لمسٍ مريح، ويحترم حافّةَ الشاشة الآمنة. */
+.improve-fab {
+  position: fixed;
+  z-index: 40;
+  inset-block-end: max(1.25rem, env(safe-area-inset-bottom));
+  inset-inline-end: max(1.25rem, env(safe-area-inset-right));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: 3.5rem;
+  height: 3.5rem;
+  padding-inline: 1.1rem;
+  border-radius: 999px;
+  border: 0;
+  background: var(--brand-action);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 700;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.22);
+  cursor: pointer;
+}
+.improve-fab .improve-btn__spark { font-size: 1.25rem; }
+/* آخرُ سطرٍ في الصفحة لا يختبئ تحت الزرّ */
+body:has(.improve-fab) main { padding-block-end: 6rem; }
+.improve-fab:hover { filter: brightness(1.08); }
+.improve-fab:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+@media (max-width: 639px) {
+  .improve-fab { width: 3.25rem; min-width: 0; height: 3.25rem; padding: 0; }
+  .improve-fab__label {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .improve-fab { transition: transform 0.18s ease, filter 0.18s ease; }
+  .improve-fab:hover { transform: translateY(-2px); }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .improve-btn__spark {
     animation: improve-spark 3.6s ease-in-out infinite;
@@ -437,6 +483,7 @@ body.has-floating-back {
 /* لا شريطَ ولا درجَ على الورق */
 @media print {
   .ctl-group,
+  .improve-fab,
   .improve-sheet {
     display: none;
   }

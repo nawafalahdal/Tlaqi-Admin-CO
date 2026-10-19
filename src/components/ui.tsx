@@ -3,6 +3,7 @@ import { LogoLockup } from "./Logo";
 import { HeaderShell } from "./HeaderShell";
 import { logoToneFor, brandInk, brandInkBorder, type themeFromColor } from "@/lib/brand";
 import { readableTextOn } from "@/lib/colors";
+import { ImproveButton } from "./ImproveButton";
 export { StatusBadge } from "./StatusBadge";
 
 type Theme = ReturnType<typeof themeFromColor>;
@@ -27,20 +28,27 @@ export function AppHeader({
   children?: ReactNode;
 }) {
   return (
-    <header
-      className="sticky top-0 z-20 border-b"
-      style={{ background: theme.base, borderColor: theme.accentDark }}
-    >
-      <HeaderShell
-        textColor={theme.text}
-        borderColor={`${theme.text}22`}
-        userName={userName}
-        roleName={roleName}
-        homeHref={homeHref}
-        logo={<LogoLockup height={30} tone={logoToneFor(theme)} />}
-        actions={children}
-      />
-    </header>
+    <>
+      <header
+        className="sticky top-0 z-20 border-b"
+        style={{ background: theme.base, borderColor: theme.accentDark }}
+      >
+        <HeaderShell
+          textColor={theme.text}
+          borderColor={`${theme.text}22`}
+          userName={userName}
+          roleName={roleName}
+          homeHref={homeHref}
+          logo={<LogoLockup height={30} tone={logoToneFor(theme)} />}
+          actions={children}
+        />
+      </header>
+      {/* «تحسين» العائم يُرسَم هنا — خارج الترويسة — لا مع أدواتها.
+          أدواتُ الترويسة تُرسَم مرّتين (شريطُ المكتب وقائمةُ الجوال) وأولاهما
+          مخفيّةٌ على الجوال؛ فزرٌّ بينها يختفي على الجوال ويتكرّر حين تُفتح
+          القائمة. وهنا يُرسَم مرّةً واحدةً في كل شاشة عمل. */}
+      <ImproveButton />
+    </>
   );
 }
 

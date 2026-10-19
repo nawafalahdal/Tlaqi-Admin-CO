@@ -3,7 +3,6 @@ import { auth } from "@/auth";
 import { LogoutButton } from "./LogoutButton";
 import { LocaleToggle } from "./LocaleToggle";
 import { ThemeToggle } from "./ThemeToggle";
-import { ImproveButton } from "./ImproveButton";
 import { ControlGroup, ControlDivider } from "./ControlGroup";
 import { getLocale, getDictionary } from "@/i18n/server";
 
@@ -21,9 +20,6 @@ export async function HeaderActions({ color }: { color: string }) {
         <ThemeToggle />
         <ControlDivider />
         <LocaleToggle />
-        <ControlDivider />
-        {/* و«تحسين» ثالثُهم: الملاحظةُ تُقال حيث رُئيت أو تُفقَد */}
-        <ImproveButton />
       </ControlGroup>
       {isAdmin && (
         <Link

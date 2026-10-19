@@ -1,11 +1,11 @@
 "use client";
 
-import { useActionState, useId, useRef, useState } from "react";
+import { useActionState, useEffect, useId, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { submitImprovementAction, type ImproveState } from "@/app/improve/actions";
 import { SparkIcon } from "./icons";
 
-/** زرُّ «تحسين» — في ترويسة كل شاشة، إلى جانب اللغة والسمة.
+/** زرُّ «تحسين» — عائمٌ دائريٌّ في زاوية كل شاشة، واحدٌ لا يتكرّر.
  *
  *  ## لماذا هو هنا لا في صفحةٍ تُفتَح
  *
@@ -37,6 +37,7 @@ export function ImproveButton() {
   );
   const [doneFor, setDoneFor] = useState<number | null>(null);
   const openerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const pathname = usePathname();
 
@@ -66,6 +67,25 @@ export function ImproveButton() {
     openerRef.current?.focus();
   };
 
+  // الحوارُ يأخذ التركيزَ حين يُفتَح، وEscape يُغلقه من أيّ موضع.
+  //
+  // كان Escape يُلتقَط على الدرج نفسه — فلا يعمل إلا والتركيزُ داخله، والتركيزُ
+  // يبقى على الزرّ بعد فتحه. فكان يعمل مصادفةً ثم انقطع حين عام الزرّ. وحوارٌ
+  // لا يأخذ التركيز يُضيّع قارئَ الشاشة ولوحةَ المفاتيح معاً.
+  useEffect(() => {
+    if (!open) return;
+    panelRef.current
+      ?.querySelector<HTMLElement>("textarea, input:not([type=hidden]), select, button")
+      ?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setOpen(false);
+      openerRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
   const openDrawer = () => {
     setContext(readContextNow());
     setOpen(true);
@@ -79,12 +99,15 @@ export function ImproveButton() {
         onClick={openDrawer}
         aria-haspopup="dialog"
         aria-expanded={open}
-        // `improve-btn` مِقبضٌ ثابتٌ يُنتقى به في الفحص، و`ctl-group__item`
-        // هو ما يَحمل الشكل — فلا يُنتقى الزرُّ بنصِّه الذي يُترجَم
-        className="ctl-group__item improve-btn"
+        // زرٌّ عائمٌ واحدٌ في كل الشاشات — لا في الترويسة. والاسمُ الظاهر
+        // «تحسين» يُقرأ للقارئ الآلي كاملاً بما يفعله.
+        aria-label="تحسين — اقتراح تحسين أو الإبلاغ عن إشكالية"
+        title="تحسين"
+        // `improve-btn` مِقبضٌ ثابتٌ يُنتقى به في الفحص — لا بنصِّه الذي يُترجَم
+        className="improve-btn improve-fab"
       >
         <SparkIcon className="improve-btn__spark" />
-        <span className="ctl-group__label">تحسين</span>
+        <span className="improve-fab__label">تحسين</span>
       </button>
 
       {open && (
@@ -97,11 +120,8 @@ export function ImproveButton() {
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) close();
           }}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") close();
-          }}
         >
-          <div className="improve-sheet__panel">
+          <div ref={panelRef} className="improve-sheet__panel">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 id={titleId} className="text-base font-bold">

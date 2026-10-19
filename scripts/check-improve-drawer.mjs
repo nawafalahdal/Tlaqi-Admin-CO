@@ -56,8 +56,37 @@ await page.waitForTimeout(5000);
 for (const path of ["/admin", "/plans", "/calendar", "/admin/execution"]) {
   await page.goto(BASE + path, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(2500);
-  check((await page.locator("button.improve-btn").count()) > 0, `زرُّ «تحسين» في ${path}`);
+  const n = await page.locator("button.improve-btn").count();
+  check(n === 1, `زرٌّ واحدٌ لـ«تحسين» في ${path} — لا اثنان`, `${n}`);
+  const pos = await page.locator("button.improve-btn").first().evaluate((e) => {
+    const r = e.getBoundingClientRect();
+    return { fixed: getComputedStyle(e).position === "fixed", right: r.right, bottom: r.bottom,
+             vw: innerWidth, vh: innerHeight, w: Math.round(r.width), h: Math.round(r.height),
+             name: e.getAttribute("aria-label") ?? "" };
+  });
+  check(pos.fixed, `وعائمٌ في ${path}`);
+  check(pos.right <= pos.vw && pos.bottom <= pos.vh, `وداخلَ الشاشة في ${path}`);
+  check(pos.h >= 44, `وهدفُ لمسٍ ≥ ٤٤ بكسل`, `${pos.w}×${pos.h}`);
+  check(pos.name.includes("تحسين") && !pos.name.includes("عطب"), `واسمُه «تحسين» لا «عطب»`, pos.name);
 }
+
+// ── والجوال — حيث كانت أدواتُ الترويسة مخفيّةً ومُكرَّرة
+await page.setViewportSize({ width: 390, height: 844 });
+await page.goto(BASE + "/admin", { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(2500);
+const mobileVisible = await page.locator("button.improve-btn").first().isVisible();
+check(mobileVisible, "الجوال: الزرُّ ظاهرٌ والقائمةُ مغلقة");
+await page.locator("header button[aria-expanded]").first().click();
+await page.waitForTimeout(400);
+check((await page.locator("button.improve-btn").count()) === 1, "الجوال: وما زال واحداً حين تُفتح القائمة",
+  `${await page.locator("button.improve-btn").count()}`);
+const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+check(overflow <= 0, "الجوال: لا تمريرَ أفقيّ", `${overflow}px`);
+await page.screenshot({ path: SP + "/fab-mobile.png" });
+await page.locator("header button[aria-expanded]").first().click();
+await page.setViewportSize({ width: 420, height: 880 });
+await page.goto(BASE + "/admin", { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(2000);
 
 // ── يُفتَح درجاً، لا ينتقل بالصفحة
 await page.goto(BASE + "/admin/execution", { waitUntil: "domcontentloaded" });
