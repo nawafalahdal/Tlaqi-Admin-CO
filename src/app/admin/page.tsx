@@ -33,6 +33,8 @@ import { runDueSweeps } from "@/lib/sweepThrottle";
 import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 import { canDecideCandidate } from "@/lib/permissions";
 import { WorkspaceOverview } from "@/components/dashboard/WorkspaceOverview";
+import { navFor } from "@/lib/navigation";
+import { isSigningRole } from "@/lib/signatures";
 
 export default async function AdminPage() {
   const session = await auth();
@@ -277,6 +279,16 @@ export default async function AdminPage() {
       : []),
   ];
 
+  const navHrefs = new Set(
+    navFor(
+      { role: session.user.role, departmentSlug: session.user.departmentSlug, canSign: isSigningRole(session.user.role) },
+      dict.shell.nav
+    ).map((i) => i.href)
+  );
+  const extraLinks = [...recordLinks, ...quickLinks].filter(
+    (l) => !navHrefs.has(l.href) && l.href !== "/admin/profile"
+  );
+
   return (
     <div className="min-h-screen bg-page">
       <AppHeader
@@ -468,17 +480,16 @@ export default async function AdminPage() {
           />
         </section>
 
-        {/* السجلات — لكل سجل صفحته، بدل تكديس كل شيء في مكان واحد */}
-        <section>
-          <h2 className="mb-3 text-base font-bold sm:text-lg">{t.recordsSectionTitle}</h2>
-          <LinkGrid links={recordLinks} accent={theme.accentDark} />
-        </section>
-
-        {/* الإدارة — روابط الإجراءات */}
-        <section>
-          <h2 className="mb-3 text-base font-bold sm:text-lg">{t.adminSectionTitle}</h2>
-          <LinkGrid links={quickLinks} accent={theme.accentDark} />
-        </section>
+        {/* ما لا تبلغه القائمة الجانبية وحدها. كانت هنا شبكتان من عشرين
+            رابطاً، أكثرُها بنودٌ في القائمة نفسها — تكرارٌ يُطيل الصفحة. فبقي
+            ما ليس في قائمة هذا الدور ولا في قائمة حسابه (بنوكُ الأسئلة
+            مثلاً)، محسوباً لا مكتوباً: إن تغيّرت القائمةُ تغيّر معها. */}
+        {extraLinks.length > 0 && (
+          <section>
+            <h2 className="mb-3 text-base font-bold sm:text-lg">{t.adminSectionTitle}</h2>
+            <LinkGrid links={extraLinks} accent={theme.accentDark} />
+          </section>
+        )}
       </main>
     </div>
   );

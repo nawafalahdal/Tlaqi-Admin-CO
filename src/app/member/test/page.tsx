@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { themeFromColor, BRAND, brandInk} from "@/lib/brand";
-import { LogoLockup } from "@/components/Logo";
+import { themeFromColor, BRAND } from "@/lib/brand";
+import { ThemedLockup } from "@/components/Logo";
 import { LogoutButton } from "@/components/LogoutButton";
 import { LocaleToggle } from "@/components/LocaleToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -38,18 +38,17 @@ export default async function MemberTestPage() {
 
   return (
     <main
-      className="flex min-h-screen flex-col items-center px-4 py-8"
-      style={{ background: theme.surface }}
+      className="auth-page flex min-h-screen flex-col items-center px-4 py-8"
     >
       <div className="mb-6 flex w-full max-w-xl items-center justify-between gap-3">
-        <LogoLockup height={30} tone="dark" />
+        <ThemedLockup height={30} />
         <div className="flex flex-wrap items-center gap-2">
-      <ControlGroup color={brandInk(theme)}>
+      <ControlGroup color="var(--ink)">
         <ThemeToggle />
         <ControlDivider />
         <LocaleToggle />
       </ControlGroup>
-          <LogoutButton color={brandInk(theme)} />
+          <LogoutButton color="var(--ink)" />
         </div>
       </div>
 

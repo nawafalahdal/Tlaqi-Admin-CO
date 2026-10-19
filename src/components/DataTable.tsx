@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Card } from "./ui";
+import { EmptyState } from "./PageStates";
 
 export type DataColumn = {
   key: string;
@@ -22,7 +23,7 @@ export function DataTable({
   emptyLabel: string;
 }) {
   if (rows.length === 0) {
-    return <Card className="p-8 text-center text-sm text-black/60">{emptyLabel}</Card>;
+    return <EmptyState title={emptyLabel} />;
   }
 
   const primary = columns.find((c) => c.primary) ?? columns[0];

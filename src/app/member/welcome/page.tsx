@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { themeFromColor, BRAND, brandInk} from "@/lib/brand";
-import { LogoLockup } from "@/components/Logo";
+import { ThemedLockup } from "@/components/Logo";
 import { LogoutButton } from "@/components/LogoutButton";
 import { LocaleToggle } from "@/components/LocaleToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -35,22 +35,21 @@ export default async function WelcomePage() {
 
   return (
     <main
-      className="flex min-h-screen flex-col items-center px-4 py-8"
-      style={{ background: theme.surface }}
+      className="auth-page flex min-h-screen flex-col items-center px-4 py-8"
     >
       <div className="mb-6 flex w-full max-w-xl items-center justify-between gap-3">
-        <LogoLockup height={30} tone="dark" />
+        <ThemedLockup height={30} />
         <div className="flex flex-wrap items-center gap-2">
-      <ControlGroup color={brandInk(theme)}>
+      <ControlGroup color="var(--ink)">
         <ThemeToggle />
         <ControlDivider />
         <LocaleToggle />
       </ControlGroup>
-          <LogoutButton color={brandInk(theme)} />
+          <LogoutButton color="var(--ink)" />
         </div>
       </div>
 
-      <div className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-xl sm:p-8">
+      <div className="w-full max-w-xl auth-card rounded-3xl bg-white p-6 shadow-xl sm:p-8">
         <h1 className="text-xl font-bold" style={{ color: brandInk(theme) }}>
           {t.welcome.title}
         </h1>

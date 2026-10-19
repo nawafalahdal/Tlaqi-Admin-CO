@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { themeFromColor, BRAND, brandInk} from "@/lib/brand";
-import { LogoLockup } from "@/components/Logo";
+import { ThemedLockup } from "@/components/Logo";
 import { LogoutButton } from "@/components/LogoutButton";
 import { LocaleToggle } from "@/components/LocaleToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -24,16 +23,14 @@ export default async function MemberPendingPage() {
   if (member.testStatus === "not_started") redirect("/member/test");
 
   const t = getDictionary(await getLocale());
-  const theme = themeFromColor(member.department?.colorHex ?? BRAND.temptress);
   const failed = member.testStatus === "failed";
 
   return (
     <main
-      className="flex min-h-screen flex-col items-center justify-center gap-6 px-4"
-      style={{ background: theme.surface }}
+      className="auth-page flex min-h-screen flex-col items-center justify-center gap-6 px-4"
     >
-      <LogoLockup height={32} tone="dark" />
-      <div className="w-full max-w-md rounded-3xl bg-white p-6 text-center shadow-xl sm:p-8">
+      <ThemedLockup height={32} />
+      <div className="w-full max-w-md auth-card rounded-3xl bg-white p-6 text-center shadow-xl sm:p-8">
         <h1 className="mb-2 text-lg font-bold">
           {failed ? t.memberTest.failedPendingTitle : t.memberTest.pendingTitle}
         </h1>
@@ -45,12 +42,12 @@ export default async function MemberPendingPage() {
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
-      <ControlGroup color={brandInk(theme)}>
+      <ControlGroup color="var(--ink)">
         <ThemeToggle />
         <ControlDivider />
         <LocaleToggle />
       </ControlGroup>
-        <LogoutButton color={brandInk(theme)} />
+        <LogoutButton color="var(--ink)" />
       </div>
     </main>
   );
