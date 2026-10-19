@@ -17,7 +17,7 @@ const BASE = process.env.CHECK_BASE_URL ?? "http://localhost:3000";
 const EMAIL = "nawafalahdal.sa@gmail.com", PASS = "Tlaqi@2026";
 const secret = fs.readFileSync(SP + "/.totp-secret", "utf8").trim();
 const code = () =>
-  execFileSync("npx", ["tsx", SP + "/totp-code.ts", secret, EMAIL], { encoding: "utf8" })
+  execFileSync("npx", ["tsx", "scripts/totp-code.ts", secret, EMAIL], { encoding: "utf8" })
     .trim().match(/\d{6}/)[0];
 
 const fails = [];

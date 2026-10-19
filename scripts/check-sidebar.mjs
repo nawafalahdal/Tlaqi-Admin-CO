@@ -22,7 +22,7 @@ const SP = process.env.SCRATCH ?? ".";
 const BASE = process.env.CHECK_BASE_URL ?? "http://localhost:3000";
 const secret = fs.readFileSync(SP + "/.totp-secret", "utf8").trim();
 const totp = (email) =>
-  execFileSync("npx", ["tsx", SP + "/totp-code.ts", secret, email], { encoding: "utf8" }).trim().match(/\d{6}/)[0];
+  execFileSync("npx", ["tsx", "scripts/totp-code.ts", secret, email], { encoding: "utf8" }).trim().match(/\d{6}/)[0];
 const memberCode = (email) =>
   execFileSync("npx", ["tsx", "scripts/fixtures-roles.ts", "code", email], { encoding: "utf8", env: process.env })
     .trim().match(/\d{6}/)[0];
