@@ -106,6 +106,33 @@ for (const r of ROLES.filter((x) => !process.env.ONLY || process.env.ONLY.split(
   check(!labels.some((l) => /تحسين|عطب/.test(l)), `${r.key}: لا «تحسين» مكرّرٌ في القائمة`);
   check(new Set(labels).size === labels.length, `${r.key}: لا بندَ مكرّر`);
 
+  // ١ب) المجموعات والشعار وذيل الحساب
+  const groups = await page.$$eval(".app-sidebar__section", (els) => els.filter((e) => e.offsetParent).map((e) => e.textContent.trim()));
+  check(groups.length >= 2 && new Set(groups).size === groups.length, `${r.key}: عناوينُ مجموعاتٍ ظاهرة ولا تتكرّر`, groups.join(" | "));
+  const lockupShown = await page.locator(".app-sidebar__lockup").isVisible();
+  const markShown = await page.locator(".app-sidebar__mark").isVisible();
+  check(lockupShown && !markShown, `${r.key}: موسَّعةً: الشعارُ كاملاً لا الرمزُ وحده`);
+  const ov = await page.evaluate(() => {
+    const n = document.querySelector(".app-sidebar__nav")?.getBoundingClientRect();
+    const f = document.querySelector(".account-menu")?.getBoundingClientRect();
+    return n && f ? Math.round(f.top - n.bottom) : null;
+  });
+  check(ov !== null && ov >= -1, `${r.key}: ذيلُ الحساب لا يقع فوق البنود`, `${ov}px`);
+  const hdrAccount = await page.locator("header .hdr-account").evaluateAll((els) => els.filter((e) => e.offsetParent).length);
+  check(hdrAccount === 0, `${r.key}: أزرارُ الحساب لا تزحم الترويسة بجوار القائمة`, `${hdrAccount}`);
+  await page.click(".account-menu > summary");
+  await page.waitForTimeout(250);
+  const acct = await page.$$eval(".account-menu__item", (els) => els.map((e) => ({ label: e.textContent.trim(), href: e.getAttribute("href") })));
+  check(acct.some((a) => !a.href), `${r.key}: الخروجُ في قائمة الحساب`);
+  const acctLinks = acct.filter((a) => a.href);
+  for (const a of acctLinks) {
+    const resp = await page.goto(BASE + a.href, { waitUntil: "domcontentloaded" });
+    const path = new URL(page.url()).pathname;
+    check(resp && resp.status() < 400 && path === a.href, `${r.key}: «${a.label}» من قائمة الحساب يُفتَح`, `${a.href} → ${path}`);
+  }
+  await page.goto(BASE + (r.key === "member" ? "/member" : "/calendar"), { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(800);
+
   // ٢) كلُّ رابطٍ يُفتَح لصاحبه
   for (const it of items) {
     const resp = await page.goto(BASE + it.href, { waitUntil: "domcontentloaded" });
@@ -131,6 +158,10 @@ for (const r of ROLES.filter((x) => !process.env.ONLY || process.env.ONLY.split(
     await page.waitForTimeout(1200);
     const w2 = await page.locator(".app-sidebar").evaluate((e) => e.getBoundingClientRect().width);
     check(w0 > 200 && w1 < 100 && w2 < 100, "الطيُّ يعمل ويبقى بعد إعادة التحميل", `${Math.round(w0)} → ${Math.round(w1)} → ${Math.round(w2)}`);
+    check(await page.locator(".app-sidebar__mark").isVisible() && !(await page.locator(".app-sidebar__lockup").isVisible()),
+      "ومطويّةً: الرمزُ وحده، والشعارُ الكامل مخفيّ لا مقصوص");
+    const hiddenHeads = await page.$$eval(".app-sidebar__section", (els) => els.every((e) => !e.offsetParent));
+    check(hiddenHeads, "ومطويّةً: لا عناوين مجموعات");
     const tip = await page.locator(".app-sidebar__item").first().getAttribute("title");
     check(!!tip, "ومطويّةً: لكل أيقونةٍ تلميحٌ باسمها", tip);
     await page.click(".app-sidebar__toggle");

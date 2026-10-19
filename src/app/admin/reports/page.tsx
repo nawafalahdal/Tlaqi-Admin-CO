@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
-import { BackButton } from "@/components/BackButton";
 import { DataTable } from "@/components/DataTable";
 import { formatDate } from "@/lib/format";
 import { departmentsReport, membersReport, closedOnTimeTickets } from "@/lib/reports";
@@ -54,7 +53,6 @@ export default async function ReportsPage() {
 
       <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
         <div>
-          <BackButton />
           <h1 className="text-lg font-bold sm:text-xl">التقارير</h1>
           <p className="mt-1 text-sm leading-relaxed text-black/50">
             {seesDepartments

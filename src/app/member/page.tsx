@@ -6,7 +6,7 @@ import { OPEN_DEPARTMENT_WHERE, DEPARTMENT_TAKE } from "@/lib/committees";
 import { themeFromColor, BRAND } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
-import { LogoLockup } from "@/components/Logo";
+import { ThemedLockup } from "@/components/Logo";
 import { WarningCard } from "./WarningCard";
 import { MyTicketCard } from "./MyTicketCard";
 import { WelcomeMailCard } from "@/components/WelcomeMailCard";
@@ -56,9 +56,9 @@ export default async function MemberPortalPage() {
 
   if (!member.isActive) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-4" style={{ background: BRAND.temptress }}>
-        <LogoLockup height={32} tone="light" />
-        <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl">
+      <main className="auth-page flex min-h-screen flex-col items-center justify-center gap-6 px-4">
+        <ThemedLockup height={32} />
+        <div className="w-full max-w-md auth-card rounded-3xl bg-white p-8 text-center shadow-xl">
           <h1 className="mb-2 text-lg font-bold text-red-700">{t.member.deactivatedTitle}</h1>
           <p className="text-sm text-black/60">{t.member.deactivatedBody}</p>
         </div>

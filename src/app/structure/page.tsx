@@ -4,7 +4,6 @@ import { auth } from "@/auth";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
-import { BackButton } from "@/components/BackButton";
 import { OrgTree } from "@/components/OrgTree";
 import { buildOrgChart, MIN_DEPARTMENT_MEMBERS } from "@/lib/orgChart";
 
@@ -47,7 +46,6 @@ export default async function StructurePage() {
       </AppHeader>
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-5 sm:py-8">
-        <BackButton fallbackHref={isMember ? "/member" : "/admin"} />
 
         <h1 className="text-lg font-bold sm:text-xl">هيكل تَـــلاقِ التنظيمي</h1>
         <p className="mt-1 text-sm leading-relaxed text-black/50">

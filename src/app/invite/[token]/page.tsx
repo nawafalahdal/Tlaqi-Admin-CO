@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { LogoLockup } from "@/components/Logo";
-import { BRAND } from "@/lib/brand";
+import { ThemedLockup } from "@/components/Logo";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ControlGroup } from "@/components/ControlGroup";
@@ -13,22 +12,20 @@ export default async function LegacyInvitePage() {
 
   return (
     <main
-      className="flex min-h-screen flex-col items-center justify-center gap-6 px-4"
-      style={{ background: BRAND.temptress }}
+      className="auth-page flex min-h-screen flex-col items-center justify-center gap-6 px-4"
     >
       <div className="flex w-full max-w-md justify-end">
-      <ControlGroup color={BRAND.beige}>
+      <ControlGroup color="var(--ink)">
         <ThemeToggle />
       </ControlGroup>
       </div>
-      <LogoLockup height={32} tone="light" />
-      <div className="w-full max-w-md rounded-3xl bg-white p-6 text-center shadow-xl sm:p-8">
+      <ThemedLockup height={32} />
+      <div className="w-full max-w-md auth-card rounded-3xl bg-white p-6 text-center shadow-xl sm:p-8">
         <h1 className="mb-3 text-lg font-bold">{t.legacyInvite.title}</h1>
         <p className="mb-6 text-sm leading-relaxed text-black/60">{t.legacyInvite.body}</p>
         <Link
           href="/login"
-          className="inline-flex min-h-11 items-center justify-center rounded-xl px-6 text-sm font-semibold"
-          style={{ background: BRAND.temptress, color: BRAND.beige }}
+          className="btn-brand inline-flex min-h-11 items-center justify-center rounded-xl px-6 text-sm font-semibold"
         >
           {t.legacyInvite.goToLogin}
         </Link>

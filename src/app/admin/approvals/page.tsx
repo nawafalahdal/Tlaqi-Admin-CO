@@ -11,7 +11,6 @@ import { accountRoleLabel } from "@/lib/testTracks";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
-import { BackButton } from "@/components/BackButton";
 import { formatDate } from "@/lib/format";
 import { ApprovalDecide } from "./ApprovalDecide";
 import { RequesterActions } from "./RequesterActions";
@@ -61,7 +60,6 @@ export default async function ApprovalsPage() {
 
       <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
         <div>
-          <BackButton />
           <h1 className="text-lg font-bold sm:text-xl">الاعتمادات الإدارية</h1>
           <p className="mt-1 text-sm leading-relaxed text-black/50">
             ما يحتاج موافقةَ مسؤولٍ أعلى قبل التنفيذ يمرّ من هنا. والحالة تُنقل بقرارٍ صريح —

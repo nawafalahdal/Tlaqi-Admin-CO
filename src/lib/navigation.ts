@@ -38,7 +38,22 @@ export type NavItem = {
   icon: NavIcon;
   /** المسارات التي تُضيء هذا البند — المسارُ نفسه وما تحته */
   match: string[];
+  /** مجموعتُه في القائمة — انظر `NAV_GROUPS` */
+  group: NavGroup;
 };
+
+/** مجموعاتُ القائمة بترتيبها. والترتيبُ المشتركُ الستّيُّ محفوظٌ عبرها:
+ *  الأعضاء (الأفراد) ← الاعتمادات ← الأقسام (الأقسام والهيكل) ← التنفيذ ←
+ *  التقويم (الاجتماعات) ← التقارير — كلٌّ في مجموعةٍ بعد التي قبلها. */
+export const NAV_GROUPS = ["overview", "people", "approvals", "org", "execution", "meetings", "reports", "tickets"] as const;
+export type NavGroup = (typeof NAV_GROUPS)[number];
+
+/** أسماءُ البنود — من القاموس (`shell.nav`)، لا مكتوبةً هنا */
+export type NavLabels = Record<
+  "home" | "opsHome" | "members" | "myDeptMembers" | "approvals" | "departments" | "execution" | "calendar" |
+  "reports" | "plans" | "tickets" | "structure" | "invites" | "messages" | "terminations" | "signature" | "sheet",
+  string
+>;
 
 export type NavViewer = {
   role: "super_admin" | "executive" | "operations_officer" | "department_admin" | "member";
@@ -56,7 +71,7 @@ export function homeFor(v: NavViewer): string {
   return "/admin";
 }
 
-export function navFor(v: NavViewer): NavItem[] {
+export function navFor(v: NavViewer, L: NavLabels): NavItem[] {
   const r = v.role;
   const top = r === "super_admin" || r === "executive";
   const admin = r !== "member";
@@ -71,7 +86,8 @@ export function navFor(v: NavViewer): NavItem[] {
   if (home !== ownDept) {
     items.push({
       id: "home",
-      label: r === "operations_officer" ? "مساحة التشغيل" : "نظرة عامة",
+      label: r === "operations_officer" ? L.opsHome : L.home,
+      group: "overview",
       href: home,
       icon: r === "operations_officer" ? "operations" : "home",
       match: [home],
@@ -80,43 +96,50 @@ export function navFor(v: NavViewer): NavItem[] {
 
   // ── ١) الأعضاء: صفحة الأعضاء للمؤسس والتنفيذي (`/admin/people`)، وأعضاءُ
   //       قسمه لقائد القسم في لوحة قسمه
-  if (top) items.push({ id: "members", label: "الأعضاء", href: "/admin/people", icon: "members", match: ["/admin/people"] });
-  else if (ownDept) items.push({ id: "members", label: "أعضاء قسمي", href: ownDept, icon: "members", match: [ownDept] });
+  if (top) items.push({ id: "members", label: L.members, href: "/admin/people", icon: "members", match: ["/admin/people"], group: "people" });
+  else if (ownDept) items.push({ id: "members", label: L.myDeptMembers, href: ownDept, icon: "members", match: [ownDept], group: "people" });
 
   // ── ٢) الاعتمادات — لكل إداري
-  if (admin) items.push({ id: "approvals", label: "الاعتمادات", href: "/admin/approvals", icon: "approvals", match: ["/admin/approvals"] });
+  if (admin) items.push({ id: "approvals", label: L.approvals, href: "/admin/approvals", icon: "approvals", match: ["/admin/approvals"], group: "approvals" });
 
   // ── ٣) الأقسام — من يرى كل الأقسام؛ وقائدُ القسم لا يدخل غير قسمه
   if (top || r === "operations_officer") {
-    items.push({ id: "departments", label: "الأقسام", href: "/admin/departments", icon: "departments", match: ["/admin/departments"] });
+    items.push({ id: "departments", label: L.departments, href: "/admin/departments", icon: "departments", match: ["/admin/departments"], group: "org" });
   }
 
   // ── ٤) التنفيذ والأهداف — لكل إداري (الصفحة تردّ العضو)
-  if (admin) items.push({ id: "execution", label: "التنفيذ والأهداف", href: "/admin/execution", icon: "execution", match: ["/admin/execution"] });
+  if (admin) items.push({ id: "execution", label: L.execution, href: "/admin/execution", icon: "execution", match: ["/admin/execution"], group: "execution" });
 
   // ── ٥) التقويم والاجتماعات — للجميع
-  items.push({ id: "calendar", label: "التقويم والاجتماعات", href: "/calendar", icon: "calendar", match: ["/calendar"] });
+  items.push({ id: "calendar", label: L.calendar, href: "/calendar", icon: "calendar", match: ["/calendar"], group: "meetings" });
 
   // ── ٦) التقارير والملفات — التقارير للإداري، والملفات (الخطط) للعضو
-  if (admin) items.push({ id: "reports", label: "التقارير والملفات", href: "/admin/reports", icon: "reports", match: ["/admin/reports"] });
+  if (admin) items.push({ id: "reports", label: L.reports, href: "/admin/reports", icon: "reports", match: ["/admin/reports"], group: "reports" });
 
   // ── ما بعد المشترك
-  items.push({ id: "plans", label: "الخطط والوثائق", href: "/plans", icon: "plans", match: ["/plans"] });
-  if (admin) items.push({ id: "tickets", label: "التذاكر", href: "/admin/tickets", icon: "tickets", match: ["/admin/tickets"] });
-  items.push({ id: "structure", label: "الهيكل التنظيمي", href: "/structure", icon: "structure", match: ["/structure"] });
+  items.push({ id: "plans", label: L.plans, href: "/plans", icon: "plans", match: ["/plans"], group: "reports" });
+  if (admin) items.push({ id: "tickets", label: L.tickets, href: "/admin/tickets", icon: "tickets", match: ["/admin/tickets"], group: "tickets" });
+  items.push({ id: "structure", label: L.structure, href: "/structure", icon: "structure", match: ["/structure"], group: "org" });
   if (top) {
-    items.push({ id: "invites", label: "الدعوات", href: "/admin/invites", icon: "invites", match: ["/admin/invites", "/admin/tests"] });
-    items.push({ id: "messages", label: "سجل الرسائل", href: "/admin/messages", icon: "messages", match: ["/admin/messages"] });
+    items.push({ id: "invites", label: L.invites, href: "/admin/invites", icon: "invites", match: ["/admin/invites", "/admin/tests"], group: "people" });
+    items.push({ id: "messages", label: L.messages, href: "/admin/messages", icon: "messages", match: ["/admin/messages"], group: "meetings" });
   }
   if (top || r === "department_admin") {
-    items.push({ id: "terminations", label: "طلبات الإنهاء", href: "/admin/terminations", icon: "terminations", match: ["/admin/terminations"] });
+    items.push({ id: "terminations", label: L.terminations, href: "/admin/terminations", icon: "terminations", match: ["/admin/terminations"], group: "people" });
   }
   if (top || v.canSign) {
-    items.push({ id: "signature", label: "التوقيعات", href: "/admin/signature", icon: "signature", match: ["/admin/signature"] });
+    items.push({ id: "signature", label: L.signature, href: "/admin/signature", icon: "signature", match: ["/admin/signature"], group: "people" });
   }
-  if (r === "super_admin") items.push({ id: "sheet", label: "السجل الحي", href: "/admin/sheet", icon: "sheet", match: ["/admin/sheet"] });
+  if (r === "super_admin") items.push({ id: "sheet", label: L.sheet, href: "/admin/sheet", icon: "sheet", match: ["/admin/sheet"], group: "reports" });
 
-  return items.filter((i): i is NavItem => Boolean(i));
+  // تُرتَّب بالمجموعة ترتيباً مستقرّاً: داخل كل مجموعةٍ يبقى ترتيبُ الإضافة
+  // أعلاه، فلا يتبدّل الترتيبُ المشتركُ ولا ما بعده
+  const rank = (g: NavGroup) => NAV_GROUPS.indexOf(g);
+  return items
+    .filter((i): i is NavItem => Boolean(i))
+    .map((it, i) => ({ it, i }))
+    .sort((a, b) => rank(a.it.group) - rank(b.it.group) || a.i - b.i)
+    .map(({ it }) => it);
 }
 
 /** أيُّ بندٍ يُضاء — أطولُ مطابقةٍ تغلب، فلا يُضيء `/admin` مع كلّ ما تحته */

@@ -2,8 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ticketVisibilityWhere, ticketScopeWhere } from "@/lib/tickets";
-import { BRAND } from "@/lib/brand";
-import { LogoLockup } from "@/components/Logo";
+import { ThemedLockup } from "@/components/Logo";
 
 export const dynamic = "force-dynamic";
 
@@ -62,14 +61,13 @@ export default async function TicketEntryPage({
   if (mineButArchived) {
     return (
       <main
-        className="flex min-h-screen items-center justify-center px-4"
-        style={{ background: BRAND.temptress }}
+        className="auth-page flex min-h-screen items-center justify-center px-4"
       >
         <div className="w-full max-w-sm text-center">
           <div className="mb-8 flex justify-center">
-            <LogoLockup height={34} tone="light" />
+            <ThemedLockup height={34} />
           </div>
-          <div className="rounded-3xl bg-white p-8 shadow-xl">
+          <div className="auth-card rounded-3xl bg-white p-8 shadow-xl">
             <h1 className="mb-2 text-lg font-bold text-black/90">أُرشفت هذه التذكرة</h1>
             <p className="text-sm leading-relaxed text-black/55">
               أُغلقت ومضى عليها أسبوع، فزالت من شاشة العمل ليلة السبت بعد الاجتماع — وسجلُّها
@@ -91,14 +89,13 @@ export default async function TicketEntryPage({
   // التفريق يُخبر من يُجرّب الأرقام أيُّها تذكرةٌ قائمة.
   return (
     <main
-      className="flex min-h-screen items-center justify-center px-4"
-      style={{ background: BRAND.temptress }}
+      className="auth-page flex min-h-screen items-center justify-center px-4"
     >
       <div className="w-full max-w-sm text-center">
         <div className="mb-8 flex justify-center">
-          <LogoLockup height={34} tone="light" />
+          <ThemedLockup height={34} />
         </div>
-        <div className="rounded-3xl bg-white p-8 shadow-xl">
+        <div className="auth-card rounded-3xl bg-white p-8 shadow-xl">
           <h1 className="mb-2 text-lg font-bold text-black/90">هذه التذكرة لا تخصّك</h1>
           <p className="text-sm leading-relaxed text-black/55">
             إمّا أنها ليست من تذاكرك، أو أن الرقم غير صحيح. وتذاكرك كلّها في لوحتك.

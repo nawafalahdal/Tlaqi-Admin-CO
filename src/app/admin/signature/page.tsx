@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
-import { BackButton } from "@/components/BackButton";
 import { accountRoleLabel } from "@/lib/testTracks";
 import {
   currentSignatureFor,
@@ -52,7 +51,6 @@ export default async function SignaturePage() {
       </AppHeader>
 
       <main className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6 sm:px-5">
-        <BackButton />
 
         <div>
           <h1 className="text-lg font-bold sm:text-xl">توقيعات الشهادات</h1>

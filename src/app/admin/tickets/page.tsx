@@ -7,7 +7,6 @@ import { sweepTicketEscalation, TICKET_STAGE_LABELS, TICKET_INCLUDE, ticketAutho
 import { themeFromColor, SUPER_ADMIN_THEME, brandInk} from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
-import { BackButton } from "@/components/BackButton";
 import { TicketCard } from "./TicketCard";
 import { DataTable } from "@/components/DataTable";
 import { RaiseAdminTicketForm, type TicketTargetOption } from "./RaiseAdminTicketForm";
@@ -95,7 +94,6 @@ export default async function TicketsPage() {
 
       <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
         <div>
-          <BackButton />
           <h1 className="text-lg font-bold sm:text-xl">{tt.title}</h1>
           <p className="mt-1 text-sm text-black/50">{tt.subtitle}</p>
         </div>

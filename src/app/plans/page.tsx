@@ -3,7 +3,6 @@ import { auth } from "@/auth";
 import { themeFromColor, SUPER_ADMIN_THEME, BRAND } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
-import { BackButton } from "@/components/BackButton";
 import { readPlanLibrary, canManagePlans, humanSize, typeLabel } from "@/lib/plans";
 import { formatDate } from "@/lib/format";
 import { PlanIntroEditor } from "./PlanIntroEditor";
@@ -43,7 +42,6 @@ export default async function PlansPage() {
       </AppHeader>
 
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-5 sm:py-8">
-        <BackButton fallbackHref={isMember ? "/member" : "/admin"} />
 
         {/* ── الواجهة: الشعارُ والعنوانُ والنبذة في لوحةٍ واحدةٍ بالهوية.
             وهي أولُ ما يُقرأ عمداً: من دخل يعرف ما هي تَـــلاقِ ولماذا،

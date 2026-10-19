@@ -28,7 +28,7 @@ export async function HeaderActions(props: { color?: string }) {
       {isAdmin && (
         <Link
           href="/admin/security"
-          className="rounded-lg px-3 py-1.5 text-xs font-semibold opacity-90 hover:opacity-100"
+          className="hdr-account rounded-lg px-3 py-1.5 text-xs font-semibold opacity-90 hover:opacity-100"
           style={{ color, border: `1px solid color-mix(in oklab, ${color} 22%, transparent)` }}
         >
           {t.common.twoFactor}
@@ -39,7 +39,7 @@ export async function HeaderActions(props: { color?: string }) {
       {session && session.user.role !== "member" && (
         <Link
           href="/admin/profile"
-          className="rounded-lg px-3 py-1.5 text-xs font-semibold opacity-90 hover:opacity-100"
+          className="hdr-account rounded-lg px-3 py-1.5 text-xs font-semibold opacity-90 hover:opacity-100"
           style={{ color, border: `1px solid color-mix(in oklab, ${color} 22%, transparent)` }}
         >
           {t.adminProfile.title}
@@ -47,12 +47,14 @@ export async function HeaderActions(props: { color?: string }) {
       )}
       <Link
         href="/change-password"
-        className="rounded-lg px-3 py-1.5 text-xs font-semibold opacity-90 hover:opacity-100"
+        className="hdr-account rounded-lg px-3 py-1.5 text-xs font-semibold opacity-90 hover:opacity-100"
         style={{ color, border: `1px solid color-mix(in oklab, ${color} 22%, transparent)` }}
       >
         {t.common.changePassword}
       </Link>
-      <LogoutButton color={color} />
+      <div className="hdr-account">
+        <LogoutButton color={color} />
+      </div>
     </div>
   );
 }

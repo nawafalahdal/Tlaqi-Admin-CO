@@ -5,7 +5,6 @@ import { OPEN_DEPARTMENT_WHERE, DEPARTMENT_TAKE } from "@/lib/committees";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
-import { BackButton } from "@/components/BackButton";
 import { DataTable } from "@/components/DataTable";
 import { AccountStageBadge } from "@/components/AccountStageBadge";
 import { CandidateWindow } from "@/components/CandidateWindow";
@@ -87,7 +86,6 @@ export default async function AdminInvitesPage() {
 
       <main className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-6 sm:px-5 sm:py-8">
         <div>
-          <BackButton fallbackHref="/admin" />
           <h1 className="text-lg font-bold sm:text-xl">{t.title}</h1>
           <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
             {ts.governance}

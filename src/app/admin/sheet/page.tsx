@@ -3,7 +3,6 @@ import { auth } from "@/auth";
 import { themeFromColor, SUPER_ADMIN_THEME, brandInk} from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
-import { BackButton } from "@/components/BackButton";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { TAB_LAYOUTS } from "@/lib/googleSheets";
 import { BackfillPanel } from "./BackfillPanel";
@@ -44,7 +43,6 @@ export default async function SheetPage() {
 
       <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
         <div>
-          <BackButton />
           <h1 className="text-lg font-bold sm:text-xl">{t.sheetPage.title}</h1>
           <p className="mt-1 text-sm text-black/50">{t.sheetPage.subtitle}</p>
         </div>

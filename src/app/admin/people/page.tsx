@@ -11,7 +11,6 @@ import { SeatConflicts } from "@/components/SeatConflicts";
 import { RemovedAccountRow } from "./RemovedAccountRow";
 import { MemberAccountRow } from "./MemberAccountRow";
 import { StuckCandidateRow, type StuckCandidate } from "./StuckCandidateRow";
-import { BackButton } from "@/components/BackButton";
 import { DataTable } from "@/components/DataTable";
 import { FounderMemberControls } from "@/components/FounderMemberControls";
 import { OrgChartLink } from "@/components/OrgChartLink";
@@ -257,7 +256,6 @@ export default async function PeoplePage() {
       </AppHeader>
 
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-5 sm:py-8">
-        <BackButton />
 
         <h1 className="mb-1 text-xl font-bold">إدارة الأعضاء والهيكل التنظيمي</h1>
         <p className="mb-6 text-sm leading-relaxed text-black/50">
