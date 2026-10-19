@@ -14,7 +14,7 @@ export async function LogoutButton({ color }: { color: string }) {
       <button
         type="submit"
         className="rounded-lg px-3 py-1.5 text-xs font-semibold opacity-90 hover:opacity-100"
-        style={{ color, border: `1px solid ${color}55` }}
+        style={{ color, border: `1px solid color-mix(in oklab, ${color} 33%, transparent)` }}
       >
         {t.common.logout}
       </button>

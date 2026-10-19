@@ -59,3 +59,15 @@ export function LogoLockup({
     />
   );
 }
+
+
+/** الشعارُ على سطحٍ يتبع السمة: نسختاه معاً، والسمةُ تُظهر المناسبة.
+ *  (السمةُ تُقرأ قبل الرسم في `<html data-theme>`، فلا يعرفها الخادم ليختار.) */
+export function ThemedLockup({ height = 30 }: { height?: number }) {
+  return (
+    <>
+      <span className="logo-on-light-theme"><LogoLockup height={height} tone="dark" /></span>
+      <span className="logo-on-dark-theme"><LogoLockup height={height} tone="light" /></span>
+    </>
+  );
+}

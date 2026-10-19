@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useTranslations } from "@/i18n/LocaleProvider";
+import { MobileNavList } from "./sidebar/SidebarRail";
 
 /** غلاف الهيدر: على الجوال يخفي بيانات المستخدم والأزرار داخل قائمة منسدلة
  *  بدل حشرها في سطر واحد (كانت تتراكم وتقصّ النص على الشاشات الصغيرة).
@@ -31,7 +32,7 @@ export function HeaderShell({
   return (
     <>
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
-        <div className="min-w-0 shrink">
+        <div className="app-header__logo min-w-0 shrink">
           {homeHref ? (
             <Link href={homeHref} aria-label={t.actions.home} className="inline-flex">
               {logo}
@@ -94,6 +95,11 @@ export function HeaderShell({
           <div className="mb-3" style={{ color: textColor }}>
             <p className="text-sm font-semibold leading-tight">{userName}</p>
             <p className="text-xs leading-tight opacity-80">{roleName}</p>
+          </div>
+          {/* بنودُ القائمة الجانبية نفسُها — على الجوال لا قائمةَ جانبية، فتأتي هنا:
+              زرُّ قائمةٍ واحد يجمع التنقّل وأدوات الحساب */}
+          <div style={{ color: textColor }}>
+            <MobileNavList onNavigate={() => setOpen(false)} />
           </div>
           <div className="[&>div]:grid [&>div]:gap-2 [&_a]:flex [&_a]:min-h-11 [&_a]:w-full [&_a]:items-center [&_a]:justify-center [&_button]:flex [&_button]:min-h-11 [&_button]:w-full [&_button]:items-center [&_button]:justify-center">
             {actions}

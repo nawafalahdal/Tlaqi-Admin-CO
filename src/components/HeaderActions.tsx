@@ -6,7 +6,11 @@ import { ThemeToggle } from "./ThemeToggle";
 import { ControlGroup, ControlDivider } from "./ControlGroup";
 import { getLocale, getDictionary } from "@/i18n/server";
 
-export async function HeaderActions({ color }: { color: string }) {
+/** الترويسةُ صارت محايدةً بلون الصفحة (انظر `AppHeader`)، فأدواتُها بحبر الصفحة
+ *  في السمتين. ويبقى `color` مقبولاً لأن ستاً وعشرين صفحةً تمرّره — ولا يُستعمل. */
+export async function HeaderActions(props: { color?: string }) {
+  void props;
+  const color = "var(--ink)";
   const [session, t] = await Promise.all([
     auth(),
     getLocale().then(getDictionary),
@@ -25,7 +29,7 @@ export async function HeaderActions({ color }: { color: string }) {
         <Link
           href="/admin/security"
           className="rounded-lg px-3 py-1.5 text-xs font-semibold opacity-90 hover:opacity-100"
-          style={{ color, border: `1px solid ${color}55` }}
+          style={{ color, border: `1px solid color-mix(in oklab, ${color} 22%, transparent)` }}
         >
           {t.common.twoFactor}
         </Link>
@@ -36,7 +40,7 @@ export async function HeaderActions({ color }: { color: string }) {
         <Link
           href="/admin/profile"
           className="rounded-lg px-3 py-1.5 text-xs font-semibold opacity-90 hover:opacity-100"
-          style={{ color, border: `1px solid ${color}55` }}
+          style={{ color, border: `1px solid color-mix(in oklab, ${color} 22%, transparent)` }}
         >
           {t.adminProfile.title}
         </Link>
@@ -44,7 +48,7 @@ export async function HeaderActions({ color }: { color: string }) {
       <Link
         href="/change-password"
         className="rounded-lg px-3 py-1.5 text-xs font-semibold opacity-90 hover:opacity-100"
-        style={{ color, border: `1px solid ${color}55` }}
+        style={{ color, border: `1px solid color-mix(in oklab, ${color} 22%, transparent)` }}
       >
         {t.common.changePassword}
       </Link>

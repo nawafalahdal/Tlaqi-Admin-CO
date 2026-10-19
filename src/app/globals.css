@@ -71,6 +71,9 @@
    *  فصار لونُ الفعل متغيّراً: بنفسجُ الهوية في الفاتح، ومهوجنيُّها في
    *  الداكن — وكلاهما من الهوية نفسها، لا لونٌ غريبٌ يُستجلَب. */
   --brand-action: #341d2b;
+  /* لونُ البند المختار في القائمة — مهوجنيُّ الهوية في السمتين، وحبرُه أبيض (٤٫٦:١) */
+  --nav-active: #c34900;
+  --sidebar-bg: #fbfaf8;
 
   --accent-soft: #eef6df;
   --accent-soft-ink: #341d2b;
@@ -106,6 +109,19 @@
   --surface: #1e1e22;
   --ink: #ececef;
   --hairline: color-mix(in oklab, var(--ink) 14%, transparent);
+
+  /* ── الرماديُّ الغرافيتيّ المتّفق عليه (يغلب ما فوقه) ──
+   *  أرضيةٌ #17191C، والقائمةُ الجانبية أعمقُ منها بدرجة #121416،
+   *  والبطاقاتُ #202327، والمرورُ والتحديدُ #2A2E33، والحدودُ #343940،
+   *  والحبرُ #F2F3F5 والثانويُّ #A7ADB5 — محايدٌ بلا صبغةٍ زرقاء ولا خمريّة. */
+  --page: #17191c;
+  --surface: #202327;
+  --surface-raised: #2a2e33;
+  --ink: #f2f3f5;
+  --ink-muted: #a7adb5;
+  --hairline: #343940;
+  --border-strong: #4a5058;
+  --sidebar-bg: #121416;
 
   /* في الداكن يصير اللوحُ غمزةً خضراءَ على سطح البطاقة، وحبرُه حبرَ
      الصفحة — فيُقرأ، ولا يَصرخ لوحاً ساطعاً في شاشةٍ ليلية. */
@@ -556,3 +572,133 @@ body:has(.improve-fab) main { padding-block-end: 6rem; }
     --ink: #1a1023;
   }
 }
+
+
+/* ══ القائمة الجانبية — كبسولةٌ عمودية ═════════════════════════════
+ *  ثابتةٌ على جهة بداية السطر (يميناً في العربية)، بعيدةٌ عن الحافّة
+ *  بهامش، بزوايا مستديرةٍ كاملة. والمحتوى يُزاح بقدرها من `body`.
+ *  تحت ٦٤٠ لا تظهر: البنودُ في قائمة الترويسة. */
+.app-sidebar { display: none; }
+@media (min-width: 640px) {
+  .app-sidebar {
+    --rail: 78px;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    z-index: 30;
+    inset-block: 1rem;
+    inset-inline-start: 0.75rem;
+    width: var(--rail);
+    padding: 1rem 0.75rem;
+    border-radius: 39px;
+    border: 1px solid var(--hairline);
+    background: color-mix(in oklab, var(--sidebar-bg) 96%, transparent);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 18px 50px rgb(35 29 25 / 0.08);
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+  }
+  body:has(.app-sidebar) { padding-inline-start: calc(78px + 1.25rem); }
+  .app-sidebar__label, .app-sidebar__toggle { display: none; }
+  /* الشعارُ في رأس القائمة — فلا يُكرَّر في الترويسة بجوارها */
+  body:has(.app-sidebar) .app-header__logo { visibility: hidden; }
+}
+@media (min-width: 1024px) {
+  .app-sidebar { width: 258px; }
+  .app-sidebar__label { display: block; }
+  .app-sidebar__toggle { display: inline-flex; }
+  body:has(.app-sidebar) { padding-inline-start: calc(258px + 1.75rem); }
+  :root[data-sidebar="collapsed"] .app-sidebar { width: 78px; }
+  :root[data-sidebar="collapsed"] .app-sidebar__label { display: none; }
+  :root[data-sidebar="collapsed"] body:has(.app-sidebar) { padding-inline-start: calc(78px + 1.25rem); }
+  :root[data-sidebar="collapsed"] .app-sidebar__top { flex-direction: column; gap: 0.5rem; }
+  :root[data-sidebar="collapsed"] .app-sidebar__toggle svg { transform: scaleX(-1); }
+}
+:root[data-theme="dark"] .app-sidebar { box-shadow: 0 18px 50px rgb(0 0 0 / 0.3); }
+
+.app-sidebar__top { display: flex; align-items: center; justify-content: space-between; gap: 0.25rem; padding-inline: 0.25rem; }
+.app-sidebar__mark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 3rem; height: 3rem; flex: none; border-radius: 999px;
+  background: color-mix(in oklab, var(--ink) 6%, transparent);
+}
+.app-sidebar__toggle {
+  align-items: center; justify-content: center;
+  width: 2.25rem; height: 2.25rem; border-radius: 999px; border: 0;
+  background: transparent; color: var(--ink-muted, #887d83); font-size: 1.1rem; cursor: pointer;
+}
+/* السهمُ يشير إلى جهة الطيّ: نحو البداية — وفي RTL البدايةُ يمين */
+[dir="rtl"] .app-sidebar__toggle svg { transform: scaleX(-1); }
+[dir="rtl"]:root[data-sidebar="collapsed"] .app-sidebar__toggle svg { transform: none; }
+.app-sidebar__toggle:hover { background: color-mix(in oklab, var(--nav-active) 10%, transparent); color: var(--nav-active); }
+
+.app-sidebar__user {
+  margin-top: 1.25rem; display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.6rem; border-radius: 22px;
+  background: color-mix(in oklab, var(--ink) 5%, transparent);
+  border: 1px solid color-mix(in oklab, var(--ink) 5%, transparent);
+}
+.app-sidebar__avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2.5rem; height: 2.5rem; flex: none; border-radius: 999px;
+  background: var(--nav-active); color: #fff; font-size: 0.8rem; font-weight: 700;
+}
+.app-sidebar__who { min-width: 0; }
+.app-sidebar__name, .app-sidebar__role { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-sidebar__name { font-size: 0.875rem; font-weight: 600; }
+.app-sidebar__role { font-size: 0.75rem; color: var(--ink-muted, #8f858a); }
+
+.app-sidebar__section {
+  margin: 1.5rem 0 0.5rem; padding-inline: 0.75rem;
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; color: var(--ink-muted, #a49a9e);
+}
+@media (min-width: 640px) and (max-width: 1023px) { .app-sidebar__list { margin-top: 1rem; } }
+:root[data-sidebar="collapsed"] .app-sidebar__list { margin-top: 1rem; }
+.app-sidebar__list { display: flex; flex-direction: column; gap: 0.375rem; list-style: none; margin: 0; padding: 0; }
+.app-sidebar__item {
+  display: flex; align-items: center; gap: 0.75rem;
+  min-height: 2.75rem; padding-inline: 0.85rem; border-radius: 18px;
+  font-size: 0.875rem; font-weight: 500; color: var(--ink-muted, #756b70); text-decoration: none;
+}
+@media (max-width: 1023px) { .app-sidebar__item { justify-content: center; padding-inline: 0; } }
+:root[data-sidebar="collapsed"] .app-sidebar__item { justify-content: center; padding-inline: 0; }
+.app-sidebar__item:hover { background: color-mix(in oklab, var(--ink) 6%, transparent); color: var(--ink); }
+.app-sidebar__item[data-active="true"] {
+  background: var(--nav-active); color: #fff;
+  box-shadow: 0 8px 18px rgb(195 73 0 / 0.2);
+}
+.app-sidebar__item:focus-visible, .app-sidebar__toggle:focus-visible, .app-sidebar__mark:focus-visible {
+  outline: 2px solid var(--focus, var(--nav-active)); outline-offset: 2px;
+}
+.app-sidebar__icon { flex: none; font-size: 1.15rem; }
+@media (prefers-reduced-motion: no-preference) {
+  .app-sidebar { transition: width 0.25s ease; }
+  body:has(.app-sidebar) { transition: padding-inline-start 0.25s ease; }
+}
+
+/* ── بنودُ القائمة في قائمة الجوال ── */
+.mobile-nav ul { display: grid; gap: 0.25rem; list-style: none; margin: 0 0 0.75rem; padding: 0; }
+.mobile-nav__item {
+  display: flex; align-items: center; gap: 0.75rem; min-height: 2.75rem;
+  padding-inline: 0.85rem; border-radius: 14px; font-size: 0.9rem; font-weight: 600; text-decoration: none;
+}
+.mobile-nav__item[data-active="true"] { background: var(--nav-active); color: #fff; }
+.mobile-nav__icon { font-size: 1.15rem; flex: none; }
+
+@media print {
+  .app-sidebar { display: none !important; }
+  body:has(.app-sidebar) { padding-inline-start: 0 !important; }
+}
+
+
+/* ── الترويسة المحايدة ── */
+.app-header {
+  background: color-mix(in oklab, var(--page) 90%, transparent);
+  backdrop-filter: blur(16px);
+  color: var(--ink);
+}
+.logo-on-dark-theme { display: none; }
+:root[data-theme="dark"] .logo-on-dark-theme { display: inline-flex; }
+:root[data-theme="dark"] .logo-on-light-theme { display: none; }
+.logo-on-light-theme { display: inline-flex; }

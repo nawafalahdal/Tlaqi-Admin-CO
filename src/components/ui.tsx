@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { LogoLockup } from "./Logo";
+import { ThemedLockup } from "./Logo";
 import { HeaderShell } from "./HeaderShell";
-import { logoToneFor, brandInk, brandInkBorder, type themeFromColor } from "@/lib/brand";
+import { brandInk, brandInkBorder, type themeFromColor } from "@/lib/brand";
 import { readableTextOn } from "@/lib/colors";
 import { ImproveButton } from "./ImproveButton";
 export { StatusBadge } from "./StatusBadge";
@@ -29,17 +29,20 @@ export function AppHeader({
 }) {
   return (
     <>
+      {/* ترويسةٌ محايدة بلون الصفحة — لا شريطٌ بلون القسم يملأ رأس كل شاشة.
+          كان الشريطُ في الداكن خمريّاً ثقيلاً، والاتفاقُ رماديٌّ محايد.
+          وهويةُ القسم لا تضيع: خطٌّ بلونه على حافّة الترويسة السفلى. */}
       <header
-        className="sticky top-0 z-20 border-b"
-        style={{ background: theme.base, borderColor: theme.accentDark }}
+        className="app-header sticky top-0 z-20"
+        style={{ borderBlockEnd: `3px solid ${theme.base}` }}
       >
         <HeaderShell
-          textColor={theme.text}
-          borderColor={`${theme.text}22`}
+          textColor="var(--ink)"
+          borderColor="var(--hairline)"
           userName={userName}
           roleName={roleName}
           homeHref={homeHref}
-          logo={<LogoLockup height={30} tone={logoToneFor(theme)} />}
+          logo={<ThemedLockup height={30} />}
           actions={children}
         />
       </header>
