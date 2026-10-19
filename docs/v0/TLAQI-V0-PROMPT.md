@@ -108,7 +108,7 @@ Legend: ✅ allowed · ❌ denied · ◑ scoped (own department / own record / a
 | Publish announcement | ✅ | ✅ | ✅ | ◑ own dept audience | ❌ | `canPublishAnnouncement` + `announcementPowers` |
 | Manage plans/documents centre | ✅ | ✅ | ❌ | ❌ | ❌ | `canManagePlans` |
 | Read plans centre | ✅ | ✅ | ✅ | ✅ | ✅ | `/plans` |
-| Strategic goals: propose | ✅ | ✅ | ✅ | ✅ | ❌ | `createGoalAction` |
+| Strategic goals: propose | ✅ | ✅ | ❌ | ✅ | ❌ | `createGoal` (`canApproveGoal` or `department_admin`) |
 | Strategic goals: approve | ✅ | ✅ | ❌ | ❌ | ❌ | `canApproveGoal` |
 | Govern weekly period (open/close/review/reopen) | ✅ | ✅ | ❌ | ❌ | ❌ | `canGovernPeriod` |
 | Plan a department's week | ✅ | ✅ | ❌ | ◑ own dept | ❌ | `canPlanDepartment` |
@@ -193,7 +193,7 @@ Rules:
 
 | Token | Light | Dark (graphite, owner-mandated) |
 |---|---|---|
-| `--page` | `#f7f6f3`-ish neutral (see file) | `#17191C` |
+| `--page` | `#F7F5F2` | `#17191C` |
 | `--sidebar-bg` | `#fbfaf8` | `#121416` |
 | `--surface` | `#ffffff` | `#202327` |
 | `--surface-raised` | — | `#2A2E33` |
