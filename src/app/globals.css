@@ -889,3 +889,18 @@ body:has(.improve-fab) main { padding-block-end: 6rem; }
 :root[data-theme="dark"] .auth-page::before, :root[data-theme="dark"] .auth-page::after { background: rgb(195 73 0 / 0.1); }
 .auth-card { border: 1px solid var(--hairline); box-shadow: 0 24px 80px rgb(35 29 25 / 0.1) !important; }
 :root[data-theme="dark"] .auth-card { box-shadow: 0 24px 80px rgb(0 0 0 / 0.28) !important; }
+
+/* ═══ نافذةُ التأكيد (`ConfirmDialog`) — على `<dialog>` الأصيل ═══ */
+.confirm-dialog {
+  margin: auto;
+  width: min(28rem, calc(100vw - 2rem));
+  border: 1px solid var(--hairline);
+  border-radius: 1.25rem;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 1.5rem;
+  box-shadow: 0 24px 80px rgb(35 29 25 / 0.18);
+}
+.confirm-dialog::backdrop { background: rgb(20 16 14 / 0.45); }
+:root[data-theme="dark"] .confirm-dialog { box-shadow: 0 24px 80px rgb(0 0 0 / 0.5); }
+:root[data-theme="dark"] .confirm-dialog::backdrop { background: rgb(0 0 0 / 0.6); }

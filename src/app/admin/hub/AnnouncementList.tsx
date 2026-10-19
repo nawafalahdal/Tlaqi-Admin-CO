@@ -1,9 +1,10 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { deleteAnnouncementAction } from "./actions";
 import { Card } from "@/components/ui";
 import { formatDate } from "@/lib/format";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useTranslations } from "@/i18n/LocaleProvider";
 
 type Announcement = {
@@ -35,6 +36,18 @@ export function AnnouncementList({
 }) {
   const t = useTranslations().hub;
   const [pending, startTransition] = useTransition();
+  const [target, setTarget] = useState<Announcement | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function confirmDelete() {
+    if (!target) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await deleteAnnouncementAction(target.id);
+      if (res.error) setError(res.error);
+      else setTarget(null);
+    });
+  }
   const audienceLabels: Record<string, string> = {
     everyone: t.audEveryone,
     leadership: t.audLeadership,
@@ -96,7 +109,10 @@ export function AnnouncementList({
               <button
                 type="button"
                 disabled={pending}
-                onClick={() => startTransition(() => void deleteAnnouncementAction(a.id))}
+                onClick={() => {
+                  setError(null);
+                  setTarget(a);
+                }}
                 className="ms-auto font-semibold text-red-600 disabled:opacity-50"
               >
                 {t.delete}
@@ -105,6 +121,18 @@ export function AnnouncementList({
           </div>
         </Card>
       ))}
+
+      {/* نافذةٌ واحدة للقائمة كلّها، تحمل الإعلانَ المختار */}
+      <ConfirmDialog
+        open={target !== null}
+        title={t.deleteConfirmTitle}
+        body={target ? t.deleteConfirmBody.replace("{title}", target.title) : null}
+        confirmLabel={t.delete}
+        pending={pending}
+        error={error}
+        onConfirm={confirmDelete}
+        onCancel={() => setTarget(null)}
+      />
     </div>
   );
 }
