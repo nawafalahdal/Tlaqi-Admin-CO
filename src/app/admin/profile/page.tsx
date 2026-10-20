@@ -11,6 +11,8 @@ import { ROLE_LABELS, accountRoleLabel } from "@/lib/testTracks";
 import { formatDate } from "@/lib/format";
 import { AdminProfileForm } from "./ProfileForm";
 import { seniorDepartment, affiliationFor } from "@/lib/seniorAffiliation";
+import { PageHeader } from "@/components/PageHeader";
+import { avatarHasTransparency } from "@/lib/avatars";
 import { WelcomeMailCard } from "@/components/WelcomeMailCard";
 import { SecurityGuidance } from "@/components/SecurityGuidance";
 import { GovernanceCharter } from "@/components/GovernanceCharter";
@@ -45,14 +47,15 @@ export default async function AdminProfilePage() {
         <HeaderActions color={theme.text} />
       </AppHeader>
 
-      <main className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
-        <div>
-          <h1 className="text-lg font-bold sm:text-xl">{tp.title}</h1>
-          <p className="mt-1 text-sm text-black/50">{tp.subtitle}</p>
-        </div>
+      <main className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-6 sm:px-5 sm:py-8">
+        <PageHeader title={tp.title} description={tp.subtitle} />
 
         {/* الصورة الشخصية — لكل شخصٍ لا للقادة وحدهم */}
-        <AvatarUpload current={avatarUrl("user", session.user.id, user.avatarVersion)} theme={theme} />
+        <AvatarUpload
+          current={avatarUrl("user", session.user.id, user.avatarVersion)}
+          theme={theme}
+          opaque={(await avatarHasTransparency(user.avatarData)) === false}
+        />
 
 
         {/* الهوية: تُعرض ولا تُعدَّل من هنا */}

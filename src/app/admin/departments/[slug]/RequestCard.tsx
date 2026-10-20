@@ -4,7 +4,6 @@ import { useTransition } from "react";
 import { updateRequestStatusAction } from "../../actions";
 import { Card, StatusBadge } from "@/components/ui";
 import { themeFromColor } from "@/lib/brand";
-import { readableTextOn } from "@/lib/colors";
 import { formatDate } from "@/lib/format";
 import { useTranslations } from "@/i18n/LocaleProvider";
 
@@ -58,7 +57,7 @@ export function RequestCard({
               )
             }
             className="rounded-lg px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-50"
-            style={{ background: theme.accentDark, color: readableTextOn(theme.accentDark) }}
+            style={{ background: theme.fill, color: theme.onFill }}
           >
             {nextLabel}
           </button>

@@ -18,6 +18,10 @@ import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
  *
  *  كان الهيكل مزروعاً في قاعدة البيانات لا يُغيَّر إلا بسكربت. الآن
  *  يبنيه من يملك القرار التنظيمي من داخل المنصة. */
+
+// شارةُ «الإدارة العليا» ببنفسجها، ومفتوحاً في الداكن ليُرى (`liftForDark`)
+const SENIOR_FILL = themeFromColor("#341D2B").fill;
+
 export default async function DepartmentsIndexPage() {
   const session = await auth();
   if (!session) redirect("/login");
@@ -155,7 +159,7 @@ export default async function DepartmentsIndexPage() {
                         </span>
                       )}
                       {d.leadershipOnly && (
-                        <span className="rounded-full bg-[#341D2B] px-2.5 py-0.5 text-[11px] font-bold text-[#EEF6DF]">
+                        <span className="rounded-full px-2.5 py-0.5 text-[11px] font-bold text-[#FDFBF6]" style={{ background: SENIOR_FILL }}>
                           {td.exceptionalBadge}
                         </span>
                       )}

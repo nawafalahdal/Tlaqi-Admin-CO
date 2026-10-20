@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { ThemedLockup } from "./Logo";
 import { HeaderShell } from "./HeaderShell";
 import { brandInk, brandInkBorder, type themeFromColor } from "@/lib/brand";
-import { readableTextOn } from "@/lib/colors";
 import { ImproveButton } from "./ImproveButton";
 export { StatusBadge } from "./StatusBadge";
 
@@ -104,7 +103,7 @@ export function Button({
   /** حبرُ الخطّ والشبح يتبع السمة: `accentDark` على سطحٍ داكن لا يُقرأ.
    *  والمملوء لا يحتاجه — سطحُه ملوَّنٌ في السمتين. */
   const style: React.CSSProperties = solid
-    ? { background: theme.accentDark, color: readableTextOn(theme.accentDark) }
+    ? { background: theme.fill, color: theme.onFill }
     : variant === "outline"
       ? {
           background: "transparent",

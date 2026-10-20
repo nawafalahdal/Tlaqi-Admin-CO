@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { isSeniorRole, seniorDepartment } from "@/lib/seniorAffiliation";
 import { singleRecipient } from "@/lib/emailPolicy";
 import { visibleTicketWhere } from "@/lib/retention";
 import type { Prisma, TicketStatus } from "@prisma/client";
@@ -607,6 +608,9 @@ export async function escalateTicketNow(ticketId: string, byName: string) {
  */
 async function recordTicketOutcome(ticket: {
   targetDepartmentId: string | null;
+  /** الموجّهة لشخص: تُنسب إلى قسمه — انظر `personDepartmentId` */
+  targetUser?: { role: string; departmentId: string | null } | null;
+  targetMember?: { departmentId: string | null } | null;
   resolvedByUserId: string | null;
   resolvedAt: Date | null;
   firstDueAt: Date | null;
@@ -623,7 +627,11 @@ async function recordTicketOutcome(ticket: {
       })();
 
   const scopes: string[] = [];
-  if (ticket.targetDepartmentId) scopes.push(`dept:${ticket.targetDepartmentId}`);
+  // التذكرةُ الموجّهة لشخصٍ تُعَدّ لقسمه — كانت لا تُنسب لقسمٍ أبداً، فيقول
+  // ملخّص الأقسام «أُغلقت في موعدها ٠» وتحته قائمةٌ فيها ما أُغلق في موعده.
+  // ويسري من الإغلاقات القادمة: ما عُدّ قبلُ لا يُعاد عدُّه (قرار المؤسس).
+  const deptId = ticket.targetDepartmentId ?? (await personDepartmentId(ticket));
+  if (deptId) scopes.push(`dept:${deptId}`);
   if (ticket.resolvedByUserId) scopes.push(`user:${ticket.resolvedByUserId}`);
 
   for (const scope of scopes) {
@@ -640,6 +648,17 @@ async function recordTicketOutcome(ticket: {
   }
 }
 
+
+/** قسمُ الشخص الموجَّهة إليه التذكرة — والإدارة العليا لأهلها بدورهم */
+export async function personDepartmentId(ticket: {
+  targetUser?: { role: string; departmentId: string | null } | null;
+  targetMember?: { departmentId: string | null } | null;
+}): Promise<string | null> {
+  if (ticket.targetMember) return ticket.targetMember.departmentId;
+  if (!ticket.targetUser) return null;
+  if (isSeniorRole(ticket.targetUser.role)) return (await seniorDepartment())?.id ?? ticket.targetUser.departmentId;
+  return ticket.targetUser.departmentId;
+}
 
 export function ticketVisibilityWhere(session: {
   user: { id: string; role: string; departmentId?: string | null };

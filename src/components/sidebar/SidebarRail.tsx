@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { createContext, useContext, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, useContext, useLayoutEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { activeNavId, NAV_GROUPS, type NavGroup, type NavItem } from "@/lib/navigation";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import { LogoMark, ThemedLockup } from "../Logo";
@@ -34,6 +34,7 @@ export function useAppNav() {
 }
 
 const STORE = "tlaqi-sidebar";
+const NAV_SCROLL = "tlaqi-nav-scroll";
 const listeners = new Set<() => void>();
 function subscribeSidebar(l: () => void) {
   listeners.add(l);
@@ -60,6 +61,7 @@ export function SidebarProvider({
   account,
   raise,
   avatar,
+  avatarTone,
   children,
 }: {
   items: NavItem[];
@@ -69,6 +71,8 @@ export function SidebarProvider({
   account: ReactNode;
   raise: Raise;
   avatar: string | null;
+  /** خلفيةُ الصورة بلون انتماء صاحبها — تُحسَب في الخادم (`portraitColorFor`) */
+  avatarTone: string;
   children: ReactNode;
 }) {
   const pathname = usePathname() ?? "";
@@ -84,6 +88,7 @@ export function SidebarProvider({
           account={account}
           raise={raise}
           avatar={avatar}
+          avatarTone={avatarTone}
           pathname={pathname}
         />
       )}
@@ -100,6 +105,7 @@ function SidebarRail({
   account,
   raise,
   avatar,
+  avatarTone,
   pathname,
 }: {
   items: NavItem[];
@@ -109,6 +115,8 @@ function SidebarRail({
   account: ReactNode;
   raise: Raise;
   avatar: string | null;
+  /** خلفيةُ الصورة بلون انتماء صاحبها — تُحسَب في الخادم (`portraitColorFor`) */
+  avatarTone: string;
   pathname: string;
 }) {
   const t = useTranslations();
@@ -117,6 +125,42 @@ function SidebarRail({
   // حالة React: فالخادمُ لا يعرفها، والعميلُ يقرؤها بعد الإماهة دون تعارض.
   const collapsed = useSyncExternalStore(subscribeSidebar, readCollapsed, () => false);
   const active = activeNavId(items, pathname);
+  const navRef = useRef<HTMLElement>(null);
+
+  // **موضعُ التمرير يبقى بين الصفحات.** القائمةُ مُركَّبةٌ في تخطيط كل قسمٍ
+  // (الإدارة، الهيكل، التقويم، الخطط، العضو)، فالانتقالُ بين قسمين يبني
+  // عنصرَها من جديد ويعود تمريرُه إلى الصفر — فيُعيد المستخدمُ التمرير في كل
+  // مرّة. فيُحفَظ الموضعُ لهذا التبويب (`sessionStorage`) ويُستعاد قبل الرسم،
+  // فلا تقفز. ومن فتح رابطاً مباشراً بلا موضعٍ محفوظ يُرى بندُه النشطُ ظاهراً.
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    let saved: string | null = null;
+    try {
+      saved = sessionStorage.getItem(NAV_SCROLL);
+    } catch {
+      saved = null;
+    }
+    if (saved !== null) nav.scrollTop = Number(saved) || 0;
+    else nav.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: "nearest" });
+
+    let frame = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        try {
+          sessionStorage.setItem(NAV_SCROLL, String(nav.scrollTop));
+        } catch {
+          /* تصفّحٌ خاصّ — يعمل التمرير ولا يُحفَظ */
+        }
+      });
+    };
+    nav.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      nav.removeEventListener("scroll", onScroll);
+    };
+  }, []);
 
   const toggle = () => {
     const next = !collapsed;
@@ -169,7 +213,7 @@ function SidebarRail({
         <span className="app-sidebar__label">{raise.label}</span>
       </Link>
 
-      <nav className="app-sidebar__nav">
+      <nav className="app-sidebar__nav" ref={navRef}>
         {grouped(items).map(({ group, items: gi }) => (
           <div key={group} className="app-sidebar__group">
             <p className="app-sidebar__label app-sidebar__section" id={`nav-g-${group}`}>
@@ -207,7 +251,7 @@ function SidebarRail({
           كانت أزراراً تزحم الترويسة في كل شاشة */}
       <details className="account-menu">
         <summary className="app-sidebar__user" title={`${userName} — ${roleName}`} aria-label={`${s.accountMenu}: ${userName}`}>
-          <span className="app-sidebar__avatar" aria-hidden="true">
+          <span className="app-sidebar__avatar" aria-hidden="true" style={{ background: avatarTone }}>
             {avatar ? (
               // موردٌ مخزَّنٌ سنةً بختمه — لا يحتاج مُحسِّنَ الصور ولا يُعاد تنزيله
               // eslint-disable-next-line @next/next/no-img-element

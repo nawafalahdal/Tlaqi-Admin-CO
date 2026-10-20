@@ -53,7 +53,7 @@ export function InviteLinkReveal({
         type="button"
         onClick={copy}
         className="mt-3 rounded-lg px-3 py-1.5 text-xs font-semibold"
-        style={{ background: theme.accentDark, color: "#FDFBF6" }}
+        style={{ background: theme.fill, color: "#FDFBF6" }}
       >
         {copied ? t.actions.copied : t.invite.copyInviteLink}
       </button>

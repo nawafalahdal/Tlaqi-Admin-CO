@@ -64,13 +64,16 @@ async function shrinkForUpload(file: File): Promise<File> {
 export function AvatarUpload({
   current,
   theme,
+  opaque = false,
 }: {
   current: string | null;
   theme: ReturnType<typeof themeFromColor>;
+  /** الصورةُ المحفوظة معتمةٌ بخلفيتها (`avatarHasTransparency`) — يُقال لصاحبها */
+  opaque?: boolean;
 }) {
   const [preview, setPreview] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(current);
-  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [msg, setMsg] = useState<{ kind: "ok" | "err" | "warn"; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -151,7 +154,14 @@ export function AvatarUpload({
                   setSaved(preview);
                   setPreview(null);
                   if (inputRef.current) inputRef.current.value = "";
-                  setMsg({ kind: "ok", text: "حُفظت صورتك وستظهر في الهيكل" });
+                  setMsg(
+                    res.transparent === false
+                      ? {
+                          kind: "warn",
+                          text: "حُفظت صورتك — لكنها ليست مفرَّغة الخلفية، فتظهر بخلفيتها لا بلون قسمك. ليظهر لونُ قسمك حولك ارفع صورة PNG مفرَّغة.",
+                        }
+                      : { kind: "ok", text: "حُفظت صورتك وستظهر في الهيكل بلون قسمك" }
+                  );
                 });
               }}
             >
@@ -194,10 +204,21 @@ export function AvatarUpload({
         </div>
       </div>
 
+      {opaque && !msg && (
+        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+          صورتك الحالية ليست مفرَّغة الخلفية، فتظهر في الهيكل بخلفيتها لا بلون قسمك. ليظهر لونُ قسمك
+          حولك، ارفع صورة PNG مفرَّغة الخلفية.
+        </p>
+      )}
+
       {msg && (
         <p
           className={`mt-3 rounded-lg px-3 py-2 text-xs leading-relaxed ${
-            msg.kind === "ok" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+            msg.kind === "ok"
+              ? "bg-green-50 text-green-800"
+              : msg.kind === "warn"
+                ? "bg-amber-50 text-amber-900"
+                : "bg-red-50 text-red-800"
           }`}
         >
           {msg.text}

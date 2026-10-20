@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { submitCandidateTestAction } from "./actions";
-import type { themeFromColor } from "@/lib/brand";
-import { readableTextOn } from "@/lib/colors";
+import { brandInk, type themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
 
 type Theme = ReturnType<typeof themeFromColor>;
@@ -30,7 +29,7 @@ export function CandidateTest({
   const question = questions[qIndex];
   const isLast = qIndex === questions.length - 1;
   const canNext = question ? answers[question.id] !== undefined : false;
-  const buttonTextColor = readableTextOn(theme.accentDark);
+  const buttonTextColor = theme.onFill;
 
   async function handleSubmit() {
     setPending(true);
@@ -55,7 +54,7 @@ export function CandidateTest({
             background: result.passed
               ? "light-dark(#E3F3E8, color-mix(in oklab, #10b981 18%, var(--surface)))"
               : theme.surface,
-            color: result.passed ? "#1F6B3A" : theme.accentDark,
+            color: result.passed ? "#1F6B3A" : brandInk(theme),
           }}
         >
           {result.passed ? "✓" : "!"}
@@ -97,7 +96,7 @@ export function CandidateTest({
           className="h-full rounded-full transition-all"
           style={{
             width: `${((qIndex + 1) / questions.length) * 100}%`,
-            background: theme.accentDark,
+            background: theme.fill,
           }}
         />
       </div>
@@ -142,7 +141,7 @@ export function CandidateTest({
           disabled={!canNext || pending}
           onClick={isLast ? handleSubmit : () => setQIndex((i) => Math.min(questions.length - 1, i + 1))}
           className="min-h-11 rounded-xl px-6 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
-          style={{ background: theme.accentDark, color: buttonTextColor }}
+          style={{ background: theme.fill, color: buttonTextColor }}
         >
           {isLast ? (pending ? t.invite.submitting : t.invite.submitAnswers) : t.invite.next}
         </button>

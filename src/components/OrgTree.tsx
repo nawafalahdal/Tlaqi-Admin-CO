@@ -49,9 +49,9 @@ export function OrgTree({
       {/* ── الرئيس التنفيذي */}
       <SeatCard seat={chart.ceo} color={ORG_SENIOR_COLOR} size={compact ? "md" : "lg"} viewerId={viewerId} />
 
-      {/* ── الإدارة العليا: تحت الرئيس التنفيذي، وفيها مسؤول المتابعة
-            والتشغيل أولاً ثم من يُضاف إليها. والمؤسس والتنفيذي منها بدورهما
-            (`seniorAffiliation`) لكنهما يُرسَمان فوقها: هما رأسُ السلسلة */}
+      {/* ── الإدارة العليا: يقودها الرئيس التنفيذي (قرار المؤسس)، وفيها
+            مسؤول المتابعة والتشغيل أولاً ثم من يُضاف إليها. وقائدُها يُرسَم
+            فوقها مرّةً واحدة ويُسمّى في رأسها — لا بطاقةً مكرّرة داخلها */}
       {(chart.senior || chart.underCeo.length > 0) && (
         <>
           <Trunk />
@@ -66,12 +66,21 @@ export function OrgTree({
               className="flex items-center justify-between gap-2 px-4 py-2.5"
               style={{ background: portraitTone(ORG_SENIOR_COLOR).background, color: "#fff" }}
             >
-              <span className="text-sm font-bold">{chart.senior?.name ?? "الإدارة العليا"}</span>
+              <span className="flex flex-col">
+                <span className="text-sm font-bold">{chart.senior?.name ?? "الإدارة العليا"}</span>
+                {chart.ceo.kind === "filled" && (
+                  <span className="text-[11px] font-semibold opacity-85">
+                    يقودها الرئيس التنفيذي: {chart.ceo.person.fullName}
+                  </span>
+                )}
+              </span>
+              {/* العدُّ يشمل قائدَها المرسومَ فوقها — فلا يُقال «شخصٌ واحد» وفيها اثنان */}
               <span className="text-[11px] font-semibold opacity-80">
-                {chart.underCeo.filter((x) => x.kind === "filled").length +
+                {(chart.ceo.kind === "filled" ? 1 : 0) +
+                  chart.underCeo.filter((x) => x.kind === "filled").length +
                   (chart.senior?.lead.kind === "filled" ? 1 : 0) +
                   (chart.senior?.members.length ?? 0)}{" "}
-                أشخاص
+                أشخاص مع قائدها
               </span>
             </div>
             <div className="flex flex-wrap justify-center gap-3 px-4 py-4">

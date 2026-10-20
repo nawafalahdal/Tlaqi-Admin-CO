@@ -77,7 +77,7 @@ export function SubmitWork({
             }`}
             style={
               mode === m
-                ? { background: theme.accentDark }
+                ? { background: theme.fill }
                 : { border: "1px solid color-mix(in oklab, var(--ink) 14%, transparent)" }
             }
           >

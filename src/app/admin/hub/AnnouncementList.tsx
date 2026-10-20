@@ -83,7 +83,7 @@ export function AnnouncementList({
                   href={a.meetingUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-11 items-center rounded-xl bg-[#341D2B] px-4 text-sm font-semibold text-[#EEF6DF]"
+                  className="inline-flex min-h-11 items-center rounded-xl btn-brand px-4 text-sm font-semibold"
                 >
                   {t.joinMeeting}
                 </a>

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
-import { themeFromColor, SUPER_ADMIN_THEME, BRAND } from "@/lib/brand";
+import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { SeatConflicts } from "@/components/SeatConflicts";
@@ -15,7 +15,6 @@ import Link from "next/link";
 import { RosterRowActions } from "./RosterRowActions";
 import { roleTitle } from "@/lib/gender";
 import { avatarUrl } from "@/lib/avatarUrl";
-import { readableTextOn } from "@/lib/colors";
 import { formatDate, sinceLabel } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
 import {
@@ -28,6 +27,8 @@ import { loginHealthFor, loginHealthNotes, loginHealthBlocked } from "@/lib/logi
 import { scheduleDueSweeps } from "@/lib/sweepThrottle";
 import { isRosterMember } from "@/lib/roster";
 import { affiliationFor } from "@/lib/seniorAffiliation";
+import { PersonAvatar } from "@/components/PersonAvatar";
+import { portraitColorFor } from "@/lib/portraitTone";
 
 /** إدارة الأعضاء والهيكل التنظيمي — موضعٌ واحد للشخص وموقعه وقسمه.
  *
@@ -482,18 +483,12 @@ export default async function PeoplePage({
               cells: {
                 name: (
                   <span className="flex items-center gap-2.5">
-                    {r.avatar ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={r.avatar} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
-                    ) : (
-                      <span
-                        aria-hidden="true"
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold"
-                        style={{ background: r.dept?.colorHex ?? BRAND.temptress, color: readableTextOn(r.dept?.colorHex ?? BRAND.temptress) }}
-                      >
-                        {r.name.trim().charAt(0)}
-                      </span>
-                    )}
+                    <PersonAvatar
+                      src={r.avatar}
+                      name={r.name}
+                      color={portraitColorFor(null, r.dept)}
+                      className="h-9 w-9"
+                    />
                     <span className="min-w-0">
                       <span className="block font-bold">
                         {r.name}

@@ -40,7 +40,7 @@ export async function SecurityGuidance({
             <span
               aria-hidden="true"
               className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
-              style={{ background: theme.accentDark }}
+              style={{ background: theme.fill }}
             />
             <span>{r}</span>
           </li>
@@ -63,7 +63,7 @@ export async function SecurityGuidance({
           <Link
             href="/admin/security"
             className="mt-2.5 inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-semibold text-on-brand"
-            style={{ background: theme.accentDark }}
+            style={{ background: theme.fill }}
           >
             {t.totpEnable}
           </Link>

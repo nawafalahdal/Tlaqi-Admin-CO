@@ -177,7 +177,7 @@ export function ObjectivesPanel({
                     aria-valuemax={100}
                     aria-label={`تقدّم ${o.title}`}
                   >
-                    <div className="h-full" style={{ width: `${pct}%`, background: theme.accentDark }} />
+                    <div className="h-full" style={{ width: `${pct}%`, background: theme.fill }} />
                   </div>
                 )}
                 {o.status === "rejected" && o.decisionNote && (

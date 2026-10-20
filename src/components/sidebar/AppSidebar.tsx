@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { auth, signOut } from "@/auth";
 import { canResendWelcome, canRequestWelcomeResend } from "@/lib/welcomeResend";
+import { portraitTone, portraitColorFor } from "@/lib/portraitTone";
 import { navFor, homeFor, raiseTicketHref } from "@/lib/navigation";
 import { isSigningRole } from "@/lib/signatures";
 import { prisma } from "@/lib/prisma";
@@ -40,9 +41,11 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
   // نفسُها موردٌ يُخزَّن في المتصفّح سنةً (`/api/avatar`)، فلا تُعاد مع كل
   // صفحة. والتخطيطُ لا يُعاد رسمه بين صفحات القسم الواحد أصلاً.
   const stamp = isMember
-    ? await prisma.member.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true, gender: true } })
-    : await prisma.user.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true, gender: true } });
+    ? await prisma.member.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true, gender: true, department: { select: { name: true, colorHex: true } } } })
+    : await prisma.user.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true, gender: true, department: { select: { name: true, colorHex: true } } } });
   const avatar = avatarUrl(isMember ? "member" : "user", session.user.id, stamp?.avatarVersion);
+  // خلفيةُ الصورة بلون انتمائه كما في الهيكل والسجلّ — لا برتقاليٌّ ثابت
+  const avatarTone = portraitTone(portraitColorFor(session.user.role, stamp?.department)).background;
 
   const accountLinks = [
     ...(isMember ? [] : [
@@ -89,6 +92,7 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
       account={account}
       raise={{ href: raiseTicketHref(viewer), label: t.composer.cta }}
       avatar={avatar}
+      avatarTone={avatarTone}
     >
       {/* من لم يختر مخاطبته يُسأل مرّةً هنا — وما بعد الاختيار لا يظهر */}
       {stamp && !stamp.gender && <GenderPrompt />}

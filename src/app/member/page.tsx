@@ -26,6 +26,7 @@ import { announcementsForSession } from "@/lib/announcements";
 import { AnnouncementList } from "@/app/admin/hub/AnnouncementList";
 import { scheduleDueSweeps } from "@/lib/sweepThrottle";
 import { WorkspaceOverview } from "@/components/dashboard/WorkspaceOverview";
+import { avatarHasTransparency } from "@/lib/avatars";
 
 export default async function MemberPortalPage() {
   const session = await auth();
@@ -129,7 +130,11 @@ export default async function MemberPortalPage() {
         {/* البريد الترحيبي وشروط الحماية للجميع — العضو كالقائد في هذا */}
         <section className="flex flex-col gap-4">
           {/* صورته في الهيكل — للأعضاء كما للقادة */}
-          <AvatarUpload current={avatarUrl("member", member.id, member.avatarVersion)} theme={theme} />
+          <AvatarUpload
+            current={avatarUrl("member", member.id, member.avatarVersion)}
+            theme={theme}
+            opaque={(await avatarHasTransparency(member.avatarData)) === false}
+          />
           <WelcomeMailCard
             theme={theme}
             sentAt={member.welcomeEmailSentAt ? formatDate(member.welcomeEmailSentAt) : null}

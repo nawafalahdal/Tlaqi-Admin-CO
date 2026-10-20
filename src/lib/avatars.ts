@@ -98,13 +98,37 @@ export async function normalizeAvatar(
   };
 }
 
+/** أفي الصورة المخزَّنة شفافيةٌ حقيقية — أم هي صورةٌ معتمةٌ بخلفيتها؟
+ *
+ *  التوحيدُ يُحيط كلَّ صورةٍ بهامشٍ شفّافٍ ليصير مربّعاً، فلا يكفي أن يُسأل
+ *  «أفيها شفافية؟». فيُقصّ الهامشُ أولاً (`trim` بلون الركن، وهو الشفّاف)
+ *  ثم يُسأل عن الباقي: الصورةُ المفرَّغة يبقى حول صاحبها شفافٌ، والمعتمةُ
+ *  مستطيلٌ ممتلئ. ولا يُعدَّل شيءٌ في الصورة — قراءةٌ فقط، و`null` إن تعذّرت.
+ *
+ *  وهذا لِيُقال لصاحب الصورة الحقيقة: CSS لا يُزيل خلفية، فمن أراد لونَ
+ *  قسمه حوله يرفع PNG مفرَّغة (قرار المؤسس: لا خدمةَ خارجيةً للتفريغ). */
+export async function avatarHasTransparency(data: Buffer | string | null): Promise<boolean | null> {
+  if (!data) return null;
+  try {
+    const buf = typeof data === "string" ? Buffer.from(data.replace(/^data:[^,]+,/, ""), "base64") : data;
+    const meta = await sharp(buf).metadata();
+    if (!meta.hasAlpha) return false;
+    const trimmed = await sharp(buf).trim().toBuffer();
+    const stats = await sharp(trimmed).stats();
+    return !stats.isOpaque;
+  } catch {
+    return null;
+  }
+}
+
 /** يحفظ الصورة لصاحبها — صورةٌ واحدة، تُستبدَل ولا تُجمَع. */
 export async function saveAvatar(
   subject: AvatarSubject,
   input: Buffer
-): Promise<{ ok: true; bytes: number } | { ok: false; reason: string }> {
+): Promise<{ ok: true; bytes: number; transparent: boolean | null } | { ok: false; reason: string }> {
   const normalized = await normalizeAvatar(input);
   if (!normalized.ok) return normalized;
+  const transparent = await avatarHasTransparency(normalized.dataUrl);
 
   // الختمُ يُكتَب مع البيانات في نفس التحديث لا في تحديثٍ ثانٍ: لو
   // انفصلا لأمكن أن تُكتَب صورةٌ بختمٍ قديم، فيَعرض المتصفّحُ السابقةَ
@@ -121,7 +145,7 @@ export async function saveAvatar(
     await prisma.user.update({ where: { id: subject.id }, data: stamped });
   }
 
-  return { ok: true, bytes: normalized.bytes };
+  return { ok: true, bytes: normalized.bytes, transparent };
 }
 
 /** يحذف الصورة — فيعود العنصر الافتراضي */

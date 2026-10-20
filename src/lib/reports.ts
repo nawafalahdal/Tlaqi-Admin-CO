@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { personDepartmentId } from "@/lib/tickets";
 import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
 import { accountRoleLabel } from "@/lib/testTracks";
 import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
@@ -59,6 +60,8 @@ export async function departmentsReport(): Promise<DepartmentReport[]> {
       id: true,
       name: true,
       colorHex: true,
+      leadershipOnly: true,
+      parentId: true,
       admins: {
         where: { isActive: true, role: "department_admin" },
         select: { fullName: true, role: true },
@@ -82,16 +85,42 @@ export async function departmentsReport(): Promise<DepartmentReport[]> {
   const openByDept = new Map(
     open.map((o) => [o.targetDepartmentId as string, o._count._all])
   );
+  // والموجّهةُ لأشخاص تُعَدّ لأقسامهم — كما تُعَدّ عند إغلاقها (`personDepartmentId`)
+  const personOpen = await prisma.ticket.findMany({
+    where: { status: { not: "resolved" }, targetDepartmentId: null },
+    select: {
+      targetUser: { select: { role: true, departmentId: true } },
+      targetMember: { select: { departmentId: true } },
+    },
+    take: 2000,
+  });
+  for (const t of personOpen) {
+    const id = await personDepartmentId(t);
+    if (id) openByDept.set(id, (openByDept.get(id) ?? 0) + 1);
+  }
+
+  // الإدارة العليا يقودها الرئيس التنفيذي (قرار المؤسس)، وأعضاؤها مسؤولو
+  // المتابعة والتشغيل ومن أُضيف إليها. والمؤسس فوق المنظومة كلها لا عضواً فيها.
+  const [ceo, opsCount] = await Promise.all([
+    prisma.user.findFirst({
+      where: { role: "executive", isActive: true },
+      orderBy: { createdAt: "asc" },
+      select: { fullName: true, role: true },
+    }),
+    prisma.user.count({ where: { role: "operations_officer", isActive: true } }),
+  ]);
 
   return departments.map((d) => {
     const tally = tallies.get(`dept:${d.id}`) ?? ZERO;
+    const isSenior = d.leadershipOnly && !d.parentId;
+    const lead = isSenior ? (ceo ?? d.admins[0]) : d.admins[0];
     return {
       departmentId: d.id,
       departmentName: d.name,
       colorHex: d.colorHex,
-      leadName: d.admins[0]?.fullName ?? null,
-      leadRole: d.admins[0] ? accountRoleLabel(d.admins[0].role) : null,
-      membersCount: d._count.members,
+      leadName: lead?.fullName ?? null,
+      leadRole: lead ? accountRoleLabel(lead.role) : null,
+      membersCount: d._count.members + (isSenior ? opsCount : 0),
       openTickets: openByDept.get(d.id) ?? 0,
       tally,
       onTimeRate: onTimeRate(tally),

@@ -99,7 +99,7 @@ export function AddPlanDoc({ theme }: { theme: ReturnType<typeof themeFromColor>
             }`}
             style={
               mode === m
-                ? { background: theme.accentDark }
+                ? { background: theme.fill }
                 : { border: "1px solid color-mix(in oklab, var(--ink) 14%, transparent)" }
             }
           >

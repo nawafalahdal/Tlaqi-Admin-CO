@@ -8,12 +8,11 @@ import { HeaderActions } from "@/components/HeaderActions";
 import { formatDate, sinceLabel } from "@/lib/format";
 import { roleTitle } from "@/lib/gender";
 import { avatarUrl } from "@/lib/avatarUrl";
-import { readableTextOn } from "@/lib/colors";
 import { canAward } from "@/lib/awards";
 import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
-import { ORG_SENIOR_COLOR, departmentDisplayColor } from "@/lib/orgChart";
-import { portraitTone } from "@/lib/portraitTone";
-import { seniorDepartment, affiliationFor, isSeniorRole } from "@/lib/seniorAffiliation";
+import { portraitColorFor } from "@/lib/portraitTone";
+import { PersonAvatar } from "@/components/PersonAvatar";
+import { seniorDepartment, affiliationFor } from "@/lib/seniorAffiliation";
 import { AccountRow } from "../../AccountRow";
 import { MemberAccountRow } from "../../MemberAccountRow";
 import { MyAccountCard } from "../../MyAccountCard";
@@ -140,11 +139,7 @@ export default async function PersonPage({
   const joined = user ? user.createdAt : (member!.orgJoinDate ?? member!.decidedAt ?? member!.joinDate);
   const avatar = avatarUrl(kind, person.id, person.avatarVersion);
   // خلفيةُ الصورة بلون انتمائه كما في الهيكل — والإدارة العليا ببنفسجيّها
-  const portraitColor = isSeniorRole(accountRole)
-    ? ORG_SENIOR_COLOR
-    : dept
-      ? departmentDisplayColor(dept.name, dept.colorHex)
-      : null;
+  const portraitColor = portraitColorFor(accountRole, dept);
   const isSelf = user?.id === session.user.id;
   const statusOk = person.isActive;
   const commStatus = (s: string) =>
@@ -190,23 +185,7 @@ export default async function PersonPage({
         </div>
 
         <Card className="flex flex-wrap items-center gap-4 p-5" style={{ borderTop: `5px solid ${color}` }}>
-          {avatar ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={avatar}
-              alt=""
-              className="h-20 w-20 rounded-full object-contain"
-              style={{ background: portraitTone(portraitColor).background }}
-            />
-          ) : (
-            <span
-              aria-hidden="true"
-              className="flex h-20 w-20 items-center justify-center rounded-full text-3xl font-bold"
-              style={{ background: color, color: readableTextOn(color) }}
-            >
-              {person.fullName.trim().charAt(0)}
-            </span>
-          )}
+          <PersonAvatar src={avatar} name={person.fullName} color={portraitColor} className="h-20 w-20" textClassName="text-2xl" />
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold">{person.fullName}</h1>
             <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-black/60">

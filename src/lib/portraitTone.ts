@@ -1,5 +1,6 @@
 import { BRAND } from "@/lib/brand";
-import { ORG_SENIOR_COLOR, needsOutline, outlineFor } from "@/lib/orgChart";
+import { ORG_SENIOR_COLOR, needsOutline, outlineFor, departmentDisplayColor } from "@/lib/orgChart";
+import { isSeniorRole } from "@/lib/seniorAffiliation";
 
 /** خلفيةُ الصورة الشخصية — لونُ قسم صاحبها، في موضعٍ واحد.
  *
@@ -20,4 +21,17 @@ export function portraitTone(color: string | null | undefined): { background: st
     return { background: BRAND.temptress, ring: null };
   }
   return { background: color, ring: needsOutline(color) ? outlineFor(color) : null };
+}
+
+/** لونُ انتماء الشخص لخلفية صورته — المصدرُ الواحد لكل موضعٍ تُعرَض فيه.
+ *
+ *  الإدارة العليا لأهلها بدورهم (`seniorAffiliation`)، وغيرُهم لونُ قسمهم
+ *  كما يُعرَض في الهيكل (`departmentDisplayColor`)، ومن لا قسم له محايد. فإن
+ *  تغيّر قسمُ أحدٍ تغيّرت خلفيتُه في القراءة التالية بلا إجراء. */
+export function portraitColorFor(
+  role: string | null | undefined,
+  department: { name: string; colorHex: string } | null | undefined
+): string | null {
+  if (isSeniorRole(role)) return ORG_SENIOR_COLOR;
+  return department ? departmentDisplayColor(department.name, department.colorHex) : null;
 }

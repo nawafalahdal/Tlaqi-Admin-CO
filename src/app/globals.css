@@ -29,7 +29,6 @@
   --hairline: #ddd8d5;
   --border-strong: #b9b0ad;
   --brand-primary: #341d2b;
-  --brand-action: #7f2f32;
   --brand-accent: #c34900;
   --focus: #a33b37;
   --success: #1f6b3a;
@@ -83,15 +82,7 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --page: #151416;
-  --surface: #202024;
-  --surface-raised: #29292e;
-  --ink: #f1eef0;
-  --ink-muted: #c0b8bd;
-  --hairline: #4a454a;
-  --border-strong: #6d656b;
   --brand-primary: #e1b9c4;
-  --brand-action: #c34900;
   --brand-accent: #f08a52;
   --focus: #f08a52;
   --success: #6ee7b7;
@@ -105,10 +96,6 @@
    *  على العين وقُرئ خطأً: الهويةُ بنفسجيّةٌ في عناصرها لا في أرضيتها.
    *  فالأرضيةُ رماديّةٌ محايدة تَترك ألوانَ الأقسام تظهر عليها، وهذا
    *  أصلاً عملُ الأرضية. */
-  --page: #141416;
-  --surface: #1e1e22;
-  --ink: #ececef;
-  --hairline: color-mix(in oklab, var(--ink) 14%, transparent);
 
   /* ── الرماديُّ الغرافيتيّ المتّفق عليه (يغلب ما فوقه) ──
    *  أرضيةٌ #17191C، والقائمةُ الجانبية أعمقُ منها بدرجة #121416،
@@ -1215,7 +1202,7 @@ body:has(.app-sidebar) main > section > div:first-child > h2:first-child {
 .composer__tips li { position: relative; padding-inline-start: 1.1rem; font-size: 0.8125rem; line-height: 1.7; color: color-mix(in oklab, var(--ink) 65%, transparent); }
 .composer__tips li::before { content: ""; position: absolute; inset-inline-start: 0; top: 0.6rem; width: 0.4rem; height: 0.4rem; border-radius: 999px; background: var(--brand-action); }
 .app-sidebar__avatar { overflow: hidden; }
-.app-sidebar__avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.app-sidebar__avatar-img { width: 100%; height: 100%; object-fit: contain; display: block; }
 
 /* ═══ معالجُ الهدف — نافذةٌ أعرض من نافذة التأكيد ═══ */
 .confirm-dialog.goal-wizard { width: min(44rem, calc(100vw - 2rem)); }

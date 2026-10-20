@@ -20,7 +20,7 @@ import { safeErrorMessage } from "@/lib/safeError";
  */
 export async function uploadMyAvatarAction(
   formData: FormData
-): Promise<{ error: string | null; done?: boolean; bytes?: number }> {
+): Promise<{ error: string | null; done?: boolean; bytes?: number; transparent?: boolean | null }> {
   const session = await auth();
   if (!session) return { error: "يجب تسجيل الدخول" };
 
@@ -40,7 +40,7 @@ export async function uploadMyAvatarAction(
     revalidatePath("/structure");
     revalidatePath("/admin/profile");
     revalidatePath("/member");
-    return { error: null, done: true, bytes: res.bytes };
+    return { error: null, done: true, bytes: res.bytes, transparent: res.transparent };
   } catch (err) {
     return { error: safeErrorMessage(err) };
   }

@@ -38,7 +38,7 @@ export async function GovernanceCharter({
             <span
               aria-hidden="true"
               className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
-              style={{ background: theme.accentDark }}
+              style={{ background: theme.fill }}
             />
             <span>{m}</span>
           </li>

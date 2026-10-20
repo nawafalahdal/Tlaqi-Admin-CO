@@ -40,7 +40,7 @@ export function AwardButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex min-h-11 items-center rounded-xl bg-[#EEF6DF] px-4 text-sm font-semibold text-[#341D2B] ring-1 ring-[#341D2B]/15"
+        className="inline-flex min-h-11 items-center rounded-xl bg-[var(--accent-soft)] px-4 text-sm font-semibold text-[var(--accent-soft-ink)] ring-1 ring-[var(--accent-soft-line)]"
       >
         كرِّمه على إنجاز
       </button>
@@ -48,8 +48,8 @@ export function AwardButton({
   }
 
   return (
-    <div className="mt-3 flex flex-col gap-3 rounded-2xl bg-[#EEF6DF]/50 p-4 ring-1 ring-[#341D2B]/10">
-      <p className="text-xs font-bold text-[#341D2B]">تكريم {personName}</p>
+    <div className="mt-3 flex flex-col gap-3 rounded-2xl bg-[var(--accent-soft)] p-4 ring-1 ring-[var(--accent-soft-line)]">
+      <p className="text-xs font-bold text-[var(--accent-soft-ink)]">تكريم {personName}</p>
       <label className="flex flex-col gap-1.5 text-sm">
         <span className="font-medium text-black/70">الإنجاز (يصل كما تكتبه)</span>
         <input

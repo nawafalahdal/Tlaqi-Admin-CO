@@ -50,7 +50,7 @@ export default async function StructurePdfPage() {
           </ul>
           <a
             href="/structure"
-            className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-[#341D2B] px-4 text-sm font-semibold text-on-brand"
+            className="mt-4 inline-flex min-h-11 items-center rounded-xl btn-brand px-4 text-sm font-semibold"
           >
             عودة إلى الهيكل
           </a>

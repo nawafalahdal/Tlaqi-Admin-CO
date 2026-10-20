@@ -41,7 +41,7 @@ export async function TicketBoard({
         <Link
           href="/admin/tickets"
           className="min-h-11 rounded-xl px-4 text-sm font-semibold leading-[2.75rem]"
-          style={{ background: theme.accentDark, color: "#fff" }}
+          style={{ background: theme.fill, color: "#fff" }}
         >
           {tb.openAll}
         </Link>
@@ -101,7 +101,7 @@ export async function TicketBoard({
                       target="_blank"
                       rel="noopener noreferrer"
                       className="rounded-lg px-2.5 py-1 text-xs font-semibold text-on-brand"
-                      style={{ background: theme.accentDark }}
+                      style={{ background: theme.fill }}
                     >
                       {tb.addToGoogle}
                     </a>

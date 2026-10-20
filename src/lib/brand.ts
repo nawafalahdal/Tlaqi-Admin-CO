@@ -1,4 +1,4 @@
-import { shade, readableTextOn } from "./colors";
+import { shade, readableTextOn, liftForDark } from "./colors";
 
 export const BRAND = {
   beige: "#EEF6DF",
@@ -90,6 +90,14 @@ export function themeFromColor(colorHex: string) {
      *  في مواضع (`accentDark + "55"`)، ويُستعمَل في قوالب البريد حيث لا
      *  `light-dark()` ولا متغيّرات. */
     accentDark,
+
+    /** تعبئةُ الأزرار والأسطح الملوّنة — تتبع السمة.
+     *
+     *  `accentDark` قيمةٌ سداسيةٌ ثابتة (للبريد والشفافية الملحَقة)، ولو
+     *  مُلئ بها زرٌّ لذاب في الداكن حين يكون اللونُ داكناً. فهذه تُفتّحه في
+     *  الداكن وحده (`liftForDark`)، وحبرُها `onFill` يُحسَب لكل سمة. */
+    fill: `light-dark(${accentDark}, ${liftForDark(accentDark)})`,
+    onFill: `light-dark(${readableTextOn(accentDark)}, ${readableTextOn(liftForDark(accentDark))})`,
   };
 }
 
@@ -117,10 +125,12 @@ export function themeForDepartment(value: DepartmentSlug | string) {
  *  النصُّ لونَ السمة — يفقد لمسةَ القسم ويبقى مقروءاً، وهذا أهون.
  */
 export function brandInk(theme: ReturnType<typeof themeFromColor>): string {
-  return `light-dark(${theme.accentDark}, ${theme.surface})`;
+  // في الداكن: لونُ القسم مرفوعاً حتى ٤٫٥:١ مع السطح — كان سطحَ البطاقة نفسَه
+  // مصبوغاً، فيُكتب زرُّ «لم تصلني — أرسلها» بلون خلفيته ولا يُرى
+  return `light-dark(${theme.accentDark}, ${liftForDark(theme.accentDark, 4.5)})`;
 }
 
 /** حدُّ الهوية — المِثل، للإطارات لا للنصّ */
 export function brandInkBorder(theme: ReturnType<typeof themeFromColor>): string {
-  return `light-dark(${theme.accentDark}, ${theme.surfaceStrong})`;
+  return `light-dark(${theme.accentDark}, ${liftForDark(theme.accentDark, 3)})`;
 }
