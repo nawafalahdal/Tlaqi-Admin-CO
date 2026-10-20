@@ -16,7 +16,7 @@ export const en: Dictionary = {
       tickets: "Tickets",
       structure: "Organisation chart",
       invites: "Invitations",
-      messages: "Message log",
+      messages: "Notifications",
       terminations: "Termination requests",
       signature: "Signatures",
       welcomeCards: "Joining cards",
@@ -1035,13 +1035,15 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
   welcomeMail: {
     title: "Membership card",
     body: "The membership card carries your name, role, team and joining date, and reaches you automatically the moment you are approved.",
-    button: "I didn't get it \u2014 notify the Operations Officer",
-    sending: "Sending your report...",
+    button: "I didn't get it \u2014 ask the {who}",
+    sending: "Working...",
     receipt: "\u2713 Sent to you on {date} and accepted by the mail provider \u2014 recorded in the live log and the sheet.",
     receiptNow: "\u2713 Sent to your inbox now, and the delivery is recorded in the live log and the sheet.",
-    onceOnly: "If it never arrived, notify the Operations Officer: they check, then resend it \u2014 each person gets one resend.",
+    onceOnly: "If it never arrived, ask the {who}: they check, then resend it \u2014 each person gets one resend.",
     neverSent: "It has not reached you yet.",
-    reported: "\u2713 Your report reached the Operations Officer (ticket #{n}) \u2014 they will check and resend it.",
+    reported: "\u2713 Your request reached the {who} (ticket #{n}) \u2014 they will check and resend it.",
+    selfButton: "Send it to myself",
+    selfOnce: "You send it to yourself directly \u2014 one resend after the approval card."
   },
 
   offboarding: {

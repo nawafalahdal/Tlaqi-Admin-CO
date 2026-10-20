@@ -73,11 +73,11 @@ export function SubmitWork({
             type="button"
             onClick={() => setMode(m)}
             className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
-              mode === m ? "text-on-brand" : "text-black/60"
+              mode === m ? "" : "text-black/60"
             }`}
             style={
               mode === m
-                ? { background: theme.fill }
+                ? { background: theme.fill, color: theme.onFill }
                 : { border: "1px solid color-mix(in oklab, var(--ink) 14%, transparent)" }
             }
           >

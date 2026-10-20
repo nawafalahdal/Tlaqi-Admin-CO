@@ -57,18 +57,45 @@ function serverTheme(): ThemeChoice {
   return "light";
 }
 
-export function applyTheme(next: ThemeChoice) {
+export function applyTheme(next: ThemeChoice, origin?: { x: number; y: number }) {
   const root = document.documentElement;
+  const commit = () => {
+    root.dataset.theme = next;
+    try {
+      localStorage.setItem(STORAGE_KEY, next);
+    } catch {
+      // متصفّحٌ يمنع التخزين: السمة تعمل لهذه الجلسة ولا تُحفَظ
+    }
+    window.dispatchEvent(new Event("tlaqi-theme-change"));
+  };
+
+  // **دائرةٌ تنتشر من المفتاح نفسه** (View Transitions): الصفحةُ كلُّها تتبدّل
+  // وحدةً واحدة — لا بطاقةٌ قبل أختها، ولا ومضة — والسمةُ الجديدة تنكشف من
+  // حيث ضغط المستخدم. ومن طلب تقليلَ الحركة، أو متصفّحُه لا يدعمها، يأخذ
+  // التلاشي القصيرَ المعتاد (`theme-switching`).
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const vt = (document as Document & { startViewTransition?: (cb: () => void) => { ready: Promise<void> } })
+    .startViewTransition;
+  if (!reduce && vt && origin) {
+    const radius = Math.hypot(Math.max(origin.x, innerWidth - origin.x), Math.max(origin.y, innerHeight - origin.y));
+    root.classList.add("theme-vt");
+    const t = vt.call(document, commit);
+    t.ready
+      .then(() => {
+        root.animate(
+          { clipPath: [`circle(0px at ${origin.x}px ${origin.y}px)`, `circle(${radius}px at ${origin.x}px ${origin.y}px)`] },
+          { duration: 520, easing: "cubic-bezier(.22,.61,.36,1)", pseudoElement: "::view-transition-new(root)" }
+        );
+      })
+      .catch(() => {});
+    window.setTimeout(() => root.classList.remove("theme-vt"), 700);
+    return;
+  }
+
   // الانتقال يُفتَح لحظةَ التبديل ويُغلق بعده: لو بقي مفتوحاً لتباطأ كلُّ
   // تفاعلٍ في المنصة خلفه
   root.classList.add("theme-switching");
-  root.dataset.theme = next;
-  try {
-    localStorage.setItem(STORAGE_KEY, next);
-  } catch {
-    // متصفّحٌ يمنع التخزين: السمة تعمل لهذه الجلسة ولا تُحفَظ
-  }
-  window.dispatchEvent(new Event("tlaqi-theme-change"));
+  commit();
   window.setTimeout(() => root.classList.remove("theme-switching"), 260);
 }
 
@@ -100,7 +127,10 @@ export function ThemeToggle() {
       aria-checked={isDark}
       aria-label={next === "dark" ? t.common.themeToDark : t.common.themeToLight}
       title={next === "dark" ? t.common.themeToDark : t.common.themeToLight}
-      onClick={() => applyTheme(next)}
+      onClick={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        applyTheme(next, { x: r.left + r.width / 2, y: r.top + r.height / 2 });
+      }}
       className="ctl-group__item theme-switch"
     >
       <SunIcon className="theme-switch__icon theme-switch__icon--sun" />

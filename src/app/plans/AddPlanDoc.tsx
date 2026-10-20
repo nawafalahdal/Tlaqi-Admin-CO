@@ -95,11 +95,11 @@ export function AddPlanDoc({ theme }: { theme: ReturnType<typeof themeFromColor>
             type="button"
             onClick={() => setMode(m)}
             className={`rounded-xl px-3.5 py-2 text-xs font-bold transition-opacity ${
-              mode === m ? "text-on-brand" : "text-black/60"
+              mode === m ? "" : "text-black/60"
             }`}
             style={
               mode === m
-                ? { background: theme.fill }
+                ? { background: theme.fill, color: theme.onFill }
                 : { border: "1px solid color-mix(in oklab, var(--ink) 14%, transparent)" }
             }
           >

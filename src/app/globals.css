@@ -1257,3 +1257,29 @@ body:has(.app-sidebar) main > section > div:first-child > h2:first-child {
 .nav-badge--info { background: #EEE9EF; color: #341D2B; }
 :root[data-theme="dark"] .nav-badge--action { background: rgb(195 73 0 / 0.22); color: #FFC9A6; }
 :root[data-theme="dark"] .nav-badge--info { background: rgb(255 255 255 / 0.1); color: #E9DDE6; }
+
+/* القائمةُ مطويّةً: الصورةُ وحدها في الوسط — كان سهمُ القائمة باقياً بجوارها
+   فيدفعها عن المنتصف */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .app-sidebar__user { justify-content: center; gap: 0; padding: 0.4rem; }
+  .app-sidebar__user .account-menu__caret { display: none; }
+}
+@media (min-width: 1024px) {
+  :root[data-sidebar="collapsed"] .app-sidebar__user { justify-content: center; gap: 0; padding: 0.4rem; }
+  :root[data-sidebar="collapsed"] .app-sidebar__user .account-menu__caret { display: none; }
+}
+
+/* ═══ تبديلُ السمة: الجديدةُ تنكشف دائرةً من المفتاح ═══
+   (`applyTheme` — View Transitions). لا مزجَ ولا تلاشٍ افتراضي فوقها:
+   القصُّ وحده يحمل الحركة، والقديمةُ ثابتةٌ تحتها. */
+::view-transition-old(root),
+::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+:root.theme-vt::view-transition-old(root) { z-index: 1; }
+:root.theme-vt::view-transition-new(root) { z-index: 2; }
+
+/* ═══ تبديلُ اللغة: يتلاشى المحتوى، ينقلب الاتجاهُ وهو خفيّ، ثم يعود ═══
+   فلا يُرى المحتوى يقفز من جهةٍ إلى جهة. والمدّةُ قصيرةٌ لا تؤخّر العمل. */
+@media (prefers-reduced-motion: no-preference) {
+  body > * { transition: opacity 180ms ease, filter 180ms ease; }
+  :root.locale-fading body > * { opacity: 0; filter: blur(2px); }
+}

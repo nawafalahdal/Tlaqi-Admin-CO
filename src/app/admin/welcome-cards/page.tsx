@@ -9,12 +9,11 @@ import { DataTable } from "@/components/DataTable";
 import { accountRoleLabel } from "@/lib/testTracks";
 import { formatDate } from "@/lib/format";
 import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
-import { canResendWelcome, canRequestWelcomeResend, WELCOME_MAX_SENDS } from "@/lib/welcomeResend";
+import { canResendWelcome, canRequestWelcomeResend, resendTargetsFor, WELCOME_MAX_SENDS } from "@/lib/welcomeResend";
 import { ResendWelcomeButton } from "./ResendWelcomeButton";
 
 export const dynamic = "force-dynamic";
 
-const LEADER_ROLES = ["executive", "operations_officer", "department_admin"] as const;
 
 /** بطاقاتُ الانضمام — إعادتُها للقادة والأعضاء.
  *
@@ -38,12 +37,17 @@ export default async function WelcomeCardsPage({
   const q = ((await searchParams).q ?? "").trim().slice(0, 80);
 
   const nameFilter = q ? { fullName: { contains: q, mode: "insensitive" as const } } : {};
+  // كلٌّ يرى من يُعيد بطاقاتِهم في السلسلة (`resendTargetsFor`): مسؤولُ التشغيل
+  // القادةَ والأعضاء، والتنفيذيُّ مسؤولي التشغيل، والمؤسسُ التنفيذيَّ.
+  // وقيادةُ التسويق تطلب لمن يُعيدهم مسؤول التشغيل.
+  const targets = canSend ? resendTargetsFor(session.user.role) : resendTargetsFor("operations_officer");
+  const userRoles = targets.filter((r) => r !== "member") as ("department_admin" | "operations_officer" | "executive")[];
   const [users, members] = await Promise.all([
     prisma.user.findMany({
       where: {
         isActive: true,
-        // حسابُ المؤسس لا يُعاد إليه من هنا — `canResendTo`
-        role: { in: [...LEADER_ROLES] },
+        role: { in: userRoles },
+        id: { not: session.user.id },
         ...nameFilter,
       },
       select: {
@@ -57,7 +61,9 @@ export default async function WelcomeCardsPage({
       orderBy: { fullName: "asc" },
       take: 300,
     }),
-    prisma.member.findMany({
+    !targets.includes("member")
+      ? Promise.resolve([])
+      : prisma.member.findMany({
       where: { ...ROSTER_MEMBER_WHERE, noFurtherEmail: false, decidedAt: { not: null }, ...nameFilter },
       select: {
         id: true,

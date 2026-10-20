@@ -24,6 +24,8 @@ import { SeatOccupied } from "@/components/SeatOccupied";
 import { InviteReadiness, type ReadinessRow } from "@/components/InviteReadiness";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { scheduleDueSweeps } from "@/lib/sweepThrottle";
+import { DeleteInviteButton } from "./DeleteInviteButton";
+import { isUnusedInvite } from "@/lib/founderActions";
 
 export default async function AdminInvitesPage() {
   const session = await auth();
@@ -227,6 +229,7 @@ export default async function AdminInvitesPage() {
               { key: "status", label: t.colAccountStatus },
               { key: "createdAt", label: ta.colIssuedAt },
               { key: "firstLogin", label: t.colWindow },
+              ...(isSuperAdmin ? [{ key: "actions", label: "" }] : []),
             ]}
             rows={invites.map((inv) => ({
               id: inv.id,
@@ -260,6 +263,10 @@ export default async function AdminInvitesPage() {
                     }
                   />
                 ),
+                // الدعوةُ غيرُ المستعمَلة تُحذف بيد المؤسس — والشرطُ يُعاد في الخادم
+                ...(isSuperAdmin && isUnusedInvite(inv)
+                  ? { actions: <DeleteInviteButton inviteId={inv.id} name={inv.fullName} /> }
+                  : {}),
               },
             }))}
           />

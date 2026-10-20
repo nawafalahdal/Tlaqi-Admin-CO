@@ -133,8 +133,9 @@ export function navFor(v: NavViewer, L: NavLabels): NavItem[] {
   items.push({ id: "structure", label: L.structure, href: "/structure", icon: "structure", match: ["/structure"], group: "org" });
   if (top) {
     items.push({ id: "invites", label: L.invites, href: "/admin/invites", icon: "invites", match: ["/admin/invites", "/admin/tests"], group: "people" });
-    items.push({ id: "messages", label: L.messages, href: "/admin/messages", icon: "messages", match: ["/admin/messages"], group: "meetings" });
   }
+  // سجلُّ التنبيهات — لكلِّ أحد، وفيه تنبيهاتُه هو وحده
+  items.push({ id: "messages", label: L.messages, href: "/notifications", icon: "messages", match: ["/notifications", "/admin/messages"], group: "meetings" });
   if (top || r === "department_admin") {
     items.push({ id: "terminations", label: L.terminations, href: "/admin/terminations", icon: "terminations", match: ["/admin/terminations"], group: "people" });
   }

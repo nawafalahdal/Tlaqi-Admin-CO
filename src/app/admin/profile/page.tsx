@@ -13,7 +13,7 @@ import { AdminProfileForm } from "./ProfileForm";
 import { seniorDepartment, affiliationFor } from "@/lib/seniorAffiliation";
 import { PageHeader } from "@/components/PageHeader";
 import { avatarHasTransparency } from "@/lib/avatars";
-import { WELCOME_MAX_SENDS } from "@/lib/welcomeResend";
+import { WELCOME_MAX_SENDS, RESENDER_LABEL, resenderRoleFor } from "@/lib/welcomeResend";
 import { WelcomeMailCard } from "@/components/WelcomeMailCard";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { portraitColorFor } from "@/lib/portraitTone";
@@ -115,7 +115,9 @@ export default async function AdminProfilePage() {
             <WelcomeMailCard
               theme={theme}
               sentAt={user.welcomeEmailSentAt ? formatDate(user.welcomeEmailSentAt) : null}
-              canReport={user.role !== "super_admin" && user.welcomeEmailCount < WELCOME_MAX_SENDS}
+              canReport={user.welcomeEmailCount < WELCOME_MAX_SENDS}
+              selfSend={user.role === "super_admin" ? user.id : undefined}
+              resenderLabel={RESENDER_LABEL[resenderRoleFor(user.role)]}
             />
             <Card className="p-5">
               <h2 className="text-base font-bold">الأمان</h2>

@@ -5,7 +5,7 @@ import { sendWelcomePack } from "@/lib/welcome";
 import { syncMemberLifecycleRow, syncAdminAccountRow } from "@/lib/workflow";
 import { accountRoleLabel } from "@/lib/testTracks";
 import type { Session } from "next-auth";
-import { canResendWelcome, canResendTo } from "@/lib/welcomeResend";
+import { mayResendTo, resenderRoleFor, RESENDER_LABEL } from "@/lib/welcomeResend";
 
 /** تصرّفات المؤسس وحده — وتُحرَس في الخادم لا بإخفاء زرّ.
  *
@@ -123,8 +123,8 @@ export async function sendWelcomeToMember(opts: {
   memberId: string;
   session: Session;
 }): Promise<{ ok: true; to: string } | { ok: false; reason: string }> {
-  if (!(await canResendWelcome(opts.session))) {
-    return { ok: false, reason: "إعادة بطاقة الانضمام لمسؤول المتابعة والتشغيل وحده" };
+  if (!mayResendTo(opts.session, "member")) {
+    return { ok: false, reason: `إعادة بطاقات الأعضاء لـ${RESENDER_LABEL[resenderRoleFor("member")]} وحده` };
   }
   const actorName = opts.session.user.name ?? "—";
 
@@ -176,9 +176,6 @@ export async function sendWelcomeToUser(opts: {
   userId: string;
   session: Session;
 }): Promise<{ ok: true; to: string } | { ok: false; reason: string }> {
-  if (!(await canResendWelcome(opts.session))) {
-    return { ok: false, reason: "إعادة بطاقة الانضمام لمسؤول المتابعة والتشغيل وحده" };
-  }
   const actorName = opts.session.user.name ?? "—";
 
   const user = await prisma.user.findUnique({
@@ -186,8 +183,12 @@ export async function sendWelcomeToUser(opts: {
     select: { id: true, fullName: true, email: true, isActive: true, role: true },
   });
   if (!user) return { ok: false, reason: "الحساب غير موجود" };
-  if (!canResendTo({ kind: "user", role: user.role })) {
-    return { ok: false, reason: "بطاقةُ المؤسس لا تُعاد من هنا" };
+  // السلسلة: من يُعيد بطاقةَ هذا الدور — والمؤسسُ وحده يُرسل لنفسه
+  if (!mayResendTo(opts.session, user.role)) {
+    return { ok: false, reason: `إعادة بطاقة هذا الحساب لـ${RESENDER_LABEL[resenderRoleFor(user.role)]} وحده` };
+  }
+  if (user.role === "super_admin" && user.id !== opts.session.user.id) {
+    return { ok: false, reason: "بطاقةُ المؤسس يُرسلها لنفسه" };
   }
   // ولا يُرسَل رابط دخولٍ لحسابٍ مُنحّى — الرابط وعدٌ ببابٍ مفتوح
   if (!user.isActive) {
@@ -514,4 +515,63 @@ export async function changeLeadershipEmail(opts: {
   if (twin) await syncMemberLifecycleRow(twin.id);
 
   return { ok: true, previous, next };
+}
+
+/** أهي دعوةٌ لم تُستعمَل؟ — لا سجلَّ لها، أو سجلٌّ لم يدخل صاحبُه قطّ ولم يُعتمَد */
+export function isUnusedInvite(inv: {
+  member: { firstLoginAt: Date | null; approvalStatus: string } | null;
+}): boolean {
+  return !inv.member || (!inv.member.firstLoginAt && inv.member.approvalStatus !== "approved");
+}
+
+/** حذفُ دعوةٍ لم تُستعمَل — للمؤسس وحده (قرار المؤسس).
+ *
+ *  كانت دعوةٌ قديمةٌ معلّقةٌ في السجلّ («لم يبدأ الاختبار») لشخصٍ صار له
+ *  حسابٌ آخر، ولا سبيلَ إلى إزالتها. فيُحذف هنا ما لم يُستعمَل وحده: دعوةٌ
+ *  بلا سجلّ، أو سجلٌّ لم يدخل صاحبُه قطّ ولم يُعتمَد — والشرطُ يُعاد في
+ *  الخادم داخل المعاملة لا يُؤخذ من الواجهة. وما استُعمل لا يُحذف من هنا
+ *  (له مساره: التنحية والحذف النهائي من ملف الشخص).
+ *
+ *  ويُختَم أثرُها في السجل الحي قبل الحذف: لا يُهدَر دليلٌ لتنظيف قائمة. */
+export async function deleteUnusedInvite(opts: {
+  inviteId: string;
+  actorRole: string;
+  actorName: string;
+}): Promise<{ ok: true } | { ok: false; reason: string }> {
+  assertFounder(opts.actorRole);
+  const inv = await prisma.invite.findUnique({
+    where: { id: opts.inviteId },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      targetRole: true,
+      member: { select: { id: true, firstLoginAt: true, approvalStatus: true } },
+    },
+  });
+  if (!inv) return { ok: false, reason: "الدعوة غير موجودة" };
+  if (!isUnusedInvite(inv)) {
+    return { ok: false, reason: "هذه الدعوة استُعملت — تُدار من ملف صاحبها لا من هنا" };
+  }
+
+  await appendMemberEvent({
+    fullName: inv.fullName,
+    email: inv.email,
+    event: "حذف دعوة غير مستخدمة",
+    roleOrDepartment: accountRoleLabel(inv.targetRole),
+    details: `حذفها ${opts.actorName} — لم يدخل صاحبها ولم يُعتمَد`,
+    at: new Date(),
+  });
+
+  await prisma.$transaction(async (tx) => {
+    if (inv.member) {
+      // الشرطُ نفسُه في الكتابة: لا يُحذف سجلٌّ دخل صاحبُه بين القراءة والحذف
+      const gone = await tx.member.deleteMany({
+        where: { id: inv.member.id, firstLoginAt: null, approvalStatus: { not: "approved" } },
+      });
+      if (gone.count === 0) throw new Error("استُعملت الدعوة للتوّ — لم تُحذف");
+    }
+    await tx.invite.delete({ where: { id: inv.id } });
+  });
+  return { ok: true };
 }

@@ -1,23 +1,56 @@
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 
-/** إعادةُ بطاقة الانضمام — قرارُ المؤسس.
+/** إعادةُ بطاقة الانضمام — سلسلةٌ حوكميّة كاملة (قرار المؤسس).
  *
- *  البطاقةُ تُرسَل وحدها مرّةً عند الاعتماد. وإعادتُها عملٌ تشغيليٌّ بيدٍ
- *  واحدة: **مسؤول المتابعة والتشغيل** وحده يُعيدها. وقيادةُ التسويق لا
- *  تُرسل، بل **تطلب** منه الإعادة بتذكرةٍ تصل إليه. ولا يملكها غيرُهما —
- *  ولا المؤسس ولا الرئيس التنفيذي — بنصّ القرار.
+ *  البطاقةُ تُرسَل وحدها مرّةً عند الاعتماد. وإعادتُها بيد من يعلو صاحبَها
+ *  في السلسلة، ولا يُعيدها أحدٌ لنفسه إلا المؤسس:
  *
- *  **وللإعادة فرصةٌ واحدة لكل شخص** (`WELCOME_MAX_SENDS` = بطاقةُ الاعتماد
- *  وإعادةٌ واحدة). ولا يُرسل أحدٌ البطاقةَ لنفسه: من لم تصله يُبلغ مسؤولَ
- *  التشغيل بتذكرة، فيتأكّد ثم يُعيدها. والسقفُ يُكتَب في شرط الحجز
- *  (`welcome.ts`) فلا تتجاوزه ضغطتان متسابقتان.
+ *  | صاحبُ البطاقة            | يطلب من / ويُعيدها      |
+ *  |--------------------------|--------------------------|
+ *  | العضو وقائد القسم        | مسؤول المتابعة والتشغيل  |
+ *  | مسؤول المتابعة والتشغيل  | الرئيس التنفيذي          |
+ *  | الرئيس التنفيذي          | المؤسس                   |
+ *  | المؤسس                   | نفسُه — يُرسلها مباشرة   |
  *
- *  والشرطُ يُفرَض في الخادم عند كل إرسال؛ إخفاءُ الزرّ تبعٌ له. */
+ *  و**لكل شخصٍ إعادةٌ واحدة** (`WELCOME_MAX_SENDS` = بطاقةُ الاعتماد وإعادة).
+ *  وقيادةُ التسويق تطلب لغيرها من الأعضاء والقادة فيصل طلبُها مسؤولَ التشغيل.
+ *  والسقفُ يُكتَب في شرط الحجز (`welcome.ts`) فلا تتجاوزه ضغطتان متسابقتان،
+ *  والشرطُ كلُّه يُفرَض في الخادم عند كل إرسالٍ وطلب؛ الأزرارُ تبعٌ له. */
 export const WELCOME_MAX_SENDS = 2;
 
+export type ChainRole = "super_admin" | "executive" | "operations_officer";
+
+/** من يُعيد بطاقةَ صاحب هذا الدور */
+export function resenderRoleFor(targetRole: string): ChainRole {
+  if (targetRole === "super_admin" || targetRole === "executive") return "super_admin";
+  if (targetRole === "operations_officer") return "executive";
+  return "operations_officer";
+}
+
+/** اسمُ من يُعيدها — لنصّ الزرّ والبلاغ */
+export const RESENDER_LABEL: Record<ChainRole, string> = {
+  super_admin: "المؤسس",
+  executive: "الرئيس التنفيذي",
+  operations_officer: "مسؤول المتابعة والتشغيل",
+};
+
+/** أيُعيد هذا الحسابُ بطاقةَ صاحب هذا الدور؟ */
+export function mayResendTo(session: Session, targetRole: string): boolean {
+  return session.user.role === resenderRoleFor(targetRole);
+}
+
+/** الأدوارُ التي يُعيد صاحبُ هذا الدور بطاقاتها — لصفحة «بطاقات الانضمام» */
+export function resendTargetsFor(role: string): string[] {
+  if (role === "operations_officer") return ["department_admin", "member"];
+  if (role === "executive") return ["operations_officer"];
+  if (role === "super_admin") return ["executive"];
+  return [];
+}
+
+/** أله في السلسلة من يُعيد له؟ (المؤسس والتنفيذي ومسؤول التشغيل) */
 export async function canResendWelcome(session: Session): Promise<boolean> {
-  return session.user.role === "operations_officer";
+  return resendTargetsFor(session.user.role).length > 0;
 }
 
 /** قيادةُ قسم التسويق — تطلب الإعادة ولا تُرسلها.
@@ -32,12 +65,4 @@ export async function canRequestWelcomeResend(session: Session): Promise<boolean
   });
   if (!me?.isActive || !me.department) return false;
   return me.department.slug === "marketing" || me.department.name.trim() === "التسويق";
-}
-
-/** لمن تُعاد: القادةُ والأعضاء — لا حسابُ المؤسس.
- *
- *  بطاقةُ المؤسس بابُ دخولٍ إلى أعلى حسابٍ في المنصة، فلا يُعيدها إليه
- *  غيرُه. */
-export function canResendTo(target: { kind: "user" | "member"; role?: string }) {
-  return target.kind === "member" || target.role !== "super_admin";
 }

@@ -154,9 +154,17 @@ async function cleanup() {
   const mailDenied = await sendWelcomeToUser({ userId: founder.id, session: asRole(founder.id + "x", "executive") });
   chk("الرئيس التنفيذي لا يُعيد البطاقة — ويُفرض في الخادم", mailDenied.ok === false,
       mailDenied.ok === false ? mailDenied.reason : "أُرسلت!");
-  const founderDenied = await sendWelcomeToUser({ userId: founder.id, session: asRole(founder.id, "super_admin", "المؤسس") });
-  chk("ولا المؤسس — الإعادة لمسؤول التشغيل وحده", founderDenied.ok === false && founderDenied.reason.includes("وحده"),
-      founderDenied.ok === false ? founderDenied.reason : "أُرسلت!");
+  // السلسلة: المؤسس يُرسل لنفسه (البريد معطّل في الفحص، فالمهم ألّا يُرفض بالصلاحية)
+  const founderSelf = await sendWelcomeToUser({ userId: founder.id, session: asRole(founder.id, "super_admin", "المؤسس") });
+  chk("والمؤسس يُرسل بطاقته لنفسه", founderSelf.ok === true || !founderSelf.reason.includes("وحده"),
+      founderSelf.ok ? founderSelf.to : founderSelf.reason);
+  // والتنفيذي لا يُعيد لقائد قسم — ذاك لمسؤول التشغيل
+  const lead2 = await prisma.user.findFirst({ where: { role: "department_admin", isActive: true } });
+  if (lead2) {
+    const execToLead = await sendWelcomeToUser({ userId: lead2.id, session: asRole(founder.id + "x", "executive") });
+    chk("التنفيذي لا يُعيد بطاقة قائد القسم", execToLead.ok === false && execToLead.reason.includes("مسؤول المتابعة"),
+        execToLead.ok === false ? execToLead.reason : "أُرسلت!");
+  }
   const opsToFounder = await sendWelcomeToUser({ userId: founder.id, session: asRole(founder.id + "y", "operations_officer") });
   chk("ومسؤول التشغيل لا يُعيد بطاقة المؤسس", opsToFounder.ok === false && opsToFounder.reason.includes("المؤسس"),
       opsToFounder.ok === false ? opsToFounder.reason : "أُرسلت!");

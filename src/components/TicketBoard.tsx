@@ -41,7 +41,7 @@ export async function TicketBoard({
         <Link
           href="/admin/tickets"
           className="min-h-11 rounded-xl px-4 text-sm font-semibold leading-[2.75rem]"
-          style={{ background: theme.fill, color: "#fff" }}
+          style={{ background: theme.fill, color: theme.onFill }}
         >
           {tb.openAll}
         </Link>
