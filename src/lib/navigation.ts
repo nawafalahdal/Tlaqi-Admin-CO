@@ -55,7 +55,7 @@ export type NavGroup = (typeof NAV_GROUPS)[number];
 /** أسماءُ البنود — من القاموس (`shell.nav`)، لا مكتوبةً هنا */
 export type NavLabels = Record<
   "home" | "opsHome" | "members" | "myDeptMembers" | "approvals" | "departments" | "execution" | "calendar" |
-  "reports" | "plans" | "tickets" | "structure" | "invites" | "messages" | "terminations" | "signature" | "sheet",
+  "reports" | "plans" | "tickets" | "structure" | "invites" | "messages" | "terminations" | "signature" | "welcomeCards" | "sheet",
   string
 >;
 
@@ -65,6 +65,8 @@ export type NavViewer = {
   /** يُحسب على الخادم (`isSigningRole`) ويُمرَّر — فلا يَسحب هذا الملفُّ
    *  وحدةً خادميةً إلى حزمة المتصفّح، وهو يُستورد في مكوّنٍ عميل */
   canSign?: boolean;
+  /** يُحسب على الخادم — مسؤول التشغيل يُعيد البطاقات، وقيادة التسويق تطلبها */
+  canWelcomeCards?: boolean;
 };
 
 /** صفحةُ رفع التذكرة لكل دور — تحت مساره المحروس (`/admin` أو `/member`) */
@@ -135,6 +137,9 @@ export function navFor(v: NavViewer, L: NavLabels): NavItem[] {
   }
   if (top || r === "department_admin") {
     items.push({ id: "terminations", label: L.terminations, href: "/admin/terminations", icon: "terminations", match: ["/admin/terminations"], group: "people" });
+  }
+  if (v.canWelcomeCards) {
+    items.push({ id: "welcomeCards", label: L.welcomeCards, href: "/admin/welcome-cards", icon: "invites", match: ["/admin/welcome-cards"], group: "people" });
   }
   if (top || v.canSign) {
     items.push({ id: "signature", label: L.signature, href: "/admin/signature", icon: "signature", match: ["/admin/signature"], group: "people" });

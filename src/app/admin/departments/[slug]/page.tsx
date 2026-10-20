@@ -24,6 +24,7 @@ import { CommitteesPanel } from "./CommitteesPanel";
 import { AlertsPanel } from "@/components/AlertsPanel";
 import { alertsForUser } from "@/lib/alerts";
 import { OffboardingPanel } from "./OffboardingPanel";
+import { ObjectivesPanel } from "./ObjectivesPanel";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
 import Link from "next/link";
@@ -98,11 +99,27 @@ export default async function DepartmentBoardPage({
     assignableOwners(department.id),
     approvedGoals(),
     prisma.departmentObjective.findMany({
-      where: { departmentId: department.id, status: { in: ["approved", "active"] } },
-      select: { id: true, title: true },
+      where: { departmentId: department.id },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        dueDate: true,
+        decisionNote: true,
+        goal: { select: { title: true } },
+        tasks: {
+          where: { execState: { notIn: ["cancelled", "superseded"] } },
+          select: { execState: true },
+        },
+      },
       orderBy: { createdAt: "desc" },
+      take: 50,
     }),
   ]);
+  // نموذجُ المهمّة يَعرض المعتمَدَ وحده — المقترحُ لم يُقرَّ بعد
+  const assignableObjectives = deptObjectives
+    .filter((o) => o.status === "approved" || o.status === "active" || o.status === "at_risk")
+    .map((o) => ({ id: o.id, title: o.title }));
   const [curTasks, nextTasks, curReport, nextReport] = await Promise.all([
     periodTasks(curPeriod.id, department.id),
     periodTasks(nextPeriod.id, department.id),
@@ -278,6 +295,25 @@ export default async function DepartmentBoardPage({
 
         {/* ── خطةُ التنفيذ الأسبوعية: الجاريةُ تُنفَّذ، والقادمةُ تُبنى */}
         <section className="flex flex-col gap-4">
+          <Card className="p-4 sm:p-5" id="objectives">
+            <ObjectivesPanel
+              departmentId={department.id}
+              goals={goalList.map((g) => ({ id: g.id, title: g.title }))}
+              canPropose={canPlanHere}
+              theme={theme}
+              objectives={deptObjectives.map((o) => ({
+                id: o.id,
+                title: o.title,
+                status: o.status,
+                dueDate: o.dueDate ? formatDate(o.dueDate) : null,
+                goalTitle: o.goal?.title ?? null,
+                decisionNote: o.decisionNote,
+                verified: o.tasks.filter((t) => t.execState === "verified").length,
+                total: o.tasks.filter((t) => t.execState !== "waived").length,
+              }))}
+            />
+          </Card>
+
           <Card className="p-4 sm:p-5">
             <WeekPlanPanel
               title={`خطةُ الأسبوع الجاري — ${stateLabel(curPeriod.state)}`}
@@ -288,7 +324,7 @@ export default async function DepartmentBoardPage({
               tasks={curTasks}
               owners={owners}
               goals={goalList.map((g) => ({ id: g.id, title: g.title }))}
-              objectives={deptObjectives}
+              objectives={assignableObjectives}
               capacity={curPlan?.capacityPoints ?? DEFAULT_CAPACITY_POINTS}
               report={curReport}
               canPlan={canPlanHere}
@@ -312,7 +348,7 @@ export default async function DepartmentBoardPage({
               tasks={nextTasks}
               owners={owners}
               goals={goalList.map((g) => ({ id: g.id, title: g.title }))}
-              objectives={deptObjectives}
+              objectives={assignableObjectives}
               capacity={nextPlan?.capacityPoints ?? DEFAULT_CAPACITY_POINTS}
               report={nextReport}
               canPlan={canPlanHere}

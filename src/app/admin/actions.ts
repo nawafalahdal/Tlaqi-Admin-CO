@@ -260,13 +260,10 @@ export async function sendWelcomeToMemberAction(
 ): Promise<{ error: string | null; to: string | null }> {
   const session = await requireSession();
   try {
-    const res = await sendWelcomeToMember({
-      memberId,
-      actorRole: session.user.role,
-      actorName: session.user.name ?? "—",
-    });
+    const res = await sendWelcomeToMember({ memberId, session });
     if (!res.ok) return { error: res.reason, to: null };
     revalidatePath("/admin/people");
+    revalidatePath("/admin/welcome-cards");
     return { error: null, to: res.to };
   } catch (err) {
     return { error: safeErrorMessage(err), to: null };

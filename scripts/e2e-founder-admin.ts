@@ -8,6 +8,11 @@ import { removeLeadershipUser, seatConflicts } from "@/lib/workflow";
 import { memberForSession } from "@/lib/termination";
 import type { Session } from "next-auth";
 
+/** جلسةٌ مصطنعة للفحص — بالدور وحده */
+const asRole = (id: string, role: string, name = "فحص"): Session =>
+  ({ user: { id, role, name, email: "probe@example.test" },
+     expires: new Date(Date.now() + 3600_000).toISOString() } as unknown as Session);
+
 /** الحذف النهائي وتغيير بريد القيادة — على حساباتٍ تُنشأ وتُحذف. */
 
 const checks: string[] = [];
@@ -146,19 +151,15 @@ async function cleanup() {
   await prisma.user.delete({ where: { id: otherFounder.id } });
 
   // ٨ج — بطاقة الانضمام إلى حسابٍ إداري: التصريح للمؤسس وحده
-  let mailDenied = false;
-  try {
-    await sendWelcomeToUser({ userId: founder.id, actorRole: "executive", actorName: "تنفيذي" });
-  } catch { mailDenied = true; }
-  chk("إرسال البطاقة للمؤسس وحده — ويُفرض في الخادم", mailDenied);
-
-  // والمؤسس يُرسلها إلى نفسه (البريد مُعطَّل في الاختبار، فالمهم أن
-  // التصريح يمرّ ولا يُرفض لكونه هو هو)
-  const selfMail = await sendWelcomeToUser({
-    userId: founder.id, actorRole: "super_admin", actorName: "المؤسس" });
-  chk("والمؤسس يُرسل البطاقة إلى نفسه",
-      selfMail.ok === true || (selfMail.ok === false && !selfMail.reason.includes("وحده")),
-      selfMail.ok ? selfMail.to : selfMail.reason);
+  const mailDenied = await sendWelcomeToUser({ userId: founder.id, session: asRole(founder.id + "x", "executive") });
+  chk("الرئيس التنفيذي لا يُعيد البطاقة — ويُفرض في الخادم", mailDenied.ok === false,
+      mailDenied.ok === false ? mailDenied.reason : "أُرسلت!");
+  const founderDenied = await sendWelcomeToUser({ userId: founder.id, session: asRole(founder.id, "super_admin", "المؤسس") });
+  chk("ولا المؤسس — الإعادة لمسؤول التشغيل وحده", founderDenied.ok === false && founderDenied.reason.includes("وحده"),
+      founderDenied.ok === false ? founderDenied.reason : "أُرسلت!");
+  const opsToFounder = await sendWelcomeToUser({ userId: founder.id, session: asRole(founder.id + "y", "operations_officer") });
+  chk("ومسؤول التشغيل لا يُعيد بطاقة المؤسس", opsToFounder.ok === false && opsToFounder.reason.includes("المؤسس"),
+      opsToFounder.ok === false ? opsToFounder.reason : "أُرسلت!");
 
   // ٨د — ولا تُرسَل إلى حسابٍ مُنحّى: الرابط وعدٌ ببابٍ مفتوح
   const stoodDown = await prisma.user.create({
@@ -166,7 +167,7 @@ async function cleanup() {
             passwordHash: "x", role: "department_admin", isActive: false },
   });
   const deadMail = await sendWelcomeToUser({
-    userId: stoodDown.id, actorRole: "super_admin", actorName: "المؤسس" });
+    userId: stoodDown.id, session: asRole(founder.id + "y", "operations_officer") });
   chk("ولا تُرسَل بطاقة دخول لحسابٍ مُنحّى", deadMail.ok === false,
       deadMail.ok === false ? deadMail.reason : "أُرسلت!");
   await prisma.user.delete({ where: { id: stoodDown.id } });

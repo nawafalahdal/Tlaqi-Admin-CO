@@ -4,6 +4,8 @@ import { appendMemberEvent } from "@/lib/googleSheets";
 import { sendWelcomePack } from "@/lib/welcome";
 import { syncMemberLifecycleRow, syncAdminAccountRow } from "@/lib/workflow";
 import { accountRoleLabel } from "@/lib/testTracks";
+import type { Session } from "next-auth";
+import { canResendWelcome, canResendTo } from "@/lib/welcomeResend";
 
 /** تصرّفات المؤسس وحده — وتُحرَس في الخادم لا بإخفاء زرّ.
  *
@@ -119,10 +121,12 @@ export async function correctMemberDate(opts: {
  *  قبله تُسمّي السبب للمؤسس بدل رفضٍ غامض. */
 export async function sendWelcomeToMember(opts: {
   memberId: string;
-  actorRole: string;
-  actorName: string;
+  session: Session;
 }): Promise<{ ok: true; to: string } | { ok: false; reason: string }> {
-  assertFounder(opts.actorRole);
+  if (!(await canResendWelcome(opts.session))) {
+    return { ok: false, reason: "إعادة بطاقة الانضمام لمسؤول المتابعة والتشغيل وحده" };
+  }
+  const actorName = opts.session.user.name ?? "—";
 
   const member = await prisma.member.findUnique({
     where: { id: opts.memberId },
@@ -143,15 +147,15 @@ export async function sendWelcomeToMember(opts: {
   }
   if (!member.isActive) return { ok: false, reason: "الحساب غير نشط — لا يُرسَل رابط دخول لحسابٍ مُعطَّل" };
 
-  const res = await sendWelcomePack({ kind: "member", id: opts.memberId }, "resend");
+  const res = await sendWelcomePack({ kind: "member", id: opts.memberId }, "resend", true);
   if (!res.ok) return { ok: false, reason: res.reason };
 
   await appendMemberEvent({
     fullName: member.fullName,
     email: member.email,
-    event: "إرسال بطاقة الانضمام يدوياً",
-    roleOrDepartment: "بقرار المؤسس",
-    details: `أرسلها ${opts.actorName}`,
+    event: "إعادة إرسال بطاقة الانضمام",
+    roleOrDepartment: accountRoleLabel(opts.session.user.role),
+    details: `أعادها ${actorName}`,
     at: new Date(),
   });
 
@@ -170,33 +174,35 @@ export async function sendWelcomeToMember(opts: {
  *  هو هو، فما يراه المؤسس في صندوقه هو ما يصل عضوَه. */
 export async function sendWelcomeToUser(opts: {
   userId: string;
-  actorRole: string;
-  actorName: string;
+  session: Session;
 }): Promise<{ ok: true; to: string } | { ok: false; reason: string }> {
-  assertFounder(opts.actorRole);
+  if (!(await canResendWelcome(opts.session))) {
+    return { ok: false, reason: "إعادة بطاقة الانضمام لمسؤول المتابعة والتشغيل وحده" };
+  }
+  const actorName = opts.session.user.name ?? "—";
 
   const user = await prisma.user.findUnique({
     where: { id: opts.userId },
     select: { id: true, fullName: true, email: true, isActive: true, role: true },
   });
   if (!user) return { ok: false, reason: "الحساب غير موجود" };
+  if (!canResendTo({ kind: "user", role: user.role })) {
+    return { ok: false, reason: "بطاقةُ المؤسس لا تُعاد من هنا" };
+  }
   // ولا يُرسَل رابط دخولٍ لحسابٍ مُنحّى — الرابط وعدٌ ببابٍ مفتوح
   if (!user.isActive) {
     return { ok: false, reason: "الحساب مُنحّى — لا يُرسَل رابط دخول لحسابٍ مُعطَّل" };
   }
 
-  const res = await sendWelcomePack({ kind: "user", id: user.id }, "resend");
+  const res = await sendWelcomePack({ kind: "user", id: user.id }, "resend", true);
   if (!res.ok) return { ok: false, reason: res.reason };
 
   await appendMemberEvent({
     fullName: user.fullName,
     email: user.email,
-    event: "إرسال بطاقة الانضمام يدوياً",
+    event: "إعادة إرسال بطاقة الانضمام",
     roleOrDepartment: accountRoleLabel(user.role),
-    details:
-      user.id === opts.userId && opts.actorName
-        ? `أرسلها ${opts.actorName}`
-        : "بقرار المؤسس",
+    details: `أعادها ${actorName} (${accountRoleLabel(opts.session.user.role)})`,
     at: new Date(),
   });
 

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { WELCOME_MAX_SENDS } from "@/lib/welcomeResend";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { sendWelcomeEmail } from "@/lib/email";
 import { accountRoleLabel } from "@/lib/testTracks";
@@ -89,7 +90,11 @@ export async function welcomeAlreadyDelivered(opts: {
  *
  *  أطولُ من أيّ نداءٍ لمزوّد البريد بكثير، وأقصرُ من أن يُحبَس أحدٌ
  *  خارج بطاقته إن ماتت لامبدا في منتصف المحاولة. */
+
 export const WELCOME_CLAIM_TTL_MS = 5 * 60_000;
+
+/** أقلُّ ما يفصل إعادةً عن الإرسال الذي قبلها — عشرُ دقائق */
+export const WELCOME_RESEND_COOLDOWN_MS = 10 * 60_000;
 
 /** يَحجز حقَّ الإرسال مرّةً واحدة — في القاعدة لا في الذاكرة.
  *
@@ -115,8 +120,45 @@ async function claimWelcomeSend(
   subject: WelcomeSubject,
   at: Date,
   /** بريدُه — يُفحَص به سجلُّ البريد لمن لم يُكتب حقلُه */
-  email?: string
+  email?: string,
+  /** إعادةٌ بيد من يملكها (`canResendWelcome`) — لا تقيّدها المرّة الواحدة */
+  repeat = false
 ): Promise<{ claimed: true } | { claimed: false; reason: string }> {
+  if (repeat) {
+    // الإعادةُ لا تُسأل «أُرسلت من قبل؟» — هي إعادةٌ لِما أُرسل. ويبقى
+    // الحجزُ نفسه يمنع ضغطتين متسابقتين، وتُفصَل الإعادةُ عن سابقتها
+    // بمهلةٍ فلا تُغرَق صناديقُ الناس بنقراتٍ متتالية.
+    const cooldown = new Date(at.getTime() - WELCOME_RESEND_COOLDOWN_MS);
+    const where = {
+      id: subject.id,
+      // السقفُ في الشرط نفسه — انظر `WELCOME_MAX_SENDS`
+      welcomeEmailCount: { lt: WELCOME_MAX_SENDS },
+      AND: [
+        { OR: [{ welcomeEmailSentAt: null }, { welcomeEmailSentAt: { lt: cooldown } }] },
+        { OR: [{ welcomeClaimedAt: null }, { welcomeClaimedAt: { lt: new Date(at.getTime() - WELCOME_CLAIM_TTL_MS) } }] },
+      ],
+    };
+    const data = { welcomeClaimedAt: at };
+    const written =
+      subject.kind === "user"
+        ? await prisma.user.updateMany({ where, data })
+        : await prisma.member.updateMany({ where, data });
+    if (written.count > 0) return { claimed: true };
+    const row =
+      subject.kind === "user"
+        ? await prisma.user.findUnique({ where: { id: subject.id }, select: { welcomeEmailCount: true } })
+        : await prisma.member.findUnique({ where: { id: subject.id }, select: { welcomeEmailCount: true } });
+    if ((row?.welcomeEmailCount ?? 0) >= WELCOME_MAX_SENDS) {
+      return {
+        claimed: false,
+        reason: `بلغت بطاقاتُ هذا الشخص الحدَّ الأقصى (${WELCOME_MAX_SENDS} مرات) — لا تُعاد بعده`,
+      };
+    }
+    return {
+      claimed: false,
+      reason: "أُرسلت البطاقة قبل دقائق أو تُرسَل الآن — انتظر عشر دقائق ثم أعِدها إن لزم",
+    };
+  }
   if (email) {
     const delivered = await welcomeAlreadyDelivered({ email, welcomeEmailSentAt: null });
     if (delivered === "delivered") return { claimed: false, reason: ALREADY_SENT };
@@ -189,7 +231,9 @@ const ALREADY_SENT =
 
 export async function sendWelcomePack(
   subject: WelcomeSubject,
-  occasion: "approved" | "resend" = "resend"
+  occasion: "approved" | "resend" = "resend",
+  /** `true` لإعادةٍ بيد من يملكها — انظر `claimWelcomeSend` */
+  repeat = false
 ): Promise<
   | { ok: true; to: string; providerId?: string | null }
   | { ok: false; reason: string; outcome?: SendOutcome }
@@ -208,7 +252,7 @@ export async function sendWelcomePack(
 
     // الحجز قبل الإرسال — وما بعده إمّا رسالةٌ وصلت أو حجزٌ يُفَكّ
     const at = new Date();
-    const claim = await claimWelcomeSend(subject, at, user.email);
+    const claim = await claimWelcomeSend(subject, at, user.email, repeat);
     if (!claim.claimed) return { ok: false, reason: claim.reason };
 
     const sent = await sendWelcomeEmail({
@@ -283,7 +327,7 @@ export async function sendWelcomePack(
   const roleLabel = accountRoleLabel(member.invite.targetRole);
 
   const at = new Date();
-  const claim = await claimWelcomeSend(subject, at, member.email);
+  const claim = await claimWelcomeSend(subject, at, member.email, repeat);
   if (!claim.claimed) return { ok: false, reason: claim.reason };
 
   const sent = await sendWelcomeEmail({

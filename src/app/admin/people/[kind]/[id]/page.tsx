@@ -33,20 +33,48 @@ const COMM_KINDS = ["دعوة", "ترحيب", "تقدير ثلاثة أشهر", 
  *  **وإدارةُ الحساب** هي المكوّنات القائمة نفسها (كلمة المرور، التنحية،
  *  الحذف، التكريم، بطاقة الانضمام، تاريخ الانضمام) — نُقلت إلى هنا من
  *  السجلّ ولم يُكتب لها إجراءٌ جديد. */
+/** طريقُ العودة إلى القائمة كما تُركت — بحثُها وتبويبُها وقسمُها.
+ *
+ *  يُقبَل مساراً داخلياً لسجلّ الأعضاء وحده، ويُبنى من جديد من مُعامِلاته
+ *  المعروفة: فلا يصير الرابطُ باباً إلى عنوانٍ خارجي (`//host` أو
+ *  `https:`)، ولا تمرّ منه معاملاتٌ لا تعرفها القائمة. ومن فتح الملفّ من
+ *  رابطٍ مباشر بلا `from` يعود إلى القائمة نفسها بلا تصفية. */
+function rosterReturn(from: string | undefined): string {
+  if (!from || !from.startsWith("/admin/people")) return "/admin/people";
+  let u: URL;
+  try {
+    u = new URL(from, "http://local");
+  } catch {
+    return "/admin/people";
+  }
+  if (u.origin !== "http://local" || u.pathname !== "/admin/people") return "/admin/people";
+  const p = new URLSearchParams();
+  for (const k of ["tab", "q", "dept"]) {
+    const v = u.searchParams.get(k);
+    if (v) p.set(k, v.slice(0, 120));
+  }
+  const q = p.toString();
+  return q ? `/admin/people?${q}` : "/admin/people";
+}
+
 export default async function PersonPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ kind: string; id: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const session = await auth();
   if (!session) redirect("/login");
   const { kind, id } = await params;
+  const backHref = rosterReturn((await searchParams).from);
   if (kind !== "user" && kind !== "member") notFound();
 
   const role = session.user.role;
   const top = role === "super_admin" || role === "executive";
   const isFounder = role === "super_admin";
   if (!top && role !== "department_admin") redirect("/admin");
+  const leadHome = session.user.departmentSlug ? `/admin/departments/${session.user.departmentSlug}` : "/admin";
 
   const user =
     kind === "user"
@@ -131,9 +159,20 @@ export default async function PersonPage({
       </AppHeader>
 
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 sm:px-5 sm:py-8">
-        <nav className="text-xs font-bold text-black/45" aria-label="المسار">
-          {top ? <Link href="/admin/people">الأعضاء</Link> : <Link href="/admin">قسمي</Link>} ‹ {person.fullName}
-        </nav>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <nav className="text-xs font-bold text-black/45" aria-label="المسار">
+            {top ? (
+              <Link href={backHref} className="hover:underline">الأفراد والحسابات</Link>
+            ) : (
+              <Link href={leadHome} className="hover:underline">قسمي</Link>
+            )}
+            {" ‹ "}
+            <span aria-current="page" className="text-black/70">{person.fullName}</span>
+          </nav>
+          <Link href={top ? backHref : leadHome} className="wizard-btn-2 !min-h-9 !px-3 !text-xs">
+            {top ? "→ عودة إلى القائمة" : "→ عودة إلى القسم"}
+          </Link>
+        </div>
 
         <Card className="flex flex-wrap items-center gap-4 p-5" style={{ borderTop: `5px solid ${color}` }}>
           {avatar ? (

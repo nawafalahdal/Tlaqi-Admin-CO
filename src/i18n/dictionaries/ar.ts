@@ -17,6 +17,7 @@ export const ar = {
       messages: "سجل الرسائل",
       terminations: "طلبات الإنهاء",
       signature: "التوقيعات",
+      welcomeCards: "بطاقات الانضمام",
       sheet: "السجل الحي",
     },
     groups: {

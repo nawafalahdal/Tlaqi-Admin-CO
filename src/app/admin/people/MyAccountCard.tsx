@@ -1,8 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { sendWelcomeToUserAction } from "./actions";
-import { Card, Button } from "@/components/ui";
+import { Card } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
 
@@ -18,7 +16,6 @@ import { useTranslations } from "@/i18n/LocaleProvider";
  *  يُخبر بالقاعدة، لا يُنشئها. */
 export function MyAccountCard({
   account,
-  theme,
 }: {
   account: {
     id: string;
@@ -31,8 +28,6 @@ export function MyAccountCard({
   };
   theme: ReturnType<typeof themeFromColor>;
 }) {
-  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
-  const [pending, startTransition] = useTransition();
   const t = useTranslations();
 
   return (
@@ -45,32 +40,11 @@ export function MyAccountCard({
           </p>
           <p className="text-xs text-black/40">{account.roleLabel}</p>
         </div>
-        {account.welcomeSentAt ? null : (
-        <Button
-          theme={theme}
-          variant="outline"
-          disabled={pending}
-          onClick={() => {
-            setMsg(null);
-            startTransition(async () => {
-              const res = await sendWelcomeToUserAction(account.id);
-              setMsg(
-                res.error
-                  ? { kind: "err", text: res.error }
-                  : { kind: "ok", text: `وصلت البطاقة إلى ${res.to}` }
-              );
-            });
-          }}
-        >
-          {pending ? t.actions.working : t.accounts.sendWelcome}
-        </Button>
-        )}
       </div>
 
       {account.welcomeSentAt && (
         <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-800">
-          ✓ وصلتك بطاقة الانضمام {account.welcomeSentAt} — وتُرسل مرّةً واحدة، فانتهت صلاحية
-          الإرسال.
+          ✓ آخر بطاقة انضمام قُبلت عند مزوّد البريد {account.welcomeSentAt}.
         </p>
       )}
 
@@ -78,15 +52,6 @@ export function MyAccountCard({
         {t.accounts.myAccountHint}
       </p>
 
-      {msg && (
-        <p
-          className={`mt-2 rounded-lg px-3 py-2 text-xs leading-relaxed ${
-            msg.kind === "ok" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
-          }`}
-        >
-          {msg.text}
-        </p>
-      )}
     </Card>
   );
 }

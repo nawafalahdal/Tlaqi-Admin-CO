@@ -512,8 +512,7 @@ export default async function PeoplePage({
                     kind={r.kind}
                     id={r.id}
                     name={r.name}
-                    profileHref={`/admin/people/${r.kind}/${r.id}`}
-                    canResendWelcome={isSuperAdmin && !r.self}
+                    profileHref={`/admin/people/${r.kind}/${r.id}?from=${encodeURIComponent(href({}))}`}
                   />
                 ),
               },

@@ -5,7 +5,6 @@ import {
   removeLeadershipUserAction,
   resetUserCredentialsAction,
   permanentlyDeleteUserAction,
-  sendWelcomeToUserAction,
 } from "./actions";
 import { Card, Button } from "@/components/ui";
 import { AwardButton } from "@/components/AwardButton";
@@ -45,7 +44,6 @@ export function AccountRow({
   const [purgeError, setPurgeError] = useState<string | null>(null);
   /** إيصالُ الحذف وما انتقل بالخلافة — يبقى معروضاً بعد اختفاء النموذج */
   const [purgeDone, setPurgeDone] = useState<string | null>(null);
-  const [mailMsg, setMailMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const t = useTranslations();
 
   const roleLabel =
@@ -105,24 +103,6 @@ export function AccountRow({
           )}
           {canRemove && (
             <>
-              <Button
-                theme={theme}
-                variant="outline"
-                disabled={pending}
-                onClick={() => {
-                  setMailMsg(null);
-                  startTransition(async () => {
-                    const res = await sendWelcomeToUserAction(account.id);
-                    setMailMsg(
-                      res.error
-                        ? { kind: "err", text: res.error }
-                        : { kind: "ok", text: `وصلت البطاقة إلى ${res.to}` }
-                    );
-                  });
-                }}
-              >
-                {t.accounts.sendWelcome}
-              </Button>
               <button
                 type="button"
                 onClick={() => {
@@ -199,15 +179,6 @@ export function AccountRow({
         </div>
       )}
 
-      {mailMsg && (
-        <p
-          className={`mt-3 rounded-lg px-3 py-2 text-xs leading-relaxed ${
-            mailMsg.kind === "ok" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
-          }`}
-        >
-          {mailMsg.text}
-        </p>
-      )}
 
       {/* الحذف النهائي — يُزيل الصفّ من القاعدة ويُحرّر البريد لدعوةٍ
           جديدة بنفس البيانات، ويبقى السجل في الإكسل بلا بريد. وهو غير

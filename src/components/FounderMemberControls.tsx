@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { correctOrgJoinDateAction, sendWelcomeToMemberAction } from "@/app/admin/actions";
+import { correctOrgJoinDateAction } from "@/app/admin/actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 
@@ -39,7 +39,6 @@ export function FounderMemberControls({
   const [note, setNote] = useState("");
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [pendingDate, startDate] = useTransition();
-  const [pendingMail, startMail] = useTransition();
 
   function saveDate() {
     setMsg(null);
@@ -54,17 +53,6 @@ export function FounderMemberControls({
     });
   }
 
-  function sendWelcome() {
-    setMsg(null);
-    startMail(async () => {
-      const res = await sendWelcomeToMemberAction(memberId);
-      setMsg(
-        res.error
-          ? { kind: "err", text: res.error }
-          : { kind: "ok", text: `وصلت بطاقة الانضمام إلى ${res.to}` }
-      );
-    });
-  }
 
   return (
     <div className="mt-3 border-t border-black/5 pt-3">
@@ -102,22 +90,15 @@ export function FounderMemberControls({
       </p>
 
       <div className="mt-3">
-        {welcomeSentAt ? (
-          <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-800">
-            ✓ وصلت بطاقة الانضمام {welcomeSentAt} — وتُرسل مرّةً واحدة، فانتهت بها صلاحية
-            الإرسال لهذا الشخص.
+        {welcomeSentAt && (
+          <p className="mb-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-800">
+            ✓ آخر بطاقة انضمام قُبلت عند مزوّد البريد {welcomeSentAt}.
           </p>
-        ) : (
-          <>
-            <Button theme={theme} variant="outline" disabled={pendingMail} onClick={sendWelcome}>
-              {pendingMail ? "تُرسَل..." : "أرسل بطاقة الانضمام"}
-            </Button>
-            <p className="mt-1.5 text-xs text-black/40">
-              نفس القالب المتحرّك بلون قسمه. مرّةٌ واحدة لا تُعاد. ولا تُنشئ حساباً ولا تُغيّر حالة
-              عضوية ولا تُصفّر تاريخاً.
-            </p>
-          </>
         )}
+        <p className="text-xs leading-relaxed text-black/45">
+          إعادةُ بطاقة الانضمام بيد مسؤول المتابعة والتشغيل وحده، من صفحة «بطاقات الانضمام» —
+          ثلاثُ بطاقاتٍ للشخص على الأكثر.
+        </p>
       </div>
 
       {msg && (

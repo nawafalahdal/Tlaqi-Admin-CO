@@ -1,6 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { correctMemberDate, sendWelcomeToMember } from "@/lib/founderActions";
 import { issueAppreciation } from "@/lib/appreciation";
+import type { Session } from "next-auth";
+
+/** جلسةٌ مصطنعة للفحص — بالدور وحده */
+const asRole = (id: string, role: string, name = "فحص"): Session =>
+  ({ user: { id, role, name, email: "probe@example.test" },
+     expires: new Date(Date.now() + 3600_000).toISOString() } as unknown as Session);
 
 /** تصحيح التواريخ وإرسال البطاقة — على بياناتٍ اختباريةٍ تُنشأ وتُحذف. */
 
@@ -86,31 +92,38 @@ async function cleanup() {
   chk("تصحيحٌ بنفس القيمة لا يُضيف سجلاً", edits2.length === 1, String(edits2.length));
 
   // ٨ — البطاقة اليدوية: غير المؤسس يُرفض
-  let denied2 = false;
-  try {
-    await sendWelcomeToMember({ memberId: member.id, actorRole: "executive", actorName: "تنفيذي" });
-  } catch { denied2 = true; }
-  chk("إرسال البطاقة يدوياً للمؤسس وحده", denied2);
+  const denied2 = await sendWelcomeToMember({ memberId: member.id, session: asRole(founder.id + "x", "executive") });
+  chk("الرئيس التنفيذي لا يُعيد البطاقة", denied2.ok === false, denied2.ok === false ? denied2.reason : "أُرسلت!");
 
   // ٩ — ولا تُرسَل لحسابٍ مُعطَّل
   await prisma.member.update({ where: { id: member.id }, data: { isActive: false } });
-  const w1 = await sendWelcomeToMember({ memberId: member.id, actorRole: "super_admin", actorName: founder.fullName });
+  const w1 = await sendWelcomeToMember({ memberId: member.id, session: asRole(founder.id + "y", "operations_officer", "مسؤول التشغيل") });
   chk("لا تُرسَل لحسابٍ مُعطَّل", w1.ok === false, w1.ok === false ? w1.reason : "أُرسلت!");
 
   // ١٠ — ولا لمن أُغلقت تجربته
   await prisma.member.update({ where: { id: member.id }, data: { isActive: true, noFurtherEmail: true } });
-  const w2 = await sendWelcomeToMember({ memberId: member.id, actorRole: "super_admin", actorName: founder.fullName });
+  const w2 = await sendWelcomeToMember({ memberId: member.id, session: asRole(founder.id + "y", "operations_officer", "مسؤول التشغيل") });
   chk("ولا لمن أُغلقت تجربته", w2.ok === false, w2.ok === false ? w2.reason : "أُرسلت!");
 
   // ١١ — ولا لمن لم يُعتمد
   await prisma.member.update({ where: { id: member.id }, data: { noFurtherEmail: false, decidedAt: null } });
-  const w3 = await sendWelcomeToMember({ memberId: member.id, actorRole: "super_admin", actorName: founder.fullName });
+  const w3 = await sendWelcomeToMember({ memberId: member.id, session: asRole(founder.id + "y", "operations_officer", "مسؤول التشغيل") });
   chk("ولا لمن لم يُعتمد بعد", w3.ok === false, w3.ok === false ? w3.reason : "أُرسلت!");
+
+  // ١١ب — والمؤسس لا يُعيدها: الإعادة لمسؤول التشغيل وحده
+  const wf = await sendWelcomeToMember({ memberId: member.id, session: asRole(founder.id, "super_admin", founder.fullName) });
+  chk("المؤسس لا يُعيد البطاقة", wf.ok === false && wf.reason.includes("وحده"), wf.ok === false ? wf.reason : "أُرسلت!");
+
+  // ١١ج — وسقفُها ثلاث: الرابعة تُرفض في شرط الحجز نفسه
+  await prisma.member.update({ where: { id: member.id }, data: { decidedAt: assignmentStart, welcomeEmailCount: 3 } });
+  const wCap = await sendWelcomeToMember({ memberId: member.id, session: asRole(founder.id + "y", "operations_officer") });
+  chk("لا تُعاد بعد ثلاث بطاقات", wCap.ok === false && wCap.reason.includes("الحدَّ الأقصى"), wCap.ok === false ? wCap.reason : "أُرسلت!");
+  await prisma.member.update({ where: { id: member.id }, data: { welcomeEmailCount: 0 } });
 
   // ١٢ — والإرسال لا يُغيّر حالة العضوية
   await prisma.member.update({ where: { id: member.id }, data: { decidedAt: assignmentStart } });
   const before = await prisma.member.findUniqueOrThrow({ where: { id: member.id } });
-  await sendWelcomeToMember({ memberId: member.id, actorRole: "super_admin", actorName: founder.fullName });
+  await sendWelcomeToMember({ memberId: member.id, session: asRole(founder.id + "y", "operations_officer", "مسؤول التشغيل") });
   const afterSend = await prisma.member.findUniqueOrThrow({ where: { id: member.id } });
   chk("الإرسال لا يُغيّر حالة العضوية", afterSend.approvalStatus === before.approvalStatus && afterSend.isActive === before.isActive);
   chk("ولا يُصفّر بداية التكليف", afterSend.decidedAt?.getTime() === assignmentStart.getTime());

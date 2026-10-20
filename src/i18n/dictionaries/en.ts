@@ -19,6 +19,7 @@ export const en: Dictionary = {
       messages: "Message log",
       terminations: "Termination requests",
       signature: "Signatures",
+      welcomeCards: "Joining cards",
       sheet: "Live sheet",
     },
     groups: {

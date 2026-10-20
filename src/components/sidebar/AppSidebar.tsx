@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { auth, signOut } from "@/auth";
+import { canResendWelcome, canRequestWelcomeResend } from "@/lib/welcomeResend";
 import { navFor, homeFor, raiseTicketHref } from "@/lib/navigation";
 import { isSigningRole } from "@/lib/signatures";
 import { prisma } from "@/lib/prisma";
@@ -31,6 +32,7 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
     role: session.user.role,
     departmentSlug: session.user.departmentSlug,
     canSign: isSigningRole(session.user.role),
+    canWelcomeCards: (await canResendWelcome(session)) || (await canRequestWelcomeResend(session)),
   };
   const isMember = session.user.role === "member";
 

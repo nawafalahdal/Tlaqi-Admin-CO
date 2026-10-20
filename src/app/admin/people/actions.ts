@@ -201,13 +201,10 @@ export async function sendWelcomeToUserAction(
   if (!session) return { error: "يجب تسجيل الدخول" };
 
   try {
-    const res = await sendWelcomeToUser({
-      userId,
-      actorRole: session.user.role,
-      actorName: session.user.name ?? "—",
-    });
+    const res = await sendWelcomeToUser({ userId, session });
     if (!res.ok) return { error: res.reason };
     revalidatePath("/admin/people");
+    revalidatePath("/admin/welcome-cards");
     return { error: null, to: res.to };
   } catch (err) {
     return { error: safeErrorMessage(err) };
@@ -274,6 +271,7 @@ export async function sendAwardAction(
     });
     if (!res.ok) return { error: res.reason };
     revalidatePath("/admin/people");
+    revalidatePath("/admin/welcome-cards");
     return { error: null, to: res.to };
   } catch (err) {
     return { error: safeErrorMessage(err) };

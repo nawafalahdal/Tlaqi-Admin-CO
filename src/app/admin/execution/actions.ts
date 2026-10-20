@@ -50,6 +50,8 @@ function refresh() {
   revalidatePath("/admin");
   revalidatePath("/member");
   revalidatePath("/calendar");
+  // أهدافُ القسم تُقرأ في صفحة قسمها — فتُحدَّث مع اقتراحها والقرار فيها
+  revalidatePath("/admin/departments/[slug]", "page");
 }
 
 type Res = { error: string | null; message?: string };
