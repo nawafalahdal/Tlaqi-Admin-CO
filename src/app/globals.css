@@ -1216,3 +1216,57 @@ body:has(.app-sidebar) main > section > div:first-child > h2:first-child {
 .composer__tips li::before { content: ""; position: absolute; inset-inline-start: 0; top: 0.6rem; width: 0.4rem; height: 0.4rem; border-radius: 999px; background: var(--brand-action); }
 .app-sidebar__avatar { overflow: hidden; }
 .app-sidebar__avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* ═══ معالجُ الهدف — نافذةٌ أعرض من نافذة التأكيد ═══ */
+.confirm-dialog.goal-wizard { width: min(44rem, calc(100vw - 2rem)); }
+.wizard-btn-2 {
+  display: inline-flex; align-items: center; min-height: 2.75rem; padding: 0 1.1rem;
+  border-radius: 0.875rem; border: 1px solid var(--hairline); background: var(--surface);
+  font-size: 0.875rem; font-weight: 700;
+}
+.wizard-btn-2:disabled { opacity: 0.5; }
+
+/* ═══ قائمةُ الإجراءات المختصرة «⋯» ═══ */
+.actions-menu { position: relative; display: inline-block; }
+.actions-menu__trigger {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2.25rem; height: 2.25rem; border-radius: 0.7rem;
+  border: 1px solid var(--hairline); background: var(--surface);
+  font-weight: 800; color: color-mix(in oklab, var(--ink) 60%, transparent);
+}
+.actions-menu__trigger:hover { background: color-mix(in oklab, var(--ink) 4%, var(--surface)); }
+.actions-menu__panel {
+  position: absolute; inset-inline-end: 0; top: calc(100% + 0.35rem); z-index: 40;
+  min-width: 15rem; padding: 0.35rem; border-radius: 0.9rem;
+  border: 1px solid var(--hairline); background: var(--surface);
+  box-shadow: 0 18px 40px rgb(26 16 35 / 0.16);
+}
+.actions-menu__item {
+  display: block; width: 100%; text-align: start; padding: 0.55rem 0.75rem;
+  border-radius: 0.6rem; font-size: 0.85rem;
+}
+.actions-menu__item:hover, .actions-menu__item:focus-visible { background: color-mix(in oklab, var(--ink) 5%, var(--surface)); outline: none; }
+.actions-menu__item:disabled { opacity: 0.45; }
+.actions-menu__item--danger { color: #B3261E; }
+:root[data-theme="dark"] .actions-menu__item--danger { color: #F2A29B; }
+.actions-menu__sep { height: 1px; margin: 0.25rem 0.5rem; background: var(--hairline); }
+
+/* ═══ تبويباتُ السجلّ ═══ */
+.roster-tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.roster-tab {
+  display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.45rem 0.9rem;
+  border-radius: 999px; border: 1px solid var(--hairline); background: var(--surface);
+  font-size: 0.8125rem; font-weight: 700;
+}
+.roster-tab[aria-current="page"] { background: var(--brand-action); border-color: transparent; color: #fff; }
+.roster-tab__n { opacity: 0.7; font-weight: 600; }
+
+/* ═══ شاراتُ القائمة: عددٌ مع كلمته ═══ */
+.nav-badge {
+  margin-inline-start: auto; flex: none; border-radius: 999px; padding: 0.05rem 0.5rem;
+  font-size: 0.6875rem; font-weight: 700; line-height: 1.5; white-space: nowrap;
+}
+.nav-badge--action { background: #FCE9DC; color: #8C3600; }
+.nav-badge--info { background: #EEE9EF; color: #341D2B; }
+:root[data-theme="dark"] .nav-badge--action { background: rgb(195 73 0 / 0.22); color: #FFC9A6; }
+:root[data-theme="dark"] .nav-badge--info { background: rgb(255 255 255 / 0.1); color: #E9DDE6; }

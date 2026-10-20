@@ -3,8 +3,6 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { OPEN_DEPARTMENT_WHERE, DEPARTMENT_TAKE } from "@/lib/committees";
 import { AlertsPanel } from "@/components/AlertsPanel";
-import { PlansLink } from "@/components/PlansLink";
-import { planCounts } from "@/lib/plans";
 import { alertsForUser } from "@/lib/alerts";
 import { sweepOverdueRequests, sweepExpiredCandidateAccounts } from "@/lib/workflow";
 import { sweepTicketEscalation, TICKET_STAGE_LABELS, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere } from "@/lib/tickets";
@@ -70,7 +68,6 @@ export default async function OperationsPage() {
   ]);
 
   const alerts = await alertsForUser(session);
-  const plans = await planCounts();
 
   const dict = getDictionary(await getLocale());
   const tOps = dict.operations;
@@ -104,7 +101,6 @@ export default async function OperationsPage() {
 
         <AlertsPanel alerts={alerts} />
 
-        <PlansLink theme={theme} docCount={plans.total} freshCount={plans.fresh} />
         <section id="announcements" className="scroll-mt-24">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>

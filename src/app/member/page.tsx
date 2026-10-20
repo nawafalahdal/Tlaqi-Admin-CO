@@ -11,9 +11,6 @@ import { MyTicketCard } from "./MyTicketCard";
 import { WelcomeMailCard } from "@/components/WelcomeMailCard";
 import { SecurityGuidance } from "@/components/SecurityGuidance";
 import { AvatarUpload } from "@/components/AvatarUpload";
-import { OrgChartLink } from "@/components/OrgChartLink";
-import { PlansLink } from "@/components/PlansLink";
-import { planCounts } from "@/lib/plans";
 import { AlertsPanel } from "@/components/AlertsPanel";
 import { alertsForMember } from "@/lib/alerts";
 import { MyTasks } from "@/components/execution/MyTasks";
@@ -67,7 +64,7 @@ export default async function MemberPortalPage() {
   const unacknowledged = member.warnings.filter((w) => !w.acknowledgedAt).length;
 
   // وجهاتُ التذكرة صارت لصفحة الرفع (`/member/tickets/new`)
-  const [tickets, announcements, plans] = await Promise.all([
+  const [tickets, announcements] = await Promise.all([
     // تذاكره: ما رفعه، وما وُجِّه إليه باسمه، وما وُجِّه إلى قسمه.
     // الأخير كان ناقصاً: مسار العمل اليومي (محتوى ← تصميم ← نشر) يُوجَّه
     // إلى القسم لا إلى شخصٍ بعينه، فكانت تذاكر القسم لا يراها أحد من
@@ -78,8 +75,6 @@ export default async function MemberPortalPage() {
       take: TICKET_LIST_TAKE,
     }),
     announcementsForSession(session, 6),
-    // عدّانِ لا جلبُ وثائق: المدخلُ يقول كم فيه وكم جَدَّ، لا يَعرضها
-    planCounts(),
   ]);
 
   const tasks = await myTasks({ memberId: member.id });
@@ -135,8 +130,6 @@ export default async function MemberPortalPage() {
         <section className="flex flex-col gap-4">
           {/* صورته في الهيكل — للأعضاء كما للقادة */}
           <AvatarUpload current={avatarUrl("member", member.id, member.avatarVersion)} theme={theme} />
-          <OrgChartLink theme={theme} />
-          <PlansLink theme={theme} docCount={plans.total} freshCount={plans.fresh} />
           <WelcomeMailCard
             theme={theme}
             sentAt={member.welcomeEmailSentAt ? formatDate(member.welcomeEmailSentAt) : null}

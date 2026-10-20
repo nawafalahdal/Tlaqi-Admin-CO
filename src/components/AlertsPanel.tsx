@@ -13,15 +13,33 @@ import type { Alert } from "@/lib/alerts";
  *  تتبع السمة الداكنة بخرطٍ مركزيٍّ في `globals.css`، فلا تَصرخ لوحةٌ
  *  كريميّةٌ في شاشةٍ داكنة.
  */
-export function AlertsPanel({ alerts }: { alerts: Alert[] }) {
+export function AlertsPanel({
+  alerts,
+  title = "ما ينتظرك",
+  hint,
+  grid = false,
+}: {
+  alerts: Alert[];
+  /** عنوانُ اللوحة — «يحتاج قرارك» في لوحة القيادة */
+  title?: string;
+  hint?: string;
+  /** عمودان على الشاشات العريضة — للوحة القيادة حيث تكثر البنود */
+  grid?: boolean;
+}) {
   if (alerts.length === 0) return null;
 
   return (
-    <section className="flex flex-col gap-2.5" aria-label="ما ينتظرك">
-      <h2 className="text-sm font-bold">
-        ما ينتظرك <span className="font-medium text-black/40">({alerts.length})</span>
-      </h2>
-      <ul className="flex flex-col gap-2">
+    <section className="flex flex-col gap-3 rounded-2xl border border-hairline bg-white p-4 shadow-sm shadow-black/[0.06] sm:p-5" aria-label={title}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="text-base font-bold sm:text-lg">{title}</h2>
+          {hint && <p className="mt-0.5 text-xs text-black/45">{hint}</p>}
+        </div>
+        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900 ring-1 ring-amber-200">
+          {alerts.length}
+        </span>
+      </div>
+      <ul className={grid ? "grid gap-2 lg:grid-cols-2" : "flex flex-col gap-2"}>
         {alerts.map((a) => (
           <li key={a.id}>
             <div

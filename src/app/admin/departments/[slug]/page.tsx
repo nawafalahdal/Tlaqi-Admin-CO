@@ -22,8 +22,6 @@ import { MemberInviteForm } from "./MemberInviteForm";
 import { MemberRoster } from "./MemberRoster";
 import { CommitteesPanel } from "./CommitteesPanel";
 import { AlertsPanel } from "@/components/AlertsPanel";
-import { PlansLink } from "@/components/PlansLink";
-import { planCounts } from "@/lib/plans";
 import { alertsForUser } from "@/lib/alerts";
 import { OffboardingPanel } from "./OffboardingPanel";
 import { formatDate } from "@/lib/format";
@@ -113,7 +111,6 @@ export default async function DepartmentBoardPage({
   ]);
   const canPlanHere = canPlanDepartment(session, department.id);
   const canReviewHere = canGovernPeriod(session.user.role);
-  const plans = await planCounts();
 
   scheduleDueSweeps({
     overdue_requests: () => sweepOverdueRequests(department.id),
@@ -278,9 +275,6 @@ export default async function DepartmentBoardPage({
           )}
         </section>
 
-        <section>
-          <PlansLink theme={theme} docCount={plans.total} freshCount={plans.fresh} />
-        </section>
 
         {/* ── خطةُ التنفيذ الأسبوعية: الجاريةُ تُنفَّذ، والقادمةُ تُبنى */}
         <section className="flex flex-col gap-4">

@@ -129,7 +129,7 @@ function FullColour({ data }: { data: CertificateData }) {
           <p className="text-center" style={{ fontSize: u(12), lineHeight: 1.8, opacity: 0.65 }}>
             صدرت في {shortDate(new Date())}
             <br />
-            <span dir="ltr">tlaqiteam.site/certificate</span>
+            صادرة من إدارة تَـــلاقِ
           </p>
           <Signer s={data.signers[1]} ink={c.ink} rule={c.rule} muted={c.muted} width={u(290)} />
         </footer>
@@ -237,7 +237,7 @@ function PaperRibbon({ data }: { data: CertificateData }) {
           <p style={{ fontSize: u(11.5), lineHeight: 1.8, color: "#8A8088", whiteSpace: "nowrap" }}>
             صدرت في {shortDate(new Date())}
             <br />
-            <span dir="ltr">tlaqiteam.site/certificate</span>
+            صادرة من إدارة تَـــلاقِ
           </p>
         </footer>
       </section>

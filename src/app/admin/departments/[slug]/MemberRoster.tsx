@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import {
   issueWarningAction,
   resetMemberCredentialsAction,
@@ -46,7 +47,10 @@ export function MemberRoster({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold">
-                {m.fullName} {m.jobTitle && <span className="text-black/40">— {m.jobTitle}</span>}
+                <Link href={`/admin/people/member/${m.id}`} className="underline-offset-2 hover:underline">
+                  {m.fullName}
+                </Link>{" "}
+                {m.jobTitle && <span className="text-black/40">— {m.jobTitle}</span>}
               </p>
               <p className="break-all text-xs text-black/50" dir="ltr">
                 {m.email}

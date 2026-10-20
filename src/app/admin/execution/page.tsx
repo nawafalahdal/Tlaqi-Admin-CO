@@ -16,7 +16,10 @@ import {
 } from "@/lib/execution";
 import { periodProgress } from "@/lib/progress";
 import { repeatedCarryovers, assessWeekPlan, CARRYOVER_ESCALATION } from "@/lib/carryover";
-import { approvedGoals, pendingProposals } from "@/lib/goals";
+import { approvedGoals, pendingProposals, canApproveGoal } from "@/lib/goals";
+import { PageHeader } from "@/components/PageHeader";
+import { DataTable } from "@/components/DataTable";
+import { GoalWizard } from "./goals/GoalWizard";
 import { goalProgress } from "@/lib/progress";
 import { upcomingMeetings, overdueMeetings } from "@/lib/reviewMeeting";
 import { periodTasks } from "@/lib/executionViews";
@@ -58,6 +61,7 @@ export default async function ExecutionPage() {
     departments,
     plans,
     nextPlans,
+    leaders,
   ] = await Promise.all([
     periodProgress(current.id),
     periodProgress(next.id),
@@ -92,7 +96,16 @@ export default async function ExecutionPage() {
         department: { select: { id: true, name: true, colorHex: true } },
       },
     }),
+    // من يُسنَد إليه الهدف: القيادةُ النشطة — كما في صفحة الأهداف
+    prisma.user.findMany({
+      where: { isActive: true, role: { in: ["super_admin", "executive", "department_admin"] } },
+      select: { id: true, fullName: true, role: true },
+      orderBy: { fullName: "asc" },
+    }),
   ]);
+  const canApprove = canApproveGoal(session.user.role);
+  // الإنشاءُ كما يفرضه `createGoal`: الإدارةُ تُنشئ معتمَداً، وقائدُ القسم يقترح
+  const canCreateGoal = canApprove || session.user.role === "department_admin";
 
   // تقدُّمُ كل هدفٍ — يُحسَب من مهامِّه بلا تكرار
   const goalRows = await Promise.all(
@@ -114,34 +127,28 @@ export default async function ExecutionPage() {
       </AppHeader>
 
       <main className="mx-auto flex max-w-6xl flex-col gap-7 px-4 py-6 sm:px-5 sm:py-8">
-        <div>
-          <h1 className="text-lg font-bold sm:text-xl">التنفيذ الاستراتيجي والمحاسبة الأسبوعية</h1>
-          <p className="mt-1 text-sm leading-relaxed text-black/50">
-            من الهدف إلى المحطّة إلى خطة الأسبوع إلى المهمّة إلى التسليم إلى التحقّق. والأسبوعُ
-            لا يُفتَح بمرور التقويم بل بإذنٍ صريح، وما لم يكتمل لا يَضيع ولا يُعَدّ منجَزاً.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs">
-            <Link
-              href="/admin/execution/review"
-              className="rounded-xl px-3.5 py-2 font-bold text-on-brand"
-              style={{ background: theme.accentDark }}
-            >
-              مساحةُ مراجعة السبت ←
-            </Link>
-            <Link
-              href="/admin/execution/goals"
-              className="rounded-xl border border-black/10 px-3.5 py-2 font-bold text-black/70"
-            >
-              الأهدافُ والمحطّات ←
-            </Link>
-            <Link
-              href="/calendar"
-              className="rounded-xl border border-black/10 px-3.5 py-2 font-bold text-black/70"
-            >
-              التقويم ←
-            </Link>
-          </div>
-        </div>
+        {/* الأفعالُ في رأس الصفحة، وكلٌّ مربوطٌ بإجراءٍ قائم: إنشاءُ الهدف
+            (`createGoal`)، وإضافةُ المحطّة (صفحة الأهداف — `createMilestone`)،
+            ومساحةُ المراجعة. والتقويمُ في القائمة الجانبية. */}
+        <PageHeader
+          title="التنفيذ والأهداف"
+          description="من الهدف إلى المحطّة إلى خطة الأسبوع إلى التسليم والتحقّق. والأسبوعُ لا يُفتَح بمرور التقويم بل بإذنٍ صريح، وما لم يكتمل لا يَضيع ولا يُعَدّ منجَزاً."
+          actions={
+            <>
+              {canGovern && (
+                <Link href="/admin/execution/review" className="wizard-btn-2">
+                  مساحةُ مراجعة السبت
+                </Link>
+              )}
+              {canApprove && goals.length > 0 && (
+                <Link href="/admin/execution/goals" className="wizard-btn-2">
+                  ＋ إضافة محطة
+                </Link>
+              )}
+              {canCreateGoal && <GoalWizard canApprove={canApprove} leaders={leaders} />}
+            </>
+          }
+        />
 
         {/* ── الأسبوعان: الجاري والقادم */}
         <section className="grid gap-4 lg:grid-cols-2">
@@ -348,10 +355,13 @@ export default async function ExecutionPage() {
           )}
         </section>
 
-        {/* ── الأهداف */}
+        {/* ── الأهداف: جدولٌ واحد، والتفاصيلُ والمحطّاتُ في صفحة الأهداف */}
         <section>
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-base font-bold">الأهدافُ المعتمَدة ({goalRows.length})</h2>
+            <div>
+              <h2 className="text-base font-bold">الأهدافُ المعتمَدة ({goalRows.length})</h2>
+              <p className="text-xs text-black/45">مرتّبةٌ بالأولوية ثم الموعد — والتقدّمُ ما تحقّقت منه المراجعة لا ما أُعلن</p>
+            </div>
             <Link href="/admin/execution/goals" className="text-xs font-bold underline">
               الإدارةُ والمقترَحات
               {proposals.goals.length + proposals.objectives.length > 0
@@ -360,47 +370,49 @@ export default async function ExecutionPage() {
               ←
             </Link>
           </div>
-          {goalRows.length === 0 ? (
-            <Card className="p-6 text-center text-sm text-black/45">
-              لا أهدافَ معتمَدةً بعد — تُنشأ من صفحة الأهداف.
-            </Card>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {goalRows.map(({ goal, progress }) => (
-                <Card key={goal.id} className="p-4">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <h3 className="text-sm font-bold">{goal.title}</h3>
-                    <span className="text-[11px] text-black/45">
-                      {formatDate(goal.dueDate)} · {countdownLabel(goal.dueDate)}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs leading-relaxed text-black/55">
-                    <span className="font-semibold">معيار النجاح:</span> {goal.successCriteria}
-                  </p>
-                  <p className="mt-1 text-[11px] text-black/40">
-                    {goal.accountable?.fullName ? `المسؤول: ${goal.accountable.fullName}` : ""}
-                    {goal.owner?.fullName ? ` · المالك: ${goal.owner.fullName}` : ""} ·{" "}
-                    {goal.milestones.length} محطّة · {goal._count.tasks} مهمّة
-                  </p>
-                  <div className="mt-2.5">
-                    <ProgressBars b={progress} />
-                  </div>
-                  {goal.milestones.length > 0 && (
-                    <ol className="mt-3 flex flex-col gap-1.5 border-t border-black/5 pt-2.5">
-                      {goal.milestones.map((m, i) => (
-                        <li key={m.id} className="text-xs text-black/60">
-                          <span className="font-bold">{i + 1}.</span> {m.title} — {m.expectedResult}{" "}
-                          <span className="text-black/40">
-                            ({formatDate(m.dueDate)} · {countdownLabel(m.dueDate)})
-                          </span>
-                        </li>
-                      ))}
-                    </ol>
-                  )}
-                </Card>
-              ))}
-            </div>
-          )}
+          <DataTable
+            emptyLabel="لا أهدافَ معتمَدةً بعد — ابدأ بزرّ «إنشاء هدف استراتيجي» أعلى الصفحة."
+            columns={[
+              { key: "goal", label: "الهدف", primary: true },
+              { key: "owner", label: "المسؤول" },
+              { key: "period", label: "من — إلى" },
+              { key: "progress", label: "التقدّم الموثَّق" },
+              { key: "next", label: "المحطة القادمة" },
+              { key: "open", label: "" },
+            ]}
+            rows={goalRows.map(({ goal, progress }) => {
+              const nextMs = goal.milestones.find((m) => m.dueDate >= new Date()) ?? null;
+              const pct = progress.verifiedPercent;
+              return {
+                id: goal.id,
+                cells: {
+                  goal: <span className="font-bold">{goal.title}</span>,
+                  owner: goal.accountable?.fullName ?? goal.owner?.fullName ?? "—",
+                  period: `${formatDate(goal.startDate)} — ${formatDate(goal.dueDate)} · ${countdownLabel(goal.dueDate)}`,
+                  progress:
+                    pct === null ? (
+                      <span className="text-xs text-black/45">لا التزامات مؤهّلة للقياس بعد</span>
+                    ) : (
+                      <span className="flex min-w-32 items-center gap-2">
+                        <span className="h-1.5 flex-1 rounded-full bg-black/[0.07]">
+                          <span
+                            className="block h-1.5 rounded-full"
+                            style={{ width: `${pct}%`, background: "var(--brand-action)" }}
+                          />
+                        </span>
+                        <b className="text-xs">{pct}٪</b>
+                      </span>
+                    ),
+                  next: nextMs ? `${nextMs.title} · ${formatDate(nextMs.dueDate)}` : "—",
+                  open: (
+                    <Link href={`/admin/execution/goals#goal-${goal.id}`} className="text-xs font-bold underline">
+                      التفاصيل
+                    </Link>
+                  ),
+                },
+              };
+            })}
+          />
         </section>
 
         {/* ── الاجتماعات */}

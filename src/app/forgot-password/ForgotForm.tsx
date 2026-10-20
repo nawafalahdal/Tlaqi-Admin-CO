@@ -27,7 +27,7 @@ export function ForgotForm() {
           required
           dir="ltr"
           autoComplete="email"
-          placeholder="name@tlaqiteam.site"
+          placeholder="name@example.com"
           className="min-h-11 rounded-xl border border-black/10 px-4 py-3 text-sm outline-none focus:border-[var(--brand-temptress)] focus:ring-2 focus:ring-[var(--brand-temptress)]/15"
         />
       </label>

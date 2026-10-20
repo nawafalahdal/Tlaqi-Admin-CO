@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import { auth } from "@/auth";
-import { buildOrgChart, MIN_DEPARTMENT_MEMBERS, ORG_SENIOR_COLOR } from "@/lib/orgChart";
+import { buildOrgChart, MIN_DEPARTMENT_MEMBERS } from "@/lib/orgChart";
 import { OrgTree } from "@/components/OrgTree";
 import { PrintChart } from "./PrintChart";
 import { formatDate } from "@/lib/format";
@@ -71,37 +71,29 @@ export default async function StructurePdfPage() {
         className="mx-auto w-full max-w-[1123px] overflow-hidden rounded-2xl bg-white shadow-sm print:max-w-none print:rounded-none print:shadow-none"
         id="tlaqi-org-sheet"
       >
-        {/* ترويسة الهوية */}
+        {/* ترويسة الوثيقة: العنوانُ والإصدار، والشعار الرسمي كما هو */}
         <header
-          className="flex items-center justify-between gap-4 px-8 py-5"
-          style={{ background: BRAND.temptress }}
+          className="mx-8 mt-7 flex items-end justify-between gap-4 pb-4"
+          style={{ borderBottom: `2px solid ${BRAND.temptress}` }}
         >
-          <Image
-            src="/brand/lockup-on-dark.png"
-            alt="تَـــلاقِ — TLAQI"
-            width={132}
-            height={39}
-            className="shrink-0"
-            style={{ width: 132, height: 39 }}
-            priority
-          />
-          <div className="text-end">
-            <p className="text-sm font-bold" style={{ color: BRAND.beige }}>
-              الهيكل التنظيمي
-            </p>
-            <p className="mt-0.5 text-[10px]" style={{ color: `${BRAND.beige}B3` }}>
-              نسخة رسمية — {today}
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: BRAND.temptress }}>
+              الهيكل التنظيمي الرسمي
+            </h1>
+            <p className="mt-1 text-xs text-black/55">
+              تَـــلاقِ — TLAQI · صادرة في {today} من بيانات المنصة المعتمدة
             </p>
           </div>
+          <Image
+            src="/brand/lockup-on-light.png"
+            alt="تَـــلاقِ — TLAQI"
+            width={150}
+            height={44}
+            className="shrink-0"
+            style={{ width: 150, height: 44 }}
+            priority
+          />
         </header>
-
-        <div
-          className="h-1 w-full"
-          style={{
-            background: `linear-gradient(90deg, ${ORG_SENIOR_COLOR} 0%, ${BRAND.mahogany} 50%, ${BRAND.greenSheen} 100%)`,
-          }}
-          aria-hidden
-        />
 
         <div className="px-6 py-6">
           {/* **ولا علامة «أنت هنا» في النسخة الرسمية.** التمييز للعين
@@ -111,18 +103,17 @@ export default async function StructurePdfPage() {
         </div>
 
         {/* تذييل: الأرقام والمرجع — وثيقةٌ تُقرأ بعد شهر فتُعرف نسختُها */}
-        <footer
-          className="flex flex-wrap items-center justify-between gap-2 px-8 py-3 text-[10px]"
-          style={{ background: `${BRAND.beige}80`, borderTop: `1px solid ${ORG_SENIOR_COLOR}1F` }}
-        >
+        <footer className="mx-8 mb-6 flex flex-wrap items-center justify-between gap-3 border-t border-black/10 pt-3 text-[10px]">
           <span className="font-semibold text-black/60">
             {chart.counts.people} شخصاً • {chart.counts.departments} أقسام
-            {chart.counts.committees > 0 ? ` • ${chart.counts.committees} لجنة` : ""} • لا مقاعد
-            شاغرة
+            {chart.counts.committees > 0 ? ` • ${chart.counts.committees} لجنة` : ""} • لا مقاعد شاغرة
           </span>
-          <span className="text-black/40">
-            يُبنى آلياً من سجلّات المنصة — لا يُحرَّر يدوياً • tlaqiteam.site
+          <span className="flex" aria-hidden>
+            {[BRAND.greenSheen, BRAND.temptress, BRAND.mahogany, BRAND.beige].map((c) => (
+              <span key={c} className="h-1.5 w-10" style={{ background: c }} />
+            ))}
           </span>
+          <span className="text-black/45">يُبنى آلياً من سجلّات المنصة — لا يُحرَّر يدوياً • صادر من إدارة تَـــلاقِ</span>
         </footer>
       </div>
     </main>

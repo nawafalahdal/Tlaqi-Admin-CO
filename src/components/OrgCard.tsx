@@ -37,10 +37,10 @@ export function OrgCard({
 }) {
   const dims =
     size === "lg"
-      ? { box: "w-[168px]", photo: "h-20 w-20", name: "text-sm", title: "text-[11px]" }
+      ? { box: "w-[220px]", photo: "h-20 w-20", name: "text-base", title: "text-xs", band: "h-14", lift: "-mt-10" }
       : size === "md"
-        ? { box: "w-[152px]", photo: "h-16 w-16", name: "text-[13px]", title: "text-[10.5px]" }
-        : { box: "w-[132px]", photo: "h-12 w-12", name: "text-xs", title: "text-[10px]" };
+        ? { box: "w-[184px]", photo: "h-16 w-16", name: "text-sm", title: "text-[11px]", band: "h-11", lift: "-mt-8" }
+        : { box: "w-[150px]", photo: "h-12 w-12", name: "text-xs", title: "text-[10px]", band: "h-9", lift: "-mt-6" };
 
   return (
     <div
@@ -66,16 +66,17 @@ export function OrgCard({
       )}
       {/* الشريط يُرسَم بحدِّ العرض لا باللون الخام: الأبيض على أبيض
           لا يُرى، فيُحمَل بحدٍّ رماديٍّ داكن يُبقيه أبيضَ مقصوداً */}
+      {/* شريطُ اللون عريضٌ تعلو عليه الصورة — هويةُ القسم أوّلُ ما يُقرأ */}
       <div
-        className="h-1.5 w-full"
+        className={`${dims.band} w-full`}
         style={{
           background: color,
           borderBottom: needsOutline(color) ? `1px solid ${outlineFor(color)}` : undefined,
         }}
         aria-hidden
       />
-      <div className="flex flex-col items-center px-3 pb-3 pt-3 text-center">
-        <Portrait src={person.avatarUrl} name={person.fullName} color={color} className={dims.photo} />
+      <div className={`flex flex-col items-center px-3 pb-3.5 text-center ${dims.lift}`}>
+        <Portrait src={person.avatarUrl} name={person.fullName} color={color} className={`${dims.photo} border-4 border-white bg-white`} />
         <p className={`mt-2 font-bold leading-tight text-black/85 ${dims.name}`}>{person.fullName}</p>
         <p className={`mt-0.5 leading-snug text-black/55 ${dims.title}`}>{person.title}</p>
         {person.scope && (
@@ -127,7 +128,7 @@ function Portrait({
         decoding="async"
         alt={name}
         className={`${className} rounded-full object-contain`}
-        style={{ background: `${color}14` }}
+        style={{ background: `color-mix(in oklab, ${color} 8%, white)` }}
       />
     );
   }
@@ -137,7 +138,13 @@ function Portrait({
     <span
       aria-label={`${name} — لم تُضَف صورته بعد`}
       className={`${className} flex items-center justify-center rounded-full border border-dashed text-lg font-bold`}
-      style={{ background: `${color}1F`, borderColor: `${color}66`, color: ink === "#1A1023" ? color : color }}
+      // خلفيةٌ معتمة لا شفّافة: الدائرةُ تعلو شريطَ اللون، والشفّافةُ يَظهر
+      // الشريطُ من خلالها فيُقصّ الحرفُ نصفين
+      style={{
+        background: `color-mix(in oklab, ${color} 14%, white)`,
+        borderColor: `${color}66`,
+        color: ink === "#1A1023" ? `color-mix(in oklab, ${color} 55%, #1A1023)` : color,
+      }}
     >
       {initial}
     </span>

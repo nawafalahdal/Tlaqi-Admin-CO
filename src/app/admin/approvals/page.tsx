@@ -16,6 +16,7 @@ import { ApprovalDecide } from "./ApprovalDecide";
 import { RequesterActions } from "./RequesterActions";
 import { RequestApproval } from "./RequestApproval";
 import { myTicketsWithoutApproval } from "./actions";
+import { CandidateApprovals } from "./CandidateApprovals";
 import type { ApprovalKind, ApprovalState } from "@prisma/client";
 
 /** الاعتمادات الإدارية — «بانتظار اعتمادي» و«طلباتي» في صفحةٍ واحدة.
@@ -66,6 +67,11 @@ export default async function ApprovalsPage() {
             فتحُ الطلب وقراءته لا يُغيّر حالته.
           </p>
         </div>
+
+        {/* طلباتُ الانضمام: للمؤسس والرئيس التنفيذي — موضعُها الواحد */}
+        {(session.user.role === "super_admin" || session.user.role === "executive") && (
+          <CandidateApprovals session={session} />
+        )}
 
         <section>
           <h2 className="mb-3 text-base font-bold">

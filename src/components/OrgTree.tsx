@@ -1,4 +1,6 @@
 import { SeatCard, OrgCard } from "@/components/OrgCard";
+import { readableTextOn } from "@/lib/colors";
+import type { OrgPerson } from "@/lib/orgChart";
 import { ORG_SENIOR_COLOR, outlineFor, needsOutline } from "@/lib/orgChart";
 import type { OrgChart, OrgDepartment } from "@/lib/orgChart";
 
@@ -154,78 +156,61 @@ function Branch({
   // بطاقاتُ اللجان أصغر: فرعٌ داخل فرعٍ يحتاج تفاوتاً يُقرأ به العمق
   const seatSize = depth > 0 ? "sm" : size;
 
+  const people = dept.members.length + (dept.lead.kind === "filled" ? 1 : 0);
+  const headInk = readableTextOn(needsOutline(dept.displayColor) ? "#F1F5E6" : dept.displayColor);
+
+  // **القسمُ لوحةٌ لا عمود:** ترويسةٌ بلونه فيها اسمُه وعددُه، وتحتها قائدُه
+  // بطاقةً، وأعضاؤه شرائحَ — فيُقرأ القسمُ وحدةً واحدة، ويتّسع لعشرين
+  // عضواً دون أن يطول الهيكل عشرين بطاقة.
   return (
-    <div
-      className={`flex flex-col items-center rounded-3xl ${mine ? "px-2 pb-2" : ""}`}
-      style={
-        mine
-          ? {
-              background: `${dept.displayColor}0A`,
-              boxShadow: `0 0 0 2px ${stem}`,
-            }
-          : undefined
-      }
-    >
-      {mine && (
-        <span
-          className="mt-1.5 rounded-full px-2 py-0.5 text-[9px] font-bold text-on-brand"
-          style={{ background: needsOutline(dept.displayColor) ? "#341D2B" : dept.displayColor }}
-        >
-          {dept.isCommittee ? "لجنتك" : "قسمك"}
-        </span>
-      )}
+    <div className="flex min-w-[15rem] flex-1 basis-64 flex-col items-stretch">
       {/* ساقُ الفرع تصل الشريطَ بترويسة القسم */}
-      <span className="block h-4 w-px" style={{ background: stem }} aria-hidden />
+      <span className="mx-auto block h-4 w-px" style={{ background: stem }} aria-hidden />
       <div
-        className={`rounded-xl px-3 py-1.5 ${dept.isCommittee ? "border-dashed" : ""}`}
-        style={{
-          // الأبيضُ شبهُ الأبيض يحتاج سطحاً فاتحاً ليُرى، وذاك
-          // السطح نفسُه يَعمى عليه الحبرُ في السمة الداكنة —
-          // فيتبع السمة: فاتحٌ في الفاتح، وغمزةُ ضوءٍ في الداكن
-          background: needsOutline(dept.displayColor)
-            ? "light-dark(#F6F7F1, rgba(255,255,255,0.09))"
-            : `${dept.displayColor}14`,
-          border: `1.5px ${dept.isCommittee ? "dashed" : "solid"} ${stem}`,
-        }}
+        className={`overflow-hidden rounded-3xl bg-white shadow-sm ${dept.isCommittee ? "border border-dashed" : "border border-hairline"}`}
+        style={mine ? { boxShadow: `0 0 0 2px ${stem}` } : dept.isCommittee ? { borderColor: stem } : undefined}
       >
-        <span className="text-xs font-bold text-black/80">
-          {/* لونُها لونُ قسمها، فالكلمةُ والتقطيعُ هما ما يُميّزانها */}
-          {dept.isCommittee ? `لجنة ${dept.name}` : dept.name}
-        </span>
+        <div
+          className="flex items-center justify-between gap-2 px-4 py-2.5"
+          style={{
+            background: needsOutline(dept.displayColor) ? "#F1F5E6" : dept.displayColor,
+            color: headInk,
+            borderBottom: needsOutline(dept.displayColor) ? `1px solid ${stem}` : undefined,
+          }}
+        >
+          <span className="text-sm font-bold">
+            {/* لونُها لونُ قسمها، فالكلمةُ والتقطيعُ هما ما يُميّزانها */}
+            {dept.isCommittee ? `لجنة ${dept.name}` : dept.name}
+            {mine && <span className="ms-2 rounded-full bg-white/85 px-2 py-0.5 text-[10px] text-[#341D2B]">{dept.isCommittee ? "لجنتك" : "قسمك"}</span>}
+          </span>
+          <span className="text-[11px] font-bold opacity-80">{people} أشخاص</span>
+        </div>
+
+        <div className="flex flex-col items-center px-3 pb-4 pt-4">
+          <SeatCard
+            seat={dept.lead}
+            color={dept.displayColor}
+            size={seatSize}
+            viewerId={viewerId}
+            committee={dept.isCommittee ? dept.name : null}
+          />
+
+          {dept.members.length > 0 ? (
+            <>
+              <span className="block h-3 w-px" style={{ background: stem }} aria-hidden />
+              <ul className="flex flex-wrap justify-center gap-2">
+                {dept.members.map((m) => (
+                  <li key={m.id}>
+                    <MemberChip person={m} color={dept.displayColor} highlight={m.id === viewerId} />
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="mt-3 text-[11px] text-black/35">لا أعضاء بعد</p>
+          )}
+        </div>
       </div>
-      <span className="block h-4 w-px" style={{ background: stem }} aria-hidden />
-
-      <SeatCard
-        seat={dept.lead}
-        color={dept.displayColor}
-        size={seatSize}
-        viewerId={viewerId}
-        committee={dept.isCommittee ? dept.name : null}
-      />
-
-      {dept.members.length > 0 && (
-        <>
-          <span className="block h-4 w-px" style={{ background: stem }} aria-hidden />
-          <div
-            className="flex flex-col items-center gap-2 rounded-2xl px-2.5 py-3"
-            style={{ borderTop: `2px solid ${stem}` }}
-          >
-            <div className="flex flex-wrap justify-center gap-2.5">
-              {dept.members.map((m) => (
-                <OrgCard
-                  key={m.id}
-                  person={m}
-                  color={dept.displayColor}
-                  size="sm"
-                  highlight={m.id === viewerId}
-                  committee={dept.isCommittee ? dept.name : null}
-                />
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-      {dept.members.length === 0 && <p className="mt-2 text-[11px] text-black/35">لا أعضاء بعد</p>}
 
       {/* لجانُه: داخل إطارٍ بلون أبيها، وكلُّ لجنةٍ بلونها هي */}
       {dept.committees.length > 0 && (
@@ -268,5 +253,39 @@ function Branching({ count }: { count: number }) {
       className="mb-0 block h-px w-full max-w-5xl bg-black/20 print:bg-black/40"
       aria-hidden
     />
+  );
+}
+
+/** عضوٌ في قسمه: شريحةٌ بصورته أو حرفه الأول، واسمه، ومسمّاه في التلميح.
+ *
+ *  من لا صورة له يُرسم بحرفه الأول على لون قسمه — لا أيقونةٌ عامة تُساوي
+ *  بين الناس. */
+function MemberChip({ person, color, highlight }: { person: OrgPerson; color: string; highlight: boolean }) {
+  const light = needsOutline(color);
+  return (
+    <span
+      title={person.title}
+      className={`inline-flex items-center gap-2 rounded-full bg-white py-1 pe-3 ps-1 text-[12.5px] font-bold text-black/80 ${
+        highlight ? "ring-2 ring-[#C34900]" : "ring-1 ring-black/10"
+      }`}
+    >
+      {person.avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={person.avatarUrl} alt="" loading="lazy" className="h-7 w-7 rounded-full object-cover" />
+      ) : (
+        <span
+          aria-hidden="true"
+          className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold"
+          style={{ background: light ? "#DDE7CB" : color, color: light ? "#341D2B" : readableTextOn(color) }}
+        >
+          {person.fullName.trim().charAt(0)}
+        </span>
+      )}
+      <span className="flex flex-col leading-tight">
+        <span>{person.fullName}</span>
+        <span className="text-[10px] font-medium text-black/45">{person.title}</span>
+      </span>
+      {highlight && <span className="rounded-full bg-[#C34900] px-1.5 text-[9px] text-white">أنت</span>}
+    </span>
   );
 }

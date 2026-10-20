@@ -2,21 +2,21 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
-import { themeFromColor, SUPER_ADMIN_THEME, brandInk} from "@/lib/brand";
+import { themeFromColor, SUPER_ADMIN_THEME, BRAND } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
-import { AccountRow } from "./AccountRow";
-import { MyAccountCard } from "./MyAccountCard";
 import { SeatConflicts } from "@/components/SeatConflicts";
 import { RemovedAccountRow } from "./RemovedAccountRow";
 import { MemberAccountRow } from "./MemberAccountRow";
 import { StuckCandidateRow, type StuckCandidate } from "./StuckCandidateRow";
 import { DataTable } from "@/components/DataTable";
-import { FounderMemberControls } from "@/components/FounderMemberControls";
-import { OrgChartLink } from "@/components/OrgChartLink";
-import { PlansLink } from "@/components/PlansLink";
-import { planCounts } from "@/lib/plans";
-import { formatDate } from "@/lib/format";
+import { PageHeader } from "@/components/PageHeader";
+import Link from "next/link";
+import { RosterRowActions } from "./RosterRowActions";
+import { roleTitle } from "@/lib/gender";
+import { avatarUrl } from "@/lib/avatarUrl";
+import { readableTextOn } from "@/lib/colors";
+import { formatDate, sinceLabel } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
 import {
   CANDIDATE_EXPIRY_REASON,
@@ -25,7 +25,6 @@ import {
 } from "@/lib/workflow";
 import { ROLE_LABELS } from "@/lib/testTracks";
 import { loginHealthFor, loginHealthNotes, loginHealthBlocked } from "@/lib/loginHealth";
-import { canAward } from "@/lib/awards";
 import { scheduleDueSweeps } from "@/lib/sweepThrottle";
 import { isRosterMember } from "@/lib/roster";
 
@@ -43,7 +42,25 @@ import { isRosterMember } from "@/lib/roster";
  *  والهيكل التنظيمي مربوطٌ من هنا لا مُدخَلاً: يُحسَب من هذه البيانات
  *  نفسها، فمن أُضيف هنا ظهر فيه وحده ولا يُكتَب مرتين.
  */
-export default async function PeoplePage() {
+type Tab = "all" | "leaders" | "members" | "joining" | "attention" | "removed";
+const TABS: { id: Tab; label: string }[] = [
+  { id: "all", label: "الكل" },
+  { id: "leaders", label: "القيادة" },
+  { id: "members", label: "الأعضاء" },
+  { id: "joining", label: "قيد الانضمام" },
+  { id: "attention", label: "يحتاج انتباهاً" },
+  { id: "removed", label: "المنحّون والمنتهون" },
+];
+
+export default async function PeoplePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string; q?: string; dept?: string }>;
+}) {
+  const sp = await searchParams;
+  const tab: Tab = TABS.find((x) => x.id === sp.tab)?.id ?? "all";
+  const q = (sp.q ?? "").trim().toLowerCase();
+  const deptFilter = sp.dept ?? "";
   const session = await auth();
   if (!session) redirect("/login");
   if (session.user.role !== "super_admin" && session.user.role !== "executive") redirect("/admin");
@@ -54,11 +71,15 @@ export default async function PeoplePage() {
 
   scheduleDueSweeps({ candidate_expiry: () => sweepExpiredCandidateAccounts() });
 
-  const [me, accounts, allMembers, removedUsers, allDepartments, plans] =
+  const [me, accounts, allMembers, removedUsers, allDepartments] =
     await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { welcomeEmailSentAt: true },
+      select: {
+        id: true, fullName: true, email: true, role: true, jobTitle: true, gender: true,
+        createdAt: true, avatarVersion: true, totpEnabled: true, welcomeEmailSentAt: true,
+        department: { select: { id: true, name: true, colorHex: true } },
+      },
     }),
     prisma.user.findMany({
       // الصورةُ تُطلب من مسارها المخزَّن — لا تُحمَّل مع كل صفّ
@@ -101,8 +122,6 @@ export default async function PeoplePage() {
       select: { id: true, name: true },
       orderBy: [{ leadershipOnly: "desc" }, { name: "asc" }],
     }),
-    // عدّانِ لا جلبُ وثائق: المدخلُ يقول كم فيه وكم جَدَّ، لا يَعرضها
-    planCounts(),
   ]);
 
   // مَن وصلته بطاقتُه فعلاً — من السجل لا من الحقل وحده. قراءةٌ واحدة
@@ -115,6 +134,18 @@ export default async function PeoplePage() {
         distinct: ["recipient"],
       })
     ).map((r) => r.recipient.toLowerCase())
+  );
+  // من أخفقت بطاقتُه ولم تصله بعدها — يُقال «فشل الإرسال» لا «لم تُرسل»
+  const failedWelcome = new Set(
+    (
+      await prisma.emailLog.findMany({
+        where: { kind: "ترحيب", status: "فشل الإرسال" },
+        select: { recipient: true },
+        distinct: ["recipient"],
+      })
+    )
+      .map((r) => r.recipient.toLowerCase())
+      .filter((e) => !welcomedEmails.has(e))
   );
   /** جملةُ الوصول — أو `null` لمن لم تصله بعد */
   const welcomedLabel = (email: string, at: Date | null): string | null => {
@@ -152,7 +183,6 @@ export default async function PeoplePage() {
     return loginHealthNotes(h);
   };
 
-  const mayAward = canAward(session.user.role);
 
   const members = allMembers
     .filter(isRosterMember)
@@ -164,7 +194,14 @@ export default async function PeoplePage() {
 
   // كل من أُنشئ له حساب ولم يُعتمد: راسب، أو ساقط المهلة، أو لم يُسلّم بعد.
   // هؤلاء هم من يحجزون المناصب والبُرُد دون أن يظهروا في أي قائمة عاملة.
-  const stuckRaw = allMembers.filter((m) => m.approvalStatus !== "approved").slice(0, 50);
+  // والساقطون بالمهلة لهم قسمُهم (بإعادة الإصدار) — فلا يُعرَضون هنا ثانيةً
+  const stuckRaw = allMembers
+    .filter(
+      (m) =>
+        m.approvalStatus !== "approved" &&
+        !(!m.isActive && m.exitReason === CANDIDATE_EXPIRY_REASON)
+    )
+    .slice(0, 50);
 
   // الحسابات التي أسقطتها المهلة — تُعرض هنا وحدها لأن هذه هي النافذة
   // الوحيدة التي تُعيد إصدارها، وإخفاؤها يعني ضياعها بلا طريق للعودة
@@ -209,10 +246,6 @@ export default async function PeoplePage() {
   }));
 
   // السجلّ: أقسامه الثلاثة كما كانت في «سجل الأعضاء» بلا نقص
-  const registerApproved = members;
-  const registerCandidates = allMembers.filter(
-    (m) => m.approvalStatus === "pending_review" && m.isActive
-  );
   const registerInactive = allMembers.filter(
     (m) => !m.isActive || m.approvalStatus === "rejected"
   );
@@ -251,6 +284,117 @@ export default async function PeoplePage() {
 
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
 
+  // ── السجلّ الموحَّد: كلُّ شخصٍ صفٌّ واحد.
+  //
+  // **سببُ التكرار الذي ظهر عند التمرير:** كانت الصفحة ترسم العضو المعتمد
+  // ثلاث مرات — في «حسابات الأعضاء»، ثم في «إجراءات المؤسس»، ثم في جدول
+  // «السجل» أسفلها — والمرشّحَ مرّتين أو ثلاثاً. لم تكن البيانات مكرّرة،
+  // بل الرسم. فصار لكلّ شخصٍ صفٌّ واحد في تبويبه، وإجراءاتُه في ملفه.
+  type Row = {
+    kind: "user" | "member";
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    dept: { id: string; name: string; colorHex: string } | null;
+    since: Date;
+    avatar: string | null;
+    status: { label: string; tone: "ok" | "warn" };
+    welcome: { label: string; tone: "ok" | "warn" | "bad" };
+    leader: boolean;
+    self: boolean;
+  };
+  const welcomeOf = (email: string, at: Date | null): Row["welcome"] => {
+    if (welcomedLabel(email, at)) return { label: "قُبلت ✓", tone: "ok" };
+    if (failedWelcome.has(email.toLowerCase())) return { label: "فشل الإرسال", tone: "bad" };
+    return { label: "لم تُرسل", tone: "warn" };
+  };
+  const statusOf = (email: string, totp: boolean | null): Row["status"] => {
+    if (notesFor(email)) return { label: "دخولٌ متعثّر", tone: "warn" };
+    if (totp === false) return { label: "بلا تحقق ثنائي", tone: "warn" };
+    return { label: "نشط", tone: "ok" };
+  };
+
+  const leaderRows: Row[] = [
+    ...(me
+      ? [
+          {
+            kind: "user" as const,
+            id: me.id,
+            name: me.fullName,
+            email: me.email,
+            role: roleTitle(me.role, me.gender, me.department?.name),
+            dept: me.department,
+            since: me.createdAt,
+            avatar: avatarUrl("user", me.id, me.avatarVersion),
+            status: statusOf(me.email, me.totpEnabled),
+            welcome: welcomeOf(me.email, me.welcomeEmailSentAt),
+            leader: true,
+            self: true,
+          },
+        ]
+      : []),
+    ...accounts.map((a) => ({
+      kind: "user" as const,
+      id: a.id,
+      name: a.fullName,
+      email: a.email,
+      role: roleTitle(a.role, a.gender, a.department?.name),
+      dept: a.department ? { id: a.department.id, name: a.department.name, colorHex: a.department.colorHex } : null,
+      since: a.createdAt,
+      avatar: avatarUrl("user", a.id, a.avatarVersion),
+      status: statusOf(a.email, a.totpEnabled),
+      welcome: welcomeOf(a.email, a.welcomeEmailSentAt),
+      leader: true,
+      self: false,
+    })),
+  ];
+  const memberRows: Row[] = members.map((m) => ({
+    kind: "member" as const,
+    id: m.id,
+    name: m.fullName,
+    email: m.email,
+    role: [roleTitle("member", m.gender), m.jobTitle?.trim()].filter(Boolean).join(" · "),
+    dept: m.department ? { id: m.department.id, name: m.department.name, colorHex: m.department.colorHex } : null,
+    since: m.orgJoinDate ?? m.decidedAt ?? m.joinDate,
+    avatar: avatarUrl("member", m.id, m.avatarVersion),
+    status: statusOf(m.email, null),
+    welcome: welcomeOf(m.email, m.welcomeEmailSentAt),
+    leader: false,
+    self: false,
+  }));
+
+  const matches = (r: Row) =>
+    (!q || r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q)) &&
+    (!deptFilter || r.dept?.id === deptFilter);
+  const everyone = [...leaderRows, ...memberRows];
+  const attention = everyone.filter((r) => r.status.tone !== "ok" || r.welcome.tone !== "ok");
+  const counts: Record<Tab, number> = {
+    all: everyone.length,
+    leaders: leaderRows.length,
+    members: memberRows.length,
+    joining: stuck.length + lapsed.length,
+    attention: attention.length,
+    removed: removedUsers.length + registerInactive.length,
+  };
+  const shown = (tab === "leaders" ? leaderRows : tab === "members" ? memberRows : tab === "attention" ? attention : everyone).filter(matches);
+  const rosterTab = tab === "all" || tab === "leaders" || tab === "members" || tab === "attention";
+
+  const href = (patch: Partial<{ tab: string; q: string; dept: string }>) => {
+    const p = new URLSearchParams();
+    const next = { tab, q: sp.q ?? "", dept: deptFilter, ...patch };
+    if (next.tab && next.tab !== "all") p.set("tab", next.tab);
+    if (next.q) p.set("q", next.q);
+    if (next.dept) p.set("dept", next.dept);
+    const s = p.toString();
+    return s ? `/admin/people?${s}` : "/admin/people";
+  };
+  const tone = {
+    ok: "bg-green-50 text-green-800 ring-green-200",
+    warn: "bg-amber-50 text-amber-900 ring-amber-200",
+    bad: "bg-red-50 text-red-800 ring-red-200",
+  } as const;
+
   return (
     <div className="min-h-screen bg-page">
       <AppHeader
@@ -261,250 +405,197 @@ export default async function PeoplePage() {
         <HeaderActions color={theme.text} />
       </AppHeader>
 
-      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-5 sm:py-8">
+      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 sm:px-5 sm:py-8">
+        <PageHeader
+          title="الأعضاء"
+          description="سجلٌّ واحد لكل من في تَـــلاقِ — كل شخصٍ يظهر مرّةً واحدة، وإجراءاتُه في ملفه وفي قائمته المختصرة."
+          actions={
+            <Link href="/admin/invites" className="btn-brand ticket-cta__btn">
+              ＋ دعوة شخص
+            </Link>
+          }
+        />
 
-        <h1 className="mb-1 text-xl font-bold">إدارة الأعضاء والهيكل التنظيمي</h1>
-        <p className="mb-6 text-sm leading-relaxed text-black/50">
-          الشخص وموقعه وقسمه في موضعٍ واحد: الإجراءات أولاً، ثم سجلُّ كلّ من مرّ بالمنصة.
-          {" "}
-          {isSuperAdmin ? t.accounts.subtitleSuper : t.accounts.subtitleExec}
-        </p>
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">{t.seats.governance}</p>
+        <SeatConflicts canPurge={isSuperAdmin} />
 
-        {/* الهيكل يُحسَب من هذه البيانات نفسها: من أُضيف هنا ظهر فيه
-            وحده، فلا يُدخَل الشخص مرتين */}
-        <div className="mb-4">
-          <OrgChartLink theme={theme} />
-          <PlansLink theme={theme} docCount={plans.total} freshCount={plans.fresh} />
-        </div>
-
-        <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
-          {t.seats.governance}
-        </p>
-
-        {/* التعارض يُعرض هنا بوقائعه وبزرّ محوه — لا نصّاً يُحيل إلى
-            شاشةٍ أخرى. وكان قائمةً نصّية تقول «نحِّ من لم يبقَ في
-            منصبه»، فيرى المؤسس العطب ولا يملك أداته. والمكوّن نفسه
-            يُستعمل في اللوحة، فالقاعدة في موضعٍ واحد. */}
-        <div className="mb-4">
-          <SeatConflicts canPurge={isSuperAdmin} />
-        </div>
-
-        {/* حسابُ المؤسس نفسه — خارج القائمة لأنها لا تَعرض له تنحيةً ولا
-            حذفاً، فلو تُرك بلا موضعٍ هنا لم يجد طريقاً إلى بطاقته */}
-        {isSuperAdmin && (
-          <div className="mb-6">
-            <h3 className="mb-2 text-sm font-bold text-black/70">{t.accounts.myAccountTitle}</h3>
-            <MyAccountCard
-              theme={theme}
-              account={{
-                id: session.user.id,
-                fullName: session.user.name ?? "—",
-                email: session.user.email ?? "—",
-                roleLabel: t.roles.super_admin,
-                welcomeSentAt: welcomedLabel(
-                  session.user.email ?? "",
-                  me?.welcomeEmailSentAt ?? null
-                ),
-              }}
-            />
-          </div>
-        )}
-
-        <h2 className="mb-3 text-lg font-bold">{t.admin.accountsTitle}</h2>
-        {accounts.length === 0 ? (
-          <Card className="p-8 text-center text-sm text-black/40">{t.accounts.empty}</Card>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {accounts.map((a) => (
-              <AccountRow
-                key={a.id}
-                theme={theme}
-                canRemove={isSuperAdmin}
-                loginNotes={notesFor(a.email)}
-                canAward={mayAward}
-                account={{
-                  id: a.id,
-                  fullName: a.fullName,
-                  email: a.email,
-                  role: a.role,
-                  departmentName: a.department?.name ?? null,
-                }}
-              />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <nav className="roster-tabs" aria-label="تبويبات السجل">
+            {TABS.map((x) => (
+              <Link key={x.id} href={href({ tab: x.id })} aria-current={tab === x.id ? "page" : undefined} className="roster-tab">
+                {x.label} <span className="roster-tab__n">{counts[x.id]}</span>
+              </Link>
             ))}
-          </div>
-        )}
-
-        <h2 className="mb-1 mt-10 text-lg font-bold">{t.opsExtras.memberAccountsTitle}</h2>
-        <p className="mb-6 text-sm text-black/50">
-          {t.misc.memberAccountsHint}
-        </p>
-
-        {members.length === 0 ? (
-          <Card className="p-8 text-center text-sm text-black/40">{t.opsExtras.memberAccountsEmpty}</Card>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {members.map((m) => (
-              <MemberAccountRow
-                key={m.id}
-                theme={theme}
-                canPurge={isSuperAdmin}
-                loginNotes={notesFor(m.email)}
-                canAward={mayAward}
-                // التصنيف يُعرَض لغير المصنّف وحده: من صُنِّف لا يُعاد
-                // تصنيفه، والخادم يرفضه على كل حال
-                assignableDepartments={
-                  isSuperAdmin && m.departmentId === null ? allDepartments : undefined
-                }
-                member={{
-                  id: m.id,
-                  fullName: m.fullName,
-                  email: m.email,
-                  departmentName: m.department?.name ?? "—",
-                }}
+          </nav>
+          {rosterTab && (
+            <form action="/admin/people" className="flex flex-wrap gap-2" role="search">
+              {tab !== "all" && <input type="hidden" name="tab" value={tab} />}
+              <input
+                name="q"
+                defaultValue={sp.q ?? ""}
+                placeholder="بحث بالاسم أو البريد"
+                aria-label="بحث بالاسم أو البريد"
+                className="min-h-10 w-56 rounded-xl border border-black/10 bg-white px-3.5 text-sm outline-none focus:border-black/30"
               />
-            ))}
-          </div>
-        )}
-
-        {/* إجراءات المؤسس على المعتمدين: تصحيح تاريخ الانضمام التنظيمي
-            (لمن سبق المنصة) وإرسال بطاقة الانضمام. للمؤسس وحده —
-            والحرس في الخادم لا في إخفاء هذا القسم. */}
-        {isSuperAdmin && members.length > 0 && (
-          <section>
-            <h2 className="mb-1 mt-10 text-lg font-bold">إجراءات المؤسس</h2>
-            <p className="mb-3 text-xs text-black/40">
-              تاريخ الانضمام التنظيمي لمن انضمّ قبل وجود المنصة، وإرسال بطاقة الانضمام.
-            </p>
-            <div className="flex flex-col gap-3">
-              {members.map((m) => (
-                <Card key={m.id} className="p-4">
-                  <FounderMemberControls
-                    memberId={m.id}
-                    memberName={m.fullName}
-                    orgJoinDate={m.orgJoinDate ? m.orgJoinDate.toISOString().slice(0, 10) : ""}
-                    welcomeSentAt={welcomedLabel(m.email, m.welcomeEmailSentAt)}
-                    theme={theme}
-                  />
-                </Card>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {removedUsers.length > 0 && (
-          <>
-            <h2 className="mb-4 mt-10 text-lg font-bold">{t.seats.removedTitle}</h2>
-            <div className="flex flex-col gap-3">
-              {/* المُنحّى بريدُه ما يزال محجوزاً في القاعدة. فكان القسم
-                  سجلاً بلا طريق: لا يَقبل الحساب دخولاً، ولا يُدعى
-                  صاحبه من جديد ببريده، ولا يملك المؤسس ما يُحرّره به. */}
-              {removedUsers.map((u) => (
-                <RemovedAccountRow
-                  key={u.id}
-                  theme={theme}
-                  canPurge={isSuperAdmin}
-                  account={{
-                    id: u.id,
-                    fullName: u.fullName,
-                    email: u.email,
-                    departmentName: u.department?.name ?? null,
-                    removalReason: u.removalReason,
-                  }}
-                />
-              ))}
-            </div>
-          </>
-        )}
-
-        {/* المرشّحون العالقون — من هنا تُفكّ العُقَد التي تحجز المناصب والبُرُد */}
-        <section>
-          <h2 className="mb-1 mt-10 text-lg font-bold">{t.stuck.sectionTitle}</h2>
-          <p className="mb-4 text-sm text-black/50">{t.stuck.sectionHint}</p>
-          {stuck.length === 0 ? (
-            <Card className="p-8 text-center text-sm text-black/40">{t.stuck.empty}</Card>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {stuck.map((c) => (
-                <StuckCandidateRow
-                  key={c.id}
-                  candidate={c}
-                  canPurge={isSuperAdmin}
-                  theme={theme}
-                />
-              ))}
-            </div>
+              <select
+                name="dept"
+                defaultValue={deptFilter}
+                aria-label="القسم"
+                className="min-h-10 rounded-xl border border-black/10 bg-white px-3 text-sm"
+              >
+                <option value="">كل الأقسام</option>
+                {allDepartments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+              <button type="submit" className="wizard-btn-2 !min-h-10">
+                تصفية
+              </button>
+            </form>
           )}
-        </section>
+        </div>
 
-        {lapsed.length > 0 && (
+        {rosterTab && (
+          <DataTable
+            emptyLabel={q || deptFilter ? "لا أحد يطابق البحث" : t.opsExtras.memberAccountsEmpty}
+            columns={[
+              { key: "name", label: "الاسم", primary: true },
+              { key: "role", label: "الصفة" },
+              { key: "dept", label: "القسم" },
+              { key: "status", label: "الحالة" },
+              { key: "since", label: "المدة" },
+              { key: "welcome", label: "بطاقة الانضمام" },
+              { key: "actions", label: "" },
+            ]}
+            rows={shown.map((r) => ({
+              id: `${r.kind}-${r.id}`,
+              cells: {
+                name: (
+                  <span className="flex items-center gap-2.5">
+                    {r.avatar ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={r.avatar} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
+                    ) : (
+                      <span
+                        aria-hidden="true"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold"
+                        style={{ background: r.dept?.colorHex ?? BRAND.temptress, color: readableTextOn(r.dept?.colorHex ?? BRAND.temptress) }}
+                      >
+                        {r.name.trim().charAt(0)}
+                      </span>
+                    )}
+                    <span className="min-w-0">
+                      <span className="block font-bold">
+                        {r.name}
+                        {r.self && <span className="ms-1.5 text-[11px] font-semibold text-black/40">(أنت)</span>}
+                      </span>
+                      <span className="block break-all text-[11px] text-black/45">{r.email}</span>
+                    </span>
+                  </span>
+                ),
+                role: <span className="text-sm text-black/70">{r.role}</span>,
+                dept: r.dept ? (
+                  <span className="inline-flex items-center gap-1.5 text-black/70">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/10" style={{ background: r.dept.colorHex }} />
+                    {r.dept.name}
+                  </span>
+                ) : (
+                  "—"
+                ),
+                status: <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ring-1 ${tone[r.status.tone]}`}>{r.status.label}</span>,
+                since: <span className="text-xs text-black/50">{sinceLabel(r.since)}</span>,
+                welcome: <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ring-1 ${tone[r.welcome.tone]}`}>{r.welcome.label}</span>,
+                actions: (
+                  <RosterRowActions
+                    kind={r.kind}
+                    id={r.id}
+                    name={r.name}
+                    profileHref={`/admin/people/${r.kind}/${r.id}`}
+                    canResendWelcome={isSuperAdmin && !r.self}
+                  />
+                ),
+              },
+            }))}
+          />
+        )}
+
+        {rosterTab && (
+          <p className="text-[11px] leading-relaxed text-black/45">
+            «قُبلت ✓» تعني أن مزوّد البريد قبل الرسالة — لا أنها فُتحت. هذا ما تسجّله المنصة فعلاً.
+          </p>
+        )}
+
+        {/* ── قيد الانضمام: العالقون، ثم الساقطون بالمهلة — كلٌّ في قسمه وحده */}
+        {tab === "joining" && (
           <>
-            <h2 className="mb-1 mt-10 text-lg font-bold">{t.candidateWindow.lapsedTitle}</h2>
-            <p className="mb-6 text-sm text-black/50">{t.candidateWindow.lapsedHint}</p>
-            <div className="flex flex-col gap-3">
-              {lapsed.map((m) => (
-                <MemberAccountRow
-                  key={m.id}
-                  theme={theme}
-                  lapsed
-                  canPurge={isSuperAdmin}
-                  member={{
-                    id: m.id,
-                    fullName: m.fullName,
-                    email: m.email,
-                    departmentName: m.department?.name ?? "—",
-                  }}
-                />
-              ))}
-            </div>
+            <section>
+              <h2 className="mb-1 text-lg font-bold">{t.stuck.sectionTitle}</h2>
+              <p className="mb-4 text-sm text-black/50">{t.stuck.sectionHint}</p>
+              {stuck.length === 0 ? (
+                <Card className="p-8 text-center text-sm text-black/40">{t.stuck.empty}</Card>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {stuck.map((c) => (
+                    <StuckCandidateRow key={c.id} candidate={c} canPurge={isSuperAdmin} theme={theme} />
+                  ))}
+                </div>
+              )}
+            </section>
+            {lapsed.length > 0 && (
+              <section>
+                <h2 className="mb-1 text-lg font-bold">{t.candidateWindow.lapsedTitle}</h2>
+                <p className="mb-4 text-sm text-black/50">{t.candidateWindow.lapsedHint}</p>
+                <div className="flex flex-col gap-3">
+                  {lapsed.map((m) => (
+                    <MemberAccountRow
+                      key={m.id}
+                      theme={theme}
+                      lapsed
+                      canPurge={isSuperAdmin}
+                      member={{ id: m.id, fullName: m.fullName, email: m.email, departmentName: m.department?.name ?? "—" }}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
           </>
         )}
 
-        {/* ===== السجلّ: قراءةٌ لا إجراء ===== */}
-        <div className="mt-12 border-t border-black/10 pt-8">
-          <h2 className="text-lg font-bold">{tm.title}</h2>
-          <p className="mt-1 text-sm text-black/50">{tm.subtitle}</p>
-
-          <section className="mt-4 grid grid-cols-3 gap-3">
-            <StatTile label={tm.statApproved} value={registerApproved.length} theme={theme} />
-            <StatTile label={tm.statCandidates} value={registerCandidates.length} theme={theme} />
-            <StatTile label={tm.statInactive} value={registerInactive.length} theme={theme} />
-          </section>
-
-          <section className="mt-6">
-            <h3 className="mb-3 text-base font-bold">
-              {tm.approvedTitle} ({registerApproved.length})
-            </h3>
-            <DataTable
-              emptyLabel={tm.approvedEmpty}
-              columns={registerColumns}
-              rows={registerRows(registerApproved)}
-            />
-          </section>
-
-          <section className="mt-6">
-            <h3 className="text-base font-bold">
-              {tm.candidatesTitle} ({registerCandidates.length})
-            </h3>
-            <p className="mb-3 mt-1 text-xs text-black/40">{tm.candidatesHint}</p>
-            <DataTable
-              emptyLabel={tm.candidatesEmpty}
-              columns={registerColumns}
-              rows={registerRows(registerCandidates)}
-            />
-          </section>
-
-          <section className="mt-6">
-            <h3 className="text-base font-bold">
-              {tm.inactiveTitle} ({registerInactive.length})
-            </h3>
-            <p className="mb-3 mt-1 text-xs text-black/40">{tm.inactiveHint}</p>
-            <DataTable
-              emptyLabel={tm.inactiveEmpty}
-              columns={registerColumns}
-              rows={registerRows(registerInactive)}
-            />
-          </section>
-        </div>
+        {/* ── المنحّون والمنتهون: سجلٌّ يُقرأ، ولكلّ مُنحّى طريقُ تحريره */}
+        {tab === "removed" && (
+          <>
+            <section>
+              <h2 className="mb-3 text-lg font-bold">{t.seats.removedTitle}</h2>
+              {removedUsers.length === 0 ? (
+                <Card className="p-8 text-center text-sm text-black/40">لا حسابات قيادية مُنحّاة</Card>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {removedUsers.map((u) => (
+                    <RemovedAccountRow
+                      key={u.id}
+                      theme={theme}
+                      canPurge={isSuperAdmin}
+                      account={{
+                        id: u.id,
+                        fullName: u.fullName,
+                        email: u.email,
+                        departmentName: u.department?.name ?? null,
+                        removalReason: u.removalReason,
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+            <section>
+              <h2 className="text-lg font-bold">{tm.inactiveTitle} ({registerInactive.length})</h2>
+              <p className="mb-3 mt-1 text-xs text-black/40">{tm.inactiveHint}</p>
+              <DataTable emptyLabel={tm.inactiveEmpty} columns={registerColumns} rows={registerRows(registerInactive)} />
+            </section>
+          </>
+        )}
       </main>
     </div>
   );
@@ -515,24 +606,5 @@ function StageBadge({ label }: { label: string }) {
     <span className="inline-block rounded-full bg-black/[0.05] px-2.5 py-1 text-xs font-semibold text-black/70">
       {label}
     </span>
-  );
-}
-
-function StatTile({
-  label,
-  value,
-  theme,
-}: {
-  label: string;
-  value: number;
-  theme: ReturnType<typeof themeFromColor>;
-}) {
-  return (
-    <Card className="p-3.5 sm:p-4">
-      <p className="text-2xl font-bold leading-none" style={{ color: brandInk(theme) }}>
-        {value}
-      </p>
-      <p className="mt-1.5 text-xs leading-snug text-black/45">{label}</p>
-    </Card>
   );
 }

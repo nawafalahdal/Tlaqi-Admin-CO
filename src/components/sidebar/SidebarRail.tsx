@@ -187,10 +187,13 @@ function SidebarRail({
                       aria-current={on ? "page" : undefined}
                       // اسمُ البند يبقى مقروءاً للقارئ الآلي حين تُطوى القائمة،
                       // وتلميحٌ لمن يمرّ بالفأرة
-                      title={it.label}
+                      title={it.badge ? `${it.label} — ${it.badge.text}` : it.label}
                     >
                       <NavGlyph name={it.icon} className="app-sidebar__icon" />
                       <span className="app-sidebar__label">{it.label}</span>
+                      {it.badge && (
+                        <span className={`app-sidebar__label nav-badge nav-badge--${it.badge.tone}`}>{it.badge.text}</span>
+                      )}
                     </Link>
                   </li>
                 );
@@ -253,6 +256,7 @@ export function MobileNavList({ onNavigate }: { onNavigate?: () => void }) {
                 >
                   <NavGlyph name={it.icon} className="mobile-nav__icon" />
                   <span>{it.label}</span>
+                  {it.badge && <span className={`nav-badge nav-badge--${it.badge.tone}`}>{it.badge.text}</span>}
                 </Link>
               </li>
             ))}

@@ -7,6 +7,7 @@ import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { BackButton } from "@/components/BackButton";
 import { formatDate } from "@/lib/format";
+import { goalWeekSummary } from "@/lib/goalReview";
 import { canGovernPeriod, currentAndNextPeriod, stateLabel } from "@/lib/execution";
 import { assembleAgenda, meetingSettings } from "@/lib/reviewMeeting";
 import { periodProgress } from "@/lib/progress";
@@ -37,7 +38,7 @@ export default async function ReviewPage() {
   if (!agenda) redirect("/admin/execution");
 
   const prev = agenda.previousPeriod;
-  const [prevTasks, prevProgress, decisions] = await Promise.all([
+  const [prevTasks, prevProgress, decisions, goalRows] = await Promise.all([
     prev ? periodTasks(prev.id) : Promise.resolve([]),
     prev ? periodProgress(prev.id) : Promise.resolve(null),
     agenda.meeting
@@ -47,6 +48,7 @@ export default async function ReviewPage() {
           select: { id: true, text: true, dueAt: true, createdByName: true, createdAt: true },
         })
       : Promise.resolve([]),
+    goalWeekSummary(prev?.id ?? null),
   ]);
 
   const submitted = prevTasks.filter((t) => t.execState === "submitted");
@@ -125,6 +127,52 @@ export default async function ReviewPage() {
             </Card>
           </section>
         )}
+
+        {/* ── الأهداف: ما أُنجز منها هذا الأسبوع، وما بقي، وما يُرحَّل للقادم.
+            المراجعةُ تُقرأ مهامَّ في الأقسام التالية؛ وهذا جوابُ سؤالها الأوّل
+            مجمّعاً بالهدف — من المهامّ نفسها لا من تقدير. */}
+        <section>
+          <h2 className="mb-1 text-base font-bold">الأهداف — المنجَز والباقي والمُرحَّل ({goalRows.length})</h2>
+          <p className="mb-3 text-xs leading-relaxed text-black/50">
+            لكل هدفٍ معتمَد: ما تحقّقت منه المراجعة في الأسبوع المُراجَع، وما ينتظر التحقّق، وما لم يكتمل، وما رُحِّل
+            إلى الأسبوع القادم — ثم حصيلتُه منذ بدأ.
+          </p>
+          {goalRows.length === 0 ? (
+            <Card className="p-6 text-center text-sm text-black/45">لا أهدافَ معتمَدةً بعد.</Card>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {goalRows.map((g) => (
+                <Card key={g.id} className="p-4">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h3 className="text-sm font-bold">{g.title}</h3>
+                    <span className="text-[11px] text-black/45">
+                      {g.owner ? `${g.owner} · ` : ""}موعده {formatDate(g.dueDate)}
+                    </span>
+                  </div>
+                  <dl className="mt-3 grid grid-cols-4 gap-2 text-center">
+                    {[
+                      ["أُنجز هذا الأسبوع", g.doneThisWeek, "text-green-800"],
+                      ["ينتظر التحقّق", g.awaitingVerify, "text-black/70"],
+                      ["لم يكتمل", g.unfinishedThisWeek, g.unfinishedThisWeek > 0 ? "text-red-800" : "text-black/70"],
+                      ["رُحِّل للقادم", g.carriedToNext, g.carriedToNext > 0 ? "text-amber-900" : "text-black/70"],
+                    ].map(([label, v, cls]) => (
+                      <div key={label as string} className="rounded-xl bg-black/[0.03] px-2 py-2">
+                        <dd className={`text-lg font-bold ${cls}`}>{v}</dd>
+                        <dt className="text-[11px] leading-tight text-black/50">{label}</dt>
+                      </div>
+                    ))}
+                  </dl>
+                  <p className="mt-2.5 text-xs text-black/55">
+                    منذ بدأ: <b>{g.doneTotal}</b> منجَزة · <b>{g.remainingTotal}</b> باقية
+                    {g.nextMilestone
+                      ? ` · المحطة القادمة: ${g.nextMilestone.title} (${formatDate(g.nextMilestone.dueDate)})`
+                      : ""}
+                  </p>
+                </Card>
+              ))}
+            </div>
+          )}
+        </section>
 
         {/* ── ٢/٣) التسليماتُ وأدلّتُها والتحقّق */}
         <section>

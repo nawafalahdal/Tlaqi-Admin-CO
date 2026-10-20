@@ -11,3 +11,12 @@ export function formatDate(date: Date | string) {
     day: "2-digit",
   }).format(d);
 }
+
+/** المدّة منذ تاريخٍ بكلمات: «منذ ٣ أشهر»، «منذ سنتين» — للسجلّ والملف */
+export function sinceLabel(d: Date, now: Date = new Date()): string {
+  const months = Math.floor((now.getTime() - d.getTime()) / (30.44 * 86_400_000));
+  if (months < 1) return "أقل من شهر";
+  if (months < 12) return months === 1 ? "منذ شهر" : months === 2 ? "منذ شهرين" : `منذ ${months} أشهر`;
+  const y = Math.floor(months / 12);
+  return y === 1 ? "منذ سنة" : y === 2 ? "منذ سنتين" : `منذ ${y} سنوات`;
+}

@@ -396,8 +396,7 @@ export function renderEmail(opts: {
     </tr></table></td></tr>
   </table>
   <div style="max-width:600px;margin:14px auto 0;font-family:${FONT_STACK};font-size:11px;line-height:1.8;color:rgba(0,0,0,0.45);text-align:center">
-    رسالةٌ آليّة من منصة تَـــلاقِ الداخلية، أُرسلت إليك لأن لك حساباً فيها.<br>
-    <a href="${appBaseUrl()}" style="color:rgba(0,0,0,0.5);text-decoration:none">${esc(appBaseUrl().replace(/^https?:\/\//, ""))}</a>
+    مُرسَلة من إدارة تَـــلاقِ — لأن لك حساباً في منصّتها الداخلية.
   </div>
 </td></tr>
 </table>

@@ -40,7 +40,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
             autoComplete="email"
             defaultValue={creds.email}
             onChange={(e) => setCreds((c) => ({ ...c, email: e.target.value }))}
-            placeholder="name@tlaqiteam.site"
+            placeholder="name@example.com"
             dir="ltr"
             className={FIELD}
           />

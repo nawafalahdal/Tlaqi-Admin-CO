@@ -568,3 +568,83 @@ export async function addDecisionAction(
     return { error: safeErrorMessage(err) };
   }
 }
+
+/** معالجُ الهدف — هدفٌ ومحطّاتُه في خطوةٍ واحدة من صاحبه.
+ *
+ *  لا قاعدةَ جديدة هنا: يُنادي `createGoal` ثم `createMilestone` لكل محطّة،
+ *  وكلٌّ منهما يفرض شرطه كما كان (من يُنشئ، ومن يعتمد، والتواريخ). فإن
+ *  رُفضت محطّةٌ بقي الهدف قائماً، ويُقال سببُ رفضها بعينه — لا يُمحى هدفٌ
+ *  أُنشئ لأن محطّةً تأخّر موعدها عنه. */
+export async function createGoalWizardAction(input: {
+  title: string;
+  description: string;
+  rationale: string;
+  impact: string;
+  successCriteria: string;
+  baselineValue: string;
+  targetValue: string;
+  priority: "critical" | "high" | "normal" | "low";
+  accountableUserId: string;
+  ownerUserId: string;
+  startDate: string;
+  dueDate: string;
+  milestones: {
+    title: string;
+    expectedResult: string;
+    acceptanceCriteria: string;
+    startDate: string;
+    dueDate: string;
+    ownerUserId: string;
+  }[];
+}): Promise<
+  | { ok: true; status: string; message: string; milestoneErrors: string[] }
+  | { ok: false; error: string }
+> {
+  try {
+    const session = await need();
+    const res = await createGoal({
+      title: input.title,
+      description: input.description,
+      rationale: input.rationale,
+      impact: input.impact,
+      successCriteria: input.successCriteria,
+      baselineValue: input.baselineValue,
+      targetValue: input.targetValue,
+      startDate: new Date(input.startDate),
+      dueDate: new Date(input.dueDate),
+      priority: input.priority,
+      accountableUserId: input.accountableUserId || null,
+      ownerUserId: input.ownerUserId || null,
+      session,
+    });
+    if (!res.ok) return { ok: false, error: res.reason };
+
+    const milestoneErrors: string[] = [];
+    // المحطّاتُ تُبنى لهدفٍ معتمَد وحده — والمقترَحُ تُضاف محطّاتُه بعد اعتماده
+    if (res.status === "approved") {
+      for (const m of input.milestones) {
+        const r = await createMilestone({
+          goalId: res.id,
+          title: m.title,
+          expectedResult: m.expectedResult,
+          acceptanceCriteria: m.acceptanceCriteria,
+          startDate: new Date(m.startDate),
+          dueDate: new Date(m.dueDate),
+          ownerUserId: m.ownerUserId || null,
+          session,
+        });
+        if (!r.ok) milestoneErrors.push(`«${m.title || "محطّة"}»: ${r.reason}`);
+      }
+    }
+    refresh();
+    revalidatePath("/admin/execution/goals");
+    return {
+      ok: true,
+      status: res.status,
+      message: res.status === "approved" ? "أُنشئ الهدف معتمَداً" : "أُرسل الاقتراح للاعتماد",
+      milestoneErrors,
+    };
+  } catch (err) {
+    return { ok: false, error: safeErrorMessage(err) };
+  }
+}

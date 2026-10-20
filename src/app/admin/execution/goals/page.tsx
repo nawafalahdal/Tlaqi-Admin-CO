@@ -10,7 +10,8 @@ import { canApproveGoal, approvedGoals, pendingProposals } from "@/lib/goals";
 import { goalProgress } from "@/lib/progress";
 import { countdownLabel } from "@/lib/riyadh";
 import { ProgressBars } from "@/components/execution/ProgressBars";
-import { GoalForm } from "./GoalForm";
+import { GoalWizard } from "./GoalWizard";
+import { PageHeader } from "@/components/PageHeader";
 import { MilestoneForm } from "./MilestoneForm";
 import { ProposalDecision } from "./ProposalDecision";
 
@@ -29,6 +30,8 @@ export default async function GoalsPage() {
 
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
   const canApprove = canApproveGoal(session.user.role);
+  // الإنشاءُ كما يفرضه `createGoal`: الإدارةُ تُنشئ معتمَداً، وقائدُ القسم يقترح
+  const canCreate = canApprove || session.user.role === "department_admin";
 
   const [goals, proposals, leaders] = await Promise.all([
     approvedGoals(),
@@ -51,14 +54,12 @@ export default async function GoalsPage() {
       </AppHeader>
 
       <main className="mx-auto flex max-w-5xl flex-col gap-7 px-4 py-6 sm:px-5 sm:py-8">
-        <div>
-          <BackButton fallbackHref="/admin/execution" />
-          <h1 className="text-lg font-bold sm:text-xl">الأهدافُ الاستراتيجية ومحطّاتُها</h1>
-          <p className="mt-1 text-sm leading-relaxed text-black/50">
-            الهدفُ لا يصير التزاماً تنظيمياً إلا باعتماد الإدارة، والمحطّةُ نتيجةٌ تُسلَّم لا
-            قسمةٌ حسابيةٌ للهدف — فلكلِّ محطّةٍ نتيجتُها ومعيارُ قبولها.
-          </p>
-        </div>
+        <PageHeader
+          back={<BackButton fallbackHref="/admin/execution" />}
+          title="الأهدافُ الاستراتيجية ومحطّاتُها"
+          description="الهدفُ لا يصير التزاماً تنظيمياً إلا باعتماد الإدارة، والمحطّةُ نتيجةٌ تُسلَّم لا قسمةٌ حسابيةٌ للهدف — فلكلِّ محطّةٍ نتيجتُها ومعيارُ قبولها."
+          actions={canCreate ? <GoalWizard canApprove={canApprove} leaders={leaders} /> : undefined}
+        />
 
         {/* ── طابورُ المقترَحات */}
         {canApprove && (proposals.goals.length > 0 || proposals.objectives.length > 0) && (
@@ -113,7 +114,7 @@ export default async function GoalsPage() {
           ) : (
             <div className="flex flex-col gap-4">
               {rows.map(({ goal, progress }) => (
-                <Card key={goal.id} className="p-4 sm:p-5">
+                <Card key={goal.id} id={`goal-${goal.id}`} className="p-4 sm:p-5">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <h3 className="text-base font-bold">{goal.title}</h3>
                     <span className="text-[11px] text-black/45">
@@ -161,15 +162,6 @@ export default async function GoalsPage() {
           )}
         </section>
 
-        {/* ── إنشاءُ هدف */}
-        <section>
-          <h2 className="mb-3 text-base font-bold">
-            {canApprove ? "أنشئ هدفاً استراتيجياً" : "اقترح هدفاً"}
-          </h2>
-          <Card className="p-4 sm:p-5">
-            <GoalForm canApprove={canApprove} leaders={leaders} theme={theme} />
-          </Card>
-        </section>
       </main>
     </div>
   );

@@ -4,11 +4,13 @@ import { navFor, homeFor, raiseTicketHref } from "@/lib/navigation";
 import { isSigningRole } from "@/lib/signatures";
 import { prisma } from "@/lib/prisma";
 import { avatarUrl } from "@/lib/avatarUrl";
+import { openTicketsWhere } from "@/lib/tickets";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { NavGlyph } from "../icons";
 import { SidebarProvider } from "./SidebarRail";
 import { GenderPrompt } from "../account/GenderPrompt";
 import type { ReactNode } from "react";
+import type { Session } from "next-auth";
 
 /** يحسب بنودَ القائمة لصاحب الجلسة على الخادم، ويُسلّمها لمن يرسمها.
  *
@@ -45,6 +47,8 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
       { href: "/admin/profile", label: s.profile, icon: "members" },
       { href: "/admin/security", label: s.security, icon: "lock" },
     ]),
+    // السجل الحي: مدخلُ المؤسس وحده — والحرسُ في صفحته على الخادم
+    ...(session.user.role === "super_admin" ? [{ href: "/admin/sheet", label: s.nav.sheet, icon: "sheet" }] : []),
     { href: "/change-password", label: t.common.changePassword, icon: "lock" },
   ];
 
@@ -76,7 +80,7 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
 
   return (
     <SidebarProvider
-      items={navFor(viewer, s.nav)}
+      items={await withBadges(navFor(viewer, s.nav), session)}
       homeHref={homeFor(viewer)}
       userName={session.user.name ?? ""}
       roleName={s.roles[session.user.role] ?? ""}
@@ -89,4 +93,44 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
       {children}
     </SidebarProvider>
   );
+}
+
+/** أعدادُ القائمة — في موضعها الواحد، ومع كلمتها.
+ *
+ *  ثلاثةٌ فقط، ولكلٍّ مصدره: التذاكرُ المتأخرة مما يراه صاحبُ الحساب
+ *  (`openTicketsWhere` — شرطُ الرؤية نفسه)، وما ينتظر اعتمادَه (طلباتُ
+ *  الاعتماد المسمّاة له، ومعها طلباتُ الانضمام للمؤسس والتنفيذي)، وطلباتُ
+ *  الإنهاء الجديدة لمن يقرّر فيها. والقراءةُ عدٌّ لا جلبُ صفوف. */
+async function withBadges(
+  items: ReturnType<typeof navFor>,
+  session: Session
+) {
+  const role = session.user.role;
+  if (role === "member") return items;
+  const top = role === "super_admin" || role === "executive";
+  const now = new Date();
+  try {
+    const [late, approvals, joins, terminations] = await Promise.all([
+      prisma.ticket.count({ where: { AND: [openTicketsWhere(session), { stageDueAt: { lt: now } }] } }),
+      prisma.ticket.count({
+        where: { approverUserId: session.user.id, approvalState: { in: ["awaiting", "reviewing"] } },
+      }),
+      top
+        ? prisma.member.count({ where: { approvalStatus: "pending_review", testStatus: "passed" } })
+        : Promise.resolve(0),
+      top || role === "department_admin"
+        ? prisma.terminationRequest.count({ where: { status: "submitted" } })
+        : Promise.resolve(0),
+    ]);
+    const badge: Record<string, NonNullable<(typeof items)[number]["badge"]> | undefined> = {
+      tickets: late > 0 ? { text: `${late} متأخرة`, tone: "action" } : undefined,
+      approvals: approvals + joins > 0 ? { text: `${approvals + joins} بانتظارك`, tone: "action" } : undefined,
+      terminations: terminations > 0 ? { text: `${terminations} جديد`, tone: "info" } : undefined,
+    };
+    return items.map((it) => (badge[it.id] ? { ...it, badge: badge[it.id] } : it));
+  } catch (err) {
+    // العدُّ زينةٌ لا شرط: إن تعذّر بقيت القائمة كما هي
+    console.error("تعذّر عدُّ شارات القائمة:", err);
+    return items;
+  }
 }

@@ -40,6 +40,9 @@ export type NavItem = {
   match: string[];
   /** مجموعتُه في القائمة — انظر `NAV_GROUPS` */
   group: NavGroup;
+  /** عددٌ مع كلمته («٣ متأخرة») — يُحسب على الخادم من بياناتٍ فعلية.
+   *  `action` لما يحتاج فعلك، و`info` للعلم. ولا يُرسم بلا عدد. */
+  badge?: { text: string; tone: "action" | "info" };
 };
 
 /** مجموعاتُ القائمة بترتيبها. والترتيبُ المشتركُ الستّيُّ محفوظٌ عبرها:
@@ -136,7 +139,8 @@ export function navFor(v: NavViewer, L: NavLabels): NavItem[] {
   if (top || v.canSign) {
     items.push({ id: "signature", label: L.signature, href: "/admin/signature", icon: "signature", match: ["/admin/signature"], group: "people" });
   }
-  if (r === "super_admin") items.push({ id: "sheet", label: L.sheet, href: "/admin/sheet", icon: "sheet", match: ["/admin/sheet"], group: "reports" });
+  // «السجل الحي» ليس وجهةً يومية: انتقل إلى قائمة حساب المؤسس (`AppSidebar`)،
+  // وحرسُه في الخادم (`/admin/sheet` للمؤسس وحده) باقٍ كما هو
 
   // تُرتَّب بالمجموعة ترتيباً مستقرّاً: داخل كل مجموعةٍ يبقى ترتيبُ الإضافة
   // أعلاه، فلا يتبدّل الترتيبُ المشتركُ ولا ما بعده
