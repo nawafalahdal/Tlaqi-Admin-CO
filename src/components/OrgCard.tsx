@@ -1,5 +1,6 @@
 import { readableTextOn } from "@/lib/colors";
 import { outlineFor, needsOutline } from "@/lib/orgChart";
+import { portraitTone } from "@/lib/portraitTone";
 import type { OrgPerson, OrgSeat } from "@/lib/orgChart";
 
 /** بطاقة شخصٍ في الهيكل — أربعة حقولٍ فقط، ولا إجراء.
@@ -76,7 +77,7 @@ export function OrgCard({
         aria-hidden
       />
       <div className={`flex flex-col items-center px-3 pb-3.5 text-center ${dims.lift}`}>
-        <Portrait src={person.avatarUrl} name={person.fullName} color={color} className={`${dims.photo} border-4 border-white bg-white`} />
+        <Portrait src={person.avatarUrl} name={person.fullName} color={color} className={`${dims.photo} border-4 border-white`} />
         <p className={`mt-2 font-bold leading-tight text-black/85 ${dims.name}`}>{person.fullName}</p>
         <p className={`mt-0.5 leading-snug text-black/55 ${dims.title}`}>{person.title}</p>
         {person.scope && (
@@ -128,7 +129,11 @@ function Portrait({
         decoding="async"
         alt={name}
         className={`${className} rounded-full object-contain`}
-        style={{ background: `color-mix(in oklab, ${color} 8%, white)` }}
+        // لونُ القسم تحت الصورة: يُرى حول الشخص إن كانت شفّافة — انظر `portraitTone`
+        style={{
+          background: portraitTone(color).background,
+          boxShadow: portraitTone(color).ring ? `inset 0 0 0 1px ${portraitTone(color).ring}` : undefined,
+        }}
       />
     );
   }

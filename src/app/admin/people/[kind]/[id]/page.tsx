@@ -11,6 +11,9 @@ import { avatarUrl } from "@/lib/avatarUrl";
 import { readableTextOn } from "@/lib/colors";
 import { canAward } from "@/lib/awards";
 import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
+import { ORG_SENIOR_COLOR, departmentDisplayColor } from "@/lib/orgChart";
+import { portraitTone } from "@/lib/portraitTone";
+import { seniorDepartment, affiliationFor, isSeniorRole } from "@/lib/seniorAffiliation";
 import { AccountRow } from "../../AccountRow";
 import { MemberAccountRow } from "../../MemberAccountRow";
 import { MyAccountCard } from "../../MyAccountCard";
@@ -124,12 +127,24 @@ export default async function PersonPage({
   ]);
 
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
-  const dept = person.department;
-  const color = dept?.colorHex ?? BRAND.temptress;
   const accountRole = user ? user.role : member!.invite.targetRole;
+  // المؤسس والتنفيذي ومسؤول التشغيل من الإدارة العليا بدورهم — `seniorAffiliation`
+  const senior = await seniorDepartment();
+  const dept = affiliationFor(
+    accountRole,
+    person.department ? { name: person.department.name, colorHex: person.department.colorHex } : null,
+    senior ? { name: senior.name, colorHex: senior.colorHex } : null
+  );
+  const color = dept?.colorHex ?? BRAND.temptress;
   const title = roleTitle(accountRole, person.gender, dept?.name);
   const joined = user ? user.createdAt : (member!.orgJoinDate ?? member!.decidedAt ?? member!.joinDate);
   const avatar = avatarUrl(kind, person.id, person.avatarVersion);
+  // خلفيةُ الصورة بلون انتمائه كما في الهيكل — والإدارة العليا ببنفسجيّها
+  const portraitColor = isSeniorRole(accountRole)
+    ? ORG_SENIOR_COLOR
+    : dept
+      ? departmentDisplayColor(dept.name, dept.colorHex)
+      : null;
   const isSelf = user?.id === session.user.id;
   const statusOk = person.isActive;
   const commStatus = (s: string) =>
@@ -177,7 +192,12 @@ export default async function PersonPage({
         <Card className="flex flex-wrap items-center gap-4 p-5" style={{ borderTop: `5px solid ${color}` }}>
           {avatar ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatar} alt="" className="h-20 w-20 rounded-full object-cover" />
+            <img
+              src={avatar}
+              alt=""
+              className="h-20 w-20 rounded-full object-contain"
+              style={{ background: portraitTone(portraitColor).background }}
+            />
           ) : (
             <span
               aria-hidden="true"

@@ -27,6 +27,7 @@ import { ROLE_LABELS } from "@/lib/testTracks";
 import { loginHealthFor, loginHealthNotes, loginHealthBlocked } from "@/lib/loginHealth";
 import { scheduleDueSweeps } from "@/lib/sweepThrottle";
 import { isRosterMember } from "@/lib/roster";
+import { affiliationFor } from "@/lib/seniorAffiliation";
 
 /** إدارة الأعضاء والهيكل التنظيمي — موضعٌ واحد للشخص وموقعه وقسمه.
  *
@@ -119,7 +120,7 @@ export default async function PeoplePage({
     // يجعله قسماً لا يُدخَل إليه — وهذا ليس حكماً، بل نقصٌ في الواجهة.
     prisma.department.findMany({
       where: OPEN_DEPARTMENT_WHERE,
-      select: { id: true, name: true },
+      select: { id: true, name: true, colorHex: true, leadershipOnly: true, parentId: true },
       orderBy: [{ leadershipOnly: "desc" }, { name: "asc" }],
     }),
   ]);
@@ -315,6 +316,9 @@ export default async function PeoplePage({
     return { label: "نشط", tone: "ok" };
   };
 
+  // المؤسس والتنفيذي ومسؤول التشغيل من الإدارة العليا بدورهم — `seniorAffiliation`
+  const seniorDept = allDepartments.find((d) => d.leadershipOnly && !d.parentId) ?? null;
+  const seniorRef = seniorDept ? { id: seniorDept.id, name: seniorDept.name, colorHex: seniorDept.colorHex } : null;
   const leaderRows: Row[] = [
     ...(me
       ? [
@@ -324,7 +328,7 @@ export default async function PeoplePage({
             name: me.fullName,
             email: me.email,
             role: roleTitle(me.role, me.gender, me.department?.name),
-            dept: me.department,
+            dept: affiliationFor(me.role, me.department, seniorRef),
             since: me.createdAt,
             avatar: avatarUrl("user", me.id, me.avatarVersion),
             status: statusOf(me.email, me.totpEnabled),
@@ -340,7 +344,11 @@ export default async function PeoplePage({
       name: a.fullName,
       email: a.email,
       role: roleTitle(a.role, a.gender, a.department?.name),
-      dept: a.department ? { id: a.department.id, name: a.department.name, colorHex: a.department.colorHex } : null,
+      dept: affiliationFor(
+        a.role,
+        a.department ? { id: a.department.id, name: a.department.name, colorHex: a.department.colorHex } : null,
+        seniorRef
+      ),
       since: a.createdAt,
       avatar: avatarUrl("user", a.id, a.avatarVersion),
       status: statusOf(a.email, a.totpEnabled),

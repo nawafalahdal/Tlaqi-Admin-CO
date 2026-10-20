@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/auth";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
-import { AppHeader, Card } from "@/components/ui";
+import { AppHeader } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { OrgTree } from "@/components/OrgTree";
 import { buildOrgChart, MIN_DEPARTMENT_MEMBERS } from "@/lib/orgChart";
@@ -47,12 +47,23 @@ export default async function StructurePage() {
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-5 sm:py-8">
 
-        <h1 className="text-lg font-bold sm:text-xl">هيكل تَـــلاقِ التنظيمي</h1>
-        <p className="mt-1 text-sm leading-relaxed text-black/50">
-          يُبنى من بيانات العضوية والمناصب والأقسام المعتمدة، ويتحدّث وحده مع كل تغييرٍ معتمد.
-          وهو للعرض فقط — لا يُعدَّل من هذه الصفحة ولا من غيرها. وبطاقتك فيه مميَّزة بعلامة
-          «أنت هنا»، ومن كان له قسمٌ تبيَّن له فرعُه كاملاً.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold sm:text-xl">هيكل تَـــلاقِ التنظيمي</h1>
+            <p className="mt-1 text-sm leading-relaxed text-black/50">
+              يُبنى من العضوية والمناصب المعتمدة ويتحدّث وحده — وهو للعرض فقط.
+            </p>
+          </div>
+          {chart.readiness.ready && (
+            <Link
+              href="/structure/pdf"
+              className="inline-flex min-h-11 shrink-0 items-center rounded-xl px-4 text-sm font-semibold text-on-brand"
+              style={{ background: theme.base }}
+            >
+              النسخة الرسمية (PDF)
+            </Link>
+          )}
+        </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
           <Stat label="الأشخاص" value={chart.counts.people} />
@@ -67,45 +78,44 @@ export default async function StructurePage() {
           )}
         </div>
 
-        {/* ── النسخة الرسمية: للجميع، ولا تُنزَّل وهي ناقصة */}
-        <Card className="mt-5 p-4 sm:p-5">
-          <h2 className="text-sm font-bold">نسخة الهيكل الرسمية (PDF)</h2>
-          {chart.readiness.ready ? (
-            <>
-              <p className="mt-1 text-xs leading-relaxed text-black/50">
-                الهيكل مكتمل — تُفتح نسخةٌ بمقاس A4 عرضيّ بألوان تَـــلاقِ وشعارها، ثم تُحفَظ
-                PDF من المتصفّح.
+        {/* ── التنبيه سطرٌ واحد، وتفصيلُه يُفتح عند الحاجة.
+            كان صندوقاً بفقرةٍ وقائمةٍ طويلة فوق الهيكل نفسه، فصار الهيكلُ
+            يُرى بعد التمرير. والتفصيلُ للقيادة وحدها: هي من تُكمل النقص،
+            والعضو يكفيه أن يعرف متى تُتاح النسخة. */}
+        {!chart.readiness.ready && (
+          <details className="group mt-4 rounded-xl bg-amber-50 text-amber-950 ring-1 ring-amber-200">
+            <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-2 px-4 py-2.5 text-xs font-bold">
+              <span aria-hidden>⚠</span>
+              <span>النسخة الرسمية (PDF) غير متاحة بعد — الهيكل ناقص</span>
+              {!isMember && (
+                <>
+                  <span className="rounded-full bg-amber-200/70 px-2 py-0.5">
+                    {chart.readiness.blockers.length} نواقص
+                  </span>
+                  <span className="ms-auto font-semibold text-amber-800 underline-offset-2 group-open:hidden">
+                    عرض التفاصيل
+                  </span>
+                  <span className="ms-auto hidden font-semibold text-amber-800 group-open:inline">إخفاء</span>
+                </>
+              )}
+            </summary>
+            <div className="border-t border-amber-200 px-4 pb-3 pt-2">
+              <p className="text-[11px] leading-relaxed text-amber-900/80">
+                تُتاح حين يكون لكل قسمٍ قائدٌ و{MIN_DEPARTMENT_MEMBERS} أعضاء على الأقل خلا قائده، ولا
+                مقعدَ قيادةٍ شاغر، ولا عضوَ بلا قسم.
               </p>
-              <Link
-                href="/structure/pdf"
-                className="mt-3 inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-semibold text-on-brand"
-                style={{ background: theme.base }}
-              >
-                افتح النسخة الرسمية
-              </Link>
-            </>
-          ) : (
-            <>
-              {/* المنع يُسمّي سببه: «غير مكتمل» وحدها تَترك من يقرأ يُخمّن */}
-              <p className="mt-1 text-xs leading-relaxed text-black/55">
-                النسخة الرسمية لا تُنزَّل والهيكل ناقص — وثيقةٌ تُعمَّم فتقول عن المنظمة غير
-                ما فيها. والشرط: كلُّ قسمٍ له قائد و
-                {MIN_DEPARTMENT_MEMBERS} أعضاء على الأقل خلا قائده، ولا مقعدَ قيادةٍ شاغر، ولا
-                عضوَ بلا قسم.
-              </p>
-              <ul className="mt-3 flex flex-col gap-1.5">
-                {chart.readiness.blockers.map((b) => (
-                  <li
-                    key={b}
-                    className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900"
-                  >
-                    {b}
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </Card>
+              {!isMember && (
+                <ul className="mt-2 grid gap-1 sm:grid-cols-2">
+                  {chart.readiness.blockers.map((b) => (
+                    <li key={b} className="rounded-lg bg-white/70 px-3 py-1.5 text-[11.5px] font-semibold">
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </details>
+        )}
 
         <section className="mt-7">
           {/* القائد موضعُه فرعُه لا بطاقتُه: يُميَّز قسمُه كلّه، وتبقى

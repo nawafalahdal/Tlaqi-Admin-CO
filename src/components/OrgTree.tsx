@@ -1,4 +1,5 @@
 import { SeatCard, OrgCard } from "@/components/OrgCard";
+import { portraitTone } from "@/lib/portraitTone";
 import { readableTextOn } from "@/lib/colors";
 import type { OrgPerson } from "@/lib/orgChart";
 import { ORG_SENIOR_COLOR, outlineFor, needsOutline } from "@/lib/orgChart";
@@ -48,24 +49,35 @@ export function OrgTree({
       {/* ── الرئيس التنفيذي */}
       <SeatCard seat={chart.ceo} color={ORG_SENIOR_COLOR} size={compact ? "md" : "lg"} viewerId={viewerId} />
 
-      {/* ── الطبقة العليا: الإدارة العليا وما يتبع التنفيذي — في الأعلى
-            مع المؤسس والتنفيذي، لا صفّاً مكرّراً تحت الأقسام */}
+      {/* ── الإدارة العليا: تحت الرئيس التنفيذي، وفيها مسؤول المتابعة
+            والتشغيل أولاً ثم من يُضاف إليها. والمؤسس والتنفيذي منها بدورهما
+            (`seniorAffiliation`) لكنهما يُرسَمان فوقها: هما رأسُ السلسلة */}
       {(chart.senior || chart.underCeo.length > 0) && (
         <>
           <Trunk />
           <div
-            className="w-full max-w-3xl rounded-2xl px-4 py-4"
+            className="w-full max-w-3xl overflow-hidden rounded-2xl"
             style={{
               background: `${ORG_SENIOR_COLOR}0A`,
               border: `1px solid ${ORG_SENIOR_COLOR}29`,
             }}
           >
-            <p className="mb-3 text-center text-[11px] font-bold tracking-wider text-black/45">
-              {chart.senior ? chart.senior.name : "تابعٌ للرئيس التنفيذي"}
-              <span className="mx-1.5 text-black/20">•</span>
-              الطبقة القيادية
-            </p>
-            <div className="flex flex-wrap justify-center gap-3">
+            <div
+              className="flex items-center justify-between gap-2 px-4 py-2.5"
+              style={{ background: portraitTone(ORG_SENIOR_COLOR).background, color: "#fff" }}
+            >
+              <span className="text-sm font-bold">{chart.senior?.name ?? "الإدارة العليا"}</span>
+              <span className="text-[11px] font-semibold opacity-80">
+                {chart.underCeo.filter((x) => x.kind === "filled").length +
+                  (chart.senior?.lead.kind === "filled" ? 1 : 0) +
+                  (chart.senior?.members.length ?? 0)}{" "}
+                أشخاص
+              </span>
+            </div>
+            <div className="flex flex-wrap justify-center gap-3 px-4 py-4">
+              {chart.underCeo.map((seat, i) => (
+                <SeatCard key={i} seat={seat} color={ORG_SENIOR_COLOR} size={size} viewerId={viewerId} />
+              ))}
               {chart.senior?.lead.kind === "filled" && (
                 <SeatCard seat={chart.senior.lead} color={ORG_SENIOR_COLOR} size={size} viewerId={viewerId} />
               )}
@@ -77,9 +89,6 @@ export function OrgTree({
                   size={size}
                   highlight={m.id === viewerId}
                 />
-              ))}
-              {chart.underCeo.map((seat, i) => (
-                <SeatCard key={i} seat={seat} color={ORG_SENIOR_COLOR} size={size} viewerId={viewerId} />
               ))}
             </div>
           </div>
@@ -271,7 +280,13 @@ function MemberChip({ person, color, highlight }: { person: OrgPerson; color: st
     >
       {person.avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={person.avatarUrl} alt="" loading="lazy" className="h-7 w-7 rounded-full object-cover" />
+        <img
+          src={person.avatarUrl}
+          alt=""
+          loading="lazy"
+          className="h-7 w-7 rounded-full object-cover"
+          style={{ background: portraitTone(color).background }}
+        />
       ) : (
         <span
           aria-hidden="true"

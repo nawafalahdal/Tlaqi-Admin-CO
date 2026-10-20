@@ -294,12 +294,20 @@ export async function buildOrgChart(): Promise<OrgChart> {
 
   let vacancies = 0;
 
+  // المؤسس والتنفيذي من الإدارة العليا بدورهما (`seniorAffiliation`) — فبطاقتاهما
+  // تحملان اسمَها ولو لم يُسجَّل لهما قسم
+  const seniorName = deptRows.find((d) => d.leadershipOnly && !d.parentId)?.name ?? "الإدارة العليا";
+  const asSenior = (p: OrgPerson): OrgPerson => ({
+    ...p,
+    scope: p.title.includes(seniorName) ? null : seniorName,
+  });
+
   const founderSeat: OrgSeat = founder
-    ? { kind: "filled", person: personFromUser(founder) }
+    ? { kind: "filled", person: asSenior(personFromUser(founder)) }
     : ((vacancies++, { kind: "vacant", title: "المؤسس" }) as OrgSeat);
 
   const ceoSeat: OrgSeat = ceo
-    ? { kind: "filled", person: personFromUser(ceo) }
+    ? { kind: "filled", person: asSenior(personFromUser(ceo)) }
     : ((vacancies++, { kind: "vacant", title: "الرئيس التنفيذي" }) as OrgSeat);
 
   // مسؤول التشغيل: يُعرَض شاغراً إن لم يُعيَّن — منصبٌ معتمدٌ في المنصة
@@ -315,7 +323,8 @@ export async function buildOrgChart(): Promise<OrgChart> {
     const lead: OrgSeat = leadRow
       ? { kind: "filled", person: personFromUser(leadRow) }
       : { kind: "vacant", title: isCommittee ? `قائد لجنة ${d.name}` : `قائد ${d.name}` };
-    if (!leadRow) vacancies++;
+    // الإدارةُ العليا يرأسها المؤسس والتنفيذي — لا مقعدَ «قائدٍ» لها يُعَدّ شاغراً
+    if (!leadRow && !(d.leadershipOnly && !d.parentId)) vacancies++;
     return {
       id: d.id,
       name: d.name,
@@ -378,7 +387,9 @@ export async function buildOrgChart(): Promise<OrgChart> {
     }
     collectCommitteeBlockers(d, blockers);
   }
-  if (senior && senior.members.length === 0 && senior.lead.kind !== "filled") {
+  // ومسؤولو التشغيل منها: لا تُعَدّ خاليةً وفيها مسؤولُ تشغيلٍ معيَّن
+  const opsFilled = underCeo.some((seat) => seat.kind === "filled");
+  if (senior && senior.members.length === 0 && senior.lead.kind !== "filled" && !opsFilled) {
     blockers.push("الإدارة العليا بلا أعضاء");
   }
   // وأيُّ مقعدٍ شاغرٍ يمنع: الورقة الرسمية تقول في تذييلها «لا مقاعد

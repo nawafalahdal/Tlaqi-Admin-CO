@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { avatarUrl } from "@/lib/avatarUrl";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
@@ -11,7 +10,7 @@ import { getLocale, getDictionary } from "@/i18n/server";
 import { ROLE_LABELS, accountRoleLabel } from "@/lib/testTracks";
 import { formatDate } from "@/lib/format";
 import { AdminProfileForm } from "./ProfileForm";
-import { MyDepartment } from "./MyDepartment";
+import { seniorDepartment, affiliationFor } from "@/lib/seniorAffiliation";
 import { WelcomeMailCard } from "@/components/WelcomeMailCard";
 import { SecurityGuidance } from "@/components/SecurityGuidance";
 import { GovernanceCharter } from "@/components/GovernanceCharter";
@@ -31,15 +30,9 @@ export default async function AdminProfilePage() {
     include: { department: true },
   });
 
-  // أقسامُ المنصة كاملة — «الإدارة العليا» منها: المؤسس يُسجَّل فيها
-  const departments =
-    session.user.role === "super_admin"
-      ? await prisma.department.findMany({
-          where: OPEN_DEPARTMENT_WHERE,
-          select: { id: true, name: true },
-          orderBy: [{ leadershipOnly: "desc" }, { name: "asc" }],
-        })
-      : [];
+  // المؤسس والتنفيذي ومسؤول التشغيل من الإدارة العليا بدورهم — `seniorAffiliation`.
+  // فلا يُسأل أحدهم عن قسمه، وكان المؤسس يُسجّله بنفسه هنا مرّة.
+  const shownDepartment = affiliationFor(user.role, user.department, await seniorDepartment());
 
   const t = getDictionary(await getLocale());
   const tp = t.adminProfile;
@@ -61,21 +54,13 @@ export default async function AdminProfilePage() {
         {/* الصورة الشخصية — لكل شخصٍ لا للقادة وحدهم */}
         <AvatarUpload current={avatarUrl("user", session.user.id, user.avatarVersion)} theme={theme} />
 
-        {/* قسم المؤسس: لم يُسأل عنه يوم أُنشئ حسابه، فيُسجّله مرّة */}
-        {session.user.role === "super_admin" && (
-          <MyDepartment
-            departments={departments}
-            current={user.department?.name ?? null}
-            theme={theme}
-          />
-        )}
 
         {/* الهوية: تُعرض ولا تُعدَّل من هنا */}
         <Card className="p-4 sm:p-5">
           <dl className="grid gap-3 sm:grid-cols-2">
             <Row label={tp.email} value={user.email} ltr />
             <Row label={tp.role} value={roleLabel} />
-            <Row label={tp.department} value={user.department?.name ?? "—"} />
+            <Row label={tp.department} value={shownDepartment?.name ?? "—"} />
             <Row
               label={tp.since}
               value={formatDate(user.createdAt)}
