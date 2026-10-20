@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
@@ -78,4 +79,22 @@ export async function runDueSweeps(
   const ran = keys.filter((k) => due.has(k));
   await Promise.all(ran.map((k) => jobs[k]!()));
   return ran;
+}
+
+/** الكنسُ نفسُه — **بعد** إرسال الصفحة لا قبلها.
+ *
+ *  كانت الصفحاتُ تنتظر `runDueSweeps`: مرّةً كل ربع ساعة يقع على زائرٍ
+ *  واحد أن ينتظر تصعيدَ كلِّ متأخّرٍ وكتابتَه في الشيت وبريدَه قبل أن يرى
+ *  صفحته — وبآلاف التذاكر صار ذلك ثواني. و`after()` يُشغّله بعد خروج الردّ
+ *  في الطلب نفسه (`waitUntil` على Vercel)، فيبقى الموعدُ والتقنينُ كما هما
+ *  ولا ينتظره أحد. والصفحةُ تقرأ ما في القاعدة لحظتها؛ وما صعّده الكنسُ
+ *  يظهر في الطلب التالي. */
+export function scheduleDueSweeps(jobs: Partial<Record<SweepKey, () => Promise<unknown>>>): void {
+  after(async () => {
+    try {
+      await runDueSweeps(jobs);
+    } catch (err) {
+      console.error("[sweep] تعذّر الكنس بعد الردّ:", err);
+    }
+  });
 }

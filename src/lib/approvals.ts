@@ -44,6 +44,9 @@ export const APPROVAL_STATE_LABELS: Record<ApprovalState, string> = {
 /** الحالات التي ما زال الطلب فيها على طاولة المعتمِد */
 const OPEN_FOR_APPROVER: ApprovalState[] = ["awaiting", "reviewing"];
 
+/** سقفُ قوائم الاعتماد المعروضة */
+const APPROVAL_LIST_TAKE = 100;
+
 const APPROVAL_INCLUDE = {
   raisedByUser: { select: { id: true, fullName: true, jobTitle: true, role: true, department: { select: { name: true } } } },
   member: { select: { id: true, fullName: true, jobTitle: true, department: { select: { name: true } } } },
@@ -454,6 +457,8 @@ export async function approvalsAwaiting(userId: string) {
     where: { approverUserId: userId, approvalState: { in: OPEN_FOR_APPROVER } },
     include: APPROVAL_INCLUDE,
     orderBy: { createdAt: "asc" },
+    // قائمةٌ تُعرض: حدٌّ يحميها من أن تكبر بلا سقف
+    take: APPROVAL_LIST_TAKE,
   });
 }
 
@@ -463,6 +468,8 @@ export async function myApprovalRequests(userId: string) {
     where: { raisedByUserId: userId, approvalState: { not: null } },
     include: APPROVAL_INCLUDE,
     orderBy: { createdAt: "desc" },
+    // قائمةٌ تُعرض: حدٌّ يحميها من أن تكبر بلا سقف
+    take: APPROVAL_LIST_TAKE,
   });
 }
 

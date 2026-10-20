@@ -2,6 +2,8 @@ import Link from "next/link";
 import { auth, signOut } from "@/auth";
 import { navFor, homeFor, raiseTicketHref } from "@/lib/navigation";
 import { isSigningRole } from "@/lib/signatures";
+import { prisma } from "@/lib/prisma";
+import { avatarUrl } from "@/lib/avatarUrl";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { NavGlyph } from "../icons";
 import { SidebarProvider } from "./SidebarRail";
@@ -28,6 +30,14 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
     canSign: isSigningRole(session.user.role),
   };
   const isMember = session.user.role === "member";
+
+  // صورةُ صاحب الحساب في ذيل القائمة: ختمُها وحده (لا الصورة) — والصورةُ
+  // نفسُها موردٌ يُخزَّن في المتصفّح سنةً (`/api/avatar`)، فلا تُعاد مع كل
+  // صفحة. والتخطيطُ لا يُعاد رسمه بين صفحات القسم الواحد أصلاً.
+  const stamp = isMember
+    ? await prisma.member.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true } })
+    : await prisma.user.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true } });
+  const avatar = avatarUrl(isMember ? "member" : "user", session.user.id, stamp?.avatarVersion);
 
   const accountLinks = [
     ...(isMember ? [] : [
@@ -71,6 +81,7 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
       roleName={s.roles[session.user.role] ?? ""}
       account={account}
       raise={{ href: raiseTicketHref(viewer), label: t.composer.cta }}
+      avatar={avatar}
     >
       {children}
     </SidebarProvider>

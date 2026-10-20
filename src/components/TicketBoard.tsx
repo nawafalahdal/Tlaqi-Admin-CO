@@ -12,32 +12,24 @@ import type { themeFromColor } from "@/lib/brand";
  *  وتُقسَّم بما يُسأل عنه فعلاً: ما لم يُرَدّ عليه بعد، وما يُعالَج الآن،
  *  وما تجاوز مهلته — فالمتأخّر لا يختبئ بين المفتوح. */
 export async function TicketBoard({
-  tickets,
+  data,
   theme,
-  viewerId,
 }: {
-  tickets: FullTicket[];
+  /** الأعدادُ والستُّ الأقربُ — من `ticketBoardData`، لا القائمةُ كلّها */
+  data: { counts: { late: number; untouched: number; working: number; mine: number; open: number }; top: FullTicket[] };
   theme: ReturnType<typeof themeFromColor>;
-  viewerId: string;
+  /** لم يعُد يُستعمل هنا — «تذاكري» تُعدّ في القاعدة */
+  viewerId?: string;
 }) {
   const t = getDictionary(await getLocale());
   const tb = t.ticketBoard;
   // هذا مكوّن خادم غير متزامن (`async`): يُنفَّذ مرّةً لكل طلب على
   // الخادم، فـ`Date.now()` هنا لحظةُ الطلب لا قيمةٌ تتبدّل بين إعادات
   // الرسم. وقاعدة `react-hooks/purity` لا تُميّز مكوّنات الخادم فتعدّه
-  // نجاسةً — وهو إنذارٌ كاذب لا عطب. والبديل (تمرير الوقت من كل
-  // مُستدعٍ) يُعقّد أربعة مواضع لإرضاء قاعدةٍ مُخطئة.
+  // نجاسةً — وهو إنذارٌ كاذب لا عطب.
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
-
-  const open = tickets.filter((x) => x.status !== "resolved");
-  const late = open.filter((x) => now > x.stageDueAt.getTime());
-  const untouched = open.filter((x) => x.status === "open" && now <= x.stageDueAt.getTime());
-  const working = open.filter((x) => x.status === "in_progress" && now <= x.stageDueAt.getTime());
-  const mine = open.filter(
-    (x) => x.targetUserId === viewerId || x.raisedByUserId === viewerId
-  );
-  const resolved = tickets.filter((x) => x.status === "resolved");
+  const { counts, top } = data;
 
   return (
     <section>
@@ -56,18 +48,18 @@ export async function TicketBoard({
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Tile label={tb.late} value={late.length} tone="alarm" />
-        <Tile label={tb.untouched} value={untouched.length} tone="warn" />
-        <Tile label={tb.working} value={working.length} tone="plain" />
-        <Tile label={tb.mine} value={mine.length} tone="plain" />
+        <Tile label={tb.late} value={counts.late} tone="alarm" />
+        <Tile label={tb.untouched} value={counts.untouched} tone="warn" />
+        <Tile label={tb.working} value={counts.working} tone="plain" />
+        <Tile label={tb.mine} value={counts.mine} tone="plain" />
       </div>
 
-      {open.length === 0 ? (
+      {counts.open === 0 ? (
         <Card className="mt-3 p-6 text-center text-sm text-black/40">{tb.empty}</Card>
       ) : (
         <div className="mt-3 flex flex-col gap-2">
           {/* المتأخّر أولاً دائماً: ترتيب القائمة هو ترتيب الأولوية */}
-          {[...late, ...untouched, ...working].slice(0, 6).map((x) => {
+          {top.map((x) => {
             const isLate = now > x.stageDueAt.getTime();
             return (
               <Card key={x.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 p-3.5">
@@ -123,19 +115,14 @@ export async function TicketBoard({
               </Card>
             );
           })}
-          {open.length > 6 && (
+          {counts.open > top.length && (
             <p className="pt-1 text-center text-xs text-black/40">
-              {tb.more.replace("{n}", String(open.length - 6))}
+              {tb.more.replace("{n}", String(counts.open - top.length))}
             </p>
           )}
         </div>
       )}
 
-      {resolved.length > 0 && (
-        <p className="mt-2 text-xs text-black/40">
-          {tb.resolvedCount.replace("{n}", String(resolved.length))}
-        </p>
-      )}
     </section>
   );
 }

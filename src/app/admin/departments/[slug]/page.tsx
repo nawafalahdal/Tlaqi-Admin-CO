@@ -8,13 +8,14 @@ import {
   sweepExpiredCandidateAccounts,
   QUEUE_TAKE,
 } from "@/lib/workflow";
-import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere, canRespondToTicket, TICKET_LIST_TAKE } from "@/lib/tickets";
+import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere, canRespondToTicket } from "@/lib/tickets";
 import { TicketCard } from "../../tickets/TicketCard";
 import { themeFromColor } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { ApprovalQueue } from "../../ApprovalQueue";
 import { TicketCta } from "@/components/tickets/TicketCta";
+import { ticketBoardData } from "@/components/tickets/boardData";
 import { NeedsMeetingRow } from "./NeedsMeetingRow";
 import { RequestCard } from "./RequestCard";
 import { MemberInviteForm } from "./MemberInviteForm";
@@ -40,7 +41,7 @@ import { approvedGoals } from "@/lib/goals";
 import { announcementsForSession, announcementPowers } from "@/lib/announcements";
 import { CandidateWindow } from "@/components/CandidateWindow";
 import { TicketBoard } from "@/components/TicketBoard";
-import { runDueSweeps } from "@/lib/sweepThrottle";
+import { scheduleDueSweeps } from "@/lib/sweepThrottle";
 import { WorkspaceOverview } from "@/components/dashboard/WorkspaceOverview";
 
 function isCertificateEligible(decidedAt: Date | null) {
@@ -114,7 +115,7 @@ export default async function DepartmentBoardPage({
   const canReviewHere = canGovernPeriod(session.user.role);
   const plans = await planCounts();
 
-  await runDueSweeps({
+  scheduleDueSweeps({
     overdue_requests: () => sweepOverdueRequests(department.id),
     ticket_escalation: () => sweepTicketEscalation(),
     candidate_expiry: () => sweepExpiredCandidateAccounts(),
@@ -129,8 +130,11 @@ export default async function DepartmentBoardPage({
     openInvites,
     announcements,
     exiting,
+    board,
   ] = await Promise.all([
     prisma.member.findMany({
+      // الصورةُ تُطلب من مسارها المخزَّن — لا تُحمَّل مع كل صفّ
+      omit: { avatarData: true },
       where: {
         departmentId: department.id,
         approvalStatus: "pending_review",
@@ -141,6 +145,8 @@ export default async function DepartmentBoardPage({
       orderBy: { createdAt: "asc" },
     }),
     prisma.member.findMany({
+      // الصورةُ تُطلب من مسارها المخزَّن — لا تُحمَّل مع كل صفّ
+      omit: { avatarData: true },
       where: {
         departmentId: department.id,
         approvalStatus: "pending_review",
@@ -157,6 +163,8 @@ export default async function DepartmentBoardPage({
       take: QUEUE_TAKE,
     }),
     prisma.member.findMany({
+      // الصورةُ تُطلب من مسارها المخزَّن — لا تُحمَّل مع كل صفّ
+      omit: { avatarData: true },
       where: {
         departmentId: department.id,
         approvalStatus: "approved",
@@ -172,9 +180,12 @@ export default async function DepartmentBoardPage({
       where: openTicketsWhere(session),
       include: TICKET_INCLUDE,
       orderBy: { stageDueAt: "asc" },
-      take: TICKET_LIST_TAKE,
+      // بطاقاتٌ تفاعلية: خمسون أقربُها موعداً — والسجلُّ الكاملُ في «التذاكر»
+      take: 50,
     }),
     prisma.member.findMany({
+      // الصورةُ تُطلب من مسارها المخزَّن — لا تُحمَّل مع كل صفّ
+      omit: { avatarData: true },
       where: {
         departmentId: department.id,
         approvalStatus: { not: "approved" },
@@ -188,6 +199,8 @@ export default async function DepartmentBoardPage({
     // من بدأ خروجه ولم يكتمل ختامه — ويبقى معروضاً بعد الإغلاق مرةً
     // أخيرة ليُرى أن التجربة أُنهيت كما ينبغي لا أنها انقطعت
     prisma.member.findMany({
+      // الصورةُ تُطلب من مسارها المخزَّن — لا تُحمَّل مع كل صفّ
+      omit: { avatarData: true },
       where: {
         departmentId: department.id,
         OR: [{ stepDownAt: { not: null } }, { warningsCount: { gte: 3 } }],
@@ -195,6 +208,7 @@ export default async function DepartmentBoardPage({
       orderBy: [{ offboardingClosedAt: "asc" }, { stepDownAt: "desc" }],
       take: 30,
     }),
+    ticketBoardData(session),
   ]);
 
   const theme = themeFromColor(department.colorHex);
@@ -463,7 +477,7 @@ export default async function DepartmentBoardPage({
           )}
         </section>
 
-        <TicketBoard tickets={tickets} theme={theme} viewerId={session.user.id} />
+        <TicketBoard data={board} theme={theme} />
 
         <section>
           <h2 className="mb-4 text-lg font-bold">{t.deptBoard.ticketsTitle} ({tickets.length})</h2>

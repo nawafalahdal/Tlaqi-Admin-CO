@@ -27,7 +27,7 @@ import { sweepTicketEscalation, ticketVisibilityWhere, TICKET_LIST_TAKE } from "
 import { getLocale, getDictionary } from "@/i18n/server";
 import { announcementsForSession } from "@/lib/announcements";
 import { AnnouncementList } from "@/app/admin/hub/AnnouncementList";
-import { runDueSweeps } from "@/lib/sweepThrottle";
+import { scheduleDueSweeps } from "@/lib/sweepThrottle";
 import { WorkspaceOverview } from "@/components/dashboard/WorkspaceOverview";
 
 export default async function MemberPortalPage() {
@@ -49,7 +49,7 @@ export default async function MemberPortalPage() {
   const theme = themeFromColor(member.department?.colorHex ?? BRAND.temptress);
   const t = getDictionary(await getLocale());
 
-  await runDueSweeps({ ticket_escalation: () => sweepTicketEscalation() });
+  scheduleDueSweeps({ ticket_escalation: () => sweepTicketEscalation() });
   const openTermination = await openRequestFor(session.user.id);
 
   if (!member.isActive) {

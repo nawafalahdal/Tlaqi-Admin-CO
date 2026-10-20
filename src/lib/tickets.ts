@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { singleRecipient } from "@/lib/emailPolicy";
 import { visibleTicketWhere } from "@/lib/retention";
-import type { Ticket, Member, Department, User, TicketStatus } from "@prisma/client";
+import type { Prisma, TicketStatus } from "@prisma/client";
 import {
   sendTicketCreatedEmail,
   sendTicketEscalatedEmail,
@@ -38,24 +38,24 @@ const TICKET_STATUS_LABELS: Record<string, "جديدة" | "قيد المعالج
 };
 
 /** التذكرة الكاملة بأطرافها — صاحبها (عضو أو حساب إداري) ووجهتها (قسم أو شخص) */
-export type FullTicket = Ticket & {
-  member: Member | null;
-  raisedByUser: User | null;
-  targetDepartment: Department | null;
-  targetUser: User | null;
-  targetMember: Member | null;
-  resolvedByUser: User | null;
-};
-
+// **الأعمدةُ المقروءةُ وحدها — لا الصفوفُ كاملة.** كان `member: true`
+// و`raisedByUser: true` يجرّان مع كل تذكرةٍ حسابَ صاحبها كلَّه: صورته
+// الشخصية (base64 حتى ١٫٢ م.ب) و`passwordHash` و`totpSecret`. فبثلاثة آلاف
+// تذكرة سقطت لوحةُ المؤسس بخطأ تحويلٍ في Prisma (النصّ أكبر مما يُحمَل)،
+// وقِيس ذلك على قاعدةٍ محلية. والأسماءُ والبريدُ والصفةُ هي كلُّ ما يُعرض.
+const TICKET_PERSON = { select: { id: true, fullName: true, email: true } } as const;
 export const TICKET_INCLUDE = {
-  member: true,
-  raisedByUser: true,
-  targetDepartment: true,
-  targetUser: true,
-  targetMember: true,
+  member: { select: { id: true, fullName: true, email: true, departmentId: true } },
+  raisedByUser: { select: { id: true, fullName: true, email: true, role: true, departmentId: true } },
+  targetDepartment: { select: { id: true, name: true, slug: true, colorHex: true } },
+  targetUser: { select: { id: true, fullName: true, email: true, role: true, departmentId: true } },
+  targetMember: { select: { id: true, fullName: true, email: true, departmentId: true } },
   // من أغلقها: يُقرأ هنا ليُكتب في الشيت باسمه لا بمعرّفه
-  resolvedByUser: true,
+  resolvedByUser: TICKET_PERSON,
 } as const;
+
+/** التذكرةُ كما تُقرأ بـ`TICKET_INCLUDE` — النوعُ مشتقٌّ منه فلا يفترقان */
+export type FullTicket = Prisma.TicketGetPayload<{ include: typeof TICKET_INCLUDE }>;
 
 /** اسم صاحب التذكرة وبريده، أياً كان نوع حسابه */
 export function ticketAuthor(ticket: FullTicket) {
@@ -438,6 +438,9 @@ export async function withdrawTicket(opts: {
 /** يُشغَّل عند كل تحميل للوحات — يصعّد أي تذكرة تجاوزت مهلتها دون حل:
  *  الجهة المعنية (يومان) ← قائد القسم (يومان) ← المدير التنفيذي (يومان)
  *  ← الإدارة العليا (نهائي). الفاوندر آخر السلسلة لا أولها. */
+/** حدُّ دفعة الكنس الواحدة — انظر `sweepTicketEscalation` */
+const SWEEP_BATCH = 200;
+
 export async function sweepTicketEscalation() {
   const overdue = await prisma.ticket.findMany({
     where: {
@@ -454,6 +457,10 @@ export async function sweepTicketEscalation() {
       improvementKind: null,
     },
     include: TICKET_INCLUDE,
+    // دفعةٌ محدودة، الأقدمُ تأخّراً أولاً: كلُّ تذكرةٍ بريدٌ وكتابةٌ في
+    // الشيت، فلا تُكنَس الآلافُ في طلبٍ واحد — وما بقي يأخذه الكنسُ التالي
+    orderBy: { stageDueAt: "asc" },
+    take: SWEEP_BATCH,
   });
 
   for (const ticket of overdue) {

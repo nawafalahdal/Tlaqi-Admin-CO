@@ -1214,3 +1214,5 @@ body:has(.app-sidebar) main > section > div:first-child > h2:first-child {
 .composer__tips { display: flex; flex-direction: column; gap: 0.5rem; }
 .composer__tips li { position: relative; padding-inline-start: 1.1rem; font-size: 0.8125rem; line-height: 1.7; color: color-mix(in oklab, var(--ink) 65%, transparent); }
 .composer__tips li::before { content: ""; position: absolute; inset-inline-start: 0; top: 0.6rem; width: 0.4rem; height: 0.4rem; border-radius: 999px; background: var(--brand-action); }
+.app-sidebar__avatar { overflow: hidden; }
+.app-sidebar__avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }

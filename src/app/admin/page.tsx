@@ -25,9 +25,10 @@ import { alertsForUser } from "@/lib/alerts";
 import { AnnouncementComposer } from "./hub/AnnouncementComposer";
 import { AnnouncementList } from "./hub/AnnouncementList";
 import { TicketCta } from "@/components/tickets/TicketCta";
+import { ticketBoardData } from "@/components/tickets/boardData";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
-import { runDueSweeps } from "@/lib/sweepThrottle";
+import { scheduleDueSweeps } from "@/lib/sweepThrottle";
 import { canDecideCandidate } from "@/lib/permissions";
 import { WorkspaceOverview } from "@/components/dashboard/WorkspaceOverview";
 import { navFor } from "@/lib/navigation";
@@ -47,7 +48,7 @@ export default async function AdminPage() {
 
   // الكنسُ مُقنَّنٌ من العَرْض: انظر `@/lib/sweepThrottle` — من يَفوز
   // بالصفّ يَكنس، فلا خمسُ رحلاتٍ ولا بريدٌ في كل فتحةِ صفحة
-  await runDueSweeps({
+  scheduleDueSweeps({
     overdue_requests: () => sweepOverdueRequests(),
     ticket_escalation: () => sweepTicketEscalation(),
     candidate_expiry: () => sweepExpiredCandidateAccounts(),
@@ -61,6 +62,8 @@ export default async function AdminPage() {
       take: DEPARTMENT_TAKE,
     }),
       prisma.member.findMany({
+        // الصورةُ تُطلب من مسارها المخزَّن — لا تُحمَّل مع كل صفّ
+        omit: { avatarData: true },
         where: {
           approvalStatus: "pending_review",
           testStatus: "passed",
@@ -71,6 +74,8 @@ export default async function AdminPage() {
         take: QUEUE_TAKE,
       }),
       prisma.member.findMany({
+        // الصورةُ تُطلب من مسارها المخزَّن — لا تُحمَّل مع كل صفّ
+        omit: { avatarData: true },
         where: {
           approvalStatus: "pending_review",
           testStatus: "passed",
@@ -92,15 +97,13 @@ export default async function AdminPage() {
         },
         include: TICKET_INCLUDE,
         orderBy: { createdAt: "desc" },
+        take: 50,
       }),
       announcementsForSession(session, 8),
     ]);
 
-  const boardTickets = await prisma.ticket.findMany({
-    where: openTicketsWhere(session),
-    include: TICKET_INCLUDE,
-    orderBy: { stageDueAt: "asc" },
-  });
+  // اللوحةُ أعدادٌ وستُّ تذاكر — لا كلُّ المفتوح (سقطت به بثلاثة آلاف)
+  const board = await ticketBoardData(session);
 
   const dict = getDictionary(await getLocale());
   const t = dict.hub;
@@ -278,7 +281,7 @@ export default async function AdminPage() {
         <AlertsPanel alerts={alerts} />
 
         {/* التذاكر أولاً: هي قناة العمل، فمكانها صدر اللوحة */}
-        <TicketBoard tickets={boardTickets} theme={theme} viewerId={session.user.id} />
+        <TicketBoard data={board} theme={theme} />
 
         {/* نبض التشغيل */}
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">

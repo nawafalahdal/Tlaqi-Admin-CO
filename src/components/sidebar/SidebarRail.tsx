@@ -59,6 +59,7 @@ export function SidebarProvider({
   roleName,
   account,
   raise,
+  avatar,
   children,
 }: {
   items: NavItem[];
@@ -67,6 +68,7 @@ export function SidebarProvider({
   roleName: string;
   account: ReactNode;
   raise: Raise;
+  avatar: string | null;
   children: ReactNode;
 }) {
   const pathname = usePathname() ?? "";
@@ -81,6 +83,7 @@ export function SidebarProvider({
           roleName={roleName}
           account={account}
           raise={raise}
+          avatar={avatar}
           pathname={pathname}
         />
       )}
@@ -96,6 +99,7 @@ function SidebarRail({
   roleName,
   account,
   raise,
+  avatar,
   pathname,
 }: {
   items: NavItem[];
@@ -104,6 +108,7 @@ function SidebarRail({
   roleName: string;
   account: ReactNode;
   raise: Raise;
+  avatar: string | null;
   pathname: string;
 }) {
   const t = useTranslations();
@@ -199,7 +204,15 @@ function SidebarRail({
           كانت أزراراً تزحم الترويسة في كل شاشة */}
       <details className="account-menu">
         <summary className="app-sidebar__user" title={`${userName} — ${roleName}`} aria-label={`${s.accountMenu}: ${userName}`}>
-          <span className="app-sidebar__avatar" aria-hidden="true">{initials || "؟"}</span>
+          <span className="app-sidebar__avatar" aria-hidden="true">
+            {avatar ? (
+              // موردٌ مخزَّنٌ سنةً بختمه — لا يحتاج مُحسِّنَ الصور ولا يُعاد تنزيله
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatar} alt="" width={40} height={40} decoding="async" className="app-sidebar__avatar-img" />
+            ) : (
+              initials || "؟"
+            )}
+          </span>
           <span className="app-sidebar__label app-sidebar__who">
             <span className="app-sidebar__name">{userName}</span>
             <span className="app-sidebar__role">{roleName}</span>

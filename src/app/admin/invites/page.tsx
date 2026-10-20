@@ -23,7 +23,7 @@ import {
 import { SeatOccupied } from "@/components/SeatOccupied";
 import { InviteReadiness, type ReadinessRow } from "@/components/InviteReadiness";
 import { getLocale, getDictionary } from "@/i18n/server";
-import { runDueSweeps } from "@/lib/sweepThrottle";
+import { scheduleDueSweeps } from "@/lib/sweepThrottle";
 
 export default async function AdminInvitesPage() {
   const session = await auth();
@@ -34,7 +34,7 @@ export default async function AdminInvitesPage() {
 
   const isSuperAdmin = session.user.role === "super_admin";
 
-  await runDueSweeps({ candidate_expiry: () => sweepExpiredCandidateAccounts() });
+  scheduleDueSweeps({ candidate_expiry: () => sweepExpiredCandidateAccounts() });
 
   const [departments, invites, execSeat, opsSeat, tracks] = await Promise.all([
     prisma.department.findMany({

@@ -26,7 +26,7 @@ import {
 import { ROLE_LABELS } from "@/lib/testTracks";
 import { loginHealthFor, loginHealthNotes, loginHealthBlocked } from "@/lib/loginHealth";
 import { canAward } from "@/lib/awards";
-import { runDueSweeps } from "@/lib/sweepThrottle";
+import { scheduleDueSweeps } from "@/lib/sweepThrottle";
 import { isRosterMember } from "@/lib/roster";
 
 /** إدارة الأعضاء والهيكل التنظيمي — موضعٌ واحد للشخص وموقعه وقسمه.
@@ -52,7 +52,7 @@ export default async function PeoplePage() {
   const t = getDictionary(await getLocale());
   const tm = t.membersPage;
 
-  await runDueSweeps({ candidate_expiry: () => sweepExpiredCandidateAccounts() });
+  scheduleDueSweeps({ candidate_expiry: () => sweepExpiredCandidateAccounts() });
 
   const [me, accounts, allMembers, removedUsers, allDepartments, plans] =
     await Promise.all([
@@ -61,6 +61,8 @@ export default async function PeoplePage() {
       select: { welcomeEmailSentAt: true },
     }),
     prisma.user.findMany({
+      // الصورةُ تُطلب من مسارها المخزَّن — لا تُحمَّل مع كل صفّ
+      omit: { avatarData: true },
       where: {
         isActive: true,
         role: isSuperAdmin
@@ -74,11 +76,15 @@ export default async function PeoplePage() {
     // أربع قراءاتٍ على الجدول نفسه بمرشّحاتٍ متقاطعة، فيُمكن أن يختلف
     // ما تراه الأقسام إن تغيّر صفٌّ بينها — والقِسمة في الذاكرة تُغني.
     prisma.member.findMany({
+      // الصورةُ تُطلب من مسارها المخزَّن — لا تُحمَّل مع كل صفّ
+      omit: { avatarData: true },
       include: { department: true, invite: true },
       orderBy: { createdAt: "desc" },
     }),
     // الحسابات القيادية المُنحّاة — سجل فقط، لا تَقبل دخولاً
     prisma.user.findMany({
+      // الصورةُ تُطلب من مسارها المخزَّن — لا تُحمَّل مع كل صفّ
+      omit: { avatarData: true },
       where: { isActive: false },
       include: { department: true },
       orderBy: { removedAt: "desc" },

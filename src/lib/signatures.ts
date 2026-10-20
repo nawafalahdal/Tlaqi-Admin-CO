@@ -327,6 +327,8 @@ export async function pendingSignatures() {
 /** من يُوقّع ولا توقيع معتمَد له — ليُطلَب منه ولا يُنسى */
 export async function leadersMissingSignature() {
   const leaders = await prisma.user.findMany({
+    // الصورةُ تُطلب من مسارها المخزَّن — لا تُحمَّل مع كل صفّ
+    omit: { avatarData: true },
     where: { isActive: true, role: { in: [...SIGNING_ROLES] } },
     include: { department: true },
   });

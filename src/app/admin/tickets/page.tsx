@@ -11,7 +11,11 @@ import { TicketCta } from "@/components/tickets/TicketCta";
 import { ROLE_LABELS } from "@/lib/testTracks";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
-import { runDueSweeps } from "@/lib/sweepThrottle";
+import { scheduleDueSweeps } from "@/lib/sweepThrottle";
+
+/** المفتوحةُ بطاقاتٌ تفاعلية — أقربُ ستّين موعداً؛ والمغلقةُ جدولٌ — أحدثُ مئة */
+const OPEN_TAKE = 60;
+const CLOSED_TAKE = 100;
 
 /** صفحة التذاكر الخاصة — كل التذاكر في مكان واحد بدل تفرّقها بين اللوحات.
  *  المفتوحة تُعرض ببطاقات قابلة للإجراء، والمغلقة بجدول مرجعي. */
@@ -23,24 +27,27 @@ export default async function TicketsPage() {
   const allowed = ["super_admin", "executive", "operations_officer", "department_admin"];
   if (!allowed.includes(session.user.role)) redirect("/admin");
 
-  await runDueSweeps({ ticket_escalation: () => sweepTicketEscalation() });
+  scheduleDueSweeps({ ticket_escalation: () => sweepTicketEscalation() });
 
   const t = getDictionary(await getLocale());
   const tt = t.ticketsPage;
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
 
-  // وجهاتُ الرفع صارت لصفحة الرفع (`/admin/tickets/new`) — هنا السجلّ وحده
-  const tickets = await prisma.ticket.findMany({
-    where: ticketVisibilityWhere(session),
-    include: TICKET_INCLUDE,
-    orderBy: { createdAt: "desc" },
-    take: 200,
-  });
-
-  const open = tickets.filter((x) => x.status !== "resolved");
-  const closed = tickets.filter((x) => x.status === "resolved");
-  const late = open.filter((x) => new Date() > x.stageDueAt);
-  const escalated = open.filter((x) => x.stage === "ceo_escalation");
+  // الأعدادُ عدٌّ في القاعدة، والقائمتان بحدّ: المفتوحةُ أقربُها موعداً،
+  // والمغلقةُ أحدثُها. كانت قراءةً واحدةً لمئتين يُشتقّ منها كلُّ رقم —
+  // فبآلافِ التذاكر تكذب البطاقات (تعدّ المئتين وحدها) ويثقل الردّ.
+  const now = new Date();
+  const visible = ticketVisibilityWhere(session);
+  const openW = { AND: [visible, { status: { not: "resolved" as const } }] };
+  const closedW = { AND: [visible, { status: "resolved" as const }] };
+  const [open, closed, openCount, lateCount, escalatedCount, closedCount] = await Promise.all([
+    prisma.ticket.findMany({ where: openW, include: TICKET_INCLUDE, orderBy: { stageDueAt: "asc" }, take: OPEN_TAKE }),
+    prisma.ticket.findMany({ where: closedW, include: TICKET_INCLUDE, orderBy: { resolvedAt: "desc" }, take: CLOSED_TAKE }),
+    prisma.ticket.count({ where: openW }),
+    prisma.ticket.count({ where: { AND: [openW, { stageDueAt: { lt: now } }] } }),
+    prisma.ticket.count({ where: { AND: [openW, { stage: "ceo_escalation" as const }] } }),
+    prisma.ticket.count({ where: closedW }),
+  ]);
 
   return (
     <div className="min-h-screen bg-page">
@@ -62,15 +69,15 @@ export default async function TicketsPage() {
         />
 
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatTile label={tt.statOpen} value={open.length} theme={theme} />
-          <StatTile label={tt.statLate} value={late.length} theme={theme} />
-          <StatTile label={tt.statEscalated} value={escalated.length} theme={theme} />
-          <StatTile label={tt.statClosed} value={closed.length} theme={theme} />
+          <StatTile label={tt.statOpen} value={openCount} theme={theme} />
+          <StatTile label={tt.statLate} value={lateCount} theme={theme} />
+          <StatTile label={tt.statEscalated} value={escalatedCount} theme={theme} />
+          <StatTile label={tt.statClosed} value={closedCount} theme={theme} />
         </section>
 
         <section>
           <h2 className="mb-3 text-base font-bold">
-            {tt.openTitle} ({open.length})
+            {tt.openTitle} ({openCount})
           </h2>
           {open.length === 0 ? (
             <Card className="p-8 text-center text-sm text-black/40">{tt.openEmpty}</Card>
@@ -105,7 +112,7 @@ export default async function TicketsPage() {
 
         <section>
           <h2 className="mb-3 text-base font-bold">
-            {tt.closedTitle} ({closed.length})
+            {tt.closedTitle} ({closedCount})
           </h2>
           <DataTable
             emptyLabel={tt.closedEmpty}

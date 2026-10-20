@@ -22,8 +22,12 @@ import {
 import { AnnouncementComposer } from "../hub/AnnouncementComposer";
 import { AnnouncementList } from "../hub/AnnouncementList";
 import { TicketCta } from "@/components/tickets/TicketCta";
+import { ticketBoardData } from "@/components/tickets/boardData";
+
+/** حدُّ القوائم في اللوحة: الأقربُ موعداً — والسجلُّ الكاملُ في «التذاكر» */
+const PAGE_LIST_TAKE = 50;
 import { TicketBoard } from "@/components/TicketBoard";
-import { runDueSweeps } from "@/lib/sweepThrottle";
+import { scheduleDueSweeps } from "@/lib/sweepThrottle";
 import { WorkspaceOverview } from "@/components/dashboard/WorkspaceOverview";
 
 function isOverdue(dueAt: Date) {
@@ -35,22 +39,27 @@ export default async function OperationsPage() {
   if (!session) redirect("/login");
   if (session.user.role !== "operations_officer") redirect("/admin");
 
-  await runDueSweeps({
+  scheduleDueSweeps({
     overdue_requests: () => sweepOverdueRequests(),
     ticket_escalation: () => sweepTicketEscalation(),
     candidate_expiry: () => sweepExpiredCandidateAccounts(),
   });
 
-  const [tickets, requests, announcements, departments] = await Promise.all([
+  // القائمةُ الأقربُ موعداً بحدٍّ، والعددُ الكلّيُّ عدّاً — لا جلبُ كلِّ المفتوح
+  const [tickets, openTotal, board, requests, announcements, departments] = await Promise.all([
     prisma.ticket.findMany({
       where: openTicketsWhere(session),
       include: TICKET_INCLUDE,
       orderBy: { stageDueAt: "asc" },
+      take: PAGE_LIST_TAKE,
     }),
+    prisma.ticket.count({ where: openTicketsWhere(session) }),
+    ticketBoardData(session),
     prisma.request.findMany({
       where: { status: { in: ["new", "in_progress", "overdue"] } },
       include: { targetDepartment: true, linkedMember: true },
       orderBy: { dueDate: "asc" },
+      take: PAGE_LIST_TAKE,
     }),
     announcementsForSession(session, 8),
     prisma.department.findMany({
@@ -122,11 +131,11 @@ export default async function OperationsPage() {
           />
         </section>
 
-        <TicketBoard tickets={tickets} theme={theme} viewerId={session.user.id} />
+        <TicketBoard data={board} theme={theme} />
 
 
         <section>
-          <h1 className="mb-1 text-xl font-bold">{tOps.openTicketsTitle} ({tickets.length})</h1>
+          <h1 className="mb-1 text-xl font-bold">{tOps.openTicketsTitle} ({openTotal})</h1>
           <p className="mb-4 text-sm text-black/50">
             {tOps.openTicketsHint}
           </p>
