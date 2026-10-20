@@ -54,7 +54,7 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
     ]),
     // السجل الحي: مدخلُ المؤسس وحده — والحرسُ في صفحته على الخادم
     ...(session.user.role === "super_admin" ? [{ href: "/admin/sheet", label: s.nav.sheet, icon: "sheet" }] : []),
-    { href: "/change-password", label: t.common.changePassword, icon: "lock" },
+    // «تغيير كلمة المرور» لا يتكرّر هنا: مكانُه في «بياناتي» وحدها (قرار المؤسس)
   ];
 
   const account = (

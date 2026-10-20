@@ -2,7 +2,6 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { setLocaleAction } from "./actions";
 import { getDictionary, type Dictionary, type Locale } from "./index";
 
 type LocaleContextValue = {
@@ -46,22 +45,27 @@ export function LocaleProvider({
     // الاتجاهُ واللغة وهو خفيّ، ثم يظهر حين تكتمل حمولةُ الخادم.
     const apply = () => {
       setLocaleState(next);
-      document.cookie = `locale=${next}; path=/; max-age=${60 * 60 * 24 * 365}`;
+      document.cookie = `locale=${next}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
       root.lang = next;
       root.dir = next === "ar" ? "rtl" : "ltr";
-      // **والخادمُ يُعاد رسمُه أيضاً.** أكثرُ الصفحات تُرسَم في الخادم بقاموسٍ
-      // يُقرأ من الكعكة، و`refresh` يُعيد حمولته دون تحميلٍ كامل: تبقى
-      // النماذجُ المفتوحة والسمةُ وموضعُ القائمة كما هي.
-      void setLocaleAction(next).finally(() => {
-        setPhase("waiting");
-        startRefresh(() => router.refresh());
-      });
+      // **والخادمُ يُعاد رسمُه أيضاً — مرّةً واحدة.** أكثرُ الصفحات تُرسَم في
+      // الخادم بقاموسٍ يُقرأ من الكعكة، و`refresh` يُعيد حمولته دون تحميلٍ
+      // كامل: تبقى النماذجُ المفتوحة والسمةُ وموضعُ القائمة كما هي.
+      //
+      // وكانت الكعكةُ تُكتب أيضاً بإجراء خادم (`setLocaleAction`) ثم يُطلب
+      // `refresh` بعده. وإجراءُ الخادم الذي يكتب كعكةً يُعيد Next رسمَ
+      // الصفحة كلّها في جوابه — فكانت الصفحةُ تُرسَم مرّتين متتاليتين، وفي
+      // الإنتاج (قاعدةٌ بعيدة) تجاوز ذلك خمسَ ثوانٍ. والكعكةُ مكتوبةٌ هنا
+      // في المتصفح قبل الطلب، فيكفي رسمٌ واحد.
+      setPhase("waiting");
+      startRefresh(() => router.refresh());
     };
     if (reduce) return apply();
     root.classList.add("locale-fading");
     window.setTimeout(apply, 180);
-    // شبكةُ أمان: لا يبقى المحتوى خفيّاً إن تعثّرت الحمولة
-    window.setTimeout(() => root.classList.remove("locale-fading"), 3000);
+    // شبكةُ أمان: لا يبقى المحتوى خفيّاً إن تأخّرت الحمولة — يعود ظاهراً
+    // ويُكمل الخادمُ نصَّه حين يصل
+    window.setTimeout(() => root.classList.remove("locale-fading"), 1600);
   }, [router]);
 
   const value = useMemo<LocaleContextValue>(

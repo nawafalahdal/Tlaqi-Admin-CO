@@ -1,10 +1,64 @@
 import { prisma } from "@/lib/prisma";
 import { appendMemberEvent } from "@/lib/googleSheets";
+import { SENIOR_ROLES, seniorDepartment } from "@/lib/seniorAffiliation";
+import type { Session } from "next-auth";
 
 /** من يملك إنشاء قسم: الفاوندر والمدير التنفيذي.
  *  بناء الهيكل قرار تنظيمي، لا إجراء تشغيلي يومي. */
 export function canCreateDepartment(role: string) {
   return role === "super_admin" || role === "executive";
+}
+
+/** **قرارُ المؤسس:** القسمُ لا يُبنى إلا باعتماده.
+ *
+ *  المؤسس يُنشئ مباشرةً — هو المعتمِد. والمدير التنفيذي يرفع طلباً: يُكتب
+ *  القسمُ «بانتظار الاعتماد» فلا يظهر في أي قائمةٍ ولا هيكلٍ ولا دعوة
+ *  (`OPEN_DEPARTMENT_WHERE` تحجبه كما تحجب اللجنةَ المقترحة)، ويُبنى حين
+ *  يعتمده المؤسس. فحالةُ الاعتماد هي نفسُها حالةُ اللجنة (`committeeStatus`)،
+ *  والفرقُ أن القسمَ الأصيل بلا أب ومعتمِدُه المؤسس وحده. */
+export function departmentNeedsApproval(role: string) {
+  return role === "executive";
+}
+
+export function canDecideDepartmentRequest(role: string) {
+  return role === "super_admin";
+}
+
+/** ما يحمله القسم — وكلُّه يمنع حذفه */
+export type DepartmentHoldings = {
+  admins: number;
+  members: number;
+  invites: number;
+  tickets: number;
+  requests: number;
+  signatures: number;
+  committees: number;
+};
+
+/** ما يمنع حذفَ قسمٍ، مسمّىً بعدده — والصفحةُ والخادمُ يقرآنه من هنا.
+ *
+ *  **قرارُ المؤسس:** لا يُحذف قسمٌ فيه شخصٌ واحد، ولا يظهر زرُّ حذفه
+ *  أصلاً — فلا يقع حذفٌ بالخطأ. و`seniorPeople` أهلُ الإدارة العليا
+ *  المشتقّون من أدوارهم (المؤسس والتنفيذي والتشغيل): ليسوا مسجَّلين في
+ *  القسم لكنهم أهلُه، فلا تُحذف وهم فيها. */
+export function deleteBlockers(c: DepartmentHoldings, seniorPeople = 0): string[] {
+  const blockers: string[] = [];
+  if (seniorPeople > 0) blockers.push(`${seniorPeople} من الإدارة العليا (المؤسس والتنفيذي والتشغيل)`);
+  if (c.admins > 0) blockers.push(`${c.admins} حساب قيادي`);
+  if (c.members > 0) blockers.push(`${c.members} سجلّ عضوية`);
+  if (c.invites > 0) blockers.push(`${c.invites} دعوة`);
+  if (c.tickets > 0) blockers.push(`${c.tickets} تذكرة`);
+  if (c.requests > 0) blockers.push(`${c.requests} طلب`);
+  if (c.signatures > 0) blockers.push(`${c.signatures} توقيع`);
+  if (c.committees > 0) blockers.push(`${c.committees} لجنة`);
+  return blockers;
+}
+
+/** عددُ أهل الإدارة العليا المشتقّين — للقسم الذي هو الإدارة العليا وحده */
+export async function seniorPeopleIn(departmentId: string): Promise<number> {
+  const senior = await seniorDepartment();
+  if (!senior || senior.id !== departmentId) return 0;
+  return prisma.user.count({ where: { role: { in: [...SENIOR_ROLES] }, isActive: true } });
 }
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -48,6 +102,8 @@ export async function createDepartment(opts: {
    *  أعضاؤه ليسوا فريق عملٍ يُدار بتذاكر القسم وإعلاناته، بل جهات تواصل
    *  وترتيبٍ تخصّ الإدارة العليا وحدها. */
   leadershipOnly?: boolean;
+  /** طلبٌ ينتظر اعتماد المؤسس (`departmentNeedsApproval`) — لا قسمٌ يُبنى الآن */
+  request?: { byId: string; byName: string };
 }) {
   const name = opts.name.trim();
   const colorHex = opts.colorHex.trim();
@@ -61,6 +117,33 @@ export async function createDepartment(opts: {
   const slug = await uniqueSlug(slugify(name));
 
   const leadershipOnly = Boolean(opts.leadershipOnly);
+
+  if (opts.request) {
+    const now = new Date();
+    const department = await prisma.department.create({
+      data: {
+        name,
+        slug,
+        colorHex,
+        leadershipOnly,
+        committeeStatus: "pending_review",
+        requestedById: opts.request.byId,
+        requestedByName: opts.request.byName,
+        requestedAt: now,
+      },
+    });
+    // بنكُ الأسئلة يُنشأ عند الاعتماد لا هنا: طلبٌ قد يُرَدّ لا يُورَّث بنكاً
+    await appendMemberEvent({
+      fullName: opts.request.byName,
+      email: "",
+      roleOrDepartment: name,
+      event: "طلب إنشاء قسم — بانتظار اعتماد المؤسس",
+      details: `اللون: ${colorHex} — المعرّف: ${slug}${leadershipOnly ? " — قسم استثنائي يتبع الإدارة العليا" : ""}`,
+      at: now,
+    });
+    return department;
+  }
+
   const department = await prisma.department.create({
     data: { name, slug, colorHex, leadershipOnly },
   });
@@ -132,6 +215,7 @@ export async function deleteDepartment(opts: {
           requests: true,
           tickets: true,
           signatures: true,
+          committees: true,
         },
       },
     },
@@ -142,15 +226,9 @@ export async function deleteDepartment(opts: {
     return { ok: false, reason: "الاسم المكتوب لا يطابق اسم القسم — لم يُحذف شيء" };
   }
 
-  // ما يمنع الحذف يُسمّى بعدده، لا يُقال «لا يمكن» فحسب
-  const blockers: string[] = [];
-  const c = dept._count;
-  if (c.admins > 0) blockers.push(`${c.admins} حساب قيادي`);
-  if (c.members > 0) blockers.push(`${c.members} سجلّ عضوية`);
-  if (c.invites > 0) blockers.push(`${c.invites} دعوة`);
-  if (c.tickets > 0) blockers.push(`${c.tickets} تذكرة`);
-  if (c.requests > 0) blockers.push(`${c.requests} طلب`);
-  if (c.signatures > 0) blockers.push(`${c.signatures} توقيع`);
+  // ما يمنع الحذف يُسمّى بعدده، لا يُقال «لا يمكن» فحسب — وهو نفسُه ما
+  // يُخفي زرَّ الحذف في الصفحة (`deleteBlockers`)
+  const blockers = deleteBlockers(dept._count, await seniorPeopleIn(dept.id));
   if (blockers.length > 0) {
     return {
       ok: false,
@@ -238,4 +316,83 @@ export async function assignMemberDepartment(opts: {
   await syncMemberLifecycleRow(member.id);
 
   return { ok: true, memberName: member.fullName, departmentName: dept.name };
+}
+
+/** طلباتُ إنشاء الأقسام المنتظِرة — طابورُ المؤسس */
+export async function pendingDepartmentRequests() {
+  // department-scope: all — الطابورُ هو المنتظِرُ نفسُه، وهو غير مفتوح
+  return prisma.department.findMany({
+    where: { parentId: null, committeeStatus: "pending_review" },
+    orderBy: { requestedAt: "asc" },
+    take: 50,
+    select: {
+      id: true,
+      name: true,
+      colorHex: true,
+      leadershipOnly: true,
+      requestedByName: true,
+      requestedAt: true,
+    },
+  });
+}
+
+/** قرارُ المؤسس في طلب إنشاء قسم: يُبنى، أو يُرَدّ بسببٍ مكتوب.
+ *
+ *  والاعتمادُ يُعيد القسمَ قسماً أصيلاً (`committeeStatus: null`) ويُنشئ
+ *  بنكَ أسئلته — فيولد مكتملاً كما يولد ما يُنشئه المؤسس بيده. والردُّ
+ *  لا يحذف الصفّ: يبقى مكتوباً بسببه، ويُرى في الصفحة لمن طلبه. */
+export async function decideDepartmentRequest(opts: {
+  departmentId: string;
+  decision: "approved" | "rejected";
+  note?: string | null;
+  session: Session;
+}): Promise<{ ok: true; name: string; decision: "approved" | "rejected" } | { ok: false; reason: string }> {
+  if (!canDecideDepartmentRequest(opts.session.user.role)) {
+    return { ok: false, reason: "اعتمادُ الأقسام للمؤسس وحده" };
+  }
+  const note = opts.note?.trim() || null;
+  if (opts.decision === "rejected" && !note) {
+    return { ok: false, reason: "الردّ لا يقع بلا سبب مكتوب" };
+  }
+
+  const dept = await prisma.department.findUnique({
+    where: { id: opts.departmentId },
+    select: { id: true, name: true, leadershipOnly: true, parentId: true, committeeStatus: true },
+  });
+  if (!dept || dept.parentId) return { ok: false, reason: "الطلب غير موجود" };
+
+  const now = new Date();
+  // الحرسُ في `where`: قرارانِ متسابقان لا يمرّان، ولا يُنقَض قرارٌ بضغطةٍ متأخّرة
+  const written = await prisma.department.updateMany({
+    where: { id: dept.id, parentId: null, committeeStatus: "pending_review" },
+    data: {
+      committeeStatus: opts.decision === "approved" ? null : "rejected",
+      decidedAt: now,
+      decidedByName: opts.session.user.name ?? "—",
+      decisionNote: note,
+    },
+  });
+  if (written.count === 0) return { ok: false, reason: "قُرِّر هذا الطلب من قبل" };
+
+  if (opts.decision === "approved" && !dept.leadershipOnly) {
+    await prisma.testTrack.upsert({
+      where: { scope_departmentId: { scope: "department_member", departmentId: dept.id } },
+      create: { scope: "department_member", departmentId: dept.id },
+      update: {},
+    });
+  }
+
+  await appendMemberEvent({
+    fullName: opts.session.user.name ?? "—",
+    email: "",
+    roleOrDepartment: dept.name,
+    event: opts.decision === "approved" ? "اعتماد طلب قسم وإنشاؤه" : "ردّ طلب إنشاء قسم",
+    details:
+      opts.decision === "approved"
+        ? `بُني القسم${dept.leadershipOnly ? " (استثنائي)" : " وأُنشئ له بنك أسئلة فارغ"}${note ? ` — ملاحظة: ${note}` : ""}`
+        : `السبب: ${note}`,
+    at: now,
+  });
+
+  return { ok: true, name: dept.name, decision: opts.decision };
 }

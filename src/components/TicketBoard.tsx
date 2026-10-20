@@ -100,8 +100,8 @@ export async function TicketBoard({
                       })}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="rounded-lg px-2.5 py-1 text-xs font-semibold text-on-brand"
-                      style={{ background: theme.fill }}
+                      className="rounded-lg px-2.5 py-1 text-xs font-semibold"
+                      style={{ background: theme.fill, color: theme.onFill }}
                     >
                       {tb.addToGoogle}
                     </a>
@@ -128,7 +128,14 @@ export async function TicketBoard({
 }
 
 function Tile({ label, value, tone }: { label: string; value: number; tone: "alarm" | "warn" | "plain" }) {
-  const color = tone === "alarm" ? "#9A2E1C" : tone === "warn" ? "#B3701A" : "rgba(0,0,0,0.75)";
+  // الحبرُ يتبع السمة: كان المحايدُ أسودَ صريحاً فاختفى رقمُه في الداكن،
+  // وكان الأحمرُ والبرتقاليُّ بدرجتهما الفاتحة فخفتا على السطح الداكن
+  const color =
+    tone === "alarm"
+      ? "light-dark(#9A2E1C, #F28B7A)"
+      : tone === "warn"
+        ? "light-dark(#B3701A, #F0B45A)"
+        : "var(--ink)";
   return (
     <Card className="p-3.5">
       <p className="text-2xl font-bold leading-none" style={{ color }}>

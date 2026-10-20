@@ -261,19 +261,22 @@ export async function decideCommittee(opts: {
     select: {
       id: true,
       name: true,
+      parentId: true,
       committeeStatus: true,
       requestedById: true,
       parent: { select: { name: true } },
     },
   });
   if (!committee) return { ok: false, reason: "اللجنة غير موجودة" };
-  if (!committee.committeeStatus) return { ok: false, reason: "هذا قسمٌ أصيل لا لجنة" };
+  // وطلبُ القسم الأصيل يحمل الحالةَ نفسَها — لكن اعتمادَه للمؤسس وحده
+  // (`decideDepartmentRequest`)، فلا يمرّ من باب اللجان
+  if (!committee.committeeStatus || !committee.parentId) return { ok: false, reason: "هذا قسمٌ أصيل لا لجنة" };
 
   const now = new Date();
   // الحرسُ في `where` لا قبله: قرارانِ متسابقان لا يمرّان، ومن قُرِّر
   // أمرُه لا يُقرَّر ثانيةً — فلا يُفتَح ما رُدَّ بضغطةٍ متأخّرة.
   const written = await prisma.department.updateMany({
-    where: { id: committee.id, committeeStatus: "pending_review" },
+    where: { id: committee.id, parentId: { not: null }, committeeStatus: "pending_review" },
     data: {
       committeeStatus: opts.decision,
       decidedAt: now,
@@ -448,7 +451,8 @@ export async function committeesOf(parentId: string) {
 export async function pendingCommittees() {
   // department-scope: all — الطابورُ هو المقترحةُ نفسُها، وهي غير مفتوحة
   return prisma.department.findMany({
-    where: { committeeStatus: "pending_review" },
+    // اللجانُ وحدها: طلباتُ الأقسام الأصيلة طابورُ المؤسس (`pendingDepartmentRequests`)
+    where: { committeeStatus: "pending_review", parentId: { not: null } },
     orderBy: { requestedAt: "asc" },
     select: {
       id: true,

@@ -143,6 +143,12 @@ export default async function MemberPortalPage() {
             resenderLabel={RESENDER_LABEL[resenderRoleFor("member")]}
           />
           <SecurityGuidance theme={theme} totpEnabled={null} />
+          {/* تغييرُ كلمة المرور هنا في صفحته — لا في القائمة الجانبية */}
+          <div>
+            <a href="/change-password" className="wizard-btn-2">
+              {t.common.changePassword}
+            </a>
+          </div>
           <TerminationRequestCard
             theme={theme}
             open={

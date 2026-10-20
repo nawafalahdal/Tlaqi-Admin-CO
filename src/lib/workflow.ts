@@ -729,6 +729,16 @@ export async function createCandidateAccount(opts: {
 }) {
   await assertRoleSeatAvailable(opts.targetRole, opts.departmentId);
 
+  // لا يُدعى أحدٌ إلى ما لم يُعتمد: طلبُ قسمٍ ينتظر المؤسس، أو لجنةٌ مقترحة —
+  // كلاهما ليس قسماً بعد. والقوائمُ تحجبهما، وهذا الحرسُ لمن تجاوز القائمة
+  if (opts.departmentId) {
+    const open = await prisma.department.findFirst({
+      where: { id: opts.departmentId, ...OPEN_DEPARTMENT_WHERE },
+      select: { id: true },
+    });
+    if (!open) throw new Error("هذا القسم لم يُعتمد بعد — لا يُدعى إليه أحدٌ قبل اعتماده");
+  }
+
   const existingUser = await prisma.user.findUnique({ where: { email: opts.email } });
   if (existingUser) throw new Error("هذا البريد مستخدم بالفعل في حساب قائم");
   const existingMember = await prisma.member.findUnique({ where: { email: opts.email } });

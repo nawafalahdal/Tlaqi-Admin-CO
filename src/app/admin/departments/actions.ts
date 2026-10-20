@@ -7,6 +7,8 @@ import {
   createDepartment,
   deleteDepartment,
   assignMemberDepartment,
+  departmentNeedsApproval,
+  decideDepartmentRequest,
 } from "@/lib/departments";
 import { decideCommittee } from "@/lib/committees";
 import { prisma } from "@/lib/prisma";
@@ -14,9 +16,9 @@ import { appendMemberEvent } from "@/lib/googleSheets";
 import { safeErrorMessage } from "@/lib/safeError";
 
 export async function createDepartmentAction(
-  _prev: { error: string | null; success: boolean },
+  _prev: { error: string | null; success: boolean; requested?: boolean },
   formData: FormData
-): Promise<{ error: string | null; success: boolean }> {
+): Promise<{ error: string | null; success: boolean; requested?: boolean }> {
   const session = await auth();
   if (!session) return { error: "يجب تسجيل الدخول", success: false };
   if (!canCreateDepartment(session.user.role)) {
@@ -33,16 +35,19 @@ export async function createDepartmentAction(
     return { error: "القسم الاستثنائي يُنشئه المؤسس أو المدير التنفيذي", success: false };
   }
 
+  // المدير التنفيذي يرفع طلباً يعتمده المؤسس — والقرارُ هنا في الخادم لا في الواجهة
+  const requested = departmentNeedsApproval(session.user.role);
   try {
     await createDepartment({
       name,
       colorHex,
       leadershipOnly,
       createdByName: session.user.name ?? "—",
+      request: requested ? { byId: session.user.id, byName: session.user.name ?? "—" } : undefined,
     });
     revalidatePath("/admin/departments");
     revalidatePath("/admin");
-    return { error: null, success: true };
+    return { error: null, success: true, requested };
   } catch (err) {
     return { error: safeErrorMessage(err), success: false };
   }
@@ -158,6 +163,34 @@ export async function decideCommitteeAction(
         res.decision === "approved"
           ? `فُتحت لجنة «${res.name}» داخل ${res.parentName} — ويدعو قائدُ القسم قيادتها الآن`
           : `رُدَّ اقتراح «${res.name}» — ووصل السبب مقترِحَها`,
+    };
+  } catch (err) {
+    return { error: safeErrorMessage(err) };
+  }
+}
+
+/** قرارُ المؤسس في طلب إنشاء قسم — والتصريحُ يُفرض في `decideDepartmentRequest` */
+export async function decideDepartmentRequestAction(
+  departmentId: string,
+  decision: "approved" | "rejected",
+  note: string
+): Promise<{ error: string | null; done?: boolean; message?: string }> {
+  const session = await auth();
+  if (!session) return { error: "يجب تسجيل الدخول" };
+
+  try {
+    const res = await decideDepartmentRequest({ departmentId, decision, note, session });
+    if (!res.ok) return { error: res.reason };
+    revalidatePath("/admin/departments");
+    revalidatePath("/admin");
+    revalidatePath("/structure");
+    return {
+      error: null,
+      done: true,
+      message:
+        res.decision === "approved"
+          ? `بُني قسم «${res.name}» — ويظهر الآن في الهيكل والقوائم`
+          : `رُدَّ طلب «${res.name}» — ويقرأ طالبُه السبب في صفحة الأقسام`,
     };
   } catch (err) {
     return { error: safeErrorMessage(err) };

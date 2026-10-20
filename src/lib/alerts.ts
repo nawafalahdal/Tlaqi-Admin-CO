@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Session } from "next-auth";
 import { canDecideCommittee } from "@/lib/committees";
+import { canDecideDepartmentRequest } from "@/lib/departments";
 import { canManagePlans } from "@/lib/plans";
 import { canGovernPeriod, OUTSTANDING_STATES } from "@/lib/execution";
 import { improvementCounts } from "@/lib/improvements";
@@ -73,6 +74,7 @@ export async function alertsForUser(session: Session): Promise<Alert[]> {
     pendingCommittees,
     freshPlans,
     terminationsToDecide,
+    departmentRequests,
   ] = await Promise.all([
     prisma.ticket.count({
       where: { approverUserId: userId, approvalState: { in: ["awaiting", "reviewing"] } },
@@ -99,11 +101,15 @@ export async function alertsForUser(session: Session): Promise<Alert[]> {
       ? prisma.leaderSignature.count({ where: { status: "submitted" } })
       : Promise.resolve(0),
     canDecideCommittee(role)
-      ? prisma.department.count({ where: { committeeStatus: "pending_review" } })
+      ? prisma.department.count({ where: { committeeStatus: "pending_review", parentId: { not: null } } })
       : Promise.resolve(0),
     prisma.planDoc.count({ where: { createdAt: { gte: weekAgo } } }),
     role === "super_admin" || role === "executive" || role === "department_admin"
       ? prisma.terminationRequest.count({ where: { status: { in: ["submitted", "meeting_requested"] } } })
+      : Promise.resolve(0),
+    // طلباتُ إنشاء الأقسام تصل المؤسس وحده — هو من يعتمدها
+    canDecideDepartmentRequest(role)
+      ? prisma.department.count({ where: { committeeStatus: "pending_review", parentId: null } })
       : Promise.resolve(0),
   ]);
 
@@ -214,6 +220,16 @@ export async function alertsForUser(session: Session): Promise<Alert[]> {
       body: "اللجنةُ لا تُفتح ولا يُدعى لها قائدٌ قبل اعتمادك — واقتراحُها يقف حتى تقرّر.",
       href: "/admin/departments",
       cta: "افتح الطابور",
+    });
+  }
+  if (departmentRequests > 0) {
+    alerts.push({
+      id: "department-requests",
+      tone: "warn",
+      title: `${departmentRequests} طلب إنشاء قسم ينتظر اعتمادك`,
+      body: "القسمُ لا يُبنى ولا يظهر في الهيكل ولا يُدعى إليه أحدٌ قبل اعتمادك.",
+      href: "/admin/departments",
+      cta: "افتح الطلبات",
     });
   }
   if (terminationsToDecide > 0) {

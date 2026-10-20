@@ -18,7 +18,18 @@ const SWATCHES = [
   "#3F7D20",
 ];
 
-export function NewDepartmentForm({ theme }: { theme: ReturnType<typeof themeFromColor> }) {
+/** إنشاءُ قسم — أو طلبُه.
+ *
+ *  المؤسس يُنشئ مباشرةً، والمدير التنفيذي يرفع طلباً يعتمده المؤسس
+ *  (`requestMode`). والخادمُ هو من يقرّر أيّهما يقع بدور صاحب الجلسة —
+ *  الواجهةُ تُسمّي الفعلَ بما سيقع فحسب. */
+export function NewDepartmentForm({
+  theme,
+  requestMode = false,
+}: {
+  theme: ReturnType<typeof themeFromColor>;
+  requestMode?: boolean;
+}) {
   const dict = useTranslations();
   const t = dict.deptAdmin;
   const [state, formAction, pending] = useActionState(createDepartmentAction, {
@@ -29,20 +40,37 @@ export function NewDepartmentForm({ theme }: { theme: ReturnType<typeof themeFro
   const [color, setColor] = useState(SWATCHES[0]);
   const [handledSuccess, setHandledSuccess] = useState(false);
   const [leadershipOnly, setLeadershipOnly] = useState(false);
+  const [sent, setSent] = useState(false);
 
   if (state.success !== handledSuccess) {
     setHandledSuccess(state.success);
     if (state.success) {
       setOpen(false);
       setLeadershipOnly(false);
+      setSent(Boolean(state.requested));
     }
   }
 
   if (!open) {
     return (
-      <Button theme={theme} variant="outline" onClick={() => setOpen(true)}>
-        {t.newTitle}
-      </Button>
+      <div className="flex flex-col items-start gap-3">
+        {sent && (
+          <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            {t.requestSent}
+          </p>
+        )}
+        <Button
+          theme={theme}
+          variant="outline"
+          onClick={() => {
+            setSent(false);
+            setOpen(true);
+          }}
+        >
+          {requestMode ? t.requestTitle : t.newTitle}
+        </Button>
+        {requestMode && <p className="text-xs leading-relaxed text-black/45">{t.requestHint}</p>}
+      </div>
     );
   }
 
@@ -130,7 +158,7 @@ export function NewDepartmentForm({ theme }: { theme: ReturnType<typeof themeFro
 
       <div className="flex flex-wrap gap-2">
         <Button theme={theme} type="submit" disabled={pending}>
-          {pending ? t.creating : t.createSubmit}
+          {pending ? t.creating : requestMode ? t.requestSubmit : t.createSubmit}
         </Button>
         <Button theme={theme} variant="outline" type="button" onClick={() => setOpen(false)}>
           {dict.common.cancel}
