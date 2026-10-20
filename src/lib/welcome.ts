@@ -5,12 +5,12 @@ import { sendWelcomeEmail } from "@/lib/email";
 import { accountRoleLabel } from "@/lib/testTracks";
 import { departmentBrand } from "@/lib/departmentBrand";
 import { syncAdminAccountRow, syncMemberLifecycleRow } from "@/lib/workflow";
-import { SOCIAL_LINKS, appBaseUrl } from "@/lib/emailBrand";
+import { SOCIAL_LINKS, appBaseUrl, BRAND_HASHTAG } from "@/lib/emailBrand";
 import { bannerUrl, shareCardUrl } from "@/lib/bannerToken";
 import { reasonFor, type SendOutcome } from "@/lib/emailOutcome";
 
-/** الوسم الرسمي. يُضبط من البيئة ليُغيَّر دون نشر جديد. */
-export const BRAND_HASHTAG = process.env.BRAND_HASHTAG || "#تلاقي";
+/** الوسم الرسمي — يُعرَّف مع الشعار في `emailBrand` فلا يفترقان */
+export { BRAND_HASHTAG };
 
 /** قسمٌ بلا إعدادٍ رسمي: تمرّ الرسالة بالبديل المعتمد ويُسجَّل النقص.
  *

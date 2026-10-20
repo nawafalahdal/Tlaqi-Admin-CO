@@ -9,6 +9,7 @@ import {
   toneForVariant,
   appBaseUrl,
   SOCIAL_HANDLE,
+  BRAND_HASHTAG,
   type EmailContent,
   type EmailTheme,
 } from "@/lib/emailBrand";
@@ -332,7 +333,9 @@ export async function sendCredentialsEmail(opts: {
       title: `${firstName(opts.fullName)}، هذه دعوتك إلى تَـــلاقِ`,
       lead: `${by ? `دعاك <b>${esc(by)}</b>` : "دعتك إدارة <b>تَـــلاقِ</b>"} للانضمام إلى ${esc(where)}${position ? ` في موقع <b>${esc(position)}</b>` : ""}. وهذه دعوةٌ خاصّة باسمك، وبياناتُها سجّلتها الجهة الداعية.`,
       image: opts.inviteCardUrl
-        ? { src: opts.inviteCardUrl, width: 544, height: 680, alt: `دعوة خاصّة — ${opts.fullName}`, href: esc(opts.loginUrl) }
+        ? // صورةٌ تُحفظ لا رابط: الضغطُ عليها كان يفتح المنصة بدل أن تُحفظ —
+          // والدخولُ للزرّ وحده (قرار المؤسس)
+          { src: opts.inviteCardUrl, width: 544, height: 680, alt: `دعوة خاصّة — ${opts.fullName}` }
         : undefined,
       paragraphs: [
         `<b>الخطوات من هنا:</b><br>١. الدخول بالبيانات أدناه وتغيير كلمة المرور.<br>٢. استكمال البيانات الشخصية.<br>٣. اجتياز اختبار القبول — وهو شرط النظر في الانضمام.<br>٤. عرض النتيجة على الإدارة المختصّة لقرار الاعتماد.`,
@@ -1265,7 +1268,7 @@ function welcomeContent(opts: WelcomeEmailOpts): { subject: string; content: Ema
   const approved = (opts.occasion ?? "approved") === "approved";
   const first = firstName(opts.fullName);
   const handle = `@${SOCIAL_HANDLE}`;
-  const tag = opts.hashtag ?? "#تلاقي";
+  const tag = opts.hashtag ?? BRAND_HASHTAG;
 
   return {
     subject: welcomeEmailSubject(opts.fullName, opts.occasion ?? "approved", g),
@@ -1278,7 +1281,8 @@ function welcomeContent(opts: WelcomeEmailOpts): { subject: string; content: Ema
         ? `اعتُمد انضمامك إلى ${esc(brand.copy.phrase)}${as}. ومن اليوم ${G("أنت", "أنتِ", "أنت")} جزءٌ من تَـــلاقِ.`
         : `هذه بطاقة عضويتك في ${esc(brand.copy.phrase)} كما طلبتها.`,
       image: opts.cardUrl
-        ? { src: opts.cardUrl, width: 544, height: 680, alt: `بطاقة العضوية — ${opts.fullName}`, href: esc(opts.portalUrl) }
+        ? // البطاقةُ تُحفظ وتُنشر ولا تفتح شيئاً — الدخولُ للزرّ وحده (قرار المؤسس)
+          { src: opts.cardUrl, width: 544, height: 680, alt: `بطاقة العضوية — ${opts.fullName}` }
         : undefined,
       paragraphs: approved ? [esc(brand.copy.belief), esc(brand.copy.aspiration)] : [],
       facts: [
@@ -1290,7 +1294,7 @@ function welcomeContent(opts: WelcomeEmailOpts): { subject: string; content: Ema
       ],
       cta: { label: "الدخول إلى المنصة", url: esc(opts.portalUrl) },
       after: [
-        `البطاقة أعلاه ${f.toYou} — تُحفظ بضغطةٍ مطوّلة وتُنشر كما هي. ويسعدنا أن ${G("تشاركنا", "تشاركينا", "تشاركنا")} الخبر بالإشارة إلى <b dir="ltr">${esc(handle)}</b> ووسم <b>${esc(tag)}</b>.`,
+        `البطاقة أعلاه ${f.toYou} — تُحفظ بضغطةٍ مطوّلة وتُنشر كما هي. ويسعدنا أن ${G("تشاركنا", "تشاركينا", "تشاركنا")} الخبر بالإشارة إلى <b dir="ltr">${esc(handle)}</b> ووسمِنا الرسمي <b>${esc(tag)}</b>.`,
         `أهلاً ${f.you} بيننا، ونتطلّع إلى ما سنصنعه معاً.`,
       ],
       note: `${G("احتفظ", "احتفظي", "يُحتفظ")} بهذه الرسالة: فيها البيانات كما سُجِّلت عندنا، وتصحيحُ أيّ خطأٍ فيها من صفحة «بياناتي».`,
