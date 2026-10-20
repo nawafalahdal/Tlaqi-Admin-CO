@@ -4,6 +4,7 @@ import { useActionState, useEffect, useId, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { submitImprovementAction, type ImproveState } from "@/app/improve/actions";
 import { SparkIcon } from "./icons";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 /** زرُّ «تحسين» — عائمٌ دائريٌّ في زاوية كل شاشة، واحدٌ لا يتكرّر.
  *
@@ -40,6 +41,12 @@ export function ImproveButton() {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const pathname = usePathname();
+  const L = useTranslations().improve;
+  const kinds = [
+    ["bug", L.kindBug, L.notePlaceholderBug],
+    ["confusing", L.kindConfusing, L.notePlaceholderConfusing],
+    ["idea", L.kindIdea, L.notePlaceholderIdea],
+  ] as const;
 
   // الإقرارُ يُقرأ في الرسم لا في `useEffect`: تحديثُ الحالة داخل أثرٍ
   // يُطلق رسماً متتابعاً ويَرفضه الفحصُ — والقراءةُ هنا تَكفي.
@@ -101,13 +108,13 @@ export function ImproveButton() {
         aria-expanded={open}
         // زرٌّ عائمٌ واحدٌ في كل الشاشات — لا في الترويسة. والاسمُ الظاهر
         // «تحسين» يُقرأ للقارئ الآلي كاملاً بما يفعله.
-        aria-label="تحسين — اقتراح تحسين أو الإبلاغ عن إشكالية"
-        title="تحسين"
+        aria-label={L.fabAria}
+        title={L.fab}
         // `improve-btn` مِقبضٌ ثابتٌ يُنتقى به في الفحص — لا بنصِّه الذي يُترجَم
         className="improve-btn improve-fab"
       >
         <SparkIcon className="improve-btn__spark" />
-        <span className="improve-fab__label">تحسين</span>
+        <span className="improve-fab__label">{L.fab}</span>
       </button>
 
       {open && (
@@ -123,19 +130,21 @@ export function ImproveButton() {
         >
           <div ref={panelRef} className="improve-sheet__panel">
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 id={titleId} className="text-base font-bold">
-                  شفتَ شيئاً يُحسَّن؟
-                </h2>
-                <p className="mt-1 text-xs leading-relaxed text-black/50">
-                  قُله من هنا — تصير ملاحظتُك تذكرةً في صندوق المؤسس، ونُعلمك حين
-                  تُصلَح لتُجرّبها بنفسك.
-                </p>
+              <div className="flex items-start gap-3">
+                <span className="improve-sheet__badge" aria-hidden="true">
+                  <SparkIcon />
+                </span>
+                <div>
+                  <h2 id={titleId} className="text-base font-bold">
+                    {L.title}
+                  </h2>
+                  <p className="mt-1 text-xs leading-relaxed text-black/55">{L.intro}</p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={close}
-                aria-label="إغلاق"
+                aria-label={L.close}
                 className="shrink-0 rounded-lg px-2 py-1 text-sm font-bold text-black/40 hover:bg-black/[0.06] hover:text-black/70"
               >
                 ✕
@@ -143,43 +152,34 @@ export function ImproveButton() {
             </div>
 
             {doneFor ? (
-              <div className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm">
-                <p className="font-bold text-emerald-800">وصلَت — شكراً لك.</p>
+              <div className="mt-5 rounded-xl bg-emerald-50 p-4 text-sm">
+                <p className="font-bold text-emerald-800">{L.doneTitle}</p>
                 <p className="mt-1 text-xs leading-relaxed text-emerald-800/80">
-                  رقمُها <b>#{doneFor}</b>، وتَجدها في «ملاحظاتي» حتى تُغلَق. وحين
-                  تُصلَح تَنتظر تجربتَك قبل أن تُقفَل.
+                  {L.doneBody.replace("{n}", String(doneFor))}
                 </p>
                 <button
                   type="button"
                   onClick={close}
-                  className="btn-brand mt-3 rounded-lg px-3 py-2 text-xs font-bold"
+                  className="btn-brand mt-3 min-h-10 rounded-lg px-4 text-xs font-bold"
                 >
-                  تمام
+                  {L.doneOk}
                 </button>
               </div>
             ) : (
-              <form action={action} className="mt-4 flex flex-col gap-3">
+              <form action={action} className="mt-5 flex flex-col gap-4">
                 <input type="hidden" name="kind" value={kind} />
                 <input type="hidden" name="context" value={context} />
 
-                <div className="flex flex-wrap gap-1.5">
-                  {(
-                    [
-                      ["bug", "شيءٌ معطوب"],
-                      ["confusing", "شيءٌ غامض"],
-                      ["idea", "فكرةٌ أحسن"],
-                    ] as const
-                  ).map(([k, label]) => (
+                {/* نوعُ الملاحظة: اختيارٌ واحدٌ من ثلاثة — مقطعٌ متّصلٌ لا أزرارٌ متفرّقة */}
+                <div role="radiogroup" aria-label={L.kindLegend} className="improve-kinds">
+                  {kinds.map(([k, label]) => (
                     <button
                       key={k}
                       type="button"
+                      role="radio"
+                      aria-checked={kind === k}
                       onClick={() => setKind(k)}
-                      aria-pressed={kind === k}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                        kind === k
-                          ? "bg-black/[0.08] text-black/80 ring-1 ring-black/15"
-                          : "text-black/50 hover:bg-black/[0.04]"
-                      }`}
+                      className="improve-kinds__item"
                     >
                       {label}
                     </button>
@@ -187,45 +187,43 @@ export function ImproveButton() {
                 </div>
 
                 <label className="flex flex-col gap-1.5 text-sm">
-                  <span className="font-medium text-black/70">في سطرٍ واحد</span>
+                  <span className="font-medium text-black/70">{L.titleLabel}</span>
                   <input
                     name="title"
                     required
                     maxLength={160}
-                    placeholder="مثال: زرُّ الحفظ لا يُرى على الجوّال"
+                    placeholder={L.titlePlaceholder}
                     className="min-h-11 rounded-xl border border-black/10 bg-white px-3.5 text-sm outline-none focus:border-black/30"
                   />
                 </label>
 
                 <label className="flex flex-col gap-1.5 text-sm">
-                  <span className="font-medium text-black/70">واشرحها</span>
+                  <span className="font-medium text-black/70">{L.noteLabel}</span>
                   <textarea
                     name="note"
                     required
                     rows={4}
                     maxLength={2000}
-                    placeholder="ماذا كنتَ تفعل؟ وماذا توقّعتَ أن يحدث؟ وماذا حدث؟"
+                    // السؤالُ يتبع النوع: العطلُ يُوصَف بخطواته، والفكرةُ بفائدتها
+                    placeholder={kinds.find(([k]) => k === kind)?.[2]}
                     className="rounded-xl border border-black/10 bg-white px-3.5 py-2.5 text-sm leading-relaxed outline-none focus:border-black/30"
                   />
                 </label>
 
                 {state.error && (
-                  <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+                  <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
                     {state.error}
                   </p>
                 )}
 
-                <p className="text-[11px] leading-relaxed text-black/40">
-                  يُرسَل مع ملاحظتك: الصفحةُ التي أنت فيها، ومقاسُ الشاشة، والسمة،
-                  واللغة — ولا شيءَ غيرَها.
-                </p>
+                <p className="text-[11px] leading-relaxed text-black/45">{L.privacy}</p>
 
                 <button
                   type="submit"
                   disabled={pending}
                   className="btn-brand min-h-11 rounded-xl px-4 text-sm font-semibold disabled:opacity-60"
                 >
-                  {pending ? "تُرسَل…" : "أرسِل الملاحظة"}
+                  {pending ? L.sending : L.submit}
                 </button>
               </form>
             )}

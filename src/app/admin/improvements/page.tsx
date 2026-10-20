@@ -52,7 +52,7 @@ export default async function ImprovementsPage() {
           <h1 className="text-lg font-bold sm:text-xl">مركزُ التحسين</h1>
           <p className="mt-1 text-sm leading-relaxed text-black/50">
             كلُّ ملاحظةٍ رُفعت من زرّ «تحسين» تصير تذكرةً هنا. ولا تُغلَق بإقرار من
-            أصلحها وحده: من رأى العطبَ هو من يَشهد بزواله.
+            أنجزها وحده: من رفع الملاحظة هو من يؤكّد أنها أُنجزت.
           </p>
         </div>
 

@@ -70,9 +70,9 @@ export const STATE_LABEL: Record<ImprovementState, string> = {
 };
 
 export const KIND_LABEL: Record<ImprovementKind, string> = {
-  bug: "عطب",
-  confusing: "غموض",
-  idea: "فكرة",
+  bug: "إصلاح",
+  confusing: "توضيح",
+  idea: "اقتراح",
 };
 
 /** حدُّ النصّ: ملاحظةٌ لا مقال. والحدُّ مفروضٌ في الخادم لا في الواجهة

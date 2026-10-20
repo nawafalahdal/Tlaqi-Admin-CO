@@ -119,16 +119,18 @@ check((await page.locator(".improve-sheet").count()) === 0, "والنقرُ عل
 await page.locator("button.improve-btn").first().click();
 await page.waitForTimeout(500);
 const title = `فحصُ الدرج ${Date.now()}`;
-await page.locator('button:has-text("شيءٌ غامض")').click();
+await page.locator('.improve-kinds button[role=radio]:has-text("غير واضح")').click();
+check((await page.inputValue('input[name="kind"]')) === "confusing", "واختيارُ «غير واضح» يضبط النوعَ المُرسَل");
+check((await page.locator('.improve-kinds [aria-checked="true"]').count()) === 1, "ونوعٌ واحدٌ مختارٌ في كل لحظة");
 await page.fill('input[name="title"]', title);
 await page.fill('textarea[name="note"]', "هذه ملاحظةٌ من فحصِ العَرْض — تُحذَف بعده.");
 const ctxSent = await page.inputValue('input[name="context"]');
 check(ctxSent.length > 2 && ctxSent.includes("/admin/execution"),
   "**والسياقُ ملتقَطٌ قبل الإرسال — لا حقلٌ فارغ**", ctxSent.slice(0, 120));
-await page.locator('button:has-text("أرسِل الملاحظة")').click();
+await page.locator('button:has-text("إرسال الملاحظة")').click();
 await page.waitForTimeout(4000);
 const body = (await page.textContent("body")) ?? "";
-check(/وصلَت/.test(body), "**وتُرسَل فيُقال لصاحبها إنها وصلت برقمها**");
+check(/وصلت ملاحظتك/.test(body), "**وتُرسَل فيُقال لصاحبها إنها وصلت برقمها**");
 const numMatch = body.match(/#(\d+)/);
 check(!!numMatch, "ومعها رقمُها", numMatch?.[0] ?? "—");
 

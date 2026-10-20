@@ -21,6 +21,7 @@ import {
   sweepExpiredCandidateAccounts,
 } from "@/lib/workflow";
 import { SeatOccupied } from "@/components/SeatOccupied";
+import { InviteReadiness, type ReadinessRow } from "@/components/InviteReadiness";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { runDueSweeps } from "@/lib/sweepThrottle";
 
@@ -35,7 +36,7 @@ export default async function AdminInvitesPage() {
 
   await runDueSweeps({ candidate_expiry: () => sweepExpiredCandidateAccounts() });
 
-  const [departments, invites, execSeat, opsSeat] = await Promise.all([
+  const [departments, invites, execSeat, opsSeat, tracks] = await Promise.all([
     prisma.department.findMany({
       where: OPEN_DEPARTMENT_WHERE,
       orderBy: { name: "asc" },
@@ -48,6 +49,10 @@ export default async function AdminInvitesPage() {
     }),
     findRoleSeatHolder("executive", null),
     findRoleSeatHolder("operations_officer", null),
+    // جاهزيةُ الدعوات: عددُ أسئلة كل بنك — الرقمُ وحده، لا الأسئلة
+    prisma.testTrack.findMany({
+      select: { scope: true, departmentId: true, _count: { select: { questions: true } } },
+    }),
   ]);
 
   // المناصب الفردية: يُعرض شاغلها بدل النموذج، فلا يملأ أحد حقولاً ستُرفض
@@ -74,6 +79,42 @@ export default async function AdminInvitesPage() {
   const ts = dict.seats;
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
 
+  // البنكُ غير المُنشأ كالفارغ: الخادمُ يرفض الدعوة إليه بالقدر نفسه
+  const count = (scope: string, departmentId: string | null = null) =>
+    tracks.find((tr) => tr.scope === scope && tr.departmentId === departmentId)?._count.questions ?? 0;
+  const isExecutive = session.user.role === "executive";
+  const readiness: ReadinessRow[] = [
+    {
+      key: "executive",
+      label: dict.roles.executive,
+      owner: t.readinessOwnerFounder,
+      questions: count("executive"),
+      editHref: isSuperAdmin ? "/admin/tests/executive" : undefined,
+    },
+    {
+      key: "operations_officer",
+      label: dict.roles.operations_officer,
+      owner: t.readinessOwnerCeo,
+      questions: count("operations_officer"),
+      editHref: isExecutive ? "/admin/tests/operations" : undefined,
+    },
+    {
+      key: "department_admin",
+      label: dict.roles.department_admin,
+      owner: t.readinessOwnerCeo,
+      questions: count("department_admin"),
+      editHref: isExecutive ? "/admin/tests/leads" : undefined,
+    },
+    // بنوكُ الأعضاء لقادة أقسامها — تُعرض هنا ليعرف صاحبُ الدعوة أيُّ قسمٍ
+    // جاهزٌ لاستقبال أعضائه، ولا رابط: صفحةُ القسم لقائده وحده
+    ...departments.map((d) => ({
+      key: `member-${d.id}`,
+      label: t.readinessMembersOf.replace("{dept}", d.name),
+      owner: t.readinessOwnerLead,
+      questions: count("department_member", d.id),
+    })),
+  ];
+
   return (
     <div className="min-h-screen bg-page">
       <AppHeader
@@ -94,6 +135,24 @@ export default async function AdminInvitesPage() {
             {t.subtitle}
           </p>
         </div>
+
+        <InviteReadiness
+          rows={readiness}
+          // هل البريدُ مضبوط؟ — نعم/لا فقط، لا قيمةُ المفتاح
+          emailEnabled={Boolean(process.env.RESEND_API_KEY)}
+          labels={{
+            title: t.readinessTitle,
+            hint: t.readinessHint,
+            allReady: t.readinessAllReady,
+            someEmpty: t.readinessSomeEmpty,
+            ready: t.readinessReady,
+            empty: t.readinessEmpty,
+            edit: t.readinessEdit,
+            email: t.readinessEmail,
+            emailOn: t.readinessEmailOn,
+            emailOff: t.readinessEmailOff,
+          }}
+        />
 
         {isSuperAdmin && (
           <section>

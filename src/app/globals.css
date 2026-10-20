@@ -231,6 +231,11 @@ textarea {
   & .text-amber-700, & .text-amber-800, & .text-amber-900 { color: #fcd34d; }
   & .text-green-700, & .text-green-800, & .text-green-900,
   & .text-emerald-700, & .text-emerald-800 { color: #6ee7b7; }
+  /* ودرجاتُها الشفّافة (`/80` و`/60`) — كانت تفلت من القلب فتبقى داكنةً على داكن */
+  & .text-red-900\/80 { color: color-mix(in oklab, #fca5a5 85%, transparent); }
+  & .text-amber-900\/85, & .text-amber-900\/80 { color: color-mix(in oklab, #fcd34d 85%, transparent); }
+  & .text-amber-900\/60 { color: color-mix(in oklab, #fcd34d 68%, transparent); }
+  & .text-emerald-800\/80 { color: color-mix(in oklab, #6ee7b7 85%, transparent); }
 
   /* حدودُ الحالة تُرفَع قليلاً لتُرى على الداكن */
   & .ring-red-200, & .ring-red-300 { --tw-ring-color: color-mix(in oklab, #ef4444 45%, transparent); }
@@ -904,3 +909,80 @@ body:has(.improve-fab) main { padding-block-end: 6rem; }
 .confirm-dialog::backdrop { background: rgb(20 16 14 / 0.45); }
 :root[data-theme="dark"] .confirm-dialog { box-shadow: 0 24px 80px rgb(0 0 0 / 0.5); }
 :root[data-theme="dark"] .confirm-dialog::backdrop { background: rgb(0 0 0 / 0.6); }
+
+/* ═══ جاهزيةُ الدعوات — صفوفٌ هادئة: نقطةُ حالةٍ واسمٌ وعدد ═══ */
+.readiness-list { display: grid; }
+@media (min-width: 768px) {
+  .readiness-list { grid-template-columns: 1fr 1fr; }
+  .readiness-row:nth-child(odd) { border-inline-end: 1px solid var(--hairline); }
+}
+.readiness-row {
+  display: flex; align-items: center; gap: 0.75rem;
+  min-height: 3.5rem; padding: 0.625rem 1rem;
+  border-block-end: 1px solid var(--hairline);
+}
+.readiness-dot { width: 0.5rem; height: 0.5rem; border-radius: 999px; flex-shrink: 0; }
+.readiness-dot--ok { background: #10b981; }
+.readiness-dot--empty { background: #ef4444; }
+
+/* ═══ درجُ «تحسين»: شارةُ العنوان ومقطعُ النوع ═══ */
+.improve-sheet__badge {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 2.25rem; height: 2.25rem; border-radius: 0.75rem;
+  background: color-mix(in oklab, var(--brand-action) 14%, var(--surface));
+  color: var(--brand-action);
+  font-size: 1.1rem;
+}
+.improve-kinds {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.25rem;
+  padding: 0.25rem; border-radius: 0.875rem;
+  background: color-mix(in oklab, var(--ink) 6%, transparent);
+}
+.improve-kinds__item {
+  min-height: 2.5rem; padding: 0.375rem 0.5rem; border-radius: 0.625rem;
+  font-size: 0.75rem; font-weight: 700; line-height: 1.2;
+  color: color-mix(in oklab, var(--ink) 60%, transparent);
+  transition: background-color 150ms, color 150ms, box-shadow 150ms;
+}
+.improve-kinds__item:hover { color: var(--ink); }
+.improve-kinds__item[aria-checked="true"] {
+  background: var(--surface); color: var(--ink);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12), 0 0 0 1px var(--hairline);
+}
+.improve-kinds__item:focus-visible { outline: 2px solid var(--brand-action); outline-offset: 1px; }
+
+/* ═══ تناسقُ مساحة العمل: إطارٌ واحد، وحافّةٌ واحدة، وعناوينُ بمقاسٍ واحد ═══
+ *
+ *  كانت كلُّ صفحةٍ تختار عرضَها (٢xl إلى ٦xl) وتتوسّط فيه، فيقفز العنوانُ
+ *  وحافّةُ المحتوى بين صفحةٍ وأخرى عند التنقّل من القائمة. فصار:
+ *  - صفحاتُ القوائم واللوحات في إطارٍ واحد (72rem).
+ *  - وصفحاتُ النماذج (الضيّقة عمداً) تبقى بعرضها، لكنها تبدأ من حافّة
+ *    الإطار نفسها لا من منتصفه — فالعنوانُ في الموضع نفسه في كل صفحة.
+ *  - وعنوانُ الصفحة ووصفُها وعناوينُ أقسامها بمقاسٍ واحد. */
+@media (min-width: 640px) {
+  body:has(.app-sidebar) main.mx-auto { max-width: 72rem; }
+  body:has(.app-sidebar) main.mx-auto.max-w-2xl { max-width: 42rem; }
+  body:has(.app-sidebar) main.mx-auto.max-w-3xl { max-width: 48rem; }
+  body:has(.app-sidebar) main.mx-auto.max-w-2xl,
+  body:has(.app-sidebar) main.mx-auto.max-w-3xl {
+    margin-inline-start: max(0px, calc((100% - 72rem) / 2));
+    margin-inline-end: auto;
+  }
+}
+body:has(.app-sidebar) main h1 {
+  font-size: clamp(1.25rem, 2.4vw, 1.5rem);
+  font-weight: 800;
+  line-height: 1.4;
+  letter-spacing: -0.005em;
+}
+body:has(.app-sidebar) main h1 + p:not([class*="bg-"]) {
+  max-width: 46rem;
+  font-size: 0.875rem;
+  line-height: 1.75;
+}
+body:has(.app-sidebar) main > section > h2:first-child,
+body:has(.app-sidebar) main > section > div:first-child > h2:first-child {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
