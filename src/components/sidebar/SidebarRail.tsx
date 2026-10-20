@@ -216,7 +216,12 @@ function SidebarRail({
       <nav className="app-sidebar__nav" ref={navRef}>
         {grouped(items).map(({ group, items: gi }) => (
           <div key={group} className="app-sidebar__group">
-            <p className="app-sidebar__label app-sidebar__section" id={`nav-g-${group}`}>
+            {/* مجموعةٌ ببندٍ واحد لا تُعنوَن: «الاعتمادات» فوق «الاعتمادات» تكرارٌ
+                يُطيل القائمة. ويبقى العنوانُ لقارئ الشاشة (`sr-only`) */}
+            <p
+              className={gi.length > 1 ? "app-sidebar__label app-sidebar__section" : "sr-only"}
+              id={`nav-g-${group}`}
+            >
               {s.groups[group]}
             </p>
             <ul className="app-sidebar__list" aria-labelledby={`nav-g-${group}`}>

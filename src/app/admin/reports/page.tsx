@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PageHeader } from "@/components/PageHeader";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
@@ -52,16 +53,11 @@ export default async function ReportsPage() {
       </AppHeader>
 
       <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
-        <div>
-          <h1 className="text-lg font-bold sm:text-xl">التقارير</h1>
-          <p className="mt-1 text-sm leading-relaxed text-black/50">
-            {seesDepartments
+        <PageHeader title="التقارير" description={<>{seesDepartments
               ? "ملخّص الأقسام وقادتها، والتذاكر التي أُغلقت في موعدها."
               : "ملخّص أعضاء قسمك، والتذاكر التي أُغلقت في موعدها."}
             {" "}
-            والأرقام تُعَدّ لحظة الإغلاق فتبقى بعد أرشفة التذاكر إلى الإكسل.
-          </p>
-        </div>
+            والأرقام تُعَدّ لحظة الإغلاق فتبقى بعد أرشفة التذاكر إلى الإكسل.</>} />
 
         {seesDepartments && (
           <section>

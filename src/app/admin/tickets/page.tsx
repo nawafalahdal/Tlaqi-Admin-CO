@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PageHeader } from "@/components/PageHeader";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { sweepTicketEscalation, TICKET_STAGE_LABELS, TICKET_INCLUDE, ticketAuthor, ticketTargetLabel, ticketVisibilityWhere, canRespondToTicket } from "@/lib/tickets";
@@ -56,10 +57,7 @@ export default async function TicketsPage() {
       </AppHeader>
 
       <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
-        <div>
-          <h1 className="text-lg font-bold sm:text-xl">{tt.title}</h1>
-          <p className="mt-1 text-sm text-black/50">{tt.subtitle}</p>
-        </div>
+        <PageHeader title={tt.title} description={<>{tt.subtitle}</>} />
 
         <TicketCta
           href="/admin/tickets/new"

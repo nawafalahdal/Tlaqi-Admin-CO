@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PageHeader } from "@/components/PageHeader";
 import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -68,12 +69,9 @@ export default async function ReviewPage() {
       <main className="mx-auto flex max-w-5xl flex-col gap-7 px-4 py-6 sm:px-5 sm:py-8">
         <div>
           <BackButton fallbackHref="/admin/execution" />
-          <h1 className="text-lg font-bold sm:text-xl">مراجعةُ السبت</h1>
-          <p className="mt-1 text-sm leading-relaxed text-black/50">
-            أسبوعٌ يُراجَع ({prev ? formatDate(prev.weekStart) : "لا أسبوعَ سابق"}) وأسبوعٌ
+          <PageHeader title="مراجعةُ السبت" description={<>أسبوعٌ يُراجَع ({prev ? formatDate(prev.weekStart) : "لا أسبوعَ سابق"}) وأسبوعٌ
             يُفتَح ({formatDate(next.weekStart)} — {stateLabel(next.state)}). والإذنُ بالفتح آخرُ
-            المراحل لا أوّلُها.
-          </p>
+            المراحل لا أوّلُها.</>} />
           {agenda.meeting && (
             <p className="mt-2 text-xs text-black/45">
               الاجتماع: {formatDate(agenda.meeting.scheduledAt)} ·{" "}

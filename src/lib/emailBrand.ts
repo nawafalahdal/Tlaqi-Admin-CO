@@ -177,11 +177,11 @@ const DARK = {
 };
 const TONE_DARK: Record<EmailTone, { bg: string; fg: string }> = {
   action: { bg: "#3A2418", fg: "#F6A06E" },
-  security: { bg: "#33222D", fg: "#E7C3D1" },
+  security: { bg: "#2A2D24", fg: "#EEF6DF" },
   celebrate: { bg: "#1C3427", fg: "#93DBB2" },
   info: { bg: "#283021", fg: "#CBD9AC" },
   alert: { bg: "#3B201B", fg: "#F5A897" },
-  farewell: { bg: "#33222D", fg: "#E7C3D1" },
+  farewell: { bg: "#2A2D24", fg: "#EEF6DF" },
 };
 
 /** النبرة الافتراضية لكلّ تصميم — إن لم تحدّدها الرسالة بنفسها */
@@ -382,7 +382,7 @@ function darkStyles(a: ReturnType<typeof accentOf>): string {
     .tq-line { border-color:${DARK.line} !important; }
     .tq-panel { background-color:${DARK.panel} !important; border-right-color:${accentInk} !important; }
     .tq-code { background-color:${DARK.panel} !important; border:1px solid ${accentInk}55 !important; }
-    .tq-btn { background-color:${btn} !important; color:#FFFFFF !important; }
+    .tq-btn { background-color:${btn} !important; color:${readableTextOn(btn)} !important; }
     .tq-sec { color:${accentInk} !important; border-color:${accentInk}66 !important; }
     .tq-fine { color:${DARK.muted} !important; }
     ${(Object.keys(TONE_DARK) as EmailTone[])

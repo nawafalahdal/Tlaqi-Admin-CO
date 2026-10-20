@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PageHeader } from "@/components/PageHeader";
 import Link from "next/link";
 import { auth } from "@/auth";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
@@ -47,23 +48,17 @@ export default async function StructurePage() {
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-5 sm:py-8">
 
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-lg font-bold sm:text-xl">هيكل تَـــلاقِ التنظيمي</h1>
-            <p className="mt-1 text-sm leading-relaxed text-black/50">
-              يُبنى من العضوية والمناصب المعتمدة ويتحدّث وحده — وهو للعرض فقط.
-            </p>
-          </div>
-          {chart.readiness.ready && (
-            <Link
-              href="/structure/pdf"
-              className="inline-flex min-h-11 shrink-0 items-center rounded-xl px-4 text-sm font-semibold text-on-brand"
-              style={{ background: theme.base }}
-            >
-              النسخة الرسمية (PDF)
-            </Link>
-          )}
-        </div>
+        <PageHeader
+          title="هيكل تَـــلاقِ التنظيمي"
+          description="يُبنى من العضوية والمناصب المعتمدة ويتحدّث وحده — وهو للعرض فقط."
+          actions={
+            chart.readiness.ready ? (
+              <Link href="/structure/pdf" className="btn-brand inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-semibold">
+                النسخة الرسمية (PDF)
+              </Link>
+            ) : undefined
+          }
+        />
 
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
           <Stat label="الأشخاص" value={chart.counts.people} />

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PageHeader } from "@/components/PageHeader";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
@@ -52,13 +53,8 @@ export default async function SignaturePage() {
 
       <main className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6 sm:px-5">
 
-        <div>
-          <h1 className="text-lg font-bold sm:text-xl">توقيعات الشهادات</h1>
-          <p className="mt-1 text-xs leading-relaxed text-black/50">
-            شهادات الشكر تحمل توقيع من عمل صاحبُها تحته. والتوقيع مِلكُ صاحبه لا مِلكُ المنصب:
-            من خرج بطل توقيعه ولم يُورَّث لخَلَفِه، ومن جاء طُلب منه توقيعُه هو.
-          </p>
-        </div>
+        <PageHeader title="توقيعات الشهادات" description={<>شهادات الشكر تحمل توقيع من عمل صاحبُها تحته. والتوقيع مِلكُ صاحبه لا مِلكُ المنصب:
+            من خرج بطل توقيعه ولم يُورَّث لخَلَفِه، ومن جاء طُلب منه توقيعُه هو.</>} />
 
         {isSigningRole(role) && (
           <section>

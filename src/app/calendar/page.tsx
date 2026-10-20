@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PageHeader } from "@/components/PageHeader";
 import Link from "next/link";
 import { auth } from "@/auth";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
@@ -77,13 +78,8 @@ export default async function CalendarPage({
       </AppHeader>
 
       <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
-        <div>
-          <h1 className="text-lg font-bold sm:text-xl">تقويمُ تَـــلاقِ</h1>
-          <p className="mt-1 text-sm leading-relaxed text-black/50">
-            مواعيدُ الأهداف والمحطّات والالتزامات الأسبوعية واجتماعاتِ المراجعة — بتوقيت
-            الرياض. وكلُّ مدخلٍ يُفضي إلى سجلّه، ولا يُعرَض لأحدٍ ما لا يخصّه.
-          </p>
-        </div>
+        <PageHeader title="تقويمُ تَـــلاقِ" description={<>مواعيدُ الأهداف والمحطّات والالتزامات الأسبوعية واجتماعاتِ المراجعة — بتوقيت
+            الرياض. وكلُّ مدخلٍ يُفضي إلى سجلّه، ولا يُعرَض لأحدٍ ما لا يخصّه.</>} />
 
         {/* ── التنقّل بين الأشهر */}
         <div className="flex flex-wrap items-center justify-between gap-2">

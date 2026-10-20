@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PageHeader } from "@/components/PageHeader";
 import { auth } from "@/auth";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader } from "@/components/ui";
@@ -35,13 +36,8 @@ export default async function TerminationsPage() {
       </AppHeader>
 
       <main className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6 sm:px-5">
-        <div>
-          <h1 className="text-lg font-bold sm:text-xl">طلبات إنهاء فترة الإدارة</h1>
-          <p className="mt-1 text-xs leading-relaxed text-black/50">
-            يرفعها أصحابها. ولم يتوقّف عمل أحدهم بالرفع — يبقى على تكليفه حتى تقرّر وتحلّ
-            المهلة. وعند الموافقة يُنفَّذ الخروج في تاريخه، وتصدر شهادة الشكر عند الختام.
-          </p>
-        </div>
+        <PageHeader title="طلبات إنهاء فترة الإدارة" description={<>يرفعها أصحابها. ولم يتوقّف عمل أحدهم بالرفع — يبقى على تكليفه حتى تقرّر وتحلّ
+            المهلة. وعند الموافقة يُنفَّذ الخروج في تاريخه، وتصدر شهادة الشكر عند الختام.</>} />
 
         <TerminationDecision
           theme={theme}

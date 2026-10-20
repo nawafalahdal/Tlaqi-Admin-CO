@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PageHeader } from "@/components/PageHeader";
 import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -75,10 +76,7 @@ export default async function DepartmentsIndexPage() {
       </AppHeader>
 
       <main className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
-        <div>
-          <h1 className="text-lg font-bold sm:text-xl">{td.title}</h1>
-          <p className="mt-1 text-sm text-black/50">{td.subtitle}</p>
-        </div>
+        <PageHeader title={td.title} description={<>{td.subtitle}</>} />
 
         {canCreate && (
           <Card className="p-4 sm:p-5">

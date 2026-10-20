@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PageHeader } from "@/components/PageHeader";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
@@ -36,8 +37,7 @@ export default async function LeadsTestPage() {
       </AppHeader>
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-5 sm:py-8">
         <BackButton />
-        <h1 className="mb-1 text-xl font-bold">{t.testEditorPage.leadsTitle}</h1>
-        <p className="mb-6 text-sm text-black/50">{t.testEditorPage.leadsSubtitle}</p>
+        <PageHeader title={t.testEditorPage.leadsTitle} description={<>{t.testEditorPage.leadsSubtitle}</>} />
         <TestEditor trackId={track.id} questions={track.questions.map(toQuestionViewModel)} theme={theme} />
       </main>
     </div>

@@ -131,10 +131,8 @@ export default async function OperationsPage() {
 
 
         <section>
-          <h1 className="mb-1 text-xl font-bold">{tOps.openTicketsTitle} ({openTotal})</h1>
-          <p className="mb-4 text-sm text-black/50">
-            {tOps.openTicketsHint}
-          </p>
+          <h2 className="mb-1 text-base font-bold">{tOps.openTicketsTitle} ({openTotal})</h2>
+          <p className="mb-4 text-sm text-black/50">{tOps.openTicketsHint}</p>
           {tickets.length === 0 ? (
             <Card className="p-8 text-center text-sm text-black/40">{tOps.openTicketsEmpty}</Card>
           ) : (

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PageHeader } from "@/components/PageHeader";
 import { auth } from "@/auth";
 import {
   approvalsAwaiting,
@@ -60,13 +61,8 @@ export default async function ApprovalsPage() {
       </AppHeader>
 
       <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
-        <div>
-          <h1 className="text-lg font-bold sm:text-xl">الاعتمادات الإدارية</h1>
-          <p className="mt-1 text-sm leading-relaxed text-black/50">
-            ما يحتاج موافقةَ مسؤولٍ أعلى قبل التنفيذ يمرّ من هنا. والحالة تُنقل بقرارٍ صريح —
-            فتحُ الطلب وقراءته لا يُغيّر حالته.
-          </p>
-        </div>
+        <PageHeader title="الاعتمادات الإدارية" description={<>ما يحتاج موافقةَ مسؤولٍ أعلى قبل التنفيذ يمرّ من هنا. والحالة تُنقل بقرارٍ صريح —
+            فتحُ الطلب وقراءته لا يُغيّر حالته.</>} />
 
         {/* طلباتُ الانضمام: للمؤسس والرئيس التنفيذي — موضعُها الواحد */}
         {(session.user.role === "super_admin" || session.user.role === "executive") && (

@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/PageHeader";
 import { redirect, notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -47,10 +48,7 @@ export default async function DepartmentTestPage({
       </AppHeader>
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-5 sm:py-8">
         <BackButton fallbackHref={`/admin/departments/${department.slug}`} />
-        <h1 className="mb-1 text-xl font-bold">
-          {t.testEditorPage.deptTitlePrefix} {department.name}
-        </h1>
-        <p className="mb-6 text-sm text-black/50">{t.testEditorPage.deptSubtitle}</p>
+        <PageHeader title={<>{t.testEditorPage.deptTitlePrefix} {department.name}</>} description={<>{t.testEditorPage.deptSubtitle}</>} />
         {/* بنك أسئلة القسم يملكه قائده. الفاوندر يطّلع عليه ولا يعدّله:
             الاطّلاع رقابة، والتعديل تجاوزٌ على من يُحاسَب على نتيجته. */}
         {isSuperAdmin && (

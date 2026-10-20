@@ -1,16 +1,18 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { themeFromColor, SUPER_ADMIN_THEME, brandInk} from "@/lib/brand";
+import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
+import { PageHeader } from "@/components/PageHeader";
 import { getLocale, getDictionary } from "@/i18n/server";
-import { TAB_LAYOUTS } from "@/lib/googleSheets";
-import { BackfillPanel } from "./BackfillPanel";
-import { PrepareTabs } from "./PrepareTabs";
 
-// التعبئة تكتب عشرات الأسطر عبر Google API، فتحتاج مهلة أطول من الافتراضية
-export const maxDuration = 60;
-
+/** السجل الحي — للمؤسس وحده، وفيه رابطُ ملف الإكسل لا غير (قرار المؤسس).
+ *
+ *  كانت الصفحةُ تَعرض أعمدةَ كل تبويبٍ وأدواتَ تهيئة التبويبات والتعبئة.
+ *  فصارت مدخلاً واحداً إلى الملف نفسه: ما يُكتب فيه يُقرأ فيه. ولا يُمَسّ
+ *  شيءٌ من الكتابة إلى الملف ولا من سجلّاته — الصفحةُ وحدها تغيّرت.
+ *
+ *  والحرسُ هنا في الخادم: من ليس مؤسساً يُعاد ولو كتب العنوان بيده. */
 export default async function SheetPage() {
   const session = await auth();
   if (!session) redirect("/login");
@@ -19,21 +21,7 @@ export default async function SheetPage() {
   const t = getDictionary(await getLocale());
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
   const sheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
-  const sheetUrl = sheetId ? `https://docs.google.com/spreadsheets/d/${sheetId}/edit` : null;
-
-  // الأعمدة تُقرأ من نفس المصدر الذي يبني التبويبات فعلاً، فلا يفترق
-  // ما يُعرض هنا عمّا يُكتب في الملف
-  const tabs = TAB_LAYOUTS.map((layout) => ({
-    ...layout,
-    desc: {
-      "السجل الحي": t.sheetPage.tabLiveDesc,
-      "نتائج الاختبارات": t.sheetPage.tabTestsDesc,
-      "التذاكر": t.sheetPage.tabTicketsDesc,
-      "الرسائل المُرسَلة": t.sheetPage.tabEmailsDesc,
-      "الحسابات الإدارية": t.sheetPage.tabAdminAccountsDesc,
-      "الأعضاء — دورة الحياة": t.sheetPage.tabLifecycleDesc,
-    }[layout.name] ?? "",
-  }));
+  const sheetUrl = sheetId ? `https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetId)}/edit` : null;
 
   return (
     <div className="min-h-screen bg-page">
@@ -41,58 +29,22 @@ export default async function SheetPage() {
         <HeaderActions color={theme.text} />
       </AppHeader>
 
-      <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
-        <div>
-          <h1 className="text-lg font-bold sm:text-xl">{t.sheetPage.title}</h1>
-          <p className="mt-1 text-sm text-black/50">{t.sheetPage.subtitle}</p>
-        </div>
-
-        {sheetUrl ? (
-          <Card className="p-4 sm:p-5">
-            <p className="text-xs text-black/40">{t.sheetPage.linkLabel}</p>
+      <main className="mx-auto flex max-w-xl flex-col gap-5 px-4 py-6 sm:px-5 sm:py-8">
+        <PageHeader title={t.sheetPage.title} description={t.sheetPage.subtitle} />
+        <Card className="flex flex-col items-start gap-3 p-5 sm:p-6">
+          {sheetUrl ? (
             <a
               href={sheetUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-1 inline-flex min-h-11 items-center break-all text-sm font-semibold underline"
-              style={{ color: brandInk(theme) }}
+              className="btn-brand inline-flex min-h-12 items-center gap-2 rounded-xl px-5 text-sm font-bold"
             >
-              {sheetUrl}
+              {t.sheetPage.linkLabel} ↗
             </a>
-          </Card>
-        ) : (
-          <Card className="p-4 text-sm text-red-700">{t.sheetPage.notConfigured}</Card>
-        )}
-
-        <section>
-          <h2 className="mb-3 text-base font-bold sm:text-lg">{t.sheetPage.tabsTitle}</h2>
-          <div className="flex flex-col gap-3">
-            {tabs.map((tab) => (
-              <Card key={tab.name} className="p-4">
-                <p className="text-sm font-bold">{tab.name}</p>
-                <p className="mt-1 text-xs leading-relaxed text-black/50">{tab.desc}</p>
-                <ol className="mt-3 flex flex-wrap gap-1.5">
-                  {tab.headers.map((h, i) => (
-                    <li
-                      key={h}
-                      className="rounded-md bg-black/[0.04] px-2 py-1 text-[11px] text-black/60"
-                    >
-                      <span className="text-black/30">{i + 1}.</span> {h}
-                    </li>
-                  ))}
-                </ol>
-                <p className="mt-2 text-[11px] text-black/30">
-                  {tab.headers.length} {t.sheetPage.columnsWord}
-                </p>
-              </Card>
-            ))}
-          </div>
-          <p className="mt-3 text-xs leading-relaxed text-black/40">{t.sheetPage.lazyNote}</p>
-        </section>
-
-        <PrepareTabs theme={theme} />
-
-        <BackfillPanel theme={theme} />
+          ) : (
+            <p className="text-sm text-red-700">{t.sheetPage.notConfigured}</p>
+          )}
+        </Card>
       </main>
     </div>
   );
