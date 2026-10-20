@@ -1,20 +1,17 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { OPEN_DEPARTMENT_WHERE, DEPARTMENT_TAKE } from "@/lib/committees";
-import { isLeadership } from "@/lib/announcements";
-import { sweepTicketEscalation, TICKET_STAGE_LABELS, TICKET_INCLUDE, ticketAuthor, ticketTargetLabel, ticketVisibilityWhere, canRespondToTicket, TICKET_TARGET_USER_SELECT, TICKET_TARGET_MEMBER_SELECT, TICKET_TARGET_TAKE } from "@/lib/tickets";
+import { sweepTicketEscalation, TICKET_STAGE_LABELS, TICKET_INCLUDE, ticketAuthor, ticketTargetLabel, ticketVisibilityWhere, canRespondToTicket } from "@/lib/tickets";
 import { themeFromColor, SUPER_ADMIN_THEME, brandInk} from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { TicketCard } from "./TicketCard";
 import { DataTable } from "@/components/DataTable";
-import { RaiseAdminTicketForm, type TicketTargetOption } from "./RaiseAdminTicketForm";
-import { ROLE_LABELS, accountRoleLabel } from "@/lib/testTracks";
+import { TicketCta } from "@/components/tickets/TicketCta";
+import { ROLE_LABELS } from "@/lib/testTracks";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { runDueSweeps } from "@/lib/sweepThrottle";
-import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 
 /** صفحة التذاكر الخاصة — كل التذاكر في مكان واحد بدل تفرّقها بين اللوحات.
  *  المفتوحة تُعرض ببطاقات قابلة للإجراء، والمغلقة بجدول مرجعي. */
@@ -32,54 +29,13 @@ export default async function TicketsPage() {
   const tt = t.ticketsPage;
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
 
-  const [tickets, departments, people, memberPeople] = await Promise.all([
-    prisma.ticket.findMany({
-      where: ticketVisibilityWhere(session),
-      include: TICKET_INCLUDE,
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    }),
-    prisma.department.findMany({
-      where: OPEN_DEPARTMENT_WHERE,
-      orderBy: { name: "asc" },
-      take: DEPARTMENT_TAKE,
-    }),
-    // لا يُوجَّه أحد تذكرةً لنفسه
-    prisma.user.findMany({
-      where: { isActive: true, id: { not: session.user.id } },
-      select: TICKET_TARGET_USER_SELECT,
-      orderBy: [{ role: "asc" }, { fullName: "asc" }],
-      take: TICKET_TARGET_TAKE,
-    }),
-    prisma.member.findMany({
-      where: ROSTER_MEMBER_WHERE,
-      select: TICKET_TARGET_MEMBER_SELECT,
-      orderBy: { fullName: "asc" },
-      take: TICKET_TARGET_TAKE,
-    }),
-  ]);
-
-  const targets: TicketTargetOption[] = [
-    // القسم الاستثنائي لا يُوجَّه إليه إلا من الإدارة العليا: أعضاؤه
-    // جهات تواصل تتبعها، لا قسمٌ يُراسَل من كل أحد
-    ...departments
-      .filter((d) => !d.leadershipOnly || isLeadership(session.user.role))
-      .map((d) => ({
-      value: `dept:${d.id}`,
-      label: d.name,
-      group: tt.groupDepartments,
-    })),
-    ...people.map((u) => ({
-      value: `user:${u.id}`,
-      label: `${u.fullName} — ${accountRoleLabel(u.role)}`,
-      group: tt.groupLeadership,
-    })),
-    ...memberPeople.map((m) => ({
-      value: `member:${m.id}`,
-      label: m.department ? `${m.fullName} — ${m.department.name}` : m.fullName,
-      group: tt.groupMembers,
-    })),
-  ];
+  // وجهاتُ الرفع صارت لصفحة الرفع (`/admin/tickets/new`) — هنا السجلّ وحده
+  const tickets = await prisma.ticket.findMany({
+    where: ticketVisibilityWhere(session),
+    include: TICKET_INCLUDE,
+    orderBy: { createdAt: "desc" },
+    take: 200,
+  });
 
   const open = tickets.filter((x) => x.status !== "resolved");
   const closed = tickets.filter((x) => x.status === "resolved");
@@ -98,9 +54,12 @@ export default async function TicketsPage() {
           <p className="mt-1 text-sm text-black/50">{tt.subtitle}</p>
         </div>
 
-        <Card className="p-4 sm:p-5">
-          <RaiseAdminTicketForm targets={targets} theme={theme} />
-        </Card>
+        <TicketCta
+          href="/admin/tickets/new"
+          title={t.composer.homeCtaTitle}
+          body={t.composer.homeCtaBody}
+          cta={t.composer.cta}
+        />
 
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatTile label={tt.statOpen} value={open.length} theme={theme} />

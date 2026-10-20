@@ -3,11 +3,10 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { OPEN_DEPARTMENT_WHERE, DEPARTMENT_TAKE } from "@/lib/committees";
-import { isLeadership } from "@/lib/announcements";
 import { sweepOverdueRequests, sweepExpiredCandidateAccounts,
   QUEUE_TAKE,
 } from "@/lib/workflow";
-import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere, canRespondToTicket, TICKET_TARGET_USER_SELECT, TICKET_TARGET_MEMBER_SELECT, TICKET_TARGET_TAKE } from "@/lib/tickets";
+import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere, canRespondToTicket } from "@/lib/tickets";
 import {
   announcementsForSession,
   canPublishAnnouncement,
@@ -25,12 +24,10 @@ import { AlertsPanel } from "@/components/AlertsPanel";
 import { alertsForUser } from "@/lib/alerts";
 import { AnnouncementComposer } from "./hub/AnnouncementComposer";
 import { AnnouncementList } from "./hub/AnnouncementList";
-import { RaiseAdminTicketForm, type TicketTargetOption } from "./tickets/RaiseAdminTicketForm";
-import { accountRoleLabel } from "@/lib/testTracks";
+import { TicketCta } from "@/components/tickets/TicketCta";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { runDueSweeps } from "@/lib/sweepThrottle";
-import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 import { canDecideCandidate } from "@/lib/permissions";
 import { WorkspaceOverview } from "@/components/dashboard/WorkspaceOverview";
 import { navFor } from "@/lib/navigation";
@@ -126,46 +123,6 @@ export default async function AdminPage() {
   );
   const pendingCount = leadershipQueue.length + memberQueue.length;
   const openRequests = requests.filter((r) => r.status !== "done").length;
-
-  // وجهات التذكرة: الأقسام والحسابات الإدارية والأعضاء المعتمدون.
-  // نموذج "الطلبات" القديم كان يعرض الأقسام وحدها، فنوع "رفع للإدارة
-  // العليا" لم تكن له وجهة أصلاً — تناقضٌ ظاهر في الواجهة.
-  const [ticketPeople, ticketMembers] = await Promise.all([
-    prisma.user.findMany({
-      where: { isActive: true, id: { not: session.user.id } },
-      select: TICKET_TARGET_USER_SELECT,
-      orderBy: [{ role: "asc" }, { fullName: "asc" }],
-      take: TICKET_TARGET_TAKE,
-    }),
-    prisma.member.findMany({
-      where: ROSTER_MEMBER_WHERE,
-      select: TICKET_TARGET_MEMBER_SELECT,
-      orderBy: { fullName: "asc" },
-      take: TICKET_TARGET_TAKE,
-    }),
-  ]);
-
-  const ticketTargets: TicketTargetOption[] = [
-    // القسم الاستثنائي لا يُوجَّه إليه إلا من الإدارة العليا: أعضاؤه
-    // جهات تواصل تتبعها، لا قسمٌ يُراسَل من كل أحد
-    ...departments
-      .filter((d) => !d.leadershipOnly || isLeadership(session.user.role))
-      .map((d) => ({
-      value: `dept:${d.id}`,
-      label: d.name,
-      group: dict.ticketsPage.groupDepartments,
-    })),
-    ...ticketPeople.map((u) => ({
-      value: `user:${u.id}`,
-      label: `${u.fullName} — ${accountRoleLabel(u.role)}`,
-      group: dict.ticketsPage.groupLeadership,
-    })),
-    ...ticketMembers.map((m) => ({
-      value: `member:${m.id}`,
-      label: m.department ? `${m.fullName} — ${m.department.name}` : m.fullName,
-      group: dict.ticketsPage.groupMembers,
-    })),
-  ];
 
   // عددُ ما ينتظر اعتماد هذا الشخص — يُقال على الرابط نفسه، فالطلب
   // المعلَّق لا يُكتشَف بالتجوال في الصفحات
@@ -306,7 +263,17 @@ export default async function AdminPage() {
             لوحةٍ واحدةٍ لكلٍّ سطرُه ووجهتُه — وترتفع كلُّها عند السلامة. */}
         {/* رأسُ المساحة بتصميم الأرشيف: الهدفُ القادم، والإعلانات، والاجتماعات،
             ولمحةُ الأقسام، والتقويم — من بيانات المنصة لا من أمثلته */}
-        <WorkspaceOverview session={session} showDepartments />
+        <WorkspaceOverview
+          session={session} showDepartments
+          lead={
+            <TicketCta
+              href="/admin/tickets/new"
+              title={dict.composer.homeCtaTitle}
+              body={dict.composer.homeCtaBody}
+              cta={dict.composer.cta}
+            />
+          }
+        />
 
         <AlertsPanel alerts={alerts} />
 
@@ -404,7 +371,6 @@ export default async function AdminPage() {
                 {t.requestsHint}
               </p>
             </div>
-            {canPublish && <RaiseAdminTicketForm targets={ticketTargets} theme={theme} />}
           </div>
           <DataTable
             emptyLabel={ta.requestsEmpty}

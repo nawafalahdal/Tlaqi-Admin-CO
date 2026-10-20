@@ -24,7 +24,8 @@ import { NavGlyph } from "../icons";
 /** الشاشاتُ التي لا قائمة فيها: مسارُ المرشّح قبل اعتماده، والطباعة */
 const BARE = ["/member/test", "/member/pending", "/member/welcome", "/structure/pdf"];
 
-type Nav = { items: NavItem[]; homeHref: string } | null;
+type Raise = { href: string; label: string };
+type Nav = { items: NavItem[]; homeHref: string; raise: Raise } | null;
 const NavContext = createContext<Nav>(null);
 
 /** لقائمة الجوال في الترويسة: البنودُ نفسها، أو لا شيء خارج مساحة العمل */
@@ -57,6 +58,7 @@ export function SidebarProvider({
   userName,
   roleName,
   account,
+  raise,
   children,
 }: {
   items: NavItem[];
@@ -64,12 +66,13 @@ export function SidebarProvider({
   userName: string;
   roleName: string;
   account: ReactNode;
+  raise: Raise;
   children: ReactNode;
 }) {
   const pathname = usePathname() ?? "";
   const bare = BARE.some((p) => pathname === p || pathname.startsWith(p + "/"));
   return (
-    <NavContext.Provider value={bare ? null : { items, homeHref }}>
+    <NavContext.Provider value={bare ? null : { items, homeHref, raise }}>
       {!bare && (
         <SidebarRail
           items={items}
@@ -77,6 +80,7 @@ export function SidebarProvider({
           userName={userName}
           roleName={roleName}
           account={account}
+          raise={raise}
           pathname={pathname}
         />
       )}
@@ -91,6 +95,7 @@ function SidebarRail({
   userName,
   roleName,
   account,
+  raise,
   pathname,
 }: {
   items: NavItem[];
@@ -98,6 +103,7 @@ function SidebarRail({
   userName: string;
   roleName: string;
   account: ReactNode;
+  raise: Raise;
   pathname: string;
 }) {
   const t = useTranslations();
@@ -144,6 +150,19 @@ function SidebarRail({
           <NavGlyph name="chevron" />
         </button>
       </div>
+
+      {/* رفعُ التذكرة: الإجراءُ الأوّل في المنصة، فهو أوّلُ ما تحت الشعار —
+          زرٌّ بارز لا بندٌ بين البنود. ومطويّةً يبقى أيقونةً بتلميح */}
+      <Link
+        href={raise.href}
+        className="app-sidebar__cta"
+        data-active={pathname === raise.href ? "true" : undefined}
+        aria-current={pathname === raise.href ? "page" : undefined}
+        title={raise.label}
+      >
+        <NavGlyph name="plus" className="app-sidebar__cta-icon" />
+        <span className="app-sidebar__label">{raise.label}</span>
+      </Link>
 
       <nav className="app-sidebar__nav">
         {grouped(items).map(({ group, items: gi }) => (
@@ -202,6 +221,10 @@ export function MobileNavList({ onNavigate }: { onNavigate?: () => void }) {
   const active = activeNavId(nav.items, pathname);
   return (
     <nav aria-label={t.shell.mainNav} className="mobile-nav">
+      <Link href={nav.raise.href} onClick={onNavigate} className="mobile-nav__cta">
+        <NavGlyph name="plus" className="mobile-nav__icon" />
+        <span>{nav.raise.label}</span>
+      </Link>
       {grouped(nav.items).map(({ group, items }) => (
         <div key={group}>
           <p className="mobile-nav__group">{t.shell.groups[group]}</p>

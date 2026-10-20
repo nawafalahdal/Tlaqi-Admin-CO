@@ -7,7 +7,7 @@ import { PlansLink } from "@/components/PlansLink";
 import { planCounts } from "@/lib/plans";
 import { alertsForUser } from "@/lib/alerts";
 import { sweepOverdueRequests, sweepExpiredCandidateAccounts } from "@/lib/workflow";
-import { sweepTicketEscalation, TICKET_STAGE_LABELS, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere, TICKET_TARGET_USER_SELECT, TICKET_TARGET_MEMBER_SELECT, TICKET_TARGET_TAKE } from "@/lib/tickets";
+import { sweepTicketEscalation, TICKET_STAGE_LABELS, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere } from "@/lib/tickets";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { AppHeader, Card, StatusBadge } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
@@ -21,11 +21,9 @@ import {
 } from "@/lib/announcements";
 import { AnnouncementComposer } from "../hub/AnnouncementComposer";
 import { AnnouncementList } from "../hub/AnnouncementList";
-import { RaiseAdminTicketForm, type TicketTargetOption } from "../tickets/RaiseAdminTicketForm";
-import { accountRoleLabel } from "@/lib/testTracks";
+import { TicketCta } from "@/components/tickets/TicketCta";
 import { TicketBoard } from "@/components/TicketBoard";
 import { runDueSweeps } from "@/lib/sweepThrottle";
-import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 import { WorkspaceOverview } from "@/components/dashboard/WorkspaceOverview";
 
 function isOverdue(dueAt: Date) {
@@ -69,42 +67,6 @@ export default async function OperationsPage() {
   const tOps = dict.operations;
   const tHub = dict.hub;
 
-  // وجهات التذكرة: الأقسام والحسابات الإدارية والأعضاء المعتمدون.
-  // نموذج "الطلبات" القديم كان يعرض الأقسام وحدها، فنوع "رفع للإدارة
-  // العليا" لم تكن له وجهة أصلاً — تناقضٌ ظاهر في الواجهة.
-  const [ticketPeople, ticketMembers] = await Promise.all([
-    prisma.user.findMany({
-      where: { isActive: true, id: { not: session.user.id } },
-      select: TICKET_TARGET_USER_SELECT,
-      orderBy: [{ role: "asc" }, { fullName: "asc" }],
-      take: TICKET_TARGET_TAKE,
-    }),
-    prisma.member.findMany({
-      where: ROSTER_MEMBER_WHERE,
-      select: TICKET_TARGET_MEMBER_SELECT,
-      orderBy: { fullName: "asc" },
-      take: TICKET_TARGET_TAKE,
-    }),
-  ]);
-
-  const ticketTargets: TicketTargetOption[] = [
-    ...departments.map((d) => ({
-      value: `dept:${d.id}`,
-      label: d.name,
-      group: dict.ticketsPage.groupDepartments,
-    })),
-    ...ticketPeople.map((u) => ({
-      value: `user:${u.id}`,
-      label: `${u.fullName} — ${accountRoleLabel(u.role)}`,
-      group: dict.ticketsPage.groupLeadership,
-    })),
-    ...ticketMembers.map((m) => ({
-      value: `member:${m.id}`,
-      label: m.department ? `${m.fullName} — ${m.department.name}` : m.fullName,
-      group: dict.ticketsPage.groupMembers,
-    })),
-  ];
-
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
   const canPublish = canPublishAnnouncement(session.user.role);
   // نفس الدالة التي تفرض الصلاحية في الخادم تُغذّي النموذج، فلا يظهر
@@ -119,7 +81,17 @@ export default async function OperationsPage() {
       </AppHeader>
 
       <main className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-6 sm:px-5 sm:py-8">
-        <WorkspaceOverview session={session} showDepartments />
+        <WorkspaceOverview
+          session={session} showDepartments
+          lead={
+            <TicketCta
+              href="/admin/tickets/new"
+              title={dict.composer.homeCtaTitle}
+              body={dict.composer.homeCtaBody}
+              cta={dict.composer.cta}
+            />
+          }
+        />
 
         <AlertsPanel alerts={alerts} />
 
@@ -152,17 +124,6 @@ export default async function OperationsPage() {
 
         <TicketBoard tickets={tickets} theme={theme} viewerId={session.user.id} />
 
-        {canPublish && (
-          <section>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-bold sm:text-lg">{tHub.raiseRequestTitle}</h2>
-                <p className="text-xs text-black/40">{tHub.raiseRequestHint}</p>
-              </div>
-              <RaiseAdminTicketForm targets={ticketTargets} theme={theme} />
-            </div>
-          </section>
-        )}
 
         <section>
           <h1 className="mb-1 text-xl font-bold">{tOps.openTicketsTitle} ({tickets.length})</h1>

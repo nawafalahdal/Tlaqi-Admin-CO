@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Session } from "next-auth";
+import type { ReactNode } from "react";
 import { prisma } from "@/lib/prisma";
 import { approvedGoals } from "@/lib/goals";
 import { goalProgress } from "@/lib/progress";
@@ -49,8 +50,11 @@ export async function WorkspaceOverview({
   session,
   showDepartments = false,
   announcementsHref = "#announcements",
+  lead,
 }: {
   session: Session;
+  /** ما يلي الترحيبَ مباشرةً، قبل الهدف — بابُ رفع التذكرة */
+  lead?: ReactNode;
   /** لمحةُ الأقسام لمن يرى كلَّ الأقسام */
   showDepartments?: boolean;
   announcementsHref?: string;
@@ -102,6 +106,8 @@ export async function WorkspaceOverview({
         </h1>
         <p className="mt-2 text-sm text-black/50">{copy.desc}</p>
       </div>
+
+      {lead}
 
       {/* ── الهدفُ القادم */}
       <section className="ws-hero">

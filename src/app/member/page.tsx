@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { avatarUrl } from "@/lib/avatarUrl";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { OPEN_DEPARTMENT_WHERE, DEPARTMENT_TAKE } from "@/lib/committees";
 import { themeFromColor, BRAND } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
@@ -23,13 +22,12 @@ import { GovernanceCharter } from "@/components/GovernanceCharter";
 import { TerminationRequestCard } from "@/components/TerminationRequestCard";
 import { openRequestFor } from "@/lib/termination";
 import { formatDate } from "@/lib/format";
-import { RaiseTicketForm } from "./RaiseTicketForm";
-import { sweepTicketEscalation, ticketVisibilityWhere, TICKET_TARGET_USER_SELECT, TICKET_TARGET_TAKE, TICKET_LIST_TAKE } from "@/lib/tickets";
+import { TicketCta } from "@/components/tickets/TicketCta";
+import { sweepTicketEscalation, ticketVisibilityWhere, TICKET_LIST_TAKE } from "@/lib/tickets";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { announcementsForSession } from "@/lib/announcements";
 import { AnnouncementList } from "@/app/admin/hub/AnnouncementList";
 import { runDueSweeps } from "@/lib/sweepThrottle";
-import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 import { WorkspaceOverview } from "@/components/dashboard/WorkspaceOverview";
 
 export default async function MemberPortalPage() {
@@ -68,13 +66,8 @@ export default async function MemberPortalPage() {
 
   const unacknowledged = member.warnings.filter((w) => !w.acknowledgedAt).length;
 
-  const [departments, tickets, announcements, leadership, colleagues, plans] =
-    await Promise.all([
-    prisma.department.findMany({
-      where: OPEN_DEPARTMENT_WHERE,
-      orderBy: { name: "asc" },
-      take: DEPARTMENT_TAKE,
-    }),
+  // وجهاتُ التذكرة صارت لصفحة الرفع (`/member/tickets/new`)
+  const [tickets, announcements, plans] = await Promise.all([
     // تذاكره: ما رفعه، وما وُجِّه إليه باسمه، وما وُجِّه إلى قسمه.
     // الأخير كان ناقصاً: مسار العمل اليومي (محتوى ← تصميم ← نشر) يُوجَّه
     // إلى القسم لا إلى شخصٍ بعينه، فكانت تذاكر القسم لا يراها أحد من
@@ -85,25 +78,6 @@ export default async function MemberPortalPage() {
       take: TICKET_LIST_TAKE,
     }),
     announcementsForSession(session, 6),
-    // الاسمُ والصفةُ وحدهما: القائمةُ لا تَعرض غيرَهما، وجلبُ الحساب
-    // كلِّه يَجرّ `passwordHash` و`totpSecret` و`avatarData` بلا مُستعمِل
-    prisma.user.findMany({
-      where: { isActive: true },
-      select: TICKET_TARGET_USER_SELECT,
-      orderBy: { fullName: "asc" },
-      take: TICKET_TARGET_TAKE,
-    }),
-    // زملاء قسمه: هم طرف مسار العمل اليومي (محتوى ← تصميم ← نشر)
-    prisma.member.findMany({
-      where: {
-        ...ROSTER_MEMBER_WHERE,
-        departmentId: member.departmentId,
-        id: { not: member.id },
-      },
-      select: { id: true, fullName: true },
-      orderBy: { fullName: "asc" },
-      take: TICKET_TARGET_TAKE,
-    }),
     // عدّانِ لا جلبُ وثائق: المدخلُ يقول كم فيه وكم جَدَّ، لا يَعرضها
     planCounts(),
   ]);
@@ -119,23 +93,6 @@ export default async function MemberPortalPage() {
     unacknowledgedWarnings: unacknowledged,
   });
 
-  const ticketTargets = [
-    ...departments.map((d) => ({
-      value: `dept:${d.id}`,
-      label: d.name,
-      group: t.ticketsPage.groupDepartments,
-    })),
-    ...colleagues.map((m) => ({
-      value: `member:${m.id}`,
-      label: m.fullName,
-      group: t.ticketsPage.groupMembers,
-    })),
-    ...leadership.map((u) => ({
-      value: `user:${u.id}`,
-      label: `${u.fullName} — ${t.roles[u.role as keyof typeof t.roles] ?? u.role}`,
-      group: t.ticketsPage.groupLeadership,
-    })),
-  ];
 
   return (
     <div className="min-h-screen bg-page">
@@ -149,7 +106,17 @@ export default async function MemberPortalPage() {
       </AppHeader>
 
       <main className="mx-auto flex max-w-2xl flex-col gap-8 px-4 py-6 sm:px-5 sm:py-8">
-        <WorkspaceOverview session={session} />
+        <WorkspaceOverview
+          session={session}
+          lead={
+            <TicketCta
+              href="/member/tickets/new"
+              title={t.composer.homeCtaTitle}
+              body={t.composer.homeCtaBody}
+              cta={t.composer.cta}
+            />
+          }
+        />
 
         {/* ما ينتظره أوّلاً — ولا يُقرأ بالتجوال في الصفحات */}
         <AlertsPanel alerts={alerts} />
@@ -247,15 +214,8 @@ export default async function MemberPortalPage() {
           )}
         </section>
 
-        <section>
-          <h2 className="mb-4 text-lg font-bold">{t.member.raiseTicketTitle}</h2>
-          <p className="mb-4 -mt-3 text-xs text-black/40">{t.member.raiseTicketHint}</p>
-          <Card className="p-6">
-            <RaiseTicketForm targets={ticketTargets} theme={theme} />
-          </Card>
-        </section>
 
-        <section>
+        <section id="my-tickets">
           <h2 className="mb-4 text-lg font-bold">
             {t.member.myTicketsTitle} {tickets.length > 0 && `(${tickets.length})`}
           </h2>

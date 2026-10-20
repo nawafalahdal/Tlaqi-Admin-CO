@@ -14,6 +14,7 @@ import { themeFromColor } from "@/lib/brand";
 import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { ApprovalQueue } from "../../ApprovalQueue";
+import { TicketCta } from "@/components/tickets/TicketCta";
 import { NeedsMeetingRow } from "./NeedsMeetingRow";
 import { RequestCard } from "./RequestCard";
 import { MemberInviteForm } from "./MemberInviteForm";
@@ -206,7 +207,19 @@ export default async function DepartmentBoardPage({
 
       <main className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-6 sm:px-5 sm:py-8">
         {/* رأسُ المساحة لقائد القسم في قسمه — لا لمن يزور القسم من فوق */}
-        {isOwnDept && <WorkspaceOverview session={session} />}
+        {isOwnDept && (
+          <WorkspaceOverview
+            session={session}
+            lead={
+              <TicketCta
+                href="/admin/tickets/new"
+                title={t.composer.homeCtaTitle}
+                body={t.composer.homeCtaBody}
+                cta={t.composer.cta}
+              />
+            }
+          />
+        )}
         <AlertsPanel alerts={alerts} />
         <section id="announcements" className="scroll-mt-24">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">

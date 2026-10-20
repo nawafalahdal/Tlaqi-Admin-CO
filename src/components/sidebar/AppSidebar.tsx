@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { auth, signOut } from "@/auth";
-import { navFor, homeFor } from "@/lib/navigation";
+import { navFor, homeFor, raiseTicketHref } from "@/lib/navigation";
 import { isSigningRole } from "@/lib/signatures";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { NavGlyph } from "../icons";
@@ -70,6 +70,7 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
       userName={session.user.name ?? ""}
       roleName={s.roles[session.user.role] ?? ""}
       account={account}
+      raise={{ href: raiseTicketHref(viewer), label: t.composer.cta }}
     >
       {children}
     </SidebarProvider>

@@ -45,7 +45,8 @@ export type NavItem = {
 /** مجموعاتُ القائمة بترتيبها. والترتيبُ المشتركُ الستّيُّ محفوظٌ عبرها:
  *  الأعضاء (الأفراد) ← الاعتمادات ← الأقسام (الأقسام والهيكل) ← التنفيذ ←
  *  التقويم (الاجتماعات) ← التقارير — كلٌّ في مجموعةٍ بعد التي قبلها. */
-export const NAV_GROUPS = ["overview", "people", "approvals", "org", "execution", "meetings", "reports", "tickets"] as const;
+// التذاكرُ ثانيةً بعد «نظرة عامة»: هي قناةُ العمل اليومي وأوّلُ ما يُستعمل
+export const NAV_GROUPS = ["overview", "tickets", "people", "approvals", "org", "execution", "meetings", "reports"] as const;
 export type NavGroup = (typeof NAV_GROUPS)[number];
 
 /** أسماءُ البنود — من القاموس (`shell.nav`)، لا مكتوبةً هنا */
@@ -62,6 +63,11 @@ export type NavViewer = {
    *  وحدةً خادميةً إلى حزمة المتصفّح، وهو يُستورد في مكوّنٍ عميل */
   canSign?: boolean;
 };
+
+/** صفحةُ رفع التذكرة لكل دور — تحت مساره المحروس (`/admin` أو `/member`) */
+export function raiseTicketHref(v: NavViewer): string {
+  return v.role === "member" ? "/member/tickets/new" : "/admin/tickets/new";
+}
 
 /** بيتُ كل دور — حيث يُرسله `/admin` أصلاً */
 export function homeFor(v: NavViewer): string {
