@@ -96,6 +96,10 @@ export const WELCOME_CLAIM_TTL_MS = 5 * 60_000;
 /** أقلُّ ما يفصل إعادةً عن الإرسال الذي قبلها — عشرُ دقائق */
 export const WELCOME_RESEND_COOLDOWN_MS = 10 * 60_000;
 
+/** وإرسالُ المؤسس لنفسه بلا سقف (قرار المؤسس) — ودقيقةٌ بين الإرسالين
+ *  تكفي ألّا تُرسَل مرّتين بضغطتين متتاليتين، ولا تَحبسه عن بطاقته */
+export const FOUNDER_SELF_COOLDOWN_MS = 60_000;
+
 /** يَحجز حقَّ الإرسال مرّةً واحدة — في القاعدة لا في الذاكرة.
  *
  *  **المرّة الواحدة لا تُفرَض بفحصٍ قبل الإرسال.** الفحص ثم الإرسال
@@ -122,17 +126,19 @@ async function claimWelcomeSend(
   /** بريدُه — يُفحَص به سجلُّ البريد لمن لم يُكتب حقلُه */
   email?: string,
   /** إعادةٌ بيد من يملكها (`canResendWelcome`) — لا تقيّدها المرّة الواحدة */
-  repeat = false
+  repeat = false,
+  /** المؤسسُ يُرسل لنفسه — بلا سقف، وبمهلةٍ قصيرة (`FOUNDER_SELF_COOLDOWN_MS`) */
+  uncapped = false
 ): Promise<{ claimed: true } | { claimed: false; reason: string }> {
   if (repeat) {
     // الإعادةُ لا تُسأل «أُرسلت من قبل؟» — هي إعادةٌ لِما أُرسل. ويبقى
     // الحجزُ نفسه يمنع ضغطتين متسابقتين، وتُفصَل الإعادةُ عن سابقتها
     // بمهلةٍ فلا تُغرَق صناديقُ الناس بنقراتٍ متتالية.
-    const cooldown = new Date(at.getTime() - WELCOME_RESEND_COOLDOWN_MS);
+    const cooldown = new Date(at.getTime() - (uncapped ? FOUNDER_SELF_COOLDOWN_MS : WELCOME_RESEND_COOLDOWN_MS));
     const where = {
       id: subject.id,
-      // السقفُ في الشرط نفسه — انظر `WELCOME_MAX_SENDS`
-      welcomeEmailCount: { lt: WELCOME_MAX_SENDS },
+      // السقفُ في الشرط نفسه — انظر `WELCOME_MAX_SENDS` — إلا لبطاقة المؤسس
+      ...(uncapped ? {} : { welcomeEmailCount: { lt: WELCOME_MAX_SENDS } }),
       AND: [
         { OR: [{ welcomeEmailSentAt: null }, { welcomeEmailSentAt: { lt: cooldown } }] },
         { OR: [{ welcomeClaimedAt: null }, { welcomeClaimedAt: { lt: new Date(at.getTime() - WELCOME_CLAIM_TTL_MS) } }] },
@@ -148,7 +154,7 @@ async function claimWelcomeSend(
       subject.kind === "user"
         ? await prisma.user.findUnique({ where: { id: subject.id }, select: { welcomeEmailCount: true } })
         : await prisma.member.findUnique({ where: { id: subject.id }, select: { welcomeEmailCount: true } });
-    if ((row?.welcomeEmailCount ?? 0) >= WELCOME_MAX_SENDS) {
+    if (!uncapped && (row?.welcomeEmailCount ?? 0) >= WELCOME_MAX_SENDS) {
       return {
         claimed: false,
         reason: "استُنفدت فرصةُ الإعادة لهذا الشخص — بطاقةُ الاعتماد وإعادةٌ واحدة، ولا تُعاد بعدها",
@@ -156,7 +162,9 @@ async function claimWelcomeSend(
     }
     return {
       claimed: false,
-      reason: "أُرسلت البطاقة قبل دقائق أو تُرسَل الآن — انتظر عشر دقائق ثم أعِدها إن لزم",
+      reason: uncapped
+        ? "أُرسلت بطاقتك قبل أقل من دقيقة أو تُرسَل الآن — انتظر دقيقة ثم أعِدها"
+        : "أُرسلت البطاقة قبل دقائق أو تُرسَل الآن — انتظر عشر دقائق ثم أعِدها إن لزم",
     };
   }
   if (email) {
@@ -233,7 +241,9 @@ export async function sendWelcomePack(
   subject: WelcomeSubject,
   occasion: "approved" | "resend" = "resend",
   /** `true` لإعادةٍ بيد من يملكها — انظر `claimWelcomeSend` */
-  repeat = false
+  repeat = false,
+  /** المؤسسُ لنفسه: بلا سقف — والخادمُ وحده يقرّره (`sendWelcomeToUser`) */
+  uncapped = false
 ): Promise<
   | { ok: true; to: string; providerId?: string | null }
   | { ok: false; reason: string; outcome?: SendOutcome }
@@ -252,7 +262,7 @@ export async function sendWelcomePack(
 
     // الحجز قبل الإرسال — وما بعده إمّا رسالةٌ وصلت أو حجزٌ يُفَكّ
     const at = new Date();
-    const claim = await claimWelcomeSend(subject, at, user.email, repeat);
+    const claim = await claimWelcomeSend(subject, at, user.email, repeat, uncapped);
     if (!claim.claimed) return { ok: false, reason: claim.reason };
 
     const sent = await sendWelcomeEmail({

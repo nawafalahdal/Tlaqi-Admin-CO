@@ -63,6 +63,9 @@ export default async function AdminPage() {
     proposals,
     goals,
     week,
+    board,
+    calendar,
+    myAlerts,
   ] = await Promise.all([
     prisma.department.findMany({
       where: OPEN_DEPARTMENT_WHERE,
@@ -101,17 +104,18 @@ export default async function AdminPage() {
     approvedGoals(),
     // قراءةٌ لا إنشاء: العرضُ لا يكتب في القاعدة
     prisma.executionPeriod.findFirst({ where: { weekStart: periodStartFor(now) } }),
+    // اللوحةُ أعدادٌ وستُّ تذاكر — لا كلُّ المفتوح (سقطت به بثلاثة آلاف).
+    // وهي والتقويمُ والتنبيهاتُ في الرحلة نفسها: كانت ثلاثَ رحلاتٍ متتالية
+    // بعد هذه، ولا تعتمد واحدةٌ منها على ما قبلها
+    ticketBoardData(session),
+    calendarEntries({ session, from: now, to: new Date(now.getTime() + 45 * 86_400_000) }),
+    alertsForUser(session),
   ]);
 
-  // اللوحةُ أعدادٌ وستُّ تذاكر — لا كلُّ المفتوح (سقطت به بثلاثة آلاف)
-  const board = await ticketBoardData(session);
-  const upcoming = (
-    await calendarEntries({ session, from: now, to: new Date(now.getTime() + 45 * 86_400_000) })
-  )
-    .filter((e) => e.kind !== "ticket" && e.kind !== "task")
-    .slice(0, 5);
+  const upcoming = calendar.filter((e) => e.kind !== "ticket" && e.kind !== "task").slice(0, 5);
 
-  const dict = getDictionary(await getLocale());
+  const locale = await getLocale();
+  const dict = getDictionary(locale);
   const t = dict.hub;
   const ta = dict.admin;
   const to = dict.overview;
@@ -148,7 +152,7 @@ export default async function AdminPage() {
     ...(requests.length > 0
       ? [{ id: "requests", tone: "info" as const, title: n(to.requestsTitle, requests.length), body: to.requestsBody, href: "#requests", cta: to.requestsCta }]
       : []),
-    ...(await alertsForUser(session)),
+    ...myAlerts,
   ];
 
   const nextGoal = goals.filter((g) => g.dueDate >= now).sort((a, b) => +a.dueDate - +b.dueDate)[0] ?? null;
@@ -172,7 +176,8 @@ export default async function AdminPage() {
 
       <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
         <PageHeader
-          title={`${to.greeting}، ${(session.user.name ?? "").trim().split(/\s+/)[0] ?? ""}`}
+          // الفاصلةُ بلغة الصفحة: «Welcome، نواف» كانت تُكتب بفاصلةٍ عربية في الإنجليزية
+          title={`${to.greeting}${locale === "en" ? ", " : "، "}${(session.user.name ?? "").trim().split(/\s+/)[0] ?? ""}`}
           description={to.desc}
           actions={
             <Link href="/admin/tickets/new" className="btn-brand ticket-cta__btn">

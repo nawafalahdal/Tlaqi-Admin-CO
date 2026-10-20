@@ -195,7 +195,10 @@ export async function sendWelcomeToUser(opts: {
     return { ok: false, reason: "الحساب مُنحّى — لا يُرسَل رابط دخول لحسابٍ مُعطَّل" };
   }
 
-  const res = await sendWelcomePack({ kind: "user", id: user.id }, "resend", true);
+  // المؤسسُ يُرسل بطاقته لنفسه متى شاء بلا سقف (قراره) — ويُقرَّر هنا من
+  // الجلسة والحساب معاً، لا من الواجهة
+  const founderSelf = user.role === "super_admin" && user.id === opts.session.user.id;
+  const res = await sendWelcomePack({ kind: "user", id: user.id }, "resend", true, founderSelf);
   if (!res.ok) return { ok: false, reason: res.reason };
 
   await appendMemberEvent({

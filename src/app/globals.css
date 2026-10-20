@@ -1277,9 +1277,20 @@ body:has(.app-sidebar) main > section > div:first-child > h2:first-child {
 :root.theme-vt::view-transition-old(root) { z-index: 1; }
 :root.theme-vt::view-transition-new(root) { z-index: 2; }
 
-/* ═══ تبديلُ اللغة: يتلاشى المحتوى، ينقلب الاتجاهُ وهو خفيّ، ثم يعود ═══
-   فلا يُرى المحتوى يقفز من جهةٍ إلى جهة. والمدّةُ قصيرةٌ لا تؤخّر العمل. */
+/* ═══ تبديلُ اللغة: يتبدّل كلُّه دفعةً واحدة، ثم يعود ظاهراً بنعومة ═══
+   الصفحةُ تبقى كما هي حتى يصل نصُّ الخادم باللغة الأخرى — لا تُخفى ولا
+   تبهت وهي تنتظر. ثم تتبدّل اللغةُ والاتجاهُ والنصوصُ في إطارٍ واحد، ويعود
+   المحتوى من تلاشٍ قصير (`locale-swap`)، فلا يُرى قفزٌ من جهةٍ إلى جهة ولا
+   نصٌّ بلغتين. وزرُّ اللغة وحده يقول إنه يُبدّل في أثناء الانتظار. */
 @media (prefers-reduced-motion: no-preference) {
-  body > * { transition: opacity 180ms ease, filter 180ms ease; }
-  :root.locale-fading body > * { opacity: 0; filter: blur(2px); }
+  :root.locale-swap body > * { animation: locale-in 300ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+  .locale-toggle[aria-busy="true"] .ctl-group__icon { animation: locale-spin 900ms linear infinite; }
 }
+/* الشفافيةُ وحدها: الضبابُ والإزاحةُ يجعلان العنصرَ أساساً لما ثبت موضعه
+   تحته (القائمة، «تحسين»، النوافذ) فيقفز لحظةَ الحركة */
+@keyframes locale-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes locale-spin { to { transform: rotate(360deg); } }
+.locale-toggle[aria-busy="true"] { cursor: progress; opacity: 0.75; }

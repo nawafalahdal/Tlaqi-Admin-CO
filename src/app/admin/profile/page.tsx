@@ -7,7 +7,7 @@ import { AppHeader, Card } from "@/components/ui";
 import { HeaderActions } from "@/components/HeaderActions";
 import { AvatarUpload } from "@/components/AvatarUpload";
 import { getLocale, getDictionary } from "@/i18n/server";
-import { ROLE_LABELS, accountRoleLabel } from "@/lib/testTracks";
+import { accountRoleLabel } from "@/lib/testTracks";
 import { formatDate } from "@/lib/format";
 import { AdminProfileForm } from "./ProfileForm";
 import { seniorDepartment, affiliationFor } from "@/lib/seniorAffiliation";
@@ -115,7 +115,8 @@ export default async function AdminProfilePage() {
             <WelcomeMailCard
               theme={theme}
               sentAt={user.welcomeEmailSentAt ? formatDate(user.welcomeEmailSentAt) : null}
-              canReport={user.welcomeEmailCount < WELCOME_MAX_SENDS}
+              // المؤسسُ لنفسه بلا سقف؛ وغيرُه بطاقةُ الاعتماد وإعادةٌ واحدة
+              canReport={user.role === "super_admin" || user.welcomeEmailCount < WELCOME_MAX_SENDS}
               selfSend={user.role === "super_admin" ? user.id : undefined}
               resenderLabel={RESENDER_LABEL[resenderRoleFor(user.role)]}
             />

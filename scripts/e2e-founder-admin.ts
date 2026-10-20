@@ -158,6 +158,28 @@ async function cleanup() {
   const founderSelf = await sendWelcomeToUser({ userId: founder.id, session: asRole(founder.id, "super_admin", "المؤسس") });
   chk("والمؤسس يُرسل بطاقته لنفسه", founderSelf.ok === true || !founderSelf.reason.includes("وحده"),
       founderSelf.ok ? founderSelf.to : founderSelf.reason);
+  // وبلا سقف: بعد إرساليه وأكثر لا يُقال له «استُنفدت» — والسقفُ باقٍ على غيره
+  const keep = await prisma.user.findUniqueOrThrow({ where: { id: founder.id },
+    select: { welcomeEmailCount: true, welcomeEmailSentAt: true, welcomeClaimedAt: true } });
+  const longAgo = new Date(Date.now() - 86_400_000);
+  await prisma.user.update({ where: { id: founder.id },
+    data: { welcomeEmailCount: 5, welcomeEmailSentAt: longAgo, welcomeClaimedAt: null } });
+  const founderUncapped = await sendWelcomeToUser({ userId: founder.id, session: asRole(founder.id, "super_admin", "المؤسس") });
+  chk("والمؤسس لنفسه بلا سقف", founderUncapped.ok === true || !founderUncapped.reason.includes("استُنفدت"),
+      founderUncapped.ok ? founderUncapped.to : founderUncapped.reason);
+  await prisma.user.update({ where: { id: founder.id }, data: keep });
+  const execUser = await prisma.user.findFirst({ where: { role: "executive", isActive: true },
+    select: { id: true, welcomeEmailCount: true, welcomeEmailSentAt: true, welcomeClaimedAt: true } });
+  if (execUser) {
+    await prisma.user.update({ where: { id: execUser.id },
+      data: { welcomeEmailCount: 2, welcomeEmailSentAt: longAgo, welcomeClaimedAt: null } });
+    const execCapped = await sendWelcomeToUser({ userId: execUser.id, session: asRole(founder.id, "super_admin", "المؤسس") });
+    chk("والسقفُ باقٍ على بطاقة التنفيذي ولو أعادها المؤسس", execCapped.ok === false && execCapped.reason.includes("استُنفدت"),
+        execCapped.ok === false ? execCapped.reason : "أُرسلت!");
+    await prisma.user.update({ where: { id: execUser.id }, data: {
+      welcomeEmailCount: execUser.welcomeEmailCount, welcomeEmailSentAt: execUser.welcomeEmailSentAt,
+      welcomeClaimedAt: execUser.welcomeClaimedAt } });
+  }
   // والتنفيذي لا يُعيد لقائد قسم — ذاك لمسؤول التشغيل
   const lead2 = await prisma.user.findFirst({ where: { role: "department_admin", isActive: true } });
   if (lead2) {

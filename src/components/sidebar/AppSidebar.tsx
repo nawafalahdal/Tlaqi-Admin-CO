@@ -29,20 +29,29 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
 
   const t = getDictionary(await getLocale());
   const s = t.shell;
+  const isMember = session.user.role === "member";
+
+  // **قراءاتُ القائمة معاً لا تِباعاً.** كانت ثلاثَ رحلاتٍ متتالية إلى
+  // القاعدة (صلاحيةُ البطاقات، ثم الصورة، ثم الشارات) — والقائمةُ في كل
+  // صفحة، فكلُّ رحلةٍ تُضاف إلى كل فتحٍ وكل تبديلٍ للغة. ولا تعتمد إحداها
+  // على الأخرى، فتُطلَب في رحلةٍ واحدة.
+  //
+  // صورةُ صاحب الحساب في ذيل القائمة: ختمُها وحده (لا الصورة) — والصورةُ
+  // نفسُها موردٌ يُخزَّن في المتصفّح سنةً (`/api/avatar`)، فلا تُعاد مع كل
+  // صفحة.
+  const [canWelcomeCards, stamp, badges] = await Promise.all([
+    canResendWelcome(session).then((ok) => ok || canRequestWelcomeResend(session)),
+    isMember
+      ? prisma.member.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true, gender: true, department: { select: { name: true, colorHex: true } } } })
+      : prisma.user.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true, gender: true, department: { select: { name: true, colorHex: true } } } }),
+    badgesFor(session),
+  ]);
   const viewer = {
     role: session.user.role,
     departmentSlug: session.user.departmentSlug,
     canSign: isSigningRole(session.user.role),
-    canWelcomeCards: (await canResendWelcome(session)) || (await canRequestWelcomeResend(session)),
+    canWelcomeCards,
   };
-  const isMember = session.user.role === "member";
-
-  // صورةُ صاحب الحساب في ذيل القائمة: ختمُها وحده (لا الصورة) — والصورةُ
-  // نفسُها موردٌ يُخزَّن في المتصفّح سنةً (`/api/avatar`)، فلا تُعاد مع كل
-  // صفحة. والتخطيطُ لا يُعاد رسمه بين صفحات القسم الواحد أصلاً.
-  const stamp = isMember
-    ? await prisma.member.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true, gender: true, department: { select: { name: true, colorHex: true } } } })
-    : await prisma.user.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true, gender: true, department: { select: { name: true, colorHex: true } } } });
   const avatar = avatarUrl(isMember ? "member" : "user", session.user.id, stamp?.avatarVersion);
   // خلفيةُ الصورة بلون انتمائه كما في الهيكل والسجلّ — لا برتقاليٌّ ثابت
   const avatarTone = portraitTone(portraitColorFor(session.user.role, stamp?.department)).background;
@@ -85,7 +94,7 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
 
   return (
     <SidebarProvider
-      items={await withBadges(navFor(viewer, s.nav), session)}
+      items={navFor(viewer, s.nav).map((it) => (badges[it.id] ? { ...it, badge: badges[it.id] } : it))}
       homeHref={homeFor(viewer)}
       userName={session.user.name ?? ""}
       roleName={s.roles[session.user.role] ?? ""}
@@ -107,12 +116,11 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
  *  (`openTicketsWhere` — شرطُ الرؤية نفسه)، وما ينتظر اعتمادَه (طلباتُ
  *  الاعتماد المسمّاة له، ومعها طلباتُ الانضمام للمؤسس والتنفيذي)، وطلباتُ
  *  الإنهاء الجديدة لمن يقرّر فيها. والقراءةُ عدٌّ لا جلبُ صفوف. */
-async function withBadges(
-  items: ReturnType<typeof navFor>,
-  session: Session
-) {
+type NavBadge = NonNullable<ReturnType<typeof navFor>[number]["badge"]>;
+
+async function badgesFor(session: Session): Promise<Record<string, NavBadge | undefined>> {
   const role = session.user.role;
-  if (role === "member") return items;
+  if (role === "member") return {};
   const top = role === "super_admin" || role === "executive";
   const now = new Date();
   try {
@@ -128,15 +136,14 @@ async function withBadges(
         ? prisma.terminationRequest.count({ where: { status: "submitted" } })
         : Promise.resolve(0),
     ]);
-    const badge: Record<string, NonNullable<(typeof items)[number]["badge"]> | undefined> = {
+    return {
       tickets: late > 0 ? { text: `${late} متأخرة`, tone: "action" } : undefined,
       approvals: approvals + joins > 0 ? { text: `${approvals + joins} بانتظارك`, tone: "action" } : undefined,
       terminations: terminations > 0 ? { text: `${terminations} جديد`, tone: "info" } : undefined,
     };
-    return items.map((it) => (badge[it.id] ? { ...it, badge: badge[it.id] } : it));
   } catch (err) {
     // العدُّ زينةٌ لا شرط: إن تعذّر بقيت القائمة كما هي
     console.error("تعذّر عدُّ شارات القائمة:", err);
-    return items;
+    return {};
   }
 }

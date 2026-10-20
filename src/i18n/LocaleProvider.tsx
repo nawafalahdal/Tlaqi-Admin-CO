@@ -1,6 +1,16 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import { getDictionary, type Dictionary, type Locale } from "./index";
 
@@ -8,6 +18,8 @@ type LocaleContextValue = {
   locale: Locale;
   t: Dictionary;
   setLocale: (locale: Locale) => void;
+  /** التبديلُ جارٍ: نصُّ الخادم باللغة الأخرى في الطريق */
+  switching: boolean;
 };
 
 const LocaleContext = createContext<LocaleContextValue | null>(null);
@@ -21,56 +33,50 @@ export function LocaleProvider({
 }) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
   const router = useRouter();
+  const [switching, startSwitch] = useTransition();
 
-  const [refreshing, startRefresh] = useTransition();
-  // «waiting»: بُدّلت اللغةُ وطُلبت حمولةُ الخادم — والمحتوى خفيٌّ حتى تصل
-  const [phase, setPhase] = useState<"idle" | "waiting">("idle");
-
-  // يعود المحتوى ظاهراً حين تصل حمولةُ الخادم باللغة الجديدة — لا قبلها، فلا
-  // يُرى نصٌّ بلغتين لحظةً
-  useEffect(() => {
-    if (phase !== "waiting" || refreshing) return;
-    const id = window.setTimeout(() => {
-      document.documentElement.classList.remove("locale-fading");
-      setPhase("idle");
-    }, 40);
-    return () => window.clearTimeout(id);
-  }, [phase, refreshing]);
-
-  const setLocale = useCallback((next: Locale) => {
+  // **الاتجاهُ واللغةُ يتبعان اللغةَ المُثبَتة — في الإطار نفسه.** يُبدَّلان
+  // قبل الرسم مع وصول نصّ الخادم، ثم يعود المحتوى ظاهراً بتلاشٍ قصير
+  // (`locale-swap`). وما لم تتغيّر اللغةُ فلا حركة — ولا في الرسم الأول.
+  const shown = useRef(locale);
+  useLayoutEffect(() => {
+    if (shown.current === locale) return;
+    shown.current = locale;
     const root = document.documentElement;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    // **يتلاشى ثم ينقلب ثم يعود.** كان الاتجاهُ ينقلب والمحتوى ظاهر، فيقفز
-    // كلُّ شيءٍ من جهةٍ إلى جهةٍ قطعةً واحدة. فيُخفى أولاً (١٨٠ م.ث)، ويُبدَّل
-    // الاتجاهُ واللغة وهو خفيّ، ثم يظهر حين تكتمل حمولةُ الخادم.
-    const apply = () => {
-      setLocaleState(next);
+    root.lang = locale;
+    root.dir = locale === "ar" ? "rtl" : "ltr";
+    root.classList.remove("locale-swap");
+    void root.offsetWidth; // يُعاد تشغيلُ الحركة لو تتابع تبديلان
+    root.classList.add("locale-swap");
+    const id = window.setTimeout(() => root.classList.remove("locale-swap"), 360);
+    return () => window.clearTimeout(id);
+  }, [locale]);
+
+  /** **يتبدّل كلُّه دفعةً واحدة.** كان المحتوى يُخفى ثم ينقلب الاتجاه ونصُّ
+   *  المتصفح وهو خفيّ، ثم ينتظر نصَّ الخادم — فإن تأخّر ظهر بلغتين، أو بقي
+   *  باهتاً حتى يصل. وهذا ما رآه المؤسس بطئاً وتقطّعاً.
+   *
+   *  والآن تبقى الصفحةُ كما هي ظاهرةً تعمل، وزرُّ اللغة يقول إنه يُبدّل
+   *  (`switching`)؛ ولغةُ المتصفح وتحديثُ الخادم في انتقالٍ واحد
+   *  (`startSwitch`) — فلا يُثبِت React أحدَهما قبل الآخر: يصل نصُّ الخادم
+   *  فتتبدّل اللغةُ والاتجاهُ والنصوصُ كلُّها في إطارٍ واحد.
+   *
+   *  والكعكةُ تُكتب هنا قبل الطلب، فيُرسَم الخادمُ مرّةً واحدة بلغته. */
+  const setLocale = useCallback(
+    (next: Locale) => {
+      if (next === locale || switching) return;
       document.cookie = `locale=${next}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
-      root.lang = next;
-      root.dir = next === "ar" ? "rtl" : "ltr";
-      // **والخادمُ يُعاد رسمُه أيضاً — مرّةً واحدة.** أكثرُ الصفحات تُرسَم في
-      // الخادم بقاموسٍ يُقرأ من الكعكة، و`refresh` يُعيد حمولته دون تحميلٍ
-      // كامل: تبقى النماذجُ المفتوحة والسمةُ وموضعُ القائمة كما هي.
-      //
-      // وكانت الكعكةُ تُكتب أيضاً بإجراء خادم (`setLocaleAction`) ثم يُطلب
-      // `refresh` بعده. وإجراءُ الخادم الذي يكتب كعكةً يُعيد Next رسمَ
-      // الصفحة كلّها في جوابه — فكانت الصفحةُ تُرسَم مرّتين متتاليتين، وفي
-      // الإنتاج (قاعدةٌ بعيدة) تجاوز ذلك خمسَ ثوانٍ. والكعكةُ مكتوبةٌ هنا
-      // في المتصفح قبل الطلب، فيكفي رسمٌ واحد.
-      setPhase("waiting");
-      startRefresh(() => router.refresh());
-    };
-    if (reduce) return apply();
-    root.classList.add("locale-fading");
-    window.setTimeout(apply, 180);
-    // شبكةُ أمان: لا يبقى المحتوى خفيّاً إن تأخّرت الحمولة — يعود ظاهراً
-    // ويُكمل الخادمُ نصَّه حين يصل
-    window.setTimeout(() => root.classList.remove("locale-fading"), 1600);
-  }, [router]);
+      startSwitch(() => {
+        setLocaleState(next);
+        router.refresh();
+      });
+    },
+    [router, locale, switching]
+  );
 
   const value = useMemo<LocaleContextValue>(
-    () => ({ locale, t: getDictionary(locale), setLocale }),
-    [locale, setLocale]
+    () => ({ locale, t: getDictionary(locale), setLocale, switching }),
+    [locale, setLocale, switching]
   );
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;

@@ -1091,7 +1091,7 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
     neverSent: "It has not reached you yet.",
     reported: "\u2713 Your request reached the {who} (ticket #{n}) \u2014 they will check and resend it.",
     selfButton: "Send it to myself",
-    selfOnce: "You send it to yourself directly \u2014 one resend after the approval card."
+    selfOnce: "You send it to yourself whenever you like \u2014 no limit, one minute between sends."
   },
 
   offboarding: {
