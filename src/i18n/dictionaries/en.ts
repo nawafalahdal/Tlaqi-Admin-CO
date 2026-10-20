@@ -1034,13 +1034,14 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
   },
   welcomeMail: {
     title: "Membership card",
-    body: "The membership card carries your name, role, team and joining date, and reaches you the moment you are approved. If it never arrived, send it to yourself once from here — after that, the Operations Officer can resend it when needed.",
-    button: "It never arrived \u2014 send it",
-    sending: "Sending...",
-    receipt: "\u2713 Delivered on {date}, and the delivery is recorded in the live log and the sheet.",
+    body: "The membership card carries your name, role, team and joining date, and reaches you automatically the moment you are approved.",
+    button: "I didn't get it \u2014 notify the Operations Officer",
+    sending: "Sending your report...",
+    receipt: "\u2713 Sent to you on {date} and accepted by the mail provider \u2014 recorded in the live log and the sheet.",
     receiptNow: "\u2713 Sent to your inbox now, and the delivery is recorded in the live log and the sheet.",
-    onceOnly: "Sent automatically at approval. If it gets lost, the Operations Officer can resend it — at most three cards in total.",
+    onceOnly: "If it never arrived, notify the Operations Officer: they check, then resend it \u2014 each person gets one resend.",
     neverSent: "It has not reached you yet.",
+    reported: "\u2713 Your report reached the Operations Officer (ticket #{n}) \u2014 they will check and resend it.",
   },
 
   offboarding: {

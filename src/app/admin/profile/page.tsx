@@ -13,6 +13,7 @@ import { AdminProfileForm } from "./ProfileForm";
 import { seniorDepartment, affiliationFor } from "@/lib/seniorAffiliation";
 import { PageHeader } from "@/components/PageHeader";
 import { avatarHasTransparency } from "@/lib/avatars";
+import { WELCOME_MAX_SENDS } from "@/lib/welcomeResend";
 import { WelcomeMailCard } from "@/components/WelcomeMailCard";
 import { SecurityGuidance } from "@/components/SecurityGuidance";
 import { GovernanceCharter } from "@/components/GovernanceCharter";
@@ -81,6 +82,7 @@ export default async function AdminProfilePage() {
         <WelcomeMailCard
           theme={theme}
           sentAt={user.welcomeEmailSentAt ? formatDate(user.welcomeEmailSentAt) : null}
+          canReport={user.role !== "super_admin" && user.welcomeEmailCount < WELCOME_MAX_SENDS}
         />
 
         <SecurityGuidance theme={theme} totpEnabled={user.totpEnabled} />

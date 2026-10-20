@@ -97,7 +97,7 @@ export function FounderMemberControls({
         )}
         <p className="text-xs leading-relaxed text-black/45">
           إعادةُ بطاقة الانضمام بيد مسؤول المتابعة والتشغيل وحده، من صفحة «بطاقات الانضمام» —
-          ثلاثُ بطاقاتٍ للشخص على الأكثر.
+          ولكل شخصٍ إعادةٌ واحدة بعد بطاقة الاعتماد.
         </p>
       </div>
 

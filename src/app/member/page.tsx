@@ -27,6 +27,7 @@ import { AnnouncementList } from "@/app/admin/hub/AnnouncementList";
 import { scheduleDueSweeps } from "@/lib/sweepThrottle";
 import { WorkspaceOverview } from "@/components/dashboard/WorkspaceOverview";
 import { avatarHasTransparency } from "@/lib/avatars";
+import { WELCOME_MAX_SENDS } from "@/lib/welcomeResend";
 
 export default async function MemberPortalPage() {
   const session = await auth();
@@ -138,6 +139,7 @@ export default async function MemberPortalPage() {
           <WelcomeMailCard
             theme={theme}
             sentAt={member.welcomeEmailSentAt ? formatDate(member.welcomeEmailSentAt) : null}
+            canReport={member.welcomeEmailCount < WELCOME_MAX_SENDS}
           />
           <SecurityGuidance theme={theme} totpEnabled={null} />
           <TerminationRequestCard

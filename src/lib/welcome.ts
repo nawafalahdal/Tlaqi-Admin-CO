@@ -151,7 +151,7 @@ async function claimWelcomeSend(
     if ((row?.welcomeEmailCount ?? 0) >= WELCOME_MAX_SENDS) {
       return {
         claimed: false,
-        reason: `بلغت بطاقاتُ هذا الشخص الحدَّ الأقصى (${WELCOME_MAX_SENDS} مرات) — لا تُعاد بعده`,
+        reason: "استُنفدت فرصةُ الإعادة لهذا الشخص — بطاقةُ الاعتماد وإعادةٌ واحدة، ولا تُعاد بعدها",
       };
     }
     return {

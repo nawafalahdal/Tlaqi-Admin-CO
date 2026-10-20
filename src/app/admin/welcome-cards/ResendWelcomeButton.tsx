@@ -57,7 +57,7 @@ export function ResendWelcomeButton({
     <div className="flex items-center justify-end gap-2">
       {note && <span role="status" className="text-xs font-bold text-green-800">{note}</span>}
       {capped ? (
-        <span className="text-xs font-bold text-black/45">بلغت الحدّ الأقصى</span>
+        <span className="text-xs font-bold text-black/45">استُنفدت الإعادة</span>
       ) : (
         <button
           type="button"
@@ -74,7 +74,7 @@ export function ResendWelcomeButton({
         body={
           mode === "request"
             ? `يُرفع طلبٌ إلى مسؤول المتابعة والتشغيل بإعادة بطاقة ${name}، ويصله تذكرةً في لوحته. وهو من يُرسلها.`
-            : `تُرسَل بطاقة الانضمام إلى ${name} الآن، وتُسجَّل الإعادة باسمك في سجل الرسائل والسجل الحي.`
+            : `تأكّدتَ أنها لم تصله؟ تُرسَل بطاقة الانضمام إلى ${name} الآن — وهي إعادتُه الوحيدة — وتُسجَّل باسمك في سجل الرسائل والسجل الحي.`
         }
         confirmLabel={mode === "request" ? "رفع الطلب" : "إرسال"}
         tone="brand"

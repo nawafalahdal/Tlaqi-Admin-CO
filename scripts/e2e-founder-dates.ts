@@ -115,9 +115,9 @@ async function cleanup() {
   chk("المؤسس لا يُعيد البطاقة", wf.ok === false && wf.reason.includes("وحده"), wf.ok === false ? wf.reason : "أُرسلت!");
 
   // ١١ج — وسقفُها ثلاث: الرابعة تُرفض في شرط الحجز نفسه
-  await prisma.member.update({ where: { id: member.id }, data: { decidedAt: assignmentStart, welcomeEmailCount: 3 } });
+  await prisma.member.update({ where: { id: member.id }, data: { decidedAt: assignmentStart, welcomeEmailCount: 2 } });
   const wCap = await sendWelcomeToMember({ memberId: member.id, session: asRole(founder.id + "y", "operations_officer") });
-  chk("لا تُعاد بعد ثلاث بطاقات", wCap.ok === false && wCap.reason.includes("الحدَّ الأقصى"), wCap.ok === false ? wCap.reason : "أُرسلت!");
+  chk("لا تُعاد بعد إعادتها الوحيدة", wCap.ok === false && wCap.reason.includes("استُنفدت"), wCap.ok === false ? wCap.reason : "أُرسلت!");
   await prisma.member.update({ where: { id: member.id }, data: { welcomeEmailCount: 0 } });
 
   // ١٢ — والإرسال لا يُغيّر حالة العضوية

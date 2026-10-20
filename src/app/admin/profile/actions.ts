@@ -7,7 +7,6 @@ import { syncAdminAccountRow } from "@/lib/workflow";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { ROLE_LABELS, accountRoleLabel } from "@/lib/testTracks";
 import { safeErrorMessage } from "@/lib/safeError";
-import { sendWelcomePack } from "@/lib/welcome";
 import { parseGender } from "@/lib/gender";
 
 /** يحفظ بيانات صاحب الحساب الإداري.
@@ -75,41 +74,5 @@ export async function saveAdminProfileAction(
   } catch (err) {
     return { error: safeErrorMessage(err), saved: false };
   }
-}
-
-/** يُعيد إرسال البريد الترحيبي لصاحب الجلسة نفسه.
- *
- *  لا يأخذ معرّفاً من الواجهة: الزرّ لمن لم تصله رسالته، لا ليُرسلها
- *  أحدٌ لأحد. وكل إرسال يُحسب ويُسجَّل في الشيت بتاريخه ومرّته. */
-export async function resendWelcomeAction(): Promise<{ error: string | null; sent: boolean }> {
-  const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول", sent: false };
-
-  // بطاقة الانضمام تصل مرة واحدة: لحظة الاعتماد. وهذا الزرّ شبكة أمان
-  // لمن لم تصله أصلاً، لا وسيلة لإعادة إرسالها متى شاء — فإن كانت وصلت
-  // رُفض الطلب هنا أيضاً، لا في الواجهة وحدها.
-  const already =
-    session.user.role === "member"
-      ? await prisma.member.findUnique({
-          where: { id: session.user.id },
-          select: { welcomeEmailSentAt: true },
-        })
-      : await prisma.user.findUnique({
-          where: { id: session.user.id },
-          select: { welcomeEmailSentAt: true },
-        });
-  if (already?.welcomeEmailSentAt) {
-    return { error: "بطاقة الانضمام وصلتك بالفعل — تُرسل مرة واحدة فقط", sent: false };
-  }
-
-  const result =
-    session.user.role === "member"
-      ? await sendWelcomePack({ kind: "member", id: session.user.id })
-      : await sendWelcomePack({ kind: "user", id: session.user.id });
-
-  if (!result.ok) return { error: result.reason, sent: false };
-  revalidatePath("/admin/profile");
-  revalidatePath("/member");
-  return { error: null, sent: true };
 }
 
