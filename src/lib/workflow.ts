@@ -4,6 +4,7 @@ import { approverFor } from "@/lib/notify";
 import { singleRecipient } from "@/lib/emailPolicy";
 import { isSigningRole } from "@/lib/signatures";
 import { clearFailedAttempts } from "@/lib/loginAttempts";
+import { shareCardUrl } from "@/lib/bannerToken";
 import { appendApprovedMember, appendMemberEvent, appendTestResult, upsertMemberLifecycleRow, upsertAdminAccountRow } from "@/lib/googleSheets";
 import {
   sendCredentialsEmail,
@@ -386,6 +387,7 @@ export async function approveMember(memberId: string) {
         departmentId: role === "department_admin" ? member.departmentId : null,
         phone: member.phone,
         jobTitle: member.jobTitle,
+        gender: member.gender,
         specialization: member.specialization,
         section: member.section,
         profileCompletedAt: member.profileCompletedAt,
@@ -776,11 +778,21 @@ export async function createCandidateAccount(opts: {
     at: new Date(),
   });
 
+  // من دعاه يُذكَر باسمه: «دعاك فلان» أوضح من «دعتك الإدارة»، وهو ما
+  // يجعل الدعوة إعلاناً شخصياً لا رسالةً آلية
+  const inviter = await prisma.user.findUnique({
+    where: { id: opts.invitedById },
+    select: { fullName: true },
+  });
   const invited = await sendCredentialsEmail({
     to: member.email,
     fullName: member.fullName,
     tempPassword,
     loginUrl: `${baseUrl()}/login`,
+    targetRole: opts.targetRole,
+    invitedByName: inviter?.fullName ?? null,
+    departmentColorHex: department?.colorHex ?? null,
+    inviteCardUrl: shareCardUrl("invite", { kind: "member", id: member.id }, baseUrl()),
     // الدعوة تقول إنها دعوة: القسم والمسمّى كما سجّلتهما الإدارة،
     // والخطوات، والمهلة — لا «تهانينا، تم اعتماد انضمامك».
     occasion: "invitation",

@@ -5,6 +5,7 @@ import { saveAdminProfileAction } from "./actions";
 import { Button } from "@/components/ui";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import type { themeFromColor } from "@/lib/brand";
+import { GenderField } from "@/components/GenderField";
 
 export function AdminProfileForm({
   defaults,
@@ -16,6 +17,7 @@ export function AdminProfileForm({
     jobTitle: string;
     specialization: string;
     section: string;
+    gender: "male" | "female" | null;
   };
   theme: ReturnType<typeof themeFromColor>;
 }) {
@@ -30,6 +32,7 @@ export function AdminProfileForm({
   return (
     <form action={formAction} className="flex flex-col gap-4">
       <Field label={t.fullName} name="fullName" defaultValue={defaults.fullName} required hint={tp.nameHint} />
+      <GenderField defaultValue={defaults.gender} required />
       <Field label={t.phone} name="phone" defaultValue={defaults.phone} required dir="ltr" />
       <Field
         label={t.jobTitle}

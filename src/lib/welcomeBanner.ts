@@ -132,7 +132,7 @@ const BASE_GIF = join(process.cwd(), "public", "brand", "banner", "base.gif");
  *  فيها بالضرورة — فيُكتب ملفّ إعدادٍ يُشير إلى `assets/fonts` ويُصدَّر
  *  `FONTCONFIG_FILE`. وبلا هذا يرسم الاسم مربّعاتٍ فارغة. */
 let fontsReady = false;
-function ensureFonts() {
+export function ensureFonts() {
   if (fontsReady) return;
   const dir = join(process.cwd(), "assets", "fonts");
   if (!existsSync(dir)) {

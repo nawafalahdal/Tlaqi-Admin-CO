@@ -1,12 +1,19 @@
-import { readFileSync } from "fs";
-import { join } from "path";
 import { Resend } from "resend";
 import { formatDate } from "@/lib/format";
 import { appendEmailLog } from "@/lib/googleSheets";
 import { prisma } from "@/lib/prisma";
-import { wrapEmail, htmlToText, variantForKind, appBaseUrl, SOCIAL_HANDLE } from "@/lib/emailBrand";
-import { welcomeParagraphs } from "@/lib/departmentBrand";
-import { readableTextOn } from "@/lib/colors";
+import {
+  renderEmail,
+  htmlToText,
+  variantForKind,
+  toneForVariant,
+  appBaseUrl,
+  SOCIAL_HANDLE,
+  type EmailContent,
+  type EmailTheme,
+} from "@/lib/emailBrand";
+import { departmentBrand } from "@/lib/departmentBrand";
+import { forms, gx, positionTitle, roleTitle, type MaybeGender } from "@/lib/gender";
 import { emailAllowed, policyReason, type EmailEvent } from "@/lib/emailPolicy";
 import { resultOf, type SendResult } from "@/lib/emailOutcome";
 
@@ -113,13 +120,80 @@ async function withoutClosedRecipients(recipients: string[]): Promise<string[]> 
   }
 }
 
+/** من يُراسَل — جنسُه ودورُه وقسمُه، من سجلّه هو.
+ *
+ *  كانت كلُّ رسالةٍ تُكتب بالمذكّر وبلا لون: الدالةُ لا تعرف إلا البريد.
+ *  فصار البريدُ نفسُه مفتاحاً إلى سجلّ صاحبه، فيُخاطَب بجنسه ويأخذ
+ *  الشريطُ والزرُّ لونَ قسمه — دون أن تحمل عشرون دالةً هذا العبء.
+ *
+ *  ولرسالةٍ لعدّة مستلمين (`to` مصفوفة) لا جنسَ واحداً ولا قسماً واحداً،
+ *  فتُكتب بالصيغة المحايدة وبلون الهوية. والفشل لا يُسكِت البريد. */
+type Recipient = {
+  gender: MaybeGender;
+  role: string | null;
+  departmentName: string | null;
+  colorHex: string | null;
+};
+
+const NO_RECIPIENT: Recipient = { gender: null, role: null, departmentName: null, colorHex: null };
+
+async function recipientOf(to: string | string[]): Promise<Recipient> {
+  const list = (Array.isArray(to) ? to : [to]).filter(Boolean);
+  if (list.length !== 1) return NO_RECIPIENT;
+  const email = { equals: list[0], mode: "insensitive" as const };
+  try {
+    const user = await prisma.user.findFirst({
+      where: { email },
+      select: { gender: true, role: true, department: { select: { name: true, colorHex: true } } },
+    });
+    if (user) {
+      return {
+        gender: user.gender,
+        role: user.role,
+        departmentName: user.department?.name ?? null,
+        colorHex: user.department?.colorHex ?? null,
+      };
+    }
+    const member = await prisma.member.findFirst({
+      where: { email },
+      select: {
+        gender: true,
+        invite: { select: { targetRole: true } },
+        department: { select: { name: true, colorHex: true } },
+      },
+    });
+    if (member) {
+      return {
+        gender: member.gender,
+        role: member.invite.targetRole,
+        departmentName: member.department?.name ?? null,
+        colorHex: member.department?.colorHex ?? null,
+      };
+    }
+  } catch (err) {
+    console.error("تعذّر قراءة سجلّ المستلِم للمخاطبة:", err);
+  }
+  return NO_RECIPIENT;
+}
+
+function themeOf(r: Recipient): EmailTheme {
+  return { departmentName: r.departmentName, colorHex: r.colorHex };
+}
+
+/** الاسم الأول — للعناوين القصيرة: «أهلاً بكِ في العائلة، سارة» */
+function firstName(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0] || fullName;
+}
+
+const portal = () => `${appBaseUrl()}/login`;
+
 async function send(
   to: string | string[],
   subject: string,
-  html: string,
+  content: EmailContent,
   kind = "عام",
-  /** ترويسة بديلة لهذه الرسالة — تمرّ كما هي إلى الغلاف */
-  hero?: { src: string; width: number; height: number; alt: string }
+  /** لون القسم في الرسالة — من سجلّ المستلِم في الغالب */
+  theme?: EmailTheme
 ) {
   const all = Array.isArray(to) ? to.filter(Boolean) : [to].filter(Boolean);
   if (all.length === 0) return resultOf({ state: "no_recipient" });
@@ -137,16 +211,14 @@ async function send(
     return resultOf({ state: "provider_disabled" });
   }
   try {
-    // الهوية تُضاف هنا لا في كل دالة: متن الرسالة يصف ما حدث، والغلاف
-    // يصنع شكلها — فلا تتفرّق الهوية على تسع عشرة دالة ولا تُنسى في واحدة.
-    const wrapped = wrapEmail({
-      title: subject,
-      bodyHtml: html,
+    // الهوية تُضاف هنا لا في كل دالة: الدالةُ تصف ما حدث بنيةً، والقالبُ
+    // الموحَّد يرسمها — فلا تتفرّق الهوية على ثلاثين دالة ولا تُنسى في واحدة.
+    // والنبرةُ إن لم تحدّدها الرسالة تُشتقّ من وسم نوعها.
+    const { html, bodyHtml } = renderEmail({
+      subject,
+      content: { ...content, tone: content.tone ?? toneForVariant(variantForKind(kind)) },
+      theme,
       preheader: subject,
-      // التصميم يُشتقّ من وسم النوع الذي تمرّره كل دالة أصلاً، فلا دالة
-      // تختار تصميمها ولا تنساه — وما لا وسم له يأخذ العام
-      variant: variantForKind(kind),
-      hero,
     });
     // Resend لا يرمي استثناءً عند رفض الـAPI: يرجع `{ data, error }`.
     // فكان كل رفضٍ — مفتاحٌ خاطئ، نطاقٌ غير موثّق، حدُّ إرسال، مستلمٌ
@@ -156,10 +228,10 @@ async function send(
       from: FROM,
       to: recipients,
       subject,
-      html: wrapped,
+      html,
       // النسخة النصّية ليست ترفاً: رسالة HTML بلا بديل نصّي علامةٌ معروفة
       // عند مرشّحات السبام، وتصل مشوّهة لمن يقرأ بالنص المجرّد
-      text: htmlToText(html),
+      text: htmlToText(bodyHtml),
       headers: {
         // يمنع تجميع الرسائل المتتابعة في خيط واحد عند Gmail
         "X-Entity-Ref-ID": `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -191,73 +263,15 @@ async function send(
   }
 }
 
-/** يُرسل رسالة مبنيّة كاملةً، بلا غلاف.
- *
- *  أكثر الرسائل متنٌ يلفّه `send` بهوية المنصة. وبعضها — كقالب الترحيب
- *  الرسمي — وثيقة HTML قائمة بذاتها لها ترويستها وتذييلها، فلفّها يُنتج
- *  رسالةً بترويستين. وما عدا الغلاف يبقى كما هو: فحص من أُغلقت تجربته،
- *  والنسخة النصّية، والتسجيل في السجلّ.
- */
-async function sendPrebuilt(to: string | string[], subject: string, html: string, kind: string) {
-  const all = Array.isArray(to) ? to.filter(Boolean) : [to].filter(Boolean);
-  if (all.length === 0) return resultOf({ state: "no_recipient" });
-  const recipients = await withoutClosedRecipients(all);
-  if (recipients.length === 0) return resultOf({ state: "suppressed_closed" });
-
-  if (!resend) {
-    console.warn(
-      `[email:disabled] لم يُضبط RESEND_API_KEY — تم تجاهل إرسال بريد بعنوان "${subject}" إلى: ${recipients.join(", ")}`
-    );
-    await logEmail(recipients, kind, subject, "لم تُرسل (البريد معطّل)");
-    return resultOf({ state: "provider_disabled" });
-  }
-  try {
-    const result = await resend.emails.send({
-      from: FROM,
-      to: recipients,
-      subject,
-      html,
-      text: htmlToText(html),
-      headers: {
-        "X-Entity-Ref-ID": `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      },
-    });
-    if (result.error) {
-      const name = result.error.name ?? "خطأٌ غيرُ مسمّى";
-      const message = result.error.message ?? "بلا نصّ";
-      console.error("رفض Resend إرسال البريد:", result.error);
-      await logEmail(recipients, kind, subject, "فشل الإرسال", {
-        failureKind: name,
-        failureDetail: message,
-      });
-      return resultOf({ state: "provider_rejected", name, message });
-    }
-    // المعرّفُ هو الدليلُ الوحيد على القبول — يُحفَظ ليُراجَع به عند
-    // المزوّد نفسِه لو سُئل عن رسالةٍ بعد أسابيع
-    const providerId = result.data?.id ?? null;
-    await logEmail(recipients, kind, subject, "أُرسلت", { providerId });
-    return resultOf({ state: "accepted", providerId });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("فشل إرسال البريد:", err);
-    await logEmail(recipients, kind, subject, "فشل الإرسال", {
-      failureKind: "انقطاعٌ قبل بلوغ المزوّد",
-      failureDetail: message,
-    });
-    return resultOf({ state: "transport_failed", message });
-  }
-}
-
 /** بيانات الدخول — ولها مناسبتان لا مناسبة واحدة.
  *
- *  **كانت تقول للمدعوّ «تهانينا، تم اعتماد انضمامك».** وهو لم يُعتمد:
- *  دُعي للتوّ، وأمامه اختبارٌ ثم قرارُ اعتماد قد يكون بالرفض. فكانت
- *  الرسالة تَعِد بما لم يُقرَّر، ويقرأ صاحبها أنه صار عضواً ثم يُفاجَأ
- *  باختبارٍ لم يُذكر له. ثم تُرسَل الرسالة نفسها عند إعادة تعيين كلمة
- *  المرور لعضوٍ قديم، فتُهنّئه على انضمامٍ جرى قبل سنة.
+ *  **الدعوة ليست ترحيباً.** المدعوّ لم يُعتمد بعد: أمامه اختبارٌ ثم قرارٌ
+ *  قد يكون بالرفض. فرسالتُها إعلانُ دعوة — من دعاه، وإلى أين، وما
+ *  خطواته — ومعها ملصقُ الدعوة باسمه ولون قسمه. والترحيبُ وبطاقةُ العضوية
+ *  يصلان عند الاعتماد وحده.
  *
- *  فصار لكلّ مناسبةٍ نصُّها: الدعوة تقول إنها دعوة وتشرح الخطوات،
- *  وإعادة التعيين تقول إنها إعادة تعيين. */
+ *  **ولا جنسَ معروفاً للمدعوّ بعد** — لم يُسجِّل شيئاً. فيُسمّى الموقعُ لا
+ *  صاحبه («قيادة قسم التقنية»)، وتُكتب الخطواتُ مصادرَ لا أوامر. */
 export async function sendCredentialsEmail(opts: {
   to: string;
   fullName: string;
@@ -267,74 +281,76 @@ export async function sendCredentialsEmail(opts: {
   occasion?: "invitation" | "reset";
   /** القسم والمسمّى كما حدّدتهما الإدارة الداعية — لا يُغيّرهما المدعوّ */
   departmentName?: string | null;
+  departmentColorHex?: string | null;
   jobTitle?: string | null;
   roleLabel?: string | null;
+  /** الدور الخام للدعوة — منه يُسمّى الموقع بصيغةٍ لا تحتاج جنساً */
+  targetRole?: string | null;
+  /** من أصدر الدعوة — يُذكَر باسمه في الرسالة وعلى الملصق */
+  invitedByName?: string | null;
+  /** رابطُ ملصق الدعوة الموقَّع */
+  inviteCardUrl?: string | null;
   /** مهلة أول دخول بالساعات */
   hoursValid?: number;
 }) {
   const invitation = (opts.occasion ?? "invitation") === "invitation";
 
-  const facts: [string, string][] = [];
-  if (opts.roleLabel?.trim()) facts.push(["الصفة", opts.roleLabel.trim()]);
-  if (opts.departmentName?.trim()) facts.push(["القسم", opts.departmentName.trim()]);
-  if (opts.jobTitle?.trim()) facts.push(["المسمّى الوظيفي", opts.jobTitle.trim()]);
-
-  const credentials = `
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
-        ${factRow("البريد الإلكتروني", opts.to)}
-        ${factRow("كلمة المرور المؤقتة", opts.tempPassword)}
-      </table>
-      <p style="margin:22px 0">
-        <a href="${esc(opts.loginUrl)}"
-           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
-          ${invitation ? "ابدأ من هنا" : "تسجيل الدخول"}
-        </a>
-      </p>
-      <p style="font-size:13px;color:#6B6B6B">سيُطلب منك تغيير كلمة المرور فور الدخول الأول.</p>`;
-
   if (!invitation) {
+    const r = await recipientOf(opts.to);
+    const G = (m: string, f: string, n?: string) => gx(r.gender, m, f, n);
     return send(
       opts.to,
       "بيانات دخول جديدة لحسابك في تَـــلاقِ",
-      `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-        <p>مرحباً ${esc(opts.fullName)}،</p>
-        <p>أُعيد تعيين بيانات دخولك إلى منصة تَـــلاقِ. استعمل البيانات التالية:</p>
-        ${credentials}
-        <p style="font-size:13px;color:#6B6B6B">إن لم تكن قد طلبت هذا، أبلغ إدارتك فوراً.</p>
-      </div>`,
-      "بيانات الدخول"
+      {
+        tone: "security",
+        title: "بيانات دخول جديدة لحسابك",
+        lead: `${esc(opts.fullName)}، أُعيد تعيين بيانات دخولك إلى منصة تَـــلاقِ. هذه بياناتك الجديدة:`,
+        facts: [
+          ["البريد الإلكتروني", opts.to],
+          ["كلمة المرور المؤقتة", opts.tempPassword],
+        ],
+        cta: { label: "تسجيل الدخول", url: esc(opts.loginUrl) },
+        note: `سيُطلب تغيير كلمة المرور عند الدخول الأول. وإن لم يكن هذا بطلبٍ منك ${G("فأبلغ", "فأبلغي", "فأبلغ")} إدارتك فوراً.`,
+      },
+      "بيانات الدخول",
+      themeOf(r)
     );
   }
 
-  const where = opts.departmentName?.trim()
-    ? `إلى ${opts.departmentName.trim()}`
-    : "إلى فريق تَـــلاقِ";
+  const dept = opts.departmentName?.trim() || null;
+  const position = opts.targetRole ? positionTitle(opts.targetRole, dept) : opts.roleLabel?.trim() || null;
+  const where = dept ? (dept === "الإدارة العليا" ? "الإدارة العليا" : `قسم ${dept}`) : "فريق تَـــلاقِ";
+  const by = opts.invitedByName?.trim();
   const hours = opts.hoursValid ?? 24;
 
   return send(
     opts.to,
-    `دعوة للانضمام إلى تَـــلاقِ${opts.departmentName?.trim() ? ` — ${opts.departmentName.trim()}` : ""}`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>مرحباً ${esc(opts.fullName)}،</p>
-      <p>دعتك إدارة <strong>تَـــلاقِ</strong> للانضمام ${esc(where)}. وهذه دعوةٌ خاصّةٌ بك،
-         والبيانات أدناه سجّلتها الإدارة الداعية — فلا تحتاج إلى تعبئتها ولا يمكن تعديلها.</p>
-      ${facts.length ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">${facts.map(([k, v]) => factRow(k, v)).join("")}</table>` : ""}
-
-      <p style="margin:20px 0 8px;font-weight:bold">خطواتك:</p>
-      <ol style="margin:0 0 16px;padding-inline-start:20px;line-height:2;font-size:14px">
-        <li>ادخل بالبيانات أدناه وغيّر كلمة المرور.</li>
-        <li>أكمل بياناتك الشخصية (تخصّصك وبيانات التواصل).</li>
-        <li>اجتز اختبار القسم — وهو شرط النظر في انضمامك.</li>
-        <li>تُعرض نتيجتك على الإدارة المختصّة لقرار الاعتماد.</li>
-      </ol>
-      <p style="font-size:14px"><strong>الاعتماد ليس تلقائياً:</strong> اجتياز الاختبار يُقدّم طلبك
-         للمراجعة، وتصلك رسالة الانضمام عند الاعتماد.</p>
-      ${credentials}
-      <p style="font-size:13px;color:#6B6B6B">
-        وللدعوة مهلة: إن لم تدخل خلال ${hours} ساعة سقطت ووجب على الإدارة إعادة إصدارها.
-      </p>
-    </div>`,
-    "دعوة"
+    `دعوة للانضمام إلى تَـــلاقِ${dept ? ` — ${dept}` : ""}`,
+    {
+      tone: "action",
+      badge: "دعوة خاصّة",
+      title: `${firstName(opts.fullName)}، هذه دعوتك إلى تَـــلاقِ`,
+      lead: `${by ? `دعاك <b>${esc(by)}</b>` : "دعتك إدارة <b>تَـــلاقِ</b>"} للانضمام إلى ${esc(where)}${position ? ` في موقع <b>${esc(position)}</b>` : ""}. وهذه دعوةٌ خاصّة باسمك، وبياناتُها سجّلتها الجهة الداعية.`,
+      image: opts.inviteCardUrl
+        ? { src: opts.inviteCardUrl, width: 544, height: 680, alt: `دعوة خاصّة — ${opts.fullName}`, href: esc(opts.loginUrl) }
+        : undefined,
+      paragraphs: [
+        `<b>الخطوات من هنا:</b><br>١. الدخول بالبيانات أدناه وتغيير كلمة المرور.<br>٢. استكمال البيانات الشخصية.<br>٣. اجتياز اختبار القبول — وهو شرط النظر في الانضمام.<br>٤. عرض النتيجة على الإدارة المختصّة لقرار الاعتماد.`,
+      ],
+      facts: [
+        ["الموقع", position],
+        ["المسمّى الوظيفي", opts.jobTitle],
+        ["البريد الإلكتروني", opts.to],
+        ["كلمة المرور المؤقتة", opts.tempPassword],
+      ],
+      cta: { label: "الدخول وبدء الخطوات", url: esc(opts.loginUrl) },
+      after: [
+        "<b>الاعتماد ليس تلقائياً:</b> اجتياز الاختبار يرفع الطلب للمراجعة، وبطاقةُ العضوية تصل عند الاعتماد.",
+      ],
+      note: `للدعوة مهلة ${hours} ساعة؛ إن انقضت دون دخولٍ سقطت ووجب إصدارها من جديد.`,
+    },
+    "دعوة",
+    { departmentName: dept, colorHex: opts.departmentColorHex ?? null }
   );
 }
 
@@ -345,47 +361,58 @@ export async function sendWarningEmail(opts: {
   warningsCount: number;
   loginUrl: string;
 }) {
+  const r = await recipientOf(opts.to);
   const isFinal = opts.warningsCount >= 3;
+  const content: EmailContent = isFinal
+    ? {
+        tone: "alert",
+        badge: "إشعار رسمي",
+        title: "إشعار إنهاء العضوية",
+        lead: `${esc(opts.fullName)}، بلغت التنبيهاتُ الحدَّ المسموح (٣)، ونأسف لإبلاغك بإنهاء العضوية في المنصة.`,
+        quote: { label: "السبب الأخير", text: opts.reason },
+        note: "هذا الإشعار مُسجَّلٌ في سجلّ الفريق ويمكن الرجوع إليه.",
+      }
+    : {
+        tone: "alert",
+        badge: `تنبيه رسمي · ${opts.warningsCount} من ٣`,
+        title: "تنبيهٌ رسمي",
+        lead: `${esc(opts.fullName)}، صدر في حسابك تنبيهٌ رسميّ، وهو مسجَّلٌ في سجلّ الفريق.`,
+        quote: { label: "سبب التنبيه", text: opts.reason },
+        facts: [["التنبيهات", `${opts.warningsCount} من ٣`]],
+        cta: { label: "الاطّلاع على التنبيه", url: esc(opts.loginUrl) },
+        note: "عند بلوغ ثلاثة تنبيهات تنتهي العضوية تلقائياً.",
+      };
   return send(
     opts.to,
     isFinal ? "إشعار إنهاء العضوية — تَـــلاقِ" : `تنبيه (${opts.warningsCount}/3) — تَـــلاقِ`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>مرحباً ${esc(opts.fullName)}،</p>
-      ${
-        isFinal
-          ? `<p>نظراً لتجاوز عدد التنبيهات المسموح (3)، نأسف لإبلاغك بإنهاء عضويتك في المنصة.</p>
-             <p>السبب الأخير: ${esc(opts.reason)}</p>`
-          : `<p>وصلك تنبيه رقم <strong>${opts.warningsCount} من 3</strong>:</p>
-             <p>${esc(opts.reason)}</p>
-             <p>يرجى الدخول إلى المنصة لتأكيد الاطلاع عليه.</p>
-             <p><a href="${opts.loginUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">الدخول إلى المنصة</a></p>`
-      }
-    </div>`,
-    "تنبيه"
+    content,
+    "تنبيه",
+    themeOf(r)
   );
 }
 
 export async function sendExitEmail(opts: { to: string; fullName: string; reason: string }) {
+  const r = await recipientOf(opts.to);
   return send(
     opts.to,
     "إنهاء العضوية — تَـــلاقِ",
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>مرحباً ${esc(opts.fullName)}،</p>
-      <p>نحيطك علماً بإنهاء عضويتك في منصة تَـــلاقِ.</p>
-      <p>السبب: ${esc(opts.reason)}</p>
-    </div>`,
-    "إنهاء عضوية"
+    {
+      tone: "alert",
+      badge: "إشعار رسمي",
+      title: "إنهاء العضوية",
+      lead: `${esc(opts.fullName)}، نحيطك علماً بإنهاء العضوية في منصة تَـــلاقِ.`,
+      quote: { label: "السبب", text: opts.reason },
+      note: "هذا الإشعار مُسجَّلٌ في سجلّ الفريق ويمكن الرجوع إليه.",
+    },
+    "إنهاء عضوية",
+    themeOf(r)
   );
 }
 
-/** شهادة الشكر والتقدير — تصل برابطها لا بخبرها.
+/** شهادة الشكر والخبرة — تصل برابطها لا بخبرها.
  *
- *  كانت الرسالة تُعلن «أُصدرت لك شهادة» ثم تنتهي: خبرٌ بلا شهادة. وصاحبها
- *  خرج من الفريق وحسابه مُعطَّل، فلا يستطيع الدخول ليقرأها. فالرابط
- *  الموقَّع هو الشهادة نفسها — يُفتح بلا تسجيل دخول، ويُطبَع PDF بضغطة.
- *
- *  والرسالة تذكر مدّته وقسمه ومهمته من السجل الرسمي: الشهادة وثيقةٌ،
- *  ومن يقرأ بريدها يجب أن يرى ما فيها قبل أن يفتحها. */
+ *  صاحبها خرج من الفريق وحسابه مُعطَّل، فلا يستطيع الدخول ليقرأها. فالرابط
+ *  الموقَّع هو الشهادة نفسها — يُفتح بلا تسجيل دخول، ويُطبَع PDF بضغطة. */
 export async function sendCertificateEmail(opts: {
   to: string;
   fullName: string;
@@ -395,30 +422,30 @@ export async function sendCertificateEmail(opts: {
   period?: { start: Date; end: Date } | null;
   certificateUrl: string;
 }) {
-  const facts: [string, string][] = [];
-  if (opts.roleLabel?.trim()) facts.push(["الصفة", opts.roleLabel.trim()]);
-  if (opts.mission?.trim()) facts.push(["المهمة", opts.mission.trim()]);
-  if (opts.departmentName?.trim()) facts.push(["القسم", opts.departmentName.trim()]);
-  if (opts.period) {
-    facts.push(["المدّة", `${formatDate(opts.period.start)} — ${formatDate(opts.period.end)}`]);
-  }
-
+  const r = await recipientOf(opts.to);
+  const role = r.role ? roleTitle(r.role, r.gender, opts.departmentName ?? r.departmentName) : opts.roleLabel;
   return send(
     opts.to,
-    "شهادة شكر وتقدير — تَـــلاقِ",
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>مرحباً ${esc(opts.fullName)}،</p>
-      <p>تقديراً لمسيرتك في منصة تَـــلاقِ، صدرت لك شهادة شكر وتقدير موقَّعة.</p>
-      ${facts.length ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:18px 0">${facts.map(([k, v]) => factRow(k, v)).join("")}</table>` : ""}
-      <p style="margin:22px 0">
-        <a href="${esc(opts.certificateUrl)}"
-           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
-          اعرض شهادتك واحفظها PDF
-        </a>
-      </p>
-      <p style="font-size:13px;color:#6B6B6B">الرابط خاصٌّ بك ويعمل بلا تسجيل دخول — فاحفظ الشهادة عندك.</p>
-    </div>`,
-    "شهادة إتمام"
+    "شهادة شكر وخبرة — تَـــلاقِ",
+    {
+      tone: "celebrate",
+      badge: "شهادة شكر وخبرة",
+      title: `${forms(r.gender).thanks}، ${firstName(opts.fullName)}`,
+      lead: `تقديراً لمسيرتك في تَـــلاقِ، صدرت ${forms(r.gender).toYou} شهادةُ شكرٍ وخبرة موقَّعة، بلون قسمك وبتوقيع من عملتَ معهم.`.replace(
+        "عملتَ",
+        gx(r.gender, "عملتَ", "عملتِ", "عملت")
+      ),
+      facts: [
+        ["الصفة", role],
+        ["المهمة", opts.mission],
+        ["القسم", opts.departmentName],
+        ["المدّة", opts.period ? `${formatDate(opts.period.start)} — ${formatDate(opts.period.end)}` : null],
+      ],
+      cta: { label: "عرض الشهادة وحفظها PDF", url: esc(opts.certificateUrl) },
+      note: "الرابط خاصٌّ بك ويعمل بلا تسجيل دخول — فالأفضل حفظ الشهادة عندك.",
+    },
+    "شهادة إتمام",
+    { departmentName: opts.departmentName ?? r.departmentName, colorHex: r.colorHex }
   );
 }
 
@@ -434,49 +461,36 @@ export async function sendAppreciationEmail(opts: {
   departmentName?: string | null;
   certificateUrl: string;
 }) {
-  const role = opts.jobTitle?.trim();
-  const dept = opts.departmentName?.trim();
-  const place = role
-    ? dept
-      ? `في منصبك ${role} ضمن ${dept}`
-      : `في منصبك ${role}`
-    : dept
-      ? `ضمن ${dept}`
-      : "معنا";
-
+  const r = await recipientOf(opts.to);
+  const f = forms(r.gender);
   return send(
     opts.to,
     "ثلاثة أشهر من العطاء — شهادة تقدير من تَـــلاقِ",
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>أهلاً وسهلاً، ${esc(opts.fullName)}،</p>
-      <p>ثلاثة أشهرٍ مضت منذ انضمامك إلى مسيرتنا في تَـــلاقِ، وثلاثة أشهرٍ من
-         العمل والتعلّم والمساهمة في بناء ما نطمح إليه معاً.</p>
-      <p>يسعدنا أن نحتفي بإكمالك ثلاثة أشهرٍ ${esc(place)}، وأن نعبّر لك عن
-         تقديرنا للوقت والجهد الذي خصّصته لهذه التجربة.</p>
-      <p>نؤمن أن الأثر الحقيقي لا يُقاس بالوقت وحده، بل بما نتعلّمه، وما نبنيه،
-         وما نضيفه إلى الفريق. ونتمنّى أن تكون الأشهر القادمة مليئةً بفرصٍ أكبر،
-         وأفكارٍ أجمل، وإنجازاتٍ نفتخر بها جميعاً.</p>
-      <p style="margin:22px 0">
-        <a href="${esc(opts.certificateUrl)}"
-           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
-          اعرض شهادة التقدير
-        </a>
-      </p>
-      <p>شكراً لكونك جزءاً من تَـــلاقِ.</p>
-    </div>`,
-    "تقدير ثلاثة أشهر"
+    {
+      tone: "celebrate",
+      badge: "ثلاثة أشهر من العطاء",
+      title: `ثلاثة أشهرٍ معاً، ${firstName(opts.fullName)}`,
+      lead: "مضت ثلاثة أشهرٍ على انضمامك إلى مسيرتنا — ثلاثة أشهرٍ من العمل والتعلّم والإسهام في بناء ما نطمح إليه معاً.",
+      paragraphs: [
+        `يسعدنا أن نحتفي بهذه المحطّة، وأن نعبّر ${f.toYou} عن تقديرنا للوقت والجهد في هذه التجربة. فالأثرُ الحقيقي لا يُقاس بالوقت وحده، بل بما نتعلّمه ونبنيه ونضيفه إلى الفريق.`,
+      ],
+      facts: [
+        ["المسمّى", opts.jobTitle],
+        ["القسم", opts.departmentName],
+      ],
+      cta: { label: "عرض شهادة التقدير", url: esc(opts.certificateUrl) },
+      after: [`${f.thanks} — ونتطلّع إلى ما نصنعه معاً في الأشهر القادمة.`],
+    },
+    "تقدير ثلاثة أشهر",
+    { departmentName: opts.departmentName ?? r.departmentName, colorHex: r.colorHex }
   );
 }
 
 /** رسالةُ تحفيزٍ وتكريمٍ على إنجاز — يُرسلها المؤسس أو التنفيذي بيده.
  *
  *  **وليست تلقائية.** لا كنسٌ يُطلقها ولا قاعدةٌ تستنتج الإنجاز: من
- *  يقودُ يرى الأثر ويَنسبه لصاحبه. ولو أُرسلت آلياً لصارت بريداً
- *  معتاداً لا تكريماً — والتكريمُ قيمتُه أن إنساناً قصده.
- *
- *  والجائزةُ اختيارية: قد يكون التكريم كلمةً وحدها، وقد يحمل معه
- *  جائزةً تُذكَر باسمها. وما لم يُذكَر لا يُفترَض.
- */
+ *  يقودُ يرى الأثر ويَنسبه لصاحبه. والجائزةُ اختيارية، وما لم يُذكَر لا
+ *  يُفترَض. */
 export async function sendAwardEmail(opts: {
   to: string;
   fullName: string;
@@ -491,45 +505,32 @@ export async function sendAwardEmail(opts: {
   fromRole: string;
   portalUrl: string;
 }) {
-  const award = opts.award?.trim();
+  const r = await recipientOf(opts.to);
+  const G = (m: string, f: string, n?: string) => gx(r.gender, m, f, n);
   const note = opts.note?.trim();
-
   return send(
     opts.to,
     `تكريمٌ من تَـــلاقِ: ${opts.achievement}`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>أحسنتَ، ${esc(opts.fullName)}!</p>
-      <p>وصلنا أثرُ ما صنعتَه، ونُحبّ أن نقوله لك صريحاً لا أن نكتفي بمعرفته:</p>
-      <p style="margin:18px 0;padding:14px 18px;background:#EEF6DF;border-radius:14px;
-                border-right:4px solid #C34900;font-weight:bold;color:#341D2B">
-        ${esc(opts.achievement)}
-      </p>
-      ${
-        award
-          ? `<p style="margin:18px 0;padding:14px 18px;background:#FFFFFF;border:1px solid rgba(52,29,43,0.14);
-                border-radius:14px">
-               <span style="color:#C34900;font-weight:bold">الجائزة المرافقة:</span>
-               ${esc(award)}
-             </p>`
-          : ""
-      }
-      ${note ? `<p>${esc(note)}</p>` : ""}
-      <p>مع التقدير،<br/><strong>${esc(opts.fromName)}</strong> — ${esc(opts.fromRole)}</p>
-      <p style="margin:22px 0">
-        <a href="${esc(opts.portalUrl)}"
-           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
-          افتح لوحتك
-        </a>
-      </p>
-    </div>`,
-    "تكريم إنجاز"
+    {
+      tone: "celebrate",
+      badge: "تكريم",
+      title: `${forms(r.gender).wellDone}، ${firstName(opts.fullName)}!`,
+      lead: `وصلنا أثرُ ما ${G("صنعتَه", "صنعتِه", "صنعته")}، ونحبّ أن نقوله ${forms(r.gender).toYou} صريحاً لا أن نكتفي بمعرفته:`,
+      quote: { label: "الإنجاز", text: opts.achievement },
+      facts: [["الجائزة المرافقة", opts.award]],
+      paragraphs: note ? [esc(note)] : [],
+      after: [`مع التقدير،<br><b>${esc(opts.fromName)}</b> — ${esc(opts.fromRole)}`],
+      cta: { label: "فتح المنصة", url: esc(opts.portalUrl) },
+    },
+    "تكريم إنجاز",
+    themeOf(r)
   );
 }
 
 /** طلب توقيع من قائدٍ جديد.
  *
  *  يشرح لماذا يُطلب وأين يُرسَم: التوقيع يُوضَع على شهادات الشكر التي
- *  يُوقّعها لأعضاء قسمه. ومن لا يفهم لماذا يُطلب توقيعُه لا يرفعه. */
+ *  يُوقّعها. ومن لا يفهم لماذا يُطلب توقيعُه لا يرفعه. */
 export async function sendSignatureRequestEmail(opts: {
   to: string;
   fullName: string;
@@ -537,35 +538,28 @@ export async function sendSignatureRequestEmail(opts: {
   departmentName?: string | null;
   uploadUrl: string;
 }) {
-  const scope = opts.departmentName?.trim()
-    ? `أعضاء ${opts.departmentName.trim()}`
-    : "من تُوقّع لهم";
-
+  const r = await recipientOf(opts.to);
+  const role = r.role ? roleTitle(r.role, r.gender, opts.departmentName ?? r.departmentName) : opts.roleLabel;
+  const scope = opts.departmentName?.trim() ? `أعضاء ${opts.departmentName.trim()}` : "من تُوقَّع لهم";
   return send(
     opts.to,
     "نحتاج توقيعك — شهادات تَـــلاقِ",
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>مرحباً ${esc(opts.fullName)}،</p>
-      <p>بصفتك <strong>${esc(opts.roleLabel)}</strong>، أنت من يُوقّع شهادات الشكر والتقدير
-         التي تُصدرها تَـــلاقِ لـ${esc(scope)}.</p>
-      <p>ولهذا نحتاج توقيعك مرّةً واحدة: يُرسَم على الشهادات التي تصدر باسمك، فيقرأ صاحبُها
-         توقيعَ من عمل تحته فعلاً لا اسماً مطبوعاً.</p>
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
-        ${factRow("الصفة", opts.roleLabel)}
-        ${opts.departmentName?.trim() ? factRow("القسم", opts.departmentName.trim()) : ""}
-      </table>
-      <p style="margin:22px 0">
-        <a href="${esc(opts.uploadUrl)}"
-           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
-          ارفع توقيعك
-        </a>
-      </p>
-      <p style="font-size:13px;color:#6B6B6B">
-        ارسم توقيعك على ورقةٍ بيضاء وصوّره، أو ارسمه داخل الصفحة مباشرةً. ويُعتمد من الإدارة
-        قبل أن يُرسَم على أي شهادة — ولا يُستعمل توقيعُ قائدٍ سابق مكانه.
-      </p>
-    </div>`,
-    "طلب توقيع"
+    {
+      tone: "action",
+      title: "نحتاج توقيعك",
+      lead: `${esc(opts.fullName)}، بصفتك <b>${esc(role)}</b> يحمل توقيعُك شهاداتِ الشكر والتقدير التي تُصدرها تَـــلاقِ لـ${esc(scope)}.`,
+      paragraphs: [
+        "يُرفع التوقيع مرّةً واحدة، ويُرسَم على الشهادات التي تصدر باسمك — فيقرأ صاحبُها توقيعَ من عمل معه فعلاً، لا اسماً مطبوعاً.",
+      ],
+      facts: [
+        ["الصفة", role],
+        ["القسم", opts.departmentName],
+      ],
+      cta: { label: "رفع التوقيع", url: esc(opts.uploadUrl) },
+      note: "يُرسم التوقيع على ورقةٍ بيضاء ويُصوَّر، أو داخل الصفحة مباشرة. ويُعتمد من الإدارة قبل استعماله، ولا يُستعمل توقيعُ قائدٍ سابق مكانه.",
+    },
+    "طلب توقيع",
+    themeOf(r)
   );
 }
 
@@ -582,30 +576,29 @@ export async function sendTerminationRequestEmail(opts: {
   requestedEndDate: Date | null;
   portalUrl: string;
 }) {
+  const r = await recipientOf(opts.to);
   return send(
     opts.to,
     `طلب إنهاء فترة الإدارة: ${opts.memberName}`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>رفع <strong>${esc(opts.memberName)}</strong> طلب إنهاء فترة الإدارة في تَـــلاقِ.</p>
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
-        ${factRow("التكليف", opts.assignmentLabel)}
-        ${factRow("البريد", opts.memberEmail)}
-        ${opts.requestedEndDate ? factRow("التاريخ المقترح", formatDate(opts.requestedEndDate)) : ""}
-      </table>
-      <p style="margin:0 0 6px;font-weight:bold">سبب الطلب بكلماته:</p>
-      <p style="margin:0 0 18px;padding:12px 14px;background:#F6F4F0;border-radius:10px">${esc(opts.reason)}</p>
-      <p style="font-size:14px">وأمامك ثلاثة: الموافقة بتاريخٍ تُثبته، أو الرفض بتفسيرٍ يُقرأ له،
-         أو <strong>طلب لقاءٍ قبل أن تقرّر</strong> — واللقاء ليس موافقةً ولا رفضاً.</p>
-      <p style="font-size:14px;color:#6B6B6B">ولم يتوقّف عمله بالرفع: يبقى على تكليفه حتى تقرّر
-         وتحلّ المهلة.</p>
-      <p style="margin:22px 0">
-        <a href="${esc(opts.portalUrl)}"
-           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
-          افتح الطلب
-        </a>
-      </p>
-    </div>`,
-    "طلب إنهاء إدارة"
+    {
+      tone: "action",
+      title: "طلب إنهاء فترة الإدارة",
+      lead: `رُفع طلبُ إنهاء فترة الإدارة من <b>${esc(opts.memberName)}</b>، وهو بانتظار قرارك.`,
+      facts: [
+        ["مقدّم الطلب", opts.memberName],
+        ["التكليف", opts.assignmentLabel],
+        ["البريد", opts.memberEmail],
+        ["التاريخ المقترح", opts.requestedEndDate ? formatDate(opts.requestedEndDate) : null],
+      ],
+      quote: { label: "سبب الطلب كما كُتب", text: opts.reason },
+      after: [
+        "الخيارات ثلاثة: الموافقة بتاريخٍ يُثبَت، أو الرفض بتفسيرٍ يُقرأ لصاحب الطلب، أو <b>طلب لقاءٍ قبل القرار</b> — واللقاء ليس موافقةً ولا رفضاً.",
+      ],
+      cta: { label: "فتح الطلب", url: esc(opts.portalUrl) },
+      note: "لا يتوقّف العمل برفع الطلب: يبقى التكليف قائماً حتى القرار وحلول المهلة.",
+    },
+    "طلب إنهاء إدارة",
+    themeOf(r)
   );
 }
 
@@ -619,6 +612,8 @@ export async function sendTerminationDecisionEmail(opts: {
   endDate: Date | null;
   byName: string;
 }) {
+  const r = await recipientOf(opts.to);
+  const G = (m: string, f: string, n?: string) => gx(r.gender, m, f, n);
   const subject =
     opts.decision === "approve"
       ? "وُوفق على طلب إنهاء فترة الإدارة"
@@ -626,28 +621,46 @@ export async function sendTerminationDecisionEmail(opts: {
         ? "بشأن طلب إنهاء فترة الإدارة"
         : "طلب لقاء بشأن طلبك";
 
-  const body =
+  const content: EmailContent =
     opts.decision === "approve"
-      ? `<p>وُوفق على طلبك إنهاء فترة الإدارة في <strong>${esc(opts.assignmentLabel)}</strong>.</p>
-         ${opts.endDate ? `<p>تاريخ الانتهاء المُثبَت: <strong>${esc(formatDate(opts.endDate))}</strong>. وتبقى على عملك حتى ذلك اليوم.</p>` : ""}
-         <p>وتصلك شهادة شكرٍ وتقدير عند الختام — لا ينتهي أحدٌ عندنا بلا توثيق.</p>`
+      ? {
+          tone: "info",
+          badge: "قرار",
+          title: "وُوفق على طلبك",
+          lead: `${esc(opts.memberName)}، وُوفق على طلبك إنهاءَ فترة الإدارة في <b>${esc(opts.assignmentLabel)}</b>.`,
+          paragraphs: [
+            `${opts.endDate ? `${G("وتبقى", "وتبقين", "ويبقى التكليف قائماً")}${r.gender ? " على عملك" : ""} حتى تاريخ الانتهاء المُثبَت أدناه. ` : ""}وتصلك شهادة شكرٍ وخبرة عند الختام — لا ينتهي أحدٌ عندنا بلا توثيق.`,
+          ],
+        }
       : opts.decision === "reject"
-        ? `<p>نظرنا في طلبك إنهاء فترة الإدارة في <strong>${esc(opts.assignmentLabel)}</strong>،
-             ولم يُوافَق عليه.</p>`
-        : `<p>بشأن طلبك إنهاء فترة الإدارة في <strong>${esc(opts.assignmentLabel)}</strong>:
-             يطلب مسؤولك لقاءً قبل أن يقرّر.</p>
-           <p><strong>وهذا ليس موافقةً ولا رفضاً</strong> — طلبك قائمٌ كما هو، والقرار يأتي بعد اللقاء.</p>`;
+        ? {
+            tone: "info",
+            badge: "قرار",
+            title: "بشأن طلب إنهاء فترة الإدارة",
+            lead: `${esc(opts.memberName)}، نُظر في طلبك إنهاءَ فترة الإدارة في <b>${esc(opts.assignmentLabel)}</b>، ولم يُوافَق عليه.`,
+          }
+        : {
+            tone: "action",
+            badge: "طلب لقاء",
+            title: "طلب لقاءٍ قبل القرار",
+            lead: `${esc(opts.memberName)}، بشأن طلبك إنهاءَ فترة الإدارة في <b>${esc(opts.assignmentLabel)}</b>: طُلب لقاءٌ قبل اتخاذ القرار.`,
+            paragraphs: ["<b>وهذا ليس موافقةً ولا رفضاً</b> — الطلب قائمٌ كما هو، والقرار بعد اللقاء."],
+          };
 
   return send(
     opts.to,
     subject,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>مرحباً ${esc(opts.memberName)}،</p>
-      ${body}
-      ${opts.note ? `<p style="margin:16px 0 0;padding:12px 14px;background:#F6F4F0;border-radius:10px"><strong>${opts.decision === "reject" ? "التفسير" : "ملاحظة"}:</strong> ${esc(opts.note)}</p>` : ""}
-      <p style="margin-top:18px;font-size:13px;color:#6B6B6B">القرار من: ${esc(opts.byName)}</p>
-    </div>`,
-    "قرار إنهاء إدارة"
+    {
+      ...content,
+      facts: [
+        ["التكليف", opts.assignmentLabel],
+        ["تاريخ الانتهاء", opts.decision === "approve" && opts.endDate ? formatDate(opts.endDate) : null],
+        ["القرار من", opts.byName],
+      ],
+      quote: opts.note ? { label: opts.decision === "reject" ? "التفسير" : "ملاحظة", text: opts.note } : null,
+    },
+    "قرار إنهاء إدارة",
+    themeOf(r)
   );
 }
 
@@ -660,18 +673,26 @@ export async function sendTicketCreatedEmail(opts: {
   portalUrl: string;
   linkUrl?: string | null;
 }) {
+  const r = await recipientOf(opts.to);
   return send(
     opts.to,
     `تذكرة جديدة: ${opts.subject}`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>رفع العضو <strong>${esc(opts.memberName)}</strong> تذكرة جديدة:</p>
-      <p><strong>${esc(opts.subject)}</strong></p>
-      <p>${esc(opts.description)}</p>
-      ${opts.linkUrl ? `<p style="font-size:14px">الرابط المرفق: <a href="${esc(opts.linkUrl)}" style="color:#8C3600;font-weight:bold" dir="ltr">${esc(opts.linkUrl)}</a></p>` : ""}
-      <p>المهلة للرد: ${formatDate(opts.dueDate)} — إذا لم يُستجب خلالها تتصعّد التذكرة تلقائياً.</p>
-      <p><a href="${opts.portalUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">فتح المنصة</a></p>
-    </div>`,
-    "تذكرة جديدة"
+    {
+      tone: "action",
+      badge: "تذكرة جديدة · إجراء مطلوب",
+      title: opts.subject,
+      lead: `وصلت تذكرةٌ جديدة من <b>${esc(opts.memberName)}</b>، وهي بانتظار ردّك.`,
+      facts: [
+        ["من", opts.memberName],
+        ["المهلة", formatDate(opts.dueDate)],
+        ["الرابط المرفق", opts.linkUrl],
+      ],
+      quote: { label: "التفاصيل", text: opts.description },
+      cta: { label: "فتح التذكرة", url: esc(opts.portalUrl) },
+      note: "إن انقضت المهلة دون ردّ تُصعَّد التذكرة تلقائياً إلى المرحلة التالية.",
+    },
+    "تذكرة جديدة",
+    themeOf(r)
   );
 }
 
@@ -686,18 +707,26 @@ export async function sendTicketEscalatedEmail(opts: {
 }) {
   const blocked = await suppressed("ticket.escalated", opts.to, "تصعيد تذكرة", `تذكرة متصعّدة إليك: ${opts.subject}`);
   if (blocked) return blocked;
+  const r = await recipientOf(opts.to);
 
   return send(
     opts.to,
     `تذكرة متصعّدة إليك: ${opts.subject}`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>لم تُحل تذكرة العضو <strong>${esc(opts.memberName)}</strong> خلال المهلة المحددة، وتصعّدت الآن إلى: <strong>${esc(opts.stageLabel)}</strong>.</p>
-      <p><strong>${esc(opts.subject)}</strong></p>
-      <p>${esc(opts.description)}</p>
-      ${opts.dueDate ? `<p>المهلة الجديدة: ${formatDate(opts.dueDate)}</p>` : ""}
-      <p><a href="${opts.portalUrl}" style="background:#341D2B;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">فتح المنصة</a></p>
-    </div>`,
-    "تصعيد تذكرة"
+    {
+      tone: "action",
+      badge: "تصعيد · إجراء مطلوب",
+      title: opts.subject,
+      lead: `لم تُحَلّ تذكرة <b>${esc(opts.memberName)}</b> خلال مهلتها، فصُعِّدت إلى: <b>${esc(opts.stageLabel)}</b>.`,
+      facts: [
+        ["من", opts.memberName],
+        ["المرحلة", opts.stageLabel],
+        ["المهلة الجديدة", opts.dueDate ? formatDate(opts.dueDate) : null],
+      ],
+      quote: { label: "التفاصيل", text: opts.description },
+      cta: { label: "فتح التذكرة", url: esc(opts.portalUrl) },
+    },
+    "تصعيد تذكرة",
+    themeOf(r)
   );
 }
 
@@ -706,19 +735,25 @@ export async function sendTicketResolvedEmail(opts: {
   subject: string;
   resolutionNote: string;
 }) {
+  const r = await recipientOf(opts.to);
   return send(
     opts.to,
     `تم حل تذكرتك: ${opts.subject}`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>تم التعامل مع تذكرتك: <strong>${esc(opts.subject)}</strong>.</p>
-      <p>${esc(opts.resolutionNote)}</p>
-    </div>`,
-    "حل تذكرة"
+    {
+      tone: "celebrate",
+      badge: "أُنجزت",
+      title: `أُنجزت تذكرتك: ${opts.subject}`,
+      lead: "تمّ التعامل مع تذكرتك، وهذه ملاحظة الحلّ كما كُتبت:",
+      quote: { label: "ملاحظة الحلّ", text: opts.resolutionNote },
+      cta: { label: "فتح المنصة", url: portal() },
+    },
+    "حل تذكرة",
+    themeOf(r)
   );
 }
 
 /** سحب التذكرة — يُخبَر به من كان الطلب في يده ليتوقّف عن عملٍ صار بلا
- *  داعٍ. ولا يُقال فيه «تم الحل»: لم يُحَلّ، بل رفعه صاحبه ثم رفَعه. */
+ *  داعٍ. ولا يُقال فيه «تم الحل»: لم يُحَلّ، بل رفعه صاحبه ثم سحبه. */
 export async function sendTicketWithdrawnEmail(opts: {
   to: string | string[];
   ticketNumber: number;
@@ -728,17 +763,22 @@ export async function sendTicketWithdrawnEmail(opts: {
 }) {
   const blocked = await suppressed("ticket.withdrawn", opts.to, "سحب تذكرة", `سُحبت التذكرة: ${opts.subject}`);
   if (blocked) return blocked;
+  const r = await recipientOf(opts.to);
 
   return send(
     opts.to,
     `سُحبت التذكرة #${opts.ticketNumber}: ${opts.subject}`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>سحب <strong>${esc(opts.byName)}</strong> التذكرة التي رفعها، فلم تبقَ بانتظار ردّك:</p>
-      <p><strong>#${opts.ticketNumber} — ${esc(opts.subject)}</strong></p>
-      <p>السبب: ${esc(opts.reason)}</p>
-      <p style="color:#555">لم تُحَلّ التذكرة — سُحبت. فلا إجراء عليك.</p>
-    </div>`,
-    "سحب تذكرة"
+    {
+      tone: "info",
+      badge: "سُحبت",
+      title: `سُحبت التذكرة #${opts.ticketNumber}`,
+      lead: `سُحبت التذكرة بطلبٍ من <b>${esc(opts.byName)}</b>، فلم تعد بانتظار ردّك.`,
+      facts: [["التذكرة", `#${opts.ticketNumber} — ${opts.subject}`]],
+      quote: { label: "السبب", text: opts.reason },
+      note: "لم تُحَلّ التذكرة — سُحبت. فلا إجراء مطلوب.",
+    },
+    "سحب تذكرة",
+    themeOf(r)
   );
 }
 
@@ -757,24 +797,30 @@ export async function sendApprovalRequestEmail(opts: {
   /** حين يُعاد الطلب بعد تعديله */
   resubmitted?: boolean;
 }) {
-  const head = opts.resubmitted
-    ? "أُعيد إليك طلبٌ بعد تعديله"
+  const r = await recipientOf(opts.to);
+  const lead = opts.resubmitted
+    ? "أُعيد إليك طلبٌ بعد تعديله، وهو بانتظار قرارك."
     : opts.afterStepBy
-      ? `اعتمده ${esc(opts.afterStepBy)} وانتقل إليك`
-      : "طلبُ اعتمادٍ ينتظر قرارك";
+      ? `اعتمد <b>${esc(opts.afterStepBy)}</b> هذا الطلب، وانتقل إليك لاستكمال الاعتماد.`
+      : "طلبُ اعتمادٍ ينتظر قرارك.";
   return send(
     opts.to,
     `طلب اعتماد #${opts.ticketNumber}: ${opts.subject}`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p><strong>${head}.</strong></p>
-      <p><strong>#${opts.ticketNumber} — ${esc(opts.subject)}</strong></p>
-      <p>النوع: ${esc(opts.kindLabel)}</p>
-      <p>مُقدّم الطلب: ${esc(opts.requesterName)} — ${esc(opts.requesterRole)}</p>
-      ${opts.stepsTotal > 1 ? `<p>مسارُ الاعتماد: ${opts.stepsTotal} موافقات</p>` : ""}
-      <p><a href="${opts.url}">راجع الطلب وقرّر</a></p>
-      <p style="color:#555">ولا يُعتمد الطلب إلا منك — الزرّ في صفحته، والقرار يُسجَّل باسمك ووقته.</p>
-    </div>`,
-    "طلب اعتماد"
+    {
+      tone: "action",
+      badge: "طلب اعتماد",
+      title: `#${opts.ticketNumber} — ${opts.subject}`,
+      lead,
+      facts: [
+        ["النوع", opts.kindLabel],
+        ["مقدّم الطلب", `${opts.requesterName} — ${opts.requesterRole}`],
+        ["مسار الاعتماد", opts.stepsTotal > 1 ? `${opts.stepsTotal} موافقات` : null],
+      ],
+      cta: { label: "مراجعة الطلب واتخاذ القرار", url: esc(opts.url) },
+      note: "لا يُعتمد الطلب إلا من صاحب الصلاحية، ويُسجَّل القرار باسمه ووقته.",
+    },
+    "طلب اعتماد",
+    themeOf(r)
   );
 }
 
@@ -790,22 +836,27 @@ export async function sendApprovalDecisionEmail(opts: {
   nextApproverName?: string;
   url: string;
 }) {
+  const r = await recipientOf(opts.to);
   return send(
     opts.to,
     `قرار على طلبك #${opts.ticketNumber}: ${opts.stateLabel}`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>طلبك <strong>#${opts.ticketNumber} — ${esc(opts.subject)}</strong> صار:
-         <strong>${esc(opts.stateLabel)}</strong></p>
-      <p>القرار من: ${esc(opts.byName)}</p>
-      ${opts.note ? `<p>الملاحظة: ${esc(opts.note)}</p>` : ""}
-      ${
-        opts.nextApproverName
-          ? `<p>وانتقل الطلب إلى <strong>${esc(opts.nextApproverName)}</strong> لاستكمال الموافقات.</p>`
-          : ""
-      }
-      <p><a href="${opts.url}">افتح الطلب</a></p>
-    </div>`,
-    "قرار اعتماد"
+    {
+      tone: "info",
+      badge: "قرار",
+      title: `قرارٌ على طلبك #${opts.ticketNumber}`,
+      lead: `صار طلبك <b>${esc(opts.subject)}</b>: <b>${esc(opts.stateLabel)}</b>.${
+        opts.nextApproverName ? ` وانتقل إلى <b>${esc(opts.nextApproverName)}</b> لاستكمال الموافقات.` : ""
+      }`,
+      facts: [
+        ["الحالة", opts.stateLabel],
+        ["القرار من", opts.byName],
+        ["التالي", opts.nextApproverName],
+      ],
+      quote: opts.note ? { label: "الملاحظة", text: opts.note } : null,
+      cta: { label: "فتح الطلب", url: esc(opts.url) },
+    },
+    "قرار اعتماد",
+    themeOf(r)
   );
 }
 
@@ -820,17 +871,24 @@ export async function sendTicketReminderEmail(opts: {
 }) {
   const blocked = await suppressed("ticket.reminder", opts.to, "تذكير تذكرة", `تذكير: ${opts.subject}`);
   if (blocked) return blocked;
+  const r = await recipientOf(opts.to);
 
   return send(
     opts.to,
     `تذكير — تذكرة لم تُحل بعد: ${opts.subject}`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>تذكير من ${esc(opts.fromName)} (مسؤول التشغيل): التذكرة التالية ما زالت بانتظار ردك كـ<strong>${esc(opts.stageLabel)}</strong>:</p>
-      <p><strong>${esc(opts.subject)}</strong> — من العضو ${esc(opts.memberName)}</p>
-      <p>الموعد النهائي: ${formatDate(opts.dueDate)}</p>
-      <p><a href="${opts.portalUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">فتح المنصة</a></p>
-    </div>`,
-    "تذكير تذكرة"
+    {
+      tone: "action",
+      badge: "تذكير",
+      title: opts.subject,
+      lead: `تذكيرٌ من <b>${esc(opts.fromName)}</b> (المتابعة والتشغيل): هذه التذكرة ما زالت بانتظار ردّك في مرحلة <b>${esc(opts.stageLabel)}</b>.`,
+      facts: [
+        ["من", opts.memberName],
+        ["الموعد النهائي", formatDate(opts.dueDate)],
+      ],
+      cta: { label: "فتح التذكرة", url: esc(opts.portalUrl) },
+    },
+    "تذكير تذكرة",
+    themeOf(r)
   );
 }
 
@@ -844,17 +902,25 @@ export async function sendRequestReminderEmail(opts: {
 }) {
   const blocked = await suppressed("request.reminder", opts.to, "تذكير طلب", `تذكير بطلب: ${opts.typeLabel}`);
   if (blocked) return blocked;
+  const r = await recipientOf(opts.to);
 
   return send(
     opts.to,
     `تذكير — طلب بانتظار الإنجاز: ${opts.typeLabel}`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>تذكير من ${esc(opts.fromName)} (مسؤول التشغيل): الطلب التالي ما زال بانتظار الإنجاز:</p>
-      <p><strong>${esc(opts.typeLabel)}</strong>${opts.memberName ? ` — متعلق بـ ${esc(opts.memberName)}` : ""}</p>
-      ${opts.note ? `<p>${esc(opts.note)}</p>` : ""}
-      ${opts.dueDate ? `<p>الموعد النهائي: ${formatDate(opts.dueDate)}</p>` : ""}
-    </div>`,
-    "تذكير طلب"
+    {
+      tone: "action",
+      badge: "تذكير",
+      title: opts.typeLabel,
+      lead: `تذكيرٌ من <b>${esc(opts.fromName)}</b> (المتابعة والتشغيل): هذا الطلب ما زال بانتظار الإنجاز.`,
+      facts: [
+        ["متعلّقٌ بـ", opts.memberName],
+        ["الموعد النهائي", opts.dueDate ? formatDate(opts.dueDate) : null],
+      ],
+      quote: opts.note ? { label: "ملاحظة", text: opts.note } : null,
+      cta: { label: "فتح المنصة", url: portal() },
+    },
+    "تذكير طلب",
+    themeOf(r)
   );
 }
 
@@ -865,26 +931,27 @@ export async function sendMeetingReminderEmail(opts: {
 }) {
   const blocked = await suppressed("meeting.reminder", opts.to, "تذكير اجتماع", "تذكير باجتماع");
   if (blocked) return blocked;
+  const r = await recipientOf(opts.to);
 
   return send(
     opts.to,
     `طلب اجتماع شرح — ${opts.candidateName}`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>المرشح <strong>${esc(opts.candidateName)}</strong> لم يحقق نسبة النجاح في الاختبار.</p>
-      <p>يرجى جدولة اجتماع شرح قبل ${formatDate(opts.dueDate)}.</p>
-    </div>`,
-    "اجتماع شرح"
+    {
+      tone: "action",
+      title: `اجتماع شرح — ${opts.candidateName}`,
+      lead: `لم تبلغ نتيجةُ <b>${esc(opts.candidateName)}</b> نسبةَ الاجتياز في اختبار القبول، والمطلوب جدولةُ اجتماع شرحٍ قبل الموعد أدناه.`,
+      facts: [["الموعد", formatDate(opts.dueDate)]],
+      cta: { label: "فتح المنصة", url: portal() },
+    },
+    "اجتماع شرح",
+    themeOf(r)
   );
 }
 
-/** تهنئة فور اجتياز الاختبار — تُطمئن المرشّح أن نتيجته وصلت القيادة،
- *  فلا يبقى في فراغ بين الاختبار والقرار */
 /** «طلبٌ ينتظر اعتمادك» — للمعتمِد المختصّ وحده.
  *
- *  هذا هو البريد الذي كان ناقصاً: المرشّح كان يُراسَل بنتيجته (وهو
- *  يقرأها على الشاشة)، ومن يملك اعتماده لا يُراسَل أصلاً — فيبقى الطلب
- *  معلّقاً حتى يفتح أحدٌ اللوحة مصادفةً. فانعكس الأمر: يُخبَر من يفعل،
- *  ولا يُخبَر من ينتظر. */
+ *  يُخبَر من يفعل، ولا يُخبَر من ينتظر: المرشّح يقرأ نتيجته على الشاشة،
+ *  ومن يملك اعتماده يحتاج أن يعرف أن أمامه قراراً. */
 export async function sendAwaitingApprovalEmail(opts: {
   to: string | string[];
   candidateName: string;
@@ -893,29 +960,28 @@ export async function sendAwaitingApprovalEmail(opts: {
   scopeLabel: string;
   portalUrl: string;
 }) {
+  const r = await recipientOf(opts.to);
   return send(
     opts.to,
     `طلب انضمام ينتظر اعتمادك: ${opts.candidateName}`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>أكمل مرشّحٌ تسجيله واجتاز اختباره، وينتظر اعتمادك:</p>
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
-        ${factRow("الاسم", opts.candidateName)}
-        ${factRow("البريد", opts.candidateEmail)}
-        ${factRow("الجهة", opts.scopeLabel)}
-        ${factRow("النتيجة", `${opts.score}%`)}
-      </table>
-      <p>لا تصل المرشّحَ رسالةُ ترحيبٍ حتى تعتمده — فالاعتماد هو ما يُنشئ حسابه.</p>
-      <p style="margin:22px 0">
-        <a href="${esc(opts.portalUrl)}"
-           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
-          افتح قائمة الاعتماد
-        </a>
-      </p>
-    </div>`,
-    "طلب ينتظر الاعتماد"
+    {
+      tone: "action",
+      badge: "طلب انضمام",
+      title: `طلب انضمام: ${opts.candidateName}`,
+      lead: `اكتمل تسجيلُ <b>${esc(opts.candidateName)}</b> واجتيازُ اختبار القبول، والطلب بانتظار اعتمادك.`,
+      facts: [
+        ["الاسم", opts.candidateName],
+        ["البريد", opts.candidateEmail],
+        ["الجهة", opts.scopeLabel],
+        ["النتيجة", `${opts.score}%`],
+      ],
+      cta: { label: "فتح قائمة الاعتماد", url: esc(opts.portalUrl) },
+      note: "لا تُرسَل بطاقة العضوية حتى الاعتماد — فالاعتماد هو ما يُنشئ الحساب.",
+    },
+    "طلب ينتظر الاعتماد",
+    themeOf(r)
   );
 }
-
 
 /** إشعار عدم الاجتياز — يُصاغ كخطوة تالية لا كرفض: اجتماع شرح مجدول */
 export async function sendTestFailedEmail(opts: {
@@ -927,18 +993,27 @@ export async function sendTestFailedEmail(opts: {
 }) {
   const blocked = await suppressed("test.failed", opts.to, "نتيجة اختبار", "نتيجة اختبارك");
   if (blocked) return blocked;
+  const r = await recipientOf(opts.to);
 
   return send(
     opts.to,
     "نتيجة اختبار القبول — اجتماع شرح قادم",
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>مرحباً ${esc(opts.fullName)}،</p>
-      <p>نتيجتك في اختبار القبول كانت <strong>${opts.score}%</strong>، ولم تبلغ الحد المطلوب هذه المرة.</p>
-      <p>تم إبلاغ <strong>${esc(opts.departmentName)}</strong> لجدولة <strong>اجتماع شرح</strong> معك قبل
-        ${esc(formatDate(opts.dueDate))}، يوضّح لك المتوقع ويجيب أسئلتك.</p>
-      <p><strong>حسابك يبقى قائماً</strong> ولا تحتاج إنشاء حساب جديد.</p>
-    </div>`,
-    "عدم اجتياز الاختبار"
+    {
+      tone: "info",
+      badge: "نتيجة الاختبار",
+      title: "نتيجة اختبار القبول",
+      lead: `${esc(opts.fullName)}، كانت نتيجتك <b>${opts.score}%</b> ولم تبلغ الحدّ المطلوب هذه المرّة.`,
+      paragraphs: [
+        `أُبلغ <b>${esc(opts.departmentName)}</b> لجدولة <b>اجتماع شرح</b> معك قبل الموعد أدناه، يوضّح المتوقَّع ويجيب عن أسئلتك.`,
+        "<b>حسابك يبقى قائماً</b>، ولا حاجة لإنشاء حسابٍ جديد.",
+      ],
+      facts: [
+        ["النتيجة", `${opts.score}%`],
+        ["اجتماع الشرح قبل", formatDate(opts.dueDate)],
+      ],
+    },
+    "عدم اجتياز الاختبار",
+    themeOf(r)
   );
 }
 
@@ -953,18 +1028,26 @@ export async function sendMeetingOwnerEmail(opts: {
 }) {
   const blocked = await suppressed("meeting.owner", opts.to, "اجتماع شرح", "اجتماع شرح مجدول");
   if (blocked) return blocked;
+  const r = await recipientOf(opts.to);
 
   return send(
     opts.to,
     `مطلوب جدولة اجتماع شرح — ${opts.candidateName}`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>وصل طلب جديد إلى <strong>${esc(opts.departmentName)}</strong>:</p>
-      <p><strong>${esc(opts.candidateName)}</strong> (${esc(opts.candidateEmail)}) لم يجتز اختبار القبول
-        بنتيجة <strong>${opts.score}%</strong>.</p>
-      <p>المطلوب: جدولة <strong>اجتماع شرح</strong> معه قبل <strong>${esc(formatDate(opts.dueDate))}</strong>.</p>
-      <p>الطلب مسجّل في لوحة قسمكم ضمن الطلبات، ويُتابَع آلياً حتى إنجازه.</p>
-    </div>`,
-    "تكليف اجتماع شرح"
+    {
+      tone: "action",
+      title: `جدولة اجتماع شرح — ${opts.candidateName}`,
+      lead: `وصل إلى <b>${esc(opts.departmentName)}</b> طلبٌ جديد: لم تبلغ نتيجةُ <b>${esc(opts.candidateName)}</b> في اختبار القبول نسبةَ الاجتياز.`,
+      facts: [
+        ["المرشّح", opts.candidateName],
+        ["البريد", opts.candidateEmail],
+        ["النتيجة", `${opts.score}%`],
+        ["الاجتماع قبل", formatDate(opts.dueDate)],
+      ],
+      cta: { label: "فتح المنصة", url: portal() },
+      note: "الطلب مسجَّلٌ في لوحة القسم ضمن الطلبات، ويُتابَع آلياً حتى إنجازه.",
+    },
+    "تكليف اجتماع شرح",
+    { departmentName: opts.departmentName, colorHex: r.colorHex }
   );
 }
 
@@ -977,24 +1060,27 @@ export async function sendWindowReminderEmail(opts: {
 }) {
   const blocked = await suppressed("window.reminder", opts.to, "تذكير مهلة", "تذكير بمهلة الدخول");
   if (blocked) return blocked;
+  const r = await recipientOf(opts.to);
 
   return send(
     opts.to,
     `تبقّى ${opts.hoursLeft} ساعة لتفعيل حسابك في تَـــلاقِ`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>مرحباً ${esc(opts.fullName)}،</p>
-      <p>أُنشئ لك حساب في <strong>تَـــلاقِ</strong> ولم تدخل إليه بعد.</p>
-      <p style="background:#FFF1DE;border-radius:10px;padding:12px">
-        <strong>يتبقّى ${opts.hoursLeft} ساعة</strong> قبل أن يسقط الحساب تلقائياً وتفقد كلمة المرور المؤقتة صلاحيتها.
-      </p>
-      <p><a href="${opts.loginUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">تسجيل الدخول الآن</a></p>
-      <p style="color:#777;font-size:12px">إن لم تصلك كلمة المرور المؤقتة أو ضاعت، تواصل مع من أنشأ حسابك.</p>
-    </div>`,
-    "تذكير قبل سقوط المهلة"
+    {
+      tone: "alert",
+      badge: "مهلة توشك أن تنقضي",
+      title: `تبقّى ${opts.hoursLeft} ساعة لتفعيل حسابك`,
+      lead: `${esc(opts.fullName)}، أُنشئ ${forms(r.gender).toYou} حسابٌ في تَـــلاقِ ولم يُستعمل بعد.`,
+      paragraphs: [
+        `<b>يتبقّى ${opts.hoursLeft} ساعة</b> قبل أن يسقط الحساب تلقائياً وتفقد كلمة المرور المؤقتة صلاحيتها.`,
+      ],
+      cta: { label: "تسجيل الدخول الآن", url: esc(opts.loginUrl) },
+      note: "إن ضاعت كلمة المرور المؤقتة فالتواصل مع الجهة التي أنشأت الحساب.",
+    },
+    "تذكير قبل سقوط المهلة",
+    themeOf(r)
   );
 }
 
-/** إشعار الاعتماد النهائي — يُغلق دائرة الانتظار */
 /** رابط استعادة كلمة المرور — صالح لمدة محدودة ولمرة واحدة */
 export async function sendPasswordResetEmail(opts: {
   to: string;
@@ -1002,17 +1088,20 @@ export async function sendPasswordResetEmail(opts: {
   resetUrl: string;
   minutesValid: number;
 }) {
+  const r = await recipientOf(opts.to);
   return send(
     opts.to,
     "استعادة كلمة المرور — تَـــلاقِ",
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>مرحباً ${esc(opts.fullName)}،</p>
-      <p>وصلنا طلب لاستعادة كلمة مرور حسابك في <strong>تَـــلاقِ</strong>.</p>
-      <p><a href="${opts.resetUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">تعيين كلمة مرور جديدة</a></p>
-      <p style="color:#777;font-size:13px">الرابط صالح <strong>${opts.minutesValid} دقيقة</strong> ويُستخدم مرة واحدة.</p>
-      <p style="color:#777;font-size:12px">إن لم تطلب هذا، تجاهل الرسالة — لن يتغيّر شيء في حسابك.</p>
-    </div>`,
-    "استعادة كلمة المرور"
+    {
+      tone: "security",
+      title: "استعادة كلمة المرور",
+      lead: `${esc(opts.fullName)}، وصلنا طلبٌ لاستعادة كلمة مرور حسابك في تَـــلاقِ.`,
+      cta: { label: "تعيين كلمة مرور جديدة", url: esc(opts.resetUrl) },
+      facts: [["صلاحية الرابط", `${opts.minutesValid} دقيقة · يُستعمل مرّة واحدة`]],
+      note: `إن لم يكن الطلب منك ${gx(r.gender, "فتجاهل", "فتجاهلي", "فتجاهل")} الرسالة — لن يتغيّر شيءٌ في حسابك.`,
+    },
+    "استعادة كلمة المرور",
+    themeOf(r)
   );
 }
 
@@ -1026,25 +1115,34 @@ export async function sendTestReopenedEmail(opts: {
 }) {
   const blocked = await suppressed("test.reopened", opts.to, "إعادة اختبار", "أُعيد فتح اختبارك");
   if (blocked) return blocked;
+  const r = await recipientOf(opts.to);
+  const position = r.role ? positionTitle(r.role, r.departmentName) : opts.roleLabel;
 
   return send(
     opts.to,
     "أُعيد فتح اختبار القبول لك — تَـــلاقِ",
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>مرحباً ${esc(opts.fullName)}،</p>
-      <p>بعد اجتماع الشرح، أُعيد فتح اختبار القبول لموقع <strong>${esc(opts.roleLabel)}</strong>.</p>
-      <p>ادخل بالحساب نفسه وابدأ الاختبار. المهلة <strong>${opts.hoursValid} ساعة</strong> من الآن.</p>
-      <p><a href="${opts.loginUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">فتح المنصة</a></p>
-      <p style="color:#666;font-size:13px">إن لم تدخل خلال المهلة يُغلق الحساب تلقائياً.</p>
-    </div>`,
-    "إعادة فتح الاختبار"
+    {
+      tone: "celebrate",
+      badge: "فرصة ثانية",
+      title: "أُعيد فتح اختبار القبول",
+      lead: `${esc(opts.fullName)}، بعد اجتماع الشرح أُعيد فتح اختبار القبول لموقع <b>${esc(position)}</b>.`,
+      paragraphs: [
+        gx(r.gender, "ادخل بالحساب نفسه وابدأ الاختبار.", "ادخلي بالحساب نفسه وابدئي الاختبار.", "الدخول بالحساب نفسه، ثم بدء الاختبار."),
+      ],
+      facts: [["المهلة", `${opts.hoursValid} ساعة من الآن`]],
+      cta: { label: "فتح المنصة", url: esc(opts.loginUrl) },
+      note: "إن انقضت المهلة دون دخول يُغلق الحساب تلقائياً.",
+    },
+    "إعادة فتح الاختبار",
+    themeOf(r)
   );
 }
 
 /** يبثّ إعلاناً إلى بريد جمهوره.
  *
  *  يُرسَل نسخةً واحدةً لكل مستلم (لا دفعة واحدة في حقل "إلى") حتى لا يرى
- *  أحدٌ عناوين البقية: إعلان داخلي لا يجوز أن يكشف دليل بريد الفريق. */
+ *  أحدٌ عناوين البقية: إعلان داخلي لا يجوز أن يكشف دليل بريد الفريق.
+ *  ولأنه لكلٍّ نسختُه، يأخذ كلٌّ لونَ قسمه. */
 export async function sendAnnouncementEmail(opts: {
   recipients: string[];
   title: string;
@@ -1056,30 +1154,31 @@ export async function sendAnnouncementEmail(opts: {
   linkUrl?: string | null;
   linkLabel?: string | null;
 }) {
-  // الاجتماع أبرز من الرابط العام: من يفتح إعلان اجتماع يبحث عن رابطه
-  // أولاً، فيُعطى زرّاً لا سطراً يُقرأ
-  const meetingBlock = opts.meetingUrl
-    ? `<p style="margin:0 0 14px"><a href="${esc(opts.meetingUrl)}" style="display:inline-block;background:#341D2B;color:#EEF6DF;text-decoration:none;font-weight:bold;font-size:14px;padding:12px 26px;border-radius:999px">انضم إلى الاجتماع</a></p>`
-    : "";
-  const linkBlock = opts.linkUrl
-    ? `<p style="margin:0 0 14px;font-size:14px">${esc(opts.linkLabel || "الرابط")}: <a href="${esc(opts.linkUrl)}" style="color:#8C3600;font-weight:bold" dir="ltr">${esc(opts.linkUrl)}</a></p>`
-    : "";
-
   let delivered = 0;
   for (const to of opts.recipients) {
+    const r = await recipientOf(to);
+    // الاجتماع أبرز من الرابط العام: من يفتح إعلان اجتماع يبحث عن رابطه
+    // أولاً، فيُعطى الزرَّ الرئيسي
+    const primary = opts.meetingUrl
+      ? { label: "الانضمام إلى الاجتماع", url: esc(opts.meetingUrl) }
+      : { label: "فتح المنصة", url: esc(opts.portalUrl) };
+    const secondary = opts.linkUrl
+      ? { label: opts.linkLabel?.trim() || "فتح الرابط المرفق", url: esc(opts.linkUrl) }
+      : null;
     const result = await send(
       to,
       `إعلان: ${opts.title}`,
-      `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-        <p style="color:#666;font-size:13px;margin:0 0 6px">إعلان موجَّه إلى: ${esc(opts.audienceLabel)}</p>
-        <h2 style="margin:0 0 10px;color:#341D2B">${esc(opts.title)}</h2>
-        <div style="white-space:pre-wrap;font-size:15px;line-height:1.8;margin-bottom:16px">${esc(opts.body)}</div>
-        ${meetingBlock}
-        ${linkBlock}
-        <p style="color:#666;font-size:13px;margin-top:18px">نشره: ${esc(opts.authorName)}</p>
-        <p><a href="${opts.portalUrl}" style="background:#C34900;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none">فتح المنصة</a></p>
-      </div>`,
-      "إعلان عام"
+      {
+        tone: "info",
+        badge: "إعلان",
+        title: opts.title,
+        lead: `موجَّهٌ إلى: ${esc(opts.audienceLabel)} · نشره ${esc(opts.authorName)}`,
+        paragraphs: [`<span style="white-space:pre-wrap">${esc(opts.body)}</span>`],
+        cta: primary,
+        secondary,
+      },
+      "إعلان عام",
+      themeOf(r)
     );
     if (!result.skipped) delivered++;
   }
@@ -1097,44 +1196,20 @@ export async function sendLoginCodeEmail(opts: {
   code: string;
   minutesValid: number;
 }) {
-  // الخانات في خلايا منفصلة لا بمسافات: الفراغات المتتابعة تتمدّد عشوائياً
-  // بحسب العميل فتتباعد الأرقام حتى يصعب قراءتها رقماً واحداً
-  const cells = opts.code
-    .split("")
-    .map(
-      (d) =>
-        `<td align="center" style="padding:0 3px"><div style="width:42px;height:54px;line-height:54px;background:#ffffff;border:1px solid rgba(52,29,43,0.14);border-radius:10px;font-family:'Courier New',Consolas,monospace;font-size:28px;font-weight:bold;color:#341D2B">${d}</div></td>`
-    )
-    .join("");
-
+  const r = await recipientOf(opts.to);
   return send(
     opts.to,
     `رمز دخولك: ${opts.code} — تَـــلاقِ`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>مرحباً ${esc(opts.fullName)}،</p>
-      <p>وصلنا طلب دخول إلى حسابك. أدخل الرمز التالي لإكمال الدخول:</p>
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" dir="ltr" style="margin:20px auto 10px">
-        <tr>${cells}</tr>
-      </table>
-      <p align="center" style="font-size:12px;color:#8a8a8a;margin:0 0 20px">صالح ${opts.minutesValid} دقائق · يُستخدم مرة واحدة</p>
-      <p style="color:#8a8a8a;font-size:13px;margin:0">إن طلبت رمزاً جديداً بطل هذا فوراً.</p>
-    </div>`,
-    "رمز الدخول"
+    {
+      tone: "security",
+      title: "رمز الدخول",
+      lead: `${esc(opts.fullName)}، وصلنا طلب دخولٍ إلى حسابك. هذا الرمز يُكمل الدخول:`,
+      code: { value: opts.code, caption: `صالح ${opts.minutesValid} دقائق · يُستخدم مرّة واحدة` },
+      note: "لا يُشارَك هذا الرمز مع أحدٍ مهما كان — فريق تَـــلاقِ لا يطلبه أبداً، لا بمكالمة ولا برسالة. وطلبُ رمزٍ جديد يُبطل هذا فوراً.",
+    },
+    "رمز الدخول",
+    themeOf(r)
   );
-}
-
-/** صفٌّ في بطاقة البيانات: ما لا قيمة له لا يُرسم أصلاً بدل أن يظهر فارغاً.
- *
- *  الفاصلة بين العنوان وقيمته على يمين القيمة لا يسارها: الجدول عربي،
- *  فالعنوان يمينٌ والقيمة يسارُه، وحافّتها المواجهة له هي اليمنى. ووضعُها
- *  يساراً كان يبدو سليماً في كل صف إلا الأطول — حيث يملأ العنوان عمودَه
- *  فتلتصق القيمة به: «التخصصإدارة أعمال». */
-function factRow(label: string, value: string | null | undefined): string {
-  if (!value || !value.trim()) return "";
-  return `<tr>
-    <td style="padding:7px 0;font-size:13px;color:rgba(26,16,35,0.55);white-space:nowrap">${esc(label)}</td>
-    <td style="padding:7px 14px 7px 0;font-size:14px;font-weight:bold;color:#1A1023">${esc(value)}</td>
-  </tr>`;
 }
 
 export type WelcomeEmailOpts = {
@@ -1146,8 +1221,13 @@ export type WelcomeEmailOpts = {
   departmentName?: string | null;
   /** لون القسم المسجَّل — منه تُعرف هويته، ولا يُخمَّن */
   departmentColorHex?: string | null;
-  /** رابط اللوحة المتحرّكة المُخصَّصة — موقَّعٌ لصاحبها */
+  /** رابط اللوحة المتحرّكة القديمة — باقٍ للتوافق، ولم يعد يُعرض */
   bannerUrl?: string | null;
+  /** رابطُ بطاقة العضوية الموقَّع — الصورة التي تُشارَك */
+  cardUrl?: string | null;
+  /** جنسُ صاحبها ودورُه الخام — للمخاطبة والصفة بصيغته */
+  gender?: MaybeGender;
+  accountRole?: string | null;
   portalUrl: string;
   joinedAt?: Date | null;
   /** عدّة المشاركة — تُدرَج داخل الرسالة نفسها لا في رسالة ثانية */
@@ -1158,153 +1238,87 @@ export type WelcomeEmailOpts = {
   occasion?: "approved" | "resend";
 };
 
-/** قالب الترحيب الرسمي — يُقرأ من `src/emails/welcome.html`.
- *
- *  القالب ملفّ HTML قائم بذاته لا نصّ داخل الكود، لسببين: يُفتح في
- *  المتصفّح ويُراجَع كما يُرسل بالضبط، ويُسلَّم لأي نظام إرسال آخر دون
- *  أن يُنتزع من بين سطور TypeScript.
- *
- *  ولأنه القالب الرسمي الدائم، تبديل المتغيّرات وحده يكفي لتخصيصه — لا
- *  تُلمس بنيته عند كل مستقبِل. */
-const WELCOME_TEMPLATE_PATH = join(process.cwd(), "src/emails/welcome.html");
-
-let welcomeTemplateCache: string | null = null;
-
-function welcomeTemplate(): string {
-  // يُقرأ مرة واحدة لكل نسخة من الخادم: ملفٌّ ثابت لا داعي لقراءته مع
-  // كل رسالة. وفي التطوير يُعاد تحميل الوحدة مع كل تعديل فيُقرأ من جديد.
-  if (welcomeTemplateCache === null) {
-    welcomeTemplateCache = readFileSync(WELCOME_TEMPLATE_PATH, "utf8");
-  }
-  return welcomeTemplateCache;
-}
-
-/** يملأ متغيّرات القالب.
- *
- *  كل قيمة تُهرَّب قبل الإدراج: الاسم والصفة يكتبهما بشر، ووضعُهما في
- *  HTML بلا تهريب يفتح باب وسمٍ مدسوس في بريدٍ يحمل اسمنا. وما لا قيمة
- *  له يُكتب شَرطةً بدل أن يظهر `{{team}}` كما هو لمن لا فريق له. */
-function fillTemplate(template: string, vars: Record<string, string>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (_m, key: string) => {
-    const value = vars[key];
-    if (value === undefined) return "—";
-    // الروابط لا تُهرَّب كنصّ: هي سمات href، وتهريب & يكسر معاملاتها.
-    // وهي من عندنا لا من المستخدم، ويُتحقّق منها عند الضبط.
-    return key.endsWith("_url") || key === "asset_base" ? value : esc(value);
-  });
-}
-
-export function welcomeEmailSubject(fullName: string, occasion: "approved" | "resend" = "approved") {
-  // العنوان يقول ما تقوله الترويسة: من يرى «أهلاً بك» في صندوقه ثم يفتح
-  // فيجد العبارة نفسها كبيرةً يشعر برسالة واحدة لا باثنتين
+export function welcomeEmailSubject(
+  fullName: string,
+  occasion: "approved" | "resend" = "approved",
+  gender?: MaybeGender
+) {
   return occasion === "approved"
-    ? `أهلاً بك في عائلة تَـــلاقِ، ${fullName}!`
+    ? `أهلاً ${forms(gender).you} في عائلة تَـــلاقِ، ${fullName}!`
     : `بطاقتك في تَـــلاقِ، ${fullName}`;
 }
 
-/** رسالة الانضمام — تُعلن الاعتماد وتُرحّب وتحمل عدّة المشاركة معاً.
+/** رسالة الاعتماد — تُعلنه وتُرحّب وتحمل بطاقة العضوية للمشاركة.
  *
- *  هي الموضع الوحيد الذي يقرأ فيه الواحد اسمه ومهمته كما سُجِّلت، فيعرف
- *  أن له مكاناً مُثبَتاً لا مجرّد حساب. */
-/** يبني الرسالة كاملةً من القالب الرسمي.
- *
- *  لا تمرّ على `wrapEmail`: القالب غلافٌ كامل بترويسته وتذييله، ولفّه
- *  بغلافٍ ثانٍ يُنتج رسالةً بترويستين. */
-/** مربّع الرمز المخبوز بلون هذا القسم.
- *
- *  الملفّات تُولَّد بـ`scripts/gen-card-marks.ts`، ولكلٍّ حبرٌ محسوب.
- *  ومن جاء بلونٍ غير ألوان الهوية يأخذ المهوجني — لا مربّعاً مفقوداً. */
-function cardMarkFile(colorHex: string): string {
-  const byColor: Record<string, string> = {
-    "#c34900": "card-mark-mahogany.png",
-    "#67c090": "card-mark-green.png",
-    "#eef6df": "card-mark-beige.png",
-    "#341d2b": "card-mark-temptress.png",
+ *  **البطاقة صورةٌ لا HTML:** المطلوب أن تُصوَّر الشاشة وتُنشر كما هي، وما
+ *  يُرسَم صورةً على الخادم يصل في كل بريدٍ بالخطّ واللون نفسيهما. وتحتها
+ *  النصُّ حيّاً: الاسم والصفة والقسم والتاريخ — فلا تُفقَد المعلومة إن
+ *  حُجبت الصور. */
+function welcomeContent(opts: WelcomeEmailOpts): { subject: string; content: EmailContent; theme: EmailTheme } {
+  const g = opts.gender ?? null;
+  const f = forms(g);
+  const G = (m: string, fe: string, n?: string) => gx(g, m, fe, n);
+  const brand = departmentBrand(opts.departmentName ?? null, opts.departmentColorHex ?? null);
+  const role = opts.accountRole ? roleTitle(opts.accountRole, g, opts.departmentName) : opts.roleLabel;
+  const job = opts.jobTitle?.trim();
+  const as = job ? ` بصفتك ${esc(job)}` : role ? ` بصفتك ${esc(role)}` : "";
+  const approved = (opts.occasion ?? "approved") === "approved";
+  const first = firstName(opts.fullName);
+  const handle = `@${SOCIAL_HANDLE}`;
+  const tag = opts.hashtag ?? "#تلاقي";
+
+  return {
+    subject: welcomeEmailSubject(opts.fullName, opts.occasion ?? "approved", g),
+    theme: { departmentName: opts.departmentName ?? null, colorHex: opts.departmentColorHex ?? null },
+    content: {
+      tone: "celebrate",
+      badge: approved ? "اعتُمد انضمامك" : "بطاقة العضوية",
+      title: `أهلاً ${f.you} في العائلة، ${first}`,
+      lead: approved
+        ? `اعتُمد انضمامك إلى ${esc(brand.copy.phrase)}${as}. ومن اليوم ${G("أنت", "أنتِ", "أنت")} جزءٌ من تَـــلاقِ.`
+        : `هذه بطاقة عضويتك في ${esc(brand.copy.phrase)} كما طلبتها.`,
+      image: opts.cardUrl
+        ? { src: opts.cardUrl, width: 544, height: 680, alt: `بطاقة العضوية — ${opts.fullName}`, href: esc(opts.portalUrl) }
+        : undefined,
+      paragraphs: approved ? [esc(brand.copy.belief), esc(brand.copy.aspiration)] : [],
+      facts: [
+        ["الاسم", opts.fullName],
+        ["الصفة", role],
+        ["المسمّى الوظيفي", job],
+        ["القسم", opts.departmentName],
+        ["تاريخ الانضمام", opts.joinedAt ? formatDate(opts.joinedAt) : null],
+      ],
+      cta: { label: "الدخول إلى المنصة", url: esc(opts.portalUrl) },
+      after: [
+        `البطاقة أعلاه ${f.toYou} — تُحفظ بضغطةٍ مطوّلة وتُنشر كما هي. ويسعدنا أن ${G("تشاركنا", "تشاركينا", "تشاركنا")} الخبر بالإشارة إلى <b dir="ltr">${esc(handle)}</b> ووسم <b>${esc(tag)}</b>.`,
+        `أهلاً ${f.you} بيننا، ونتطلّع إلى ما سنصنعه معاً.`,
+      ],
+      note: `${G("احتفظ", "احتفظي", "يُحتفظ")} بهذه الرسالة: فيها البيانات كما سُجِّلت عندنا، وتصحيحُ أيّ خطأٍ فيها من صفحة «بياناتي».`,
+    },
   };
-  return byColor[colorHex.trim().toLowerCase()] ?? "card-mark-mahogany.png";
 }
 
-/** الصفةُ والفريقُ في سطرٍ واحد، بلا تكرارٍ ولا شَرَطاتٍ فارغة.
- *
- *  يُقارَن بعد التشذيب: «المؤسس» و«المؤسس » واحد. ومن لا قسم له ولا
- *  مسمّى يبقى سطرُه صفتَه وحدها — لا «المؤسس · —». */
-function cardMeta(opts: WelcomeEmailOpts): string {
-  // المسمّى الوظيفي أخصُّ من الصفة، فإن وُجد كفى عنها: «قائدة التسويق»
-  // تُغني عن «قائد قسم». ثم القسم بعده — وهما حقيقتان لا ثلاث.
-  const parts = [opts.jobTitle || opts.roleLabel, opts.departmentName]
-    .map((v) => v?.trim())
-    .filter((v): v is string => !!v && v !== "—");
-  const seen = new Set<string>();
-  const unique = parts.filter((v) => {
-    if (seen.has(v)) return false;
-    seen.add(v);
-    return true;
-  });
-  return unique.length > 0 ? unique.join(" · ") : "عضو في تَـــلاقِ";
-}
-
+/** يبني رسالة الترحيب كاملةً — للمعاينة والاختبار ولما يُرسَل فعلاً */
 export function renderWelcomeEmail(opts: WelcomeEmailOpts): string {
-  const base = appBaseUrl();
-  // نصُّ القسم يُركَّب في موضعه لا في القالب: القالب شكلٌ، والنصّ هويّة
-  const p = welcomeParagraphs({
-    fullName: opts.fullName,
-    role: opts.jobTitle ?? opts.roleLabel,
-    departmentName: opts.departmentName ?? null,
-    colorHex: opts.departmentColorHex ?? null,
-  });
-  const deptColor = opts.departmentColorHex?.trim() || "#C34900";
-  return fillTemplate(welcomeTemplate(), {
-    greeting: p.greeting,
-    intro: p.intro,
-    belief: p.belief,
-    aspiration: p.aspiration,
-    closing: p.closing,
-    full_name: opts.fullName,
-    role: opts.roleLabel,
-    team: opts.departmentName?.trim() || opts.jobTitle?.trim() || "—",
-    // سطر البطاقة: الصفةُ والفريقُ بلا تكرار.
-    //
-    // كان القالب يَعرض «الدور» و«الفريق» صفّين مستقلّين، و`team` يرتدّ
-    // إلى المسمّى الوظيفي لمن لا قسم له. فمن كان مسمّاه هو صفتَه —
-    // المؤسس مثلاً — قرأ الكلمة نفسها في الصفّين، وقرأها ثالثةً في
-    // اسمه إن كتبه بصفته. والبطاقة تقول الحقائق مرّةً واحدة.
-    //
-    // والإسقاط هنا لا في القالب: القالب لا يعرف أيُّ القيمتين تكرار،
-    // والخادم يعرف — فهو من يقرأ السجل.
-    card_meta: cardMeta(opts),
-    join_date: opts.joinedAt ? formatDate(opts.joinedAt) : "—",
-    portal_url: opts.portalUrl,
-    banner_url: opts.bannerUrl || `${base}/brand/banner/base.gif`,
-    dept_color: deptColor,
-    card_mark: cardMarkFile(deptColor),
-    btn_bg: deptColor,
-    // حبر الزرّ يُشتقّ من إضاءة لونه لا يُكتب ثابتاً: «الموارد البشرية»
-    // لونُها بيجٌ فاتح (#EEF6DF)، ونصٌّ أبيض عليه لا يُقرأ. و
-    // `readableTextOn` هي الدالة نفسها التي تحكم ألوان الواجهة — فلا
-    // يُتّخذ القرار مرّتين بطريقتين.
-    btn_text: readableTextOn(deptColor),
-    asset_base: base,
-    handle: `@${SOCIAL_HANDLE}`,
-    x_url: `https://x.com/${SOCIAL_HANDLE}`,
-    instagram_url: `https://instagram.com/${SOCIAL_HANDLE}`,
-    linkedin_url: `https://linkedin.com/company/${SOCIAL_HANDLE}`,
-  });
+  const w = welcomeContent(opts);
+  return renderEmail({ subject: w.subject, content: w.content, theme: w.theme }).html;
 }
 
 export async function sendWelcomeEmail(opts: WelcomeEmailOpts & { to: string }) {
-  return sendPrebuilt(
+  const w = welcomeContent(opts);
+  return send(
     opts.to,
-    welcomeEmailSubject(opts.fullName, opts.occasion ?? "approved"),
-    renderWelcomeEmail(opts),
-    "ترحيب"
+    w.subject,
+    w.content,
+    "ترحيب",
+    w.theme
   );
 }
 
 /** رسالة الختام — آخر ما يصل صاحبها من المنصة على الإطلاق.
  *
  *  التجربة لا تُقفل بانقطاع الرسائل فجأة: تُقفل بشكرٍ مكتوب وشهادةٍ
- *  سُلِّمت ووداعٍ صُنع. وبعدها يتوقّف البريد تماماً — فالاحترام أن
- *  نَكُفّ عن المراسلة لا أن نستمر بها بلا سبب. */
+ *  سُلِّمت ووداعٍ صُنع. وبعدها يتوقّف البريد تماماً. */
 export async function sendFarewellEmail(opts: {
   to: string;
   fullName: string;
@@ -1313,25 +1327,26 @@ export async function sendFarewellEmail(opts: {
   joinDate: Date;
   endDate: Date;
 }) {
+  const r = await recipientOf(opts.to);
+  const f = forms(r.gender);
+  const role = r.role ? roleTitle(r.role, r.gender, opts.departmentName ?? r.departmentName) : opts.roleLabel;
   return send(
     opts.to,
-    `شكراً لك، ${opts.fullName} — ختام تجربتك مع تَـــلاقِ`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p style="font-size:17px;font-weight:bold;margin:0 0 14px">شكراً لك، ${esc(opts.fullName)}.</p>
-      <p style="margin:0 0 16px">انتهت رحلتك معنا رسمياً، وسُلِّمت شهادتك. ما قدّمته لم يذهب: هو جزء ممّا بناه الفريق، ويبقى في سجلّنا باسمك.</p>
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 20px;border:1px solid rgba(52,29,43,0.12);border-radius:12px;background:#FAF8F4">
-        <tr><td style="padding:10px 16px">
-          <table role="presentation" cellpadding="0" cellspacing="0" border="0">
-            ${factRow("الصفة", opts.roleLabel)}
-            ${factRow("القسم", opts.departmentName)}
-            ${factRow("من", formatDate(opts.joinDate))}
-            ${factRow("إلى", formatDate(opts.endDate))}
-          </table>
-        </td></tr>
-      </table>
-      <p style="margin:0;font-size:13px;color:rgba(26,16,35,0.6)">ولأن التجربة انتهت، لن تصلك منّا رسائل بعد اليوم. دمت بخير.</p>
-    </div>`,
-    "ختام التجربة"
+    `${f.thanks}، ${opts.fullName} — ختام تجربتك مع تَـــلاقِ`,
+    {
+      tone: "farewell",
+      title: `${f.thanks}، ${firstName(opts.fullName)}`,
+      lead: `انتهت رحلتك معنا رسمياً، وسُلِّمت شهادتك. وما ${gx(r.gender, "قدّمتَه", "قدّمتِه", "قُدِّم")} لم يذهب: هو جزءٌ ممّا بناه الفريق، ويبقى في سجلّنا باسمك.`,
+      facts: [
+        ["الصفة", role],
+        ["القسم", opts.departmentName],
+        ["من", formatDate(opts.joinDate)],
+        ["إلى", formatDate(opts.endDate)],
+      ],
+      note: "هذه آخر رسالة تصلك من المنصة. سجلّك محفوظٌ عندنا، وبابنا مفتوح.",
+    },
+    "ختام التجربة",
+    { departmentName: opts.departmentName ?? r.departmentName, colorHex: r.colorHex }
   );
 }
 
@@ -1343,26 +1358,30 @@ export async function sendTotpNudgeEmail(opts: {
 }) {
   const blocked = await suppressed("totp.nudge", opts.to, "تنبيه حماية", "تفعيل التحقق بخطوتين");
   if (blocked) return blocked;
+  const r = await recipientOf(opts.to);
 
   return send(
     opts.to,
     "طريق دخولك الثاني لم يُفعَّل بعد — تَـــلاقِ",
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>مرحباً ${esc(opts.fullName)}،</p>
-      <p style="margin:0 0 16px">دخولك إلى المنصة معلّق ببريدك وحده. إن تعذّر الوصول إليه يوماً — عطلٌ، أو تأخّر رمز، أو فقدان للحساب — فلا طريق ثانياً لك.</p>
-      <p style="margin:0 0 16px">التحقق الثنائي يحلّ هذا: تُفعّله مرة، فتدخل بعدها برمز تطبيق المصادقة <b>أو</b> برمز البريد، أيّهما توفّر. والتفعيل يستغرق دقيقة.</p>
-      <p style="margin:0 0 20px"><a href="${opts.securityUrl}" style="display:inline-block;background:#341D2B;color:#EEF6DF;text-decoration:none;font-weight:bold;font-size:14px;padding:12px 26px;border-radius:999px">فعّله الآن</a></p>
-      <p style="margin:0;font-size:13px;color:rgba(26,16,35,0.6)">يصلك هذا التذكير كل أسبوعين ما دام غير مُفعَّل، ويتوقّف من تلقائه بمجرد تفعيله.</p>
-    </div>`,
-    "تذكير التحقق الثنائي"
+    {
+      tone: "security",
+      title: "طريق دخولك الثاني لم يُفعَّل بعد",
+      lead: `${esc(opts.fullName)}، دخولك إلى المنصة معلّقٌ ببريدك وحده. فإن تعذّر الوصول إليه يوماً — عطلٌ، أو تأخّر رمز، أو فقدانٌ للحساب — فلا طريق ثانياً.`,
+      paragraphs: [
+        "التحقق بخطوتين يحلّ هذا: يُفعَّل مرّة، فيكون الدخول بعدها برمز تطبيق المصادقة <b>أو</b> برمز البريد، أيّهما توفّر. والتفعيل يستغرق دقيقة.",
+      ],
+      cta: { label: "تفعيل التحقق بخطوتين", url: esc(opts.securityUrl) },
+      note: "يصل هذا التذكير كل أسبوعين ما دام التحقق غير مفعَّل، ويتوقّف تلقائياً بتفعيله.",
+    },
+    "تذكير التحقق الثنائي",
+    themeOf(r)
   );
 }
 
 /** اقتراحُ لجنةٍ — رسالةٌ واحدة إلى المعتمِد وحده.
  *
- *  ولا نسخةَ لأحد: مسارُ اللجنة رسالتان في عمرها كلّه — واحدةٌ تُخبر
- *  المعتمِد أن أمامه قراراً، وواحدةٌ تُخبر مقترِحها بما قُرِّر. وما
- *  بينهما يُقرأ على المنصة لا في البريد. */
+ *  مسارُ اللجنة رسالتان في عمرها كلّه: واحدةٌ تُخبر المعتمِد أن أمامه
+ *  قراراً، وواحدةٌ تُخبر مقترِحها بما قُرِّر. */
 export async function sendCommitteeRequestEmail(opts: {
   to: string;
   approverName: string;
@@ -1372,29 +1391,28 @@ export async function sendCommitteeRequestEmail(opts: {
   requestedByName: string;
   reviewUrl: string;
 }) {
+  const r = await recipientOf(opts.to);
   return send(
     opts.to,
     `اقتراح لجنة «${opts.committeeName}» داخل ${opts.parentName}`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>مرحباً ${esc(opts.approverName)}،</p>
-      <p>اقترح <strong>${esc(opts.requestedByName)}</strong> لجنةً داخل قسمه، وهي بانتظار قرارك.</p>
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
-        ${factRow("اللجنة", opts.committeeName)}
-        ${factRow("داخل قسم", opts.parentName)}
-        ${factRow("مسمّى قائدها", opts.leadTitle)}
-      </table>
-      <p style="font-size:14px">واللجنة لا تُفتح باقتراحها: لا تظهر في الهيكل، ولا تُوجَّه إليها
-         تذكرة، ولا يُدعى لها قائد — حتى تعتمدها. ومتى اعتمدتها صارت قسماً داخل قسمه بلونها
-         ومسمّاها وبنك أسئلتها.</p>
-      <p style="margin:22px 0">
-        <a href="${esc(opts.reviewUrl)}"
-           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
-          افتح طلبات اللجان
-        </a>
-      </p>
-      <p style="font-size:13px;color:#6B6B6B">والردّ لا يقع بلا سبب مكتوب — يقرؤه مقترِحُها.</p>
-    </div>`,
-    "طلب لجنة"
+    {
+      tone: "action",
+      title: `اقتراح لجنة «${opts.committeeName}»`,
+      lead: `${esc(opts.approverName)}، رُفع اقتراحُ لجنةٍ داخل ${esc(opts.parentName)} من <b>${esc(opts.requestedByName)}</b>، وهو بانتظار قرارك.`,
+      facts: [
+        ["اللجنة", opts.committeeName],
+        ["داخل قسم", opts.parentName],
+        ["مسمّى قائدها", opts.leadTitle],
+        ["مقدّم الاقتراح", opts.requestedByName],
+      ],
+      after: [
+        "ولا تُفتح اللجنة باقتراحها: لا تظهر في الهيكل، ولا تُوجَّه إليها تذكرة، ولا يُدعى لها قائد — حتى تُعتمد. ومتى اعتُمدت صارت قسماً داخل قسمها بلونها ومسمّاها وبنك أسئلتها.",
+      ],
+      cta: { label: "فتح طلبات اللجان", url: esc(opts.reviewUrl) },
+      note: "لا يقع الردّ بلا سببٍ مكتوب يقرؤه صاحب الاقتراح.",
+    },
+    "طلب لجنة",
+    themeOf(r)
   );
 }
 
@@ -1409,6 +1427,7 @@ export async function sendCommitteeDecisionEmail(opts: {
   decidedByName: string;
   boardUrl: string;
 }) {
+  const r = await recipientOf(opts.to);
   const head = opts.approved
     ? `اعتُمدت لجنة «${opts.committeeName}» — وفُتحت`
     : `لم تُعتمد لجنة «${opts.committeeName}»`;
@@ -1416,49 +1435,32 @@ export async function sendCommitteeDecisionEmail(opts: {
   return send(
     opts.to,
     head,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>مرحباً ${esc(opts.fullName)}،</p>
-      <p>${
+    {
+      tone: opts.approved ? "celebrate" : "info",
+      badge: opts.approved ? "اعتُمدت" : "قرار",
+      title: head,
+      lead: opts.approved
+        ? `${esc(opts.fullName)}، اعتُمدت لجنة <b>${esc(opts.committeeName)}</b> داخل ${esc(opts.parentName)} — وفُتحت الآن.`
+        : `${esc(opts.fullName)}، رُوجع اقتراحُ لجنة <b>${esc(opts.committeeName)}</b> داخل ${esc(opts.parentName)} ولم يُعتمد.`,
+      quote: opts.note ? { label: opts.approved ? "ملاحظة المعتمِد" : "السبب", text: opts.note } : null,
+      facts: [["القرار من", opts.decidedByName]],
+      after: [
         opts.approved
-          ? `اعتمد <strong>${esc(opts.decidedByName)}</strong> لجنة <strong>${esc(opts.committeeName)}</strong> داخل ${esc(opts.parentName)} — وفُتحت الآن.`
-          : `راجع <strong>${esc(opts.decidedByName)}</strong> اقتراحَ لجنة <strong>${esc(opts.committeeName)}</strong> داخل ${esc(opts.parentName)} ولم يعتمدها.`
-      }</p>
-      ${
-        opts.note
-          ? `<p style="margin:0 0 6px;font-weight:bold">${opts.approved ? "ملاحظة المعتمِد:" : "السبب:"}</p>
-             <p style="margin:0 0 18px;padding:12px 14px;background:#F6F4F0;border-radius:10px">${esc(opts.note)}</p>`
-          : ""
-      }
-      ${
-        opts.approved
-          ? `<p style="font-size:14px">وخطوتُك الآن من لوحة قسمك: <strong>ادعُ قائدها</strong> — فيصير قائداً للجنته بمسمّاها،
-               ثم يدعو أعضاءها ويملأ بنك أسئلتهم كما تفعل أنت في قسمك.</p>`
-          : `<p style="font-size:14px">واللجنة لم تُفتح: لا تظهر في الهيكل ولا يُدعى لها أحد. ويمكنك إزالة الاقتراح
-               من لوحة قسمك، أو اقتراحُ لجنةٍ أخرى بما يُعالج السبب أعلاه.</p>`
-      }
-      <p style="margin:22px 0">
-        <a href="${esc(opts.boardUrl)}"
-           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
-          افتح لوحة قسمك
-        </a>
-      </p>
-    </div>`,
-    "قرار لجنة"
+          ? `والخطوة التالية من لوحة قسمك: <b>${gx(r.gender, "ادعُ قائدها", "ادعي قائدها", "دعوةُ قائدها")}</b> — ومن يُدعى لقيادتها يتولّاها بمسمّاها، ثم يدعو أعضاءها ويملأ بنك أسئلتهم.`
+          : "واللجنة لم تُفتح: لا تظهر في الهيكل ولا يُدعى لها أحد. ويمكن إزالة الاقتراح من لوحة القسم، أو اقتراحُ لجنةٍ أخرى تُعالج السبب أعلاه.",
+      ],
+      cta: { label: "فتح لوحة القسم", url: esc(opts.boardUrl) },
+    },
+    "قرار لجنة",
+    themeOf(r)
   );
 }
 
 /** ردُّ تسليمٍ للتصحيح — **الرسالةُ الوحيدة في نظام التنفيذ كلِّه.**
  *
- *  ## لماذا واحدةٌ فقط؟
- *
  *  حدُّ الإرسال الشهريُّ محدود، وصاحبُ المنصة طلب صراحةً ألّا تمتلئ
- *  البرُد بما يُقرأ على المنصة. وكلُّ أحداث التنفيذ — إسنادُ مهمّة،
- *  وفتحُ أسبوع، وطلبُ تحقّق، وترحيلٌ يحتاج إقراراً، وقرارُ تمديد —
- *  **تُقرأ في لوحة «ما ينتظرك»** أولَ ما يُفتَح الحساب، ولها وجهاتُها.
- *
- *  **والردُّ وحده يخرج إلى البريد**، لسببٍ واحد: صاحبُه قد يَحسب عملَه
- *  منتهياً فلا يَفتح المنصة أياماً، والمهلةُ تمضي عليه وهو يَظنّ أنه
- *  سلّم. فهذا خبرٌ **يُغيّر ما سيفعله اليوم**، لا تحديثُ حالة. */
+ *  البرُد بما يُقرأ على المنصة. والردُّ وحده يخرج إلى البريد: صاحبُه قد
+ *  يَحسب عملَه منتهياً فلا يَفتح المنصة أياماً، والمهلةُ تمضي عليه. */
 export async function sendWorkReturnedEmail(opts: {
   to: string;
   fullName: string;
@@ -1467,29 +1469,22 @@ export async function sendWorkReturnedEmail(opts: {
   dueLabel: string;
   taskUrl: string;
 }) {
+  const r = await recipientOf(opts.to);
   return send(
     opts.to,
     `يحتاج تصحيحاً: ${opts.taskTitle}`,
-    `<div dir="rtl" style="font-family:Tahoma,Arial,sans-serif">
-      <p>مرحباً ${esc(opts.fullName)}،</p>
-      <p>راجَعت الإدارةُ تسليمَك في <strong>${esc(opts.taskTitle)}</strong> وأعادته للتصحيح —
-         <strong>ولم يُحتسَب منجَزاً بعد</strong>.</p>
-      <p style="margin:0 0 6px;font-weight:bold">السبب كما كُتب:</p>
-      <p style="margin:0 0 18px;padding:12px 14px;background:#F6F4F0;border-radius:10px">${esc(opts.reason)}</p>
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0">
-        ${factRow("الموعد", opts.dueLabel)}
-      </table>
-      <p style="font-size:14px">وتسليمُك السابق محفوظٌ لم يُمحَ: عدِّل ما طُلب وارفعه ثانيةً،
-         فيُراجَع من جديد.</p>
-      <p style="margin:22px 0">
-        <a href="${esc(opts.taskUrl)}"
-           style="display:inline-block;padding:12px 28px;background:#C34900;color:#FFFFFF;border-radius:999px;font-weight:bold;text-decoration:none">
-          افتح الالتزام
-        </a>
-      </p>
-      <p style="font-size:13px;color:#6B6B6B">وهذه الرسالةُ الوحيدة التي يُرسلها نظامُ التنفيذ:
-         بقيةُ ما ينتظرك يُقرأ في لوحة «ما ينتظرك» على المنصة.</p>
-    </div>`,
-    "ردّ تسليم"
+    {
+      tone: "action",
+      badge: "يحتاج تصحيحاً",
+      title: opts.taskTitle,
+      lead: `${esc(opts.fullName)}، راجعت الإدارةُ التسليم وأعادته للتصحيح — <b>ولم يُحتسَب منجَزاً بعد</b>.`,
+      quote: { label: "السبب كما كُتب", text: opts.reason },
+      facts: [["الموعد", opts.dueLabel]],
+      after: ["والتسليم السابق محفوظٌ لم يُمحَ: يُعدَّل ما طُلب ويُرفع ثانيةً، فيُراجَع من جديد."],
+      cta: { label: "فتح الالتزام", url: esc(opts.taskUrl) },
+      note: "هذه الرسالة الوحيدة التي يرسلها نظام التنفيذ؛ وبقيّة ما ينتظرك في لوحة «ما ينتظرك».",
+    },
+    "ردّ تسليم",
+    themeOf(r)
   );
 }

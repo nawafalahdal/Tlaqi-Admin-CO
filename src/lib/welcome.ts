@@ -5,7 +5,7 @@ import { accountRoleLabel } from "@/lib/testTracks";
 import { departmentBrand } from "@/lib/departmentBrand";
 import { syncAdminAccountRow, syncMemberLifecycleRow } from "@/lib/workflow";
 import { SOCIAL_LINKS, appBaseUrl } from "@/lib/emailBrand";
-import { bannerUrl } from "@/lib/bannerToken";
+import { bannerUrl, shareCardUrl } from "@/lib/bannerToken";
 import { reasonFor, type SendOutcome } from "@/lib/emailOutcome";
 
 /** الوسم الرسمي. يُضبط من البيئة ليُغيَّر دون نشر جديد. */
@@ -221,6 +221,9 @@ export async function sendWelcomePack(
       departmentName: user.department?.name ?? null,
       departmentColorHex: user.department?.colorHex ?? null,
       bannerUrl: bannerUrl({ kind: "user", id: user.id }, appBaseUrl()),
+      cardUrl: shareCardUrl("welcome", { kind: "user", id: user.id }, appBaseUrl()),
+      gender: user.gender,
+      accountRole: user.role,
       portalUrl,
       joinedAt: user.createdAt,
       handles: SOCIAL_LINKS,
@@ -293,6 +296,9 @@ export async function sendWelcomePack(
     departmentName: member.department?.name ?? null,
     departmentColorHex: member.department?.colorHex ?? null,
     bannerUrl: bannerUrl({ kind: "member", id: member.id }, appBaseUrl()),
+    cardUrl: shareCardUrl("welcome", { kind: "member", id: member.id }, appBaseUrl()),
+    gender: member.gender,
+    accountRole: member.invite.targetRole,
     portalUrl,
     joinedAt: member.decidedAt ?? member.joinDate,
     handles: SOCIAL_LINKS,

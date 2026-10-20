@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { sendAwardEmail } from "@/lib/email";
 import { appendMemberEvent } from "@/lib/googleSheets";
+import { roleTitle } from "@/lib/gender";
 import { accountRoleLabel } from "@/lib/testTracks";
 import { appBaseUrl } from "@/lib/emailBrand";
 
@@ -58,6 +59,11 @@ export async function sendAward(opts: {
     return { ok: false, reason: "أُغلقت تجربته — الوداع وعدٌ بألّا نراسله بعده" };
   }
 
+  // المُكرِّم يُنسَب بصفته وجنسه: «الرئيسة التنفيذية» لا «الرئيس التنفيذي»
+  const actor = await prisma.user.findFirst({
+    where: { role: opts.actorRole as "super_admin" | "executive", isActive: true, fullName: opts.actorName },
+    select: { gender: true },
+  });
   const sent = await sendAwardEmail({
     to: person.email,
     fullName: person.fullName,
@@ -65,7 +71,7 @@ export async function sendAward(opts: {
     award: opts.award ?? null,
     note: opts.note ?? null,
     fromName: opts.actorName,
-    fromRole: accountRoleLabel(opts.actorRole),
+    fromRole: roleTitle(opts.actorRole, actor?.gender),
     portalUrl: `${appBaseUrl()}/${opts.target.kind === "member" ? "member" : "admin"}`,
   });
   if (sent.skipped) return { ok: false, reason: "تعذّر إرسال البريد الآن" };

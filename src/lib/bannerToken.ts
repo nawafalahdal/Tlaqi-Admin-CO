@@ -43,3 +43,16 @@ export function verifyBannerToken(token: string): BannerSubject | null {
 export function bannerUrl(subject: BannerSubject, base: string): string {
   return `${base}/api/welcome-banner/${signBannerToken(subject)}`;
 }
+
+/** رابطُ صورة المشاركة — ملصق الدعوة أو بطاقة العضوية.
+ *
+ *  `v` ختمُ الإصدار: الصورة تُخزَّن سنةً، فإن تغيّر الاسم أو القسم بعدها
+ *  حمل البريدُ التالي رابطاً جديداً ولم يُعرَض القديم. */
+export function shareCardUrl(
+  type: "invite" | "welcome",
+  subject: BannerSubject,
+  base: string,
+  version: Date = new Date()
+): string {
+  return `${base}/api/cards/${type}/${signBannerToken(subject)}?v=${version.getTime().toString(36)}`;
+}

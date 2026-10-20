@@ -7,6 +7,7 @@ import { syncMemberLifecycleRow } from "@/lib/workflow";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { ROLE_LABELS } from "@/lib/testTracks";
 import { safeErrorMessage } from "@/lib/safeError";
+import { parseGender } from "@/lib/gender";
 
 /** يسجّل بيانات المرشّح قبل بدء اختباره.
  *
@@ -24,11 +25,12 @@ export async function saveCandidateProfileAction(
   const phone = String(formData.get("phone") ?? "").trim();
   const specialization = String(formData.get("specialization") ?? "").trim();
   const section = String(formData.get("section") ?? "").trim();
+  const gender = parseGender(formData.get("gender"));
   // المسمى الوظيفي لا يُقرأ من النموذج ولو أُرسل: حدّدته الإدارة الداعية
   // وهو محفوظ على السجل. قبولُه من هنا يعني أن يسمّي كلٌّ نفسه بما يشاء.
 
-  if (!fullName || !phone || !specialization) {
-    return { error: "الاسم ورقم الجوال والتخصص مطلوبة" };
+  if (!fullName || !phone || !specialization || !gender) {
+    return { error: "الاسم والمخاطبة ورقم الجوال والتخصص مطلوبة" };
   }
 
   try {
@@ -38,6 +40,7 @@ export async function saveCandidateProfileAction(
         fullName,
         phone,
         specialization,
+        gender,
         section: section || null,
         profileCompletedAt: new Date(),
       },

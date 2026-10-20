@@ -1,5 +1,6 @@
 import { renderWelcomeBanner } from "@/lib/welcomeBanner";
 import sharp from "sharp";
+import { renderInviteCard, renderWelcomeCard, CARD_W, CARD_H } from "@/lib/shareCards";
 
 /** بوّابة بناء: هل ترسم بيئةُ التنفيذ العربيةَ فعلاً؟
  *
@@ -68,6 +69,41 @@ async function main() {
 
   console.log(
     `✓ اللوحة الترحيبية تُرسَم في بيئة البناء: ${pages} إطاراً، ${(gif.length / 1024).toFixed(0)}KB`
+  );
+
+  // ثم صورتا المشاركة: ملصق الدعوة وبطاقة العضوية. تُرسمان بالأدوات
+  // نفسها، فيُتحقَّق أنهما تخرجان بالمقاس الصحيح وأن الاسم مرسومٌ فيهما:
+  // صورةٌ بلا اسمٍ تبدو سليمة وقد فقدت كلّ ما يجعلها لصاحبها.
+  const cards = {
+    invite: await renderInviteCard({
+      fullName: FIXTURE.fullName,
+      position: "عضوية قسم تجريبي",
+      jobTitle: FIXTURE.role,
+      departmentName: FIXTURE.team,
+      colorHex: "#67C090",
+      invitedByName: "داعٍ تجريبي",
+      issuedAt: new Date(),
+    }),
+    welcome: await renderWelcomeCard({
+      fullName: FIXTURE.fullName,
+      greeting: "أهلاً بك",
+      title: FIXTURE.role,
+      roleTitle: "عضو",
+      joinedLabel: "انضمّ في",
+      joinedAt: new Date(),
+      departmentName: FIXTURE.team,
+      colorHex: "#C34900",
+    }),
+  };
+  for (const [name, png] of Object.entries(cards)) {
+    const meta = await sharp(png).metadata();
+    if (meta.format !== "png" || meta.width !== CARD_W || meta.height !== CARD_H) {
+      console.error(`\n✗ صورة «${name}» بمقاسٍ أو صيغةٍ غير متوقّعة: ${meta.format} ${meta.width}×${meta.height}\n`);
+      process.exit(1);
+    }
+  }
+  console.log(
+    `✓ صورتا المشاركة تُرسمان: الدعوة ${(cards.invite.length / 1024).toFixed(0)}KB، العضوية ${(cards.welcome.length / 1024).toFixed(0)}KB`
   );
 }
 

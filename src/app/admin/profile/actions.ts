@@ -8,6 +8,7 @@ import { appendMemberEvent } from "@/lib/googleSheets";
 import { ROLE_LABELS, accountRoleLabel } from "@/lib/testTracks";
 import { safeErrorMessage } from "@/lib/safeError";
 import { sendWelcomePack } from "@/lib/welcome";
+import { parseGender } from "@/lib/gender";
 
 /** يحفظ بيانات صاحب الحساب الإداري.
  *
@@ -32,9 +33,10 @@ export async function saveAdminProfileAction(
   const jobTitle = String(formData.get("jobTitle") ?? "").trim();
   const specialization = String(formData.get("specialization") ?? "").trim();
   const section = String(formData.get("section") ?? "").trim();
+  const gender = parseGender(formData.get("gender"));
 
-  if (!fullName || !phone || !jobTitle || !specialization) {
-    return { error: "الاسم ورقم الجوال والمسمى الوظيفي والتخصص مطلوبة", saved: false };
+  if (!fullName || !phone || !jobTitle || !specialization || !gender) {
+    return { error: "الاسم والمخاطبة ورقم الجوال والمسمى الوظيفي والتخصص مطلوبة", saved: false };
   }
   if (fullName.length < 3) return { error: "اكتب اسمك الكامل", saved: false };
 
@@ -47,6 +49,7 @@ export async function saveAdminProfileAction(
         phone,
         jobTitle,
         specialization,
+        gender,
         section: section || null,
         profileCompletedAt: before.profileCompletedAt ?? new Date(),
       },

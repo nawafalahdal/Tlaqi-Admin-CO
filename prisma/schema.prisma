@@ -7,6 +7,15 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// جنسُ صاحب الحساب — يختاره بنفسه، ولا يُخمَّن من اسمه.
+///
+/// لأجل المخاطبة وحدها: «قائدة قسم» لا «قائد قسم»، و«أهلاً بكِ» لا «بك».
+/// ويبقى فارغاً لمن لم يختر، فيُخاطَب بصيغةٍ محايدة لا بالمذكّر افتراضاً.
+enum Gender {
+  male
+  female
+}
+
 enum UserRole {
   super_admin
   executive
@@ -256,6 +265,8 @@ model User {
   // الفاوندر والتنفيذي إداريان قبل أن يكونا لقبين، فلهما سجلّ كغيرهما.
   phone              String?
   jobTitle           String?
+  /// انظر `Gender` — يختاره صاحب الحساب في «بياناتي»
+  gender             Gender?
   /// الصورة الشخصية — انظر `Member.avatarData`
   avatarData         String?
   /// ختمُ آخر تغييرٍ للصورة — انظر `Member.avatarVersion`
@@ -350,6 +361,8 @@ model Member {
   departmentId    String?
   department      Department?    @relation(fields: [departmentId], references: [id])
   jobTitle        String?
+  /// انظر `Gender` — يختاره صاحبه عند استكمال بياناته أو من لوحته
+  gender          Gender?
   /// الصورة الشخصية — صورةٌ واحدة معتمدة لكل شخص، مُوحَّدة عند الاستلام.
   ///
   /// تُخزَّن data URL كما يُخزَّن توقيع القائد: لا مخزن ملفّات في المنصة،

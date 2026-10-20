@@ -110,6 +110,7 @@ export default async function AdminProfilePage() {
               jobTitle: user.jobTitle ?? "",
               specialization: user.specialization ?? "",
               section: user.section ?? "",
+              gender: user.gender ?? null,
             }}
           />
         </Card>

@@ -522,6 +522,16 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
       founder_escalation: "Senior management",
     },
   },
+  gender: {
+    label: "How should we address you?",
+    male: "Male",
+    female: "Female",
+    hint: "So emails and certificates use the right Arabic form for you (e.g. «قائدة قسم», not «قائد قسم»).",
+    promptTitle: "How should we address you?",
+    promptBody: "Choose once, and emails and certificates will address you correctly. You can change it later in your details.",
+    promptSaved: "Saved — emails will now address you correctly.",
+    saving: "Saving...",
+  },
   improve: {
     fab: "Improve",
     fabAria: "Improve — share a note or a suggestion",

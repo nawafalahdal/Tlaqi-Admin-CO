@@ -78,6 +78,7 @@ export default async function WelcomePage() {
               email: member.email,
               phone: member.phone ?? "",
               jobTitle: member.jobTitle ?? "",
+              gender: member.gender ?? null,
             }}
           />
         </div>

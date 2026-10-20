@@ -5,12 +5,19 @@ import { saveCandidateProfileAction } from "./actions";
 import { Button } from "@/components/ui";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import type { themeFromColor } from "@/lib/brand";
+import { GenderField } from "@/components/GenderField";
 
 export function ProfileForm({
   defaults,
   theme,
 }: {
-  defaults: { fullName: string; email: string; phone: string; jobTitle: string };
+  defaults: {
+    fullName: string;
+    email: string;
+    phone: string;
+    jobTitle: string;
+    gender: "male" | "female" | null;
+  };
   theme: ReturnType<typeof themeFromColor>;
 }) {
   const dict = useTranslations();
@@ -31,6 +38,7 @@ export function ProfileForm({
         />
         <span className="text-xs text-black/40">{t.emailLocked}</span>
       </label>
+      <GenderField defaultValue={defaults.gender} required />
       <Field label={t.phone} name="phone" defaultValue={defaults.phone} required dir="ltr" />
       <Field label={t.specialization} name="specialization" required hint={t.specializationHint} />
       {/* المسمى تحدّده الإدارة الداعية، فيُعرض ولا يُكتب: تركه للمرشّح

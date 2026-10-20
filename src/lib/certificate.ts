@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { BRAND, themeFromColor } from "@/lib/brand";
 import { accountRoleLabel } from "@/lib/testTracks";
-import { formatDate } from "@/lib/format";
+import { gx, roleTitle, type MaybeGender } from "@/lib/gender";
 
 /** شهادة الشكر والتقدير — آخر ما يحمله معه من مرّ بالفريق.
  *
@@ -15,7 +15,7 @@ import { formatDate } from "@/lib/format";
 export type CertificatePeriod = { start: Date; end: Date };
 
 export type CertificateSigner = {
-  /** الصفة: «قائد قسم التسويق»، «المؤسس»، «المدير التنفيذي» */
+  /** الصفة بجنس صاحبها: «قائدة قسم التسويق»، «المؤسس»، «الرئيس التنفيذي» */
   title: string;
   name: string;
   /** توقيعه المعتمَد — `null` إن لم يُعتمد له توقيع بعد.
@@ -29,6 +29,10 @@ export type CertificateData = {
   memberId: string;
   kind: CertificateKind;
   fullName: string;
+  /** جنسُ صاحبها — لصيغة النصّ وحدها، ولا يُخمَّن إن لم يُختر */
+  gender: MaybeGender;
+  /** ما يُكتب تحت الاسم: المسمّى، أو الصفة لمن يقود */
+  personTitle: string;
   /** المهمة كما حدّدتها الإدارة الداعية */
   mission: string | null;
   departmentName: string | null;
@@ -100,53 +104,32 @@ export function certificateUrl(
   return `${base}/certificate/${signCertificateToken(memberId, kind)}`;
 }
 
-/** نصّ الشهادة — يتبدّل بالمهمة والصفة لا بالاسم وحده.
+/** نصّ الشهادة — جملةٌ واحدة تُقرأ بعد الاسم، بجنس صاحبها.
  *
- *  وصيغته محايدة في التذكير والتأنيث عمداً: المنصة لا تسجّل جنس أحد،
- *  وتخمينُه من الاسم يُخطئ ويُسيء. فيُخاطَب الجميع بما يصحّ للجميع. */
+ *  كانت فقرةً واحدةً يُدفَن فيها الاسم، وبالمذكّر للجميع («على إكماله»)،
+ *  وتقول لكلّ قائدٍ «القيادة الاستثنائية لـالتسويق». فصار الاسمُ بطلَ
+ *  الورقة وحده، وتحته صفتُه، ثم جملةُ التقدير بصيغته — ومن لم يختر
+ *  جنسه تُكتب له بالمصدر: «تقديراً للعطاء» لا «لعطائه».
+ *
+ *  ولا يُنسَب إليه إنجازٌ بعينه: المنصة تعرف المدّة ولا تعرف ما صُنع
+ *  فيها، واختراعُ إنجازٍ يُفرغ التقدير من صدقه. */
 export function certificateBody(data: CertificateData): string {
-  const dept = data.departmentName?.trim() || null;
-  const mission = data.mission?.trim() || null;
-
-  // المهمة كثيراً ما تحمل اسم القسم في نصّها («تطوير سياسات الموارد
-  // البشرية»)، فإلحاق القسم بها يكرّره: «... في الموارد البشرية».
-  // فلا يُلحَق إلا إذا لم يُذكر أصلاً.
-  const missionNamesDept = Boolean(dept && mission && mission.includes(dept));
-  const where = dept ? `في ${dept}` : "في تَـــلاقِ";
-
-  const contribution = data.isLead
-    ? `على القيادة الاستثنائية ${dept ? `لـ${dept}` : "داخل الفريق"}`
-    : mission
-      ? missionNamesDept
-        ? `على ${mission}`
-        : `على ${mission} ${where}`
-      : `على الإسهام ${where}`;
-
-  // شهادة الثلاثة أشهر تُكرّم مسيرةً جارية، وختامُ المسيرة يودّعها.
-  // فلا يصحّ أن تقول للباقي معنا «نتمنّى له مستقبلاً حافلاً» كأنه ذهب.
+  const G = (m: string, f: string, n: string) => gx(data.gender, m, f, n);
   if (data.kind === "appreciation") {
-    return [
-      `تتقدّم «تَـــلاقِ» بخالص التقدير إلى ${data.fullName}`,
-      `${contribution}،`,
-      `على إكماله ثلاثة أشهرٍ من العطاء (منذ ${formatDate(data.period.start)}).`,
-      "ثلاثة أشهرٍ من العمل والتعلّم والإسهام في بناء ما نطمح إليه معاً،",
-      "ونتطلّع إلى ما نصنعه في الأشهر القادمة.",
-    ].join(" ");
+    return `تقديراً ${G("لعطائه", "لعطائها", "للعطاء")} خلال ثلاثة أشهرٍ من العمل والتعلّم، ${G("وإسهامه", "وإسهامها", "والإسهام")} في بناء ما نطمح إليه معاً.`;
   }
-
-  return [
-    `كلمات الثناء لا توفي حقّه، تتقدّم «تَـــلاقِ» بخالص الشكر إلى ${data.fullName}`,
-    `${contribution} (${formatDate(data.period.start)} — ${formatDate(data.period.end)}).`,
-    "إسهاماته القيّمة صنعت أثراً بالغاً في مسيرتنا،",
-    "ونتمنّى له مستقبلاً حافلاً بالإنجازات.",
-  ].join(" ");
+  const wish = G("ونتمنّى له", "ونتمنّى لها", "ونتمنّى");
+  return `تقديراً لما ${G("قدّمه", "قدّمته", "قُدِّم")} خلال ${G("مسيرته", "مسيرتها", "المسيرة")} معنا، ${G("وإسهامه", "وإسهامها", "والإسهام")} في بناء ما نطمح إليه معاً — ${wish} مستقبلاً حافلاً بالإنجازات.`;
 }
 
-/** عنوان الشهادة — المناسبة تُقرأ من أعلى الورقة لا من نصّها */
+/** عنوان الشهادة — المناسبة تُقرأ من أعلى الورقة لا من نصّها.
+ *
+ *  نوعان بتصميمين: شهادةُ الشكر والخبرة تختم المسيرة (لونُ القسم كاملاً)،
+ *  وشهادةُ التقدير تُكرّم محطّةً في مسيرةٍ جارية (ورقٌ وشريطٌ بلون القسم). */
 export function certificateHeading(kind: CertificateKind): { ar: string; en: string } {
   return kind === "appreciation"
-    ? { ar: "شهــادة تقديــر", en: "Certificate of Appreciation" }
-    : { ar: "شكــر وتقديــر", en: "Certification of Appreciation" };
+    ? { ar: "شهادة تقدير — ثلاثة أشهر", en: "Certificate of Appreciation" }
+    : { ar: "شهادة شكر وخبرة", en: "Certificate of Appreciation & Experience" };
 }
 
 /** يجمع كل ما تحتاجه الشهادة من القاعدة.
@@ -189,18 +172,19 @@ export async function certificateFor(
     deptLead ? approvedSignatureFor(deptLead.id) : null,
   ]);
 
+  // الصفة بجنس الموقِّع نفسه: «الرئيسة التنفيذية» لا «المدير التنفيذي»
   const founderSigner: CertificateSigner = {
-    title: "المؤسس",
+    title: roleTitle("super_admin", founder?.gender),
     name: founder?.fullName ?? "—",
     signatureImage: founderSig,
   };
   const executiveSigner: CertificateSigner = {
-    title: "المدير التنفيذي",
+    title: roleTitle("executive", executive?.gender),
     name: executive?.fullName ?? "—",
     signatureImage: execSig,
   };
   const leadSigner: CertificateSigner = {
-    title: member.department ? `قائد ${member.department.name}` : "قائد القسم",
+    title: roleTitle("department_admin", deptLead?.gender, member.department?.name),
     name: deptLead?.fullName ?? "—",
     signatureImage: leadSig,
   };
@@ -216,6 +200,11 @@ export async function certificateFor(
     memberId: member.id,
     kind,
     fullName: member.fullName,
+    gender: member.gender,
+    // القائد تُكتب صفتُه («قائدة قسم التسويق»)، وغيره مسمّاه، ثم صفتُه
+    personTitle: isLead
+      ? roleTitle(member.invite.targetRole, member.gender, member.department?.name)
+      : member.jobTitle?.trim() || roleTitle("member", member.gender),
     mission: member.jobTitle,
     departmentName: member.department?.name ?? null,
     roleLabel: accountRoleLabel(member.invite.targetRole),

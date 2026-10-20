@@ -6,6 +6,8 @@
  *  جداول — وهي الطريقة الوحيدة التي تُرسم بها الرسالة كما كُتبت.
  */
 
+import { readableTextOn } from "@/lib/colors";
+
 const BRAND = {
   temptress: "#341D2B",
   mahogany: "#C34900",
@@ -25,29 +27,6 @@ function assetUrl(path: string) {
   return `${appBaseUrl()}${path}`;
 }
 
-/** خلفية بلون الهوية مرسومة كصورة لا كلون.
- *
- *  Gmail على الجوال يعكس الألوان في الوضع الداكن ويتجاهل color-scheme،
- *  لكنه لا يعكس الصور. وهنا الفخّ الذي وقعنا فيه: إن ثُبِّتت الخلفية
- *  صورةً وبقي النص فوقها لوناً، عُكس النصّ وحده — فصار فاتحاً على فاتح،
- *  أو داكناً على داكن، واختفى.
- *
- *  فالقاعدة: لا تُثبَّت الخلفية صورةً إلا حيث لا نصّ حيّ أصلاً. ما فيه
- *  نصّ يُترك لوناً، فيُعكس مع نصّه معاً ويبقى التباين قائماً في الوضعين.
- *  ولهذا لم يبقَ من الصور إلا الشريط اللوني الفاصل (لا نصّ فيه)
- *  والترويسة (شعارها وجملتها مرسومان داخل الصورة نفسها). */
-function brandFill(tile: string, color: string) {
-  return `background-color:${color};background-image:url('${assetUrl(tile)}');background-repeat:repeat;background-size:8px 8px`;
-}
-
-/** الشريط الفاصل وحده — ولهذا لم يبقَ هنا إلا ألوان النبرة الأربعة */
-const RULE_FILL = {
-  temptress: () => brandFill("/brand/bg-temptress.png", BRAND.temptress),
-  mahogany: () => brandFill("/brand/bg-mahogany.png", BRAND.mahogany),
-  alert: () => brandFill("/brand/bg-alert.png", "#8C2F1B"),
-  green: () => brandFill("/brand/bg-green.png", BRAND.greenSheen),
-};
-
 /** أنواع الرسائل الأربعة.
  *
  *  الهوية واحدة في كل رسالة — الشعار والجملة والتذييل لا تتغيّر — لكن
@@ -62,87 +41,6 @@ export type EmailVariant =
   | "welcome"
   | "share"
   | "farewell";
-
-const VARIANT_STYLE: Record<
-  EmailVariant,
-  {
-    rule: string;
-    ruleFill: string;
-    badge: string | null;
-    badgeBg: string;
-    badgeColor: string;
-    note: string | null;
-  }
-> = {
-  default: {
-    rule: BRAND.mahogany,
-    ruleFill: RULE_FILL.mahogany(),
-    badge: null,
-    badgeBg: BRAND.mahogany,
-    badgeColor: "#ffffff",
-    note: null,
-  },
-  ticket: {
-    rule: BRAND.mahogany,
-    ruleFill: RULE_FILL.mahogany(),
-    badge: "تذكرة عمل · تحتاج إجراءً",
-    badgeBg: BRAND.mahogany,
-    badgeColor: "#ffffff",
-    note: "هذه تذكرة في نظام العمل، وليست إشعاراً عابراً. لها مهلة، وإن انقضت دون ردّ تُصعَّد تلقائياً إلى المسؤول الذي يليك.",
-  },
-  celebration: {
-    rule: BRAND.greenSheen,
-    ruleFill: RULE_FILL.green(),
-    badge: "خبر سار",
-    badgeBg: BRAND.greenSheen,
-    badgeColor: "#10321F",
-    note: null,
-  },
-  serious: {
-    rule: "#8C2F1B",
-    ruleFill: RULE_FILL.alert(),
-    badge: "إشعار رسمي",
-    badgeBg: "#8C2F1B",
-    badgeColor: "#ffffff",
-    note: "هذا الإشعار مُسجَّل في سجلّ الفريق ويمكن الرجوع إليه.",
-  },
-  welcome: {
-    rule: BRAND.mahogany,
-    ruleFill: RULE_FILL.mahogany(),
-    // لا وسم: بطاقة العضوية تحت الترويسة هي بطلة الرسالة، ووسمٌ فوقها
-    // يقول «أهلاً بك» يسبقها إلى معناها فيُضعف أثرها
-    badge: null,
-    badgeBg: BRAND.mahogany,
-    badgeColor: "#ffffff",
-    note: "احتفظ بهذه الرسالة: فيها بياناتك كما سُجِّلت عندنا. إن وجدت فيها خطأً، صحّحه من صفحة «بياناتي» داخل المنصة.",
-  },
-  share: {
-    rule: BRAND.greenSheen,
-    ruleFill: RULE_FILL.green(),
-    badge: "شاركنا الخبر",
-    badgeBg: BRAND.greenSheen,
-    badgeColor: "#10321F",
-    note: null,
-  },
-  farewell: {
-    rule: BRAND.temptress,
-    ruleFill: RULE_FILL.temptress(),
-    badge: "شكراً لِما قدّمت",
-    badgeBg: BRAND.temptress,
-    badgeColor: BRAND.beige,
-    note: "هذه آخر رسالة تصلك من المنصة. سجلّك محفوظ عندنا، وبابنا مفتوح إن عدت.",
-  },
-  security: {
-    rule: BRAND.temptress,
-    ruleFill: RULE_FILL.temptress(),
-    badge: "رمز دخول لمرة واحدة",
-    badgeBg: BRAND.temptress,
-    badgeColor: BRAND.beige,
-    // التحذير المضاد للتصيّد: أكثر ما يُسرق به رمز الدخول أن يتصل أحد
-    // بصاحبه منتحلاً صفة الفريق ويطلبه منه
-    note: "لا تشارك هذا الرمز مع أحد مهما كان. فريق تَـــلاقِ لن يطلبه منك أبداً — لا بمكالمة ولا برسالة. إن لم تكن أنت من حاول الدخول، غيّر كلمة مرورك فوراً.",
-  },
-};
 
 /** يربط نوع الرسالة بتصميمها.
  *
@@ -242,150 +140,272 @@ function esc(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-/** يغلّف متن الرسالة بالهوية الكاملة: ترويسة بالشعار، ثم المتن، ثم بانر
- *  التواصل والجملة. */
-export function wrapEmail(opts: {
+/** نبرةُ الرسالة — تُقرأ من شارتها قبل عنوانها.
+ *
+ *  التذكرة التي تحتاج إجراءً يجب أن تُعرف من نظرةٍ في صندوقٍ مزدحم،
+ *  ورسالةُ الشهادة لا تُرسَل بنبرة الإنذار. */
+export type EmailTone = "action" | "security" | "celebrate" | "info" | "alert" | "farewell";
+
+const TONE: Record<EmailTone, { badge: string; bg: string; fg: string }> = {
+  action: { badge: "إجراء مطلوب", bg: "#FCE9DC", fg: "#8C3600" },
+  security: { badge: "أمان الحساب", bg: "#EFE7EC", fg: BRAND.temptress },
+  celebrate: { badge: "تهنئة", bg: "#E1F3E8", fg: "#2A6B47" },
+  info: { badge: "للعلم", bg: "#EEF3E2", fg: "#4D5A33" },
+  alert: { badge: "تنبيه", bg: "#FBE3DE", fg: "#8C2F1B" },
+  farewell: { badge: "شكراً لِما قدّمت", bg: "#EFE7EC", fg: BRAND.temptress },
+};
+
+/** النبرة الافتراضية لكلّ تصميم — إن لم تحدّدها الرسالة بنفسها */
+export function toneForVariant(v: EmailVariant): EmailTone {
+  switch (v) {
+    case "ticket":
+      return "action";
+    case "celebration":
+    case "welcome":
+    case "share":
+      return "celebrate";
+    case "serious":
+      return "alert";
+    case "security":
+      return "security";
+    case "farewell":
+      return "farewell";
+    default:
+      return "info";
+  }
+}
+
+/** لونُ القسم في الرسالة: الشريط تحت الترويسة، والزرّ، وحدُّ الاقتباس.
+ *
+ *  القسمُ من سجلّ المستلِم أو من موضوع الرسالة — ولا يُخمَّن. ومن لا قسم
+ *  له يأخذ المهوجني، لونَ الفعل في الهوية. */
+export type EmailTheme = { departmentName?: string | null; colorHex?: string | null };
+
+/** محتوى الرسالة — بنيةٌ لا HTML.
+ *
+ *  كانت كلُّ دالة إرسالٍ تكتب HTML بيدها: فقرةٌ هنا وزرٌّ بلونٍ هناك،
+ *  والحقولُ سطورٌ متتالية بلا ترتيب. فصار المتنُ بياناتٍ يرسمها قالبٌ
+ *  واحد — فتتّحد الرسائل كلُّها شكلاً، ولا يُنسى في واحدةٍ تهريبٌ أو
+ *  لون.
+ *
+ *  **ما يُهرَّب وما لا يُهرَّب:** الحقولُ النصّية (`title`, `facts`,
+ *  `quote`, `code`, `note`, `cta.label`) يُهرّبها القالب. أما `lead` و
+ *  `paragraphs` و`after` فـHTML يكتبه المُرسِل، ويُهرِّب فيه بنفسه كلَّ
+ *  ما جاء من مستخدم. */
+export type EmailContent = {
+  tone?: EmailTone;
+  /** نصُّ الشارة إن خالف نصَّ النبرة */
+  badge?: string;
   title: string;
-  bodyHtml: string;
+  lead?: string;
+  paragraphs?: string[];
+  /** صورةٌ في رأس المتن (ملصق الدعوة، بطاقة العضوية) */
+  image?: { src: string; width: number; height: number; alt: string; href?: string };
+  facts?: Array<[string, string | null | undefined]>;
+  quote?: { label?: string; text: string } | null;
+  code?: { value: string; caption?: string };
+  cta?: { label: string; url: string } | null;
+  /** زرٌّ ثانٍ بحدٍّ لا بتعبئة — لما يلي الفعل الأساسي */
+  secondary?: { label: string; url: string } | null;
+  after?: string[];
+  /** سطرٌ صغير أخير: مهلة، أو تحذيرٌ من التصيّد */
+  note?: string | null;
+};
+
+const FONT_STACK = "Tahoma,Arial,sans-serif";
+
+function accentOf(theme?: EmailTheme) {
+  const c = theme?.colorHex?.trim() || BRAND.mahogany;
+  // «فاتحٌ جداً» لا «فاتح»: الأخضر يُقرأ عليه بالداكن لكنه زرٌّ ظاهرٌ على
+  // الأبيض، والبيج وحده يذوب فيه
+  const h = c.replace("#", "");
+  const lum =
+    (0.299 * parseInt(h.slice(0, 2), 16) + 0.587 * parseInt(h.slice(2, 4), 16) + 0.114 * parseInt(h.slice(4, 6), 16)) / 255;
+  const light = lum > 0.85;
+  return {
+    rule: c,
+    // زرٌّ بيجٌ على ورقةٍ بيضاء لا يُرى: فلون القسم الفاتح يأخذ زرَّ
+    // الهوية الداكن، ويبقى لونُه في الشريط تحت الترويسة
+    button: light ? BRAND.temptress : c,
+    buttonInk: light ? BRAND.beige : readableTextOn(c),
+    quote: light ? BRAND.mahogany : c,
+  };
+}
+
+function block(html: string, pad = "0 0 14px"): string {
+  return `<tr><td style="padding:${pad}">${html}</td></tr>`;
+}
+
+function renderBody(c: EmailContent, theme?: EmailTheme): string {
+  const tone = TONE[c.tone ?? "info"];
+  const a = accentOf(theme);
+  const rows: string[] = [];
+
+  rows.push(
+    block(
+      `<span style="display:inline-block;background-color:${tone.bg};color:${tone.fg};font-family:${FONT_STACK};font-size:12px;font-weight:bold;padding:5px 14px;border-radius:999px">${esc(c.badge ?? tone.badge)}</span>`,
+      "0 0 12px"
+    )
+  );
+  rows.push(
+    block(
+      `<h1 class="tq-ink" style="margin:0;font-family:${FONT_STACK};font-size:22px;line-height:1.5;font-weight:bold;color:${BRAND.ink}">${esc(c.title)}</h1>`,
+      "0 0 8px"
+    )
+  );
+  if (c.lead) {
+    rows.push(block(`<p class="tq-ink" style="margin:0;font-size:15px;line-height:1.9;color:#3D3745">${c.lead}</p>`, "0 0 18px"));
+  }
+  if (c.image) {
+    const img = `<img src="${c.image.src}" width="${c.image.width}" height="${c.image.height}" alt="${esc(c.image.alt)}" style="display:block;border:0;width:100%;max-width:${c.image.width}px;height:auto;border-radius:16px">`;
+    rows.push(block(c.image.href ? `<a href="${c.image.href}" style="text-decoration:none">${img}</a>` : img, "0 0 20px"));
+  }
+  for (const p of c.paragraphs ?? []) {
+    rows.push(block(`<p class="tq-ink" style="margin:0;font-size:15px;line-height:1.9;color:${BRAND.ink}">${p}</p>`));
+  }
+
+  const facts = (c.facts ?? []).filter(([, v]) => v && v.trim());
+  if (facts.length) {
+    const fr = facts
+      .map(
+        ([k, v], i) => `<tr>
+          <td style="padding:11px 16px;${i ? "border-top:1px solid #EEEAE4;" : ""}font-size:13px;color:#7A7280;white-space:nowrap;vertical-align:top">${esc(k)}</td>
+          <td class="tq-ink" align="left" style="padding:11px 16px;${i ? "border-top:1px solid #EEEAE4;" : ""}font-size:14px;font-weight:bold;color:${BRAND.ink};text-align:left">${esc(v!.trim())}</td>
+        </tr>`
+      )
+      .join("");
+    rows.push(
+      block(
+        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #E7E2DB;border-radius:14px;border-collapse:separate">${fr}</table>`,
+        "4px 0 18px"
+      )
+    );
+  }
+
+  if (c.quote?.text.trim()) {
+    rows.push(
+      block(
+        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td bgcolor="${BRAND.paper}" style="background-color:${BRAND.paper};border-right:4px solid ${a.quote};border-radius:10px;padding:13px 16px;font-size:14px;line-height:1.85;color:${BRAND.ink}">
+            ${c.quote.label ? `<div style="font-size:12px;font-weight:bold;color:#7A7280;margin-bottom:4px">${esc(c.quote.label)}</div>` : ""}
+            <div style="white-space:pre-wrap">${esc(c.quote.text.trim())}</div>
+          </td></tr></table>`,
+        "0 0 18px"
+      )
+    );
+  }
+
+  if (c.code) {
+    rows.push(
+      block(
+        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td align="center" bgcolor="${BRAND.beige}" style="background-color:${BRAND.beige};border-radius:16px;padding:22px 12px">
+            <div dir="ltr" style="font-family:'Courier New',Consolas,monospace;font-size:38px;font-weight:bold;letter-spacing:10px;color:${BRAND.temptress}">${esc(c.code.value)}</div>
+            ${c.code.caption ? `<div style="margin-top:8px;font-size:12px;color:#5E5A4E">${esc(c.code.caption)}</div>` : ""}
+          </td></tr></table>`,
+        "4px 0 18px"
+      )
+    );
+  }
+
+  if (c.cta || c.secondary) {
+    const btn = c.cta
+      ? `<a href="${c.cta.url}" style="display:inline-block;background-color:${a.button};color:${a.buttonInk};font-family:${FONT_STACK};font-size:15px;font-weight:bold;text-decoration:none;padding:13px 30px;border-radius:999px">${esc(c.cta.label)}</a>`
+      : "";
+    const sec = c.secondary
+      ? `<a href="${c.secondary.url}" style="display:inline-block;color:${BRAND.temptress};font-family:${FONT_STACK};font-size:14px;font-weight:bold;text-decoration:none;padding:11px 22px;border-radius:999px;border:1.5px solid rgba(52,29,43,0.25);margin-top:8px">${esc(c.secondary.label)}</a>`
+      : "";
+    rows.push(block(`<div style="text-align:center">${btn}${btn && sec ? "<br>" : ""}${sec}</div>`, "6px 0 16px"));
+  }
+
+  for (const p of c.after ?? []) {
+    rows.push(block(`<p class="tq-ink" style="margin:0;font-size:14px;line-height:1.85;color:#3D3745">${p}</p>`));
+  }
+  if (c.note) {
+    rows.push(block(`<p style="margin:0;font-size:12px;line-height:1.8;color:#8A8390;text-align:center">${esc(c.note)}</p>`, "4px 0 0"));
+  }
+
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl" style="font-family:${FONT_STACK}">${rows.join("")}</table>`;
+}
+
+/** الرسالة كاملةً بالقالب الموحَّد (المفهوم «أ» المعتمد).
+ *
+ *  ترويسةٌ داكنة فيها الشعار واسم القسم، ثم شريطٌ بلون القسم، ثم ورقةٌ
+ *  بيضاء: شارةُ النبرة، والعنوان، والمتن، والحقول في جدول، والزرّ بلون
+ *  القسم. ثم تذييلٌ داكن بالشعار والجملة والحسابات وشريط ألوان الهوية.
+ *
+ *  كلُّه جداول وأنماطٌ مضمَّنة: Gmail وOutlook يُسقطان `<style>` وCSS
+ *  الحديث، وهذه وحدها تُرسَم كما كُتبت. */
+export function renderEmail(opts: {
+  subject: string;
+  content: EmailContent;
+  theme?: EmailTheme;
   preheader?: string;
-  variant?: EmailVariant;
-  /** ترويسة بديلة لهذه الرسالة وحدها.
-   *
-   *  الخط العربي العريض لا يصل في البريد: Gmail يُسقط @font-face، فتُرسم
-   *  العناوين الكبيرة بخط النظام — وهو قبيح في الأحجام الكبيرة. والحلّ
-   *  أن يُرسم العنوان الثابت صورةً بخط الهوية نفسه. ولأنه ثابت لا
-   *  متغيّر، يصلح أن يكون صورة؛ ولأنه صورة، لا يقلبه الوضع الداكن. */
-  hero?: { src: string; width: number; height: number; alt: string };
-}) {
-  const style = VARIANT_STYLE[opts.variant ?? "default"];
-  // اليوزر يُكتب مرة واحدة تحت الأسماء ما دام موحّداً على كل المنصات؛
-  // فإن اختلف يوماً، كُتب مع اسم منصّته حتى لا يدلّ سطرٌ واحد على خطأ
+}): { html: string; bodyHtml: string } {
+  const a = accentOf(opts.theme);
+  const bodyHtml = renderBody(opts.content, opts.theme);
+  const dept = opts.theme?.departmentName?.trim();
   const sameHandle =
     SOCIAL_LINKS.length > 0 && SOCIAL_LINKS.every((s) => s.handle === SOCIAL_LINKS[0].handle);
+  const social = SOCIAL_LINKS.map(
+    (s) =>
+      `<a href="${s.url}${esc(s.handle)}" style="color:${BRAND.beige};text-decoration:none;font-size:12px;opacity:0.85">${esc(s.label)}${sameHandle ? "" : ` @${esc(s.handle)}`}</a>`
+  ).join(`<span style="color:rgba(238,246,223,0.35);padding:0 8px">·</span>`);
 
-  const social =
-    SOCIAL_LINKS.length === 0
-      ? ""
-      : `<tr>
-          <td align="center" dir="ltr" bgcolor="${BRAND.beige}" style="background-color:${BRAND.beige};padding:0 20px 16px;white-space:nowrap">
-            <span style="font-family:Tahoma,Arial,sans-serif;font-size:12px;color:${BRAND.ink}">
-              ${SOCIAL_LINKS.map(
-                (s) =>
-                  `<a href="${s.url}${esc(s.handle)}" style="color:#8C3600;text-decoration:none;font-weight:bold">${esc(s.label)}${sameHandle ? "" : ` @${esc(s.handle)}`}</a>`
-              ).join(
-                `<span style="color:rgba(26,16,35,0.35);padding:0 8px">&bull;</span>`
-              )}
-            </span>
-            ${
-              sameHandle
-                ? `<div style="font-family:Tahoma,Arial,sans-serif;font-size:11px;color:rgba(26,16,35,0.55);margin-top:5px">@${esc(SOCIAL_LINKS[0].handle)}</div>`
-                : ""
-            }
-          </td>
-        </tr>`;
-
-  return `<!doctype html>
+  const html = `<!doctype html>
 <html dir="rtl" lang="ar">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<!-- الوضع الداكن.
-     الإعلان وحده لا يكفي: Gmail على الجوال يتجاهله ويقلب الألوان. وما
-     لا يُقلب هو الصور. فالهوية التي يجب أن تبقى كما هي (الترويسة) صارت
-     صورةً واحدة بشعارها وجملتها، وكل ما فيه نصّ حيّ تُرك لوناً ليُقلب
-     مع نصّه معاً — فيبقى مقروءاً في الوضعين بدل أن يختفي أحدهما. -->
 <meta name="color-scheme" content="light dark">
 <meta name="supported-color-schemes" content="light dark">
 <style>
   :root { color-scheme: light dark; supported-color-schemes: light dark; }
-  /* Outlook.com يضع هاتين السمتين عند الوضع الداكن، فنثبّت تحتهما
-     الزوج كاملاً — الخلفية ولون نصّها معاً، لا أحدهما */
   [data-ogsc] .tq-card, [data-ogsb] .tq-card { background:#ffffff !important; }
   [data-ogsc] .tq-ink { color:${BRAND.ink} !important; }
-  [data-ogsc] .tq-foot, [data-ogsb] .tq-foot { background:${BRAND.beige} !important; }
-  [data-ogsc] .tq-on-foot { color:${BRAND.ink} !important; }
 </style>
-<title>${esc(opts.title)}</title>
+<title>${esc(opts.subject)}</title>
 </head>
-<body bgcolor="${BRAND.paper}" style="margin:0;padding:0;background-color:${BRAND.paper};">
-<!-- السطر الذي يسبق فتح الرسالة في صندوق الوارد: يُخفى داخلها -->
-<div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(opts.preheader ?? opts.title)}</div>
-
+<body bgcolor="${BRAND.paper}" style="margin:0;padding:0;background-color:${BRAND.paper}">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(opts.preheader ?? opts.subject)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BRAND.paper}" style="background-color:${BRAND.paper};padding:24px 12px">
 <tr><td align="center">
-
-  <table role="presentation" class="tq-card" bgcolor="#ffffff" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background-color:#ffffff;border-radius:18px;overflow:hidden;border:1px solid rgba(0,0,0,0.06)">
-
-    <!-- الترويسة صورةً واحدة: الخلفية والشعار والجملة مرسومة داخلها.
-         لا نصّ حيّ فيها، فلا شيء يَقلبه الوضع الداكن — وهذه هي الطريقة
-         الوحيدة التي تبقى بها هوية تَـــلاقِ كما هي في كل عميل بريد. -->
+  <table role="presentation" class="tq-card" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="max-width:600px;background-color:#ffffff;border-radius:20px;overflow:hidden;border:1px solid rgba(0,0,0,0.06)">
     <tr>
-      <td align="center" bgcolor="${BRAND.temptress}" style="background-color:${BRAND.temptress};font-size:0;line-height:0">
-        <img src="${assetUrl(opts.hero?.src ?? "/brand/email-header.png")}" width="${opts.hero?.width ?? 600}" height="${opts.hero?.height ?? 127}"
-             alt="${esc(opts.hero?.alt ?? `تَـــلاقِ — TLAQI · ${TAGLINE}`)}"
-             style="display:block;border:0;width:100%;max-width:600px;height:auto">
+      <td bgcolor="${BRAND.temptress}" style="background-color:${BRAND.temptress};padding:18px 26px">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td align="right" style="font-size:0;line-height:0"><img src="${assetUrl("/brand/lockup-on-dark.png")}" width="118" height="35" alt="تَـــلاقِ — TLAQI" style="display:block;border:0;width:118px;height:35px"></td>
+          <td align="left" style="font-family:${FONT_STACK};font-size:12px;font-weight:bold;color:rgba(238,246,223,0.72)">${dept ? esc(dept) : ""}</td>
+        </tr></table>
       </td>
     </tr>
-
-    <!-- شريط لوني فاصل: لونه يقول نوع الرسالة قبل قراءة حرف منها.
-         ولأنه بلا نصّ، تُثبَّت صورته بأمان فلا ينقلب. -->
-    <tr><td style="height:5px;${style.ruleFill};font-size:0;line-height:0">&nbsp;</td></tr>
-
-    ${
-      style.badge
-        ? `<tr>
-      <td align="center" bgcolor="#ffffff" style="background-color:#ffffff;padding:18px 24px 0">
-        <span style="display:inline-block;background-color:${style.badgeBg};color:${style.badgeColor};font-family:Tahoma,Arial,sans-serif;font-size:12px;font-weight:bold;letter-spacing:0.5px;padding:8px 18px;border-radius:999px">${esc(style.badge)}</span>
-      </td>
-    </tr>`
-        : ""
-    }
-
-    <!-- المتن -->
+    <tr><td bgcolor="${a.rule}" style="height:5px;background-color:${a.rule};font-size:0;line-height:0">&nbsp;</td></tr>
+    <tr><td class="tq-card" bgcolor="#ffffff" style="background-color:#ffffff;padding:26px 28px 24px">${bodyHtml}</td></tr>
     <tr>
-      <td class="tq-ink" bgcolor="#ffffff" style="background-color:#ffffff;padding:${style.badge ? "18px" : "28px"} 26px 26px;font-family:Tahoma,Arial,sans-serif;font-size:15px;line-height:1.9;color:${BRAND.ink}" dir="rtl">
-        ${
-          opts.variant === "ticket"
-            ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-                 <td style="border-right:3px dashed ${BRAND.mahogany};padding-right:16px">${opts.bodyHtml}</td>
-               </tr></table>`
-            : opts.bodyHtml
-        }
-        ${
-          style.note
-            ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:20px">
-                 <tr><td bgcolor="${BRAND.paper}" style="background-color:${BRAND.paper};border-radius:10px;padding:12px 14px;font-size:12px;line-height:1.8;color:#3D3745;border:1px solid rgba(0,0,0,0.07)">${esc(style.note)}</td></tr>
-               </table>`
-            : ""
-        }
+      <td align="center" bgcolor="${BRAND.temptress}" style="background-color:${BRAND.temptress};padding:22px 24px 16px">
+        <img src="${assetUrl("/brand/lockup-on-dark.png")}" width="96" height="28" alt="TLAQI" style="display:block;border:0;width:96px;height:28px;margin:0 auto 10px">
+        <div style="font-family:${FONT_STACK};font-size:13px;font-weight:bold;color:${BRAND.beige};letter-spacing:0.5px">${esc(TAGLINE)}</div>
+        ${social ? `<div dir="ltr" style="font-family:${FONT_STACK};margin-top:10px">${social}</div>` : ""}
+        ${sameHandle ? `<div dir="ltr" style="font-family:${FONT_STACK};font-size:11px;color:rgba(238,246,223,0.55);margin-top:4px">@${esc(SOCIAL_LINKS[0].handle)}</div>` : ""}
       </td>
     </tr>
-
-    <!-- التذييل: بيج بنصّ داكن. اللون هنا لا يُثبَّت صورةً لأن فيه نصّاً
-         وروابط حيّة — فيُقلب هو ونصّه معاً، ويبقى مقروءاً. -->
-    <tr>
-      <td align="center" class="tq-foot" bgcolor="${BRAND.beige}" style="background-color:${BRAND.beige};padding:18px 24px 12px;border-top:1px solid rgba(0,0,0,0.06)">
-        <div class="tq-on-foot" style="font-family:Tahoma,Arial,sans-serif;font-size:15px;font-weight:bold;color:${BRAND.ink};letter-spacing:1px">${esc(TAGLINE)}</div>
-      </td>
-    </tr>
-    ${social}
-    <tr>
-      <td align="center" class="tq-foot" bgcolor="${BRAND.beige}" style="background-color:${BRAND.beige};padding:0 24px 22px">
-        <a href="${appBaseUrl()}" style="font-family:Tahoma,Arial,sans-serif;font-size:12px;color:rgba(26,16,35,0.65);text-decoration:none">${esc(appBaseUrl().replace(/^https?:\/\//, ""))}</a>
-      </td>
-    </tr>
+    <tr><td style="font-size:0;line-height:0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      <td bgcolor="${BRAND.greenSheen}" style="height:5px;background-color:${BRAND.greenSheen}">&nbsp;</td>
+      <td bgcolor="${BRAND.mahogany}" style="height:5px;background-color:${BRAND.mahogany}">&nbsp;</td>
+      <td bgcolor="${BRAND.beige}" style="height:5px;background-color:${BRAND.beige}">&nbsp;</td>
+    </tr></table></td></tr>
   </table>
-
-  <div style="max-width:600px;margin:14px auto 0;font-family:Tahoma,Arial,sans-serif;font-size:11px;line-height:1.8;color:rgba(0,0,0,0.45);text-align:center">
-    هذه رسالة آلية من منصة تَـــلاقِ الداخلية، أُرسلت إليك لأن لك حساباً فيها.<br>
-    إن وصلتك بالخطأ فتجاهلها ولا تشارك محتواها.
+  <div style="max-width:600px;margin:14px auto 0;font-family:${FONT_STACK};font-size:11px;line-height:1.8;color:rgba(0,0,0,0.45);text-align:center">
+    رسالةٌ آليّة من منصة تَـــلاقِ الداخلية، أُرسلت إليك لأن لك حساباً فيها.<br>
+    <a href="${appBaseUrl()}" style="color:rgba(0,0,0,0.5);text-decoration:none">${esc(appBaseUrl().replace(/^https?:\/\//, ""))}</a>
   </div>
-
 </td></tr>
 </table>
 </body>
 </html>`;
+  return { html, bodyHtml };
 }
+
 
 /** نسخة نصّية من الرسالة.
  *

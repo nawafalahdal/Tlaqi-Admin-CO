@@ -7,6 +7,7 @@ import { avatarUrl } from "@/lib/avatarUrl";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { NavGlyph } from "../icons";
 import { SidebarProvider } from "./SidebarRail";
+import { GenderPrompt } from "../account/GenderPrompt";
 import type { ReactNode } from "react";
 
 /** يحسب بنودَ القائمة لصاحب الجلسة على الخادم، ويُسلّمها لمن يرسمها.
@@ -35,8 +36,8 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
   // نفسُها موردٌ يُخزَّن في المتصفّح سنةً (`/api/avatar`)، فلا تُعاد مع كل
   // صفحة. والتخطيطُ لا يُعاد رسمه بين صفحات القسم الواحد أصلاً.
   const stamp = isMember
-    ? await prisma.member.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true } })
-    : await prisma.user.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true } });
+    ? await prisma.member.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true, gender: true } })
+    : await prisma.user.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true, gender: true } });
   const avatar = avatarUrl(isMember ? "member" : "user", session.user.id, stamp?.avatarVersion);
 
   const accountLinks = [
@@ -83,6 +84,8 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
       raise={{ href: raiseTicketHref(viewer), label: t.composer.cta }}
       avatar={avatar}
     >
+      {/* من لم يختر مخاطبته يُسأل مرّةً هنا — وما بعد الاختيار لا يظهر */}
+      {stamp && !stamp.gender && <GenderPrompt />}
       {children}
     </SidebarProvider>
   );
