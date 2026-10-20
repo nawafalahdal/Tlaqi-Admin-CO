@@ -6,7 +6,7 @@
  *  جداول — وهي الطريقة الوحيدة التي تُرسم بها الرسالة كما كُتبت.
  */
 
-import { readableTextOn } from "@/lib/colors";
+import { liftForDark, readableTextOn } from "@/lib/colors";
 
 const BRAND = {
   temptress: "#341D2B",
@@ -155,6 +155,35 @@ const TONE: Record<EmailTone, { badge: string; bg: string; fg: string }> = {
   farewell: { badge: "شكراً لِما قدّمت", bg: "#EFE7EC", fg: BRAND.temptress },
 };
 
+/** السمة الداكنة للرسائل — لوحٌ مستقلٌّ لا قلبٌ آليٌّ للفاتح.
+ *
+ *  **ما رأيناه في Gmail الداكن:** العميلُ يقلب الألوان بنفسه، فصارت الترويسةُ
+ *  البنفسجية الداكنة ورديّةً فاتحة، وذاب عليها الشعارُ الفاتح. فللرسالة الآن
+ *  طبقتان:
+ *  - **عملاءٌ يحترمون `prefers-color-scheme`** (Apple Mail وiOS Mail وOutlook):
+ *    هذا اللوحُ بعينه — أرضيةٌ غرافيتية، وبطاقةٌ أفتح بدرجة، وحبرٌ فاتح،
+ *    وألوانُ الأقسام مرفوعةً حتى تُقرأ (`liftForDark`).
+ *  - **عملاءٌ يقلبون الألوان قسراً** (Gmail): الترويسةُ والتذييلُ يُرسمان
+ *    بـ`background-image` (لا يقلبها Gmail)، ونصوصُهما محميّةٌ بمزج
+ *    `screen/difference` فتبقى فاتحةً على الداكن. */
+const DARK = {
+  page: "#121416",
+  card: "#1C1F23",
+  panel: "#24282D",
+  line: "#2F343B",
+  ink: "#ECEEF0",
+  body: "#C9CDD2",
+  muted: "#9AA0A8",
+};
+const TONE_DARK: Record<EmailTone, { bg: string; fg: string }> = {
+  action: { bg: "#3A2418", fg: "#F6A06E" },
+  security: { bg: "#33222D", fg: "#E7C3D1" },
+  celebrate: { bg: "#1C3427", fg: "#93DBB2" },
+  info: { bg: "#283021", fg: "#CBD9AC" },
+  alert: { bg: "#3B201B", fg: "#F5A897" },
+  farewell: { bg: "#33222D", fg: "#E7C3D1" },
+};
+
 /** النبرة الافتراضية لكلّ تصميم — إن لم تحدّدها الرسالة بنفسها */
 export function toneForVariant(v: EmailVariant): EmailTone {
   switch (v) {
@@ -243,7 +272,7 @@ function renderBody(c: EmailContent, theme?: EmailTheme): string {
 
   rows.push(
     block(
-      `<span style="display:inline-block;background-color:${tone.bg};color:${tone.fg};font-family:${FONT_STACK};font-size:12px;font-weight:bold;padding:5px 14px;border-radius:999px">${esc(c.badge ?? tone.badge)}</span>`,
+      `<span class="tq-badge-${c.tone ?? "info"}" style="display:inline-block;background-color:${tone.bg};color:${tone.fg};font-family:${FONT_STACK};font-size:12px;font-weight:bold;padding:5px 14px;border-radius:999px">${esc(c.badge ?? tone.badge)}</span>`,
       "0 0 12px"
     )
   );
@@ -254,7 +283,7 @@ function renderBody(c: EmailContent, theme?: EmailTheme): string {
     )
   );
   if (c.lead) {
-    rows.push(block(`<p class="tq-ink" style="margin:0;font-size:15px;line-height:1.9;color:#3D3745">${c.lead}</p>`, "0 0 18px"));
+    rows.push(block(`<p class="tq-body" style="margin:0;font-size:15px;line-height:1.9;color:#3D3745">${c.lead}</p>`, "0 0 18px"));
   }
   if (c.image) {
     const img = `<img src="${c.image.src}" width="${c.image.width}" height="${c.image.height}" alt="${esc(c.image.alt)}" style="display:block;border:0;width:100%;max-width:${c.image.width}px;height:auto;border-radius:16px">`;
@@ -269,14 +298,14 @@ function renderBody(c: EmailContent, theme?: EmailTheme): string {
     const fr = facts
       .map(
         ([k, v], i) => `<tr>
-          <td style="padding:11px 16px;${i ? "border-top:1px solid #EEEAE4;" : ""}font-size:13px;color:#7A7280;white-space:nowrap;vertical-align:top">${esc(k)}</td>
-          <td class="tq-ink" align="left" style="padding:11px 16px;${i ? "border-top:1px solid #EEEAE4;" : ""}font-size:14px;font-weight:bold;color:${BRAND.ink};text-align:left">${esc(v!.trim())}</td>
+          <td class="tq-muted tq-line" style="padding:11px 16px;${i ? "border-top:1px solid #EEEAE4;" : ""}font-size:13px;color:#7A7280;white-space:nowrap;vertical-align:top">${esc(k)}</td>
+          <td class="tq-ink tq-line" align="left" style="padding:11px 16px;${i ? "border-top:1px solid #EEEAE4;" : ""}font-size:14px;font-weight:bold;color:${BRAND.ink};text-align:left">${esc(v!.trim())}</td>
         </tr>`
       )
       .join("");
     rows.push(
       block(
-        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #E7E2DB;border-radius:14px;border-collapse:separate">${fr}</table>`,
+        `<table role="presentation" class="tq-line" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #E7E2DB;border-radius:14px;border-collapse:separate">${fr}</table>`,
         "4px 0 18px"
       )
     );
@@ -286,8 +315,8 @@ function renderBody(c: EmailContent, theme?: EmailTheme): string {
     rows.push(
       block(
         `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-          <td bgcolor="${BRAND.paper}" style="background-color:${BRAND.paper};border-right:4px solid ${a.quote};border-radius:10px;padding:13px 16px;font-size:14px;line-height:1.85;color:${BRAND.ink}">
-            ${c.quote.label ? `<div style="font-size:12px;font-weight:bold;color:#7A7280;margin-bottom:4px">${esc(c.quote.label)}</div>` : ""}
+          <td class="tq-panel tq-ink" bgcolor="${BRAND.paper}" style="background-color:${BRAND.paper};border-right:4px solid ${a.quote};border-radius:10px;padding:13px 16px;font-size:14px;line-height:1.85;color:${BRAND.ink}">
+            ${c.quote.label ? `<div class="tq-muted" style="font-size:12px;font-weight:bold;color:#7A7280;margin-bottom:4px">${esc(c.quote.label)}</div>` : ""}
             <div style="white-space:pre-wrap">${esc(c.quote.text.trim())}</div>
           </td></tr></table>`,
         "0 0 18px"
@@ -299,9 +328,9 @@ function renderBody(c: EmailContent, theme?: EmailTheme): string {
     rows.push(
       block(
         `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-          <td align="center" bgcolor="${BRAND.beige}" style="background-color:${BRAND.beige};border-radius:16px;padding:22px 12px">
-            <div dir="ltr" style="font-family:'Courier New',Consolas,monospace;font-size:38px;font-weight:bold;letter-spacing:10px;color:${BRAND.temptress}">${esc(c.code.value)}</div>
-            ${c.code.caption ? `<div style="margin-top:8px;font-size:12px;color:#5E5A4E">${esc(c.code.caption)}</div>` : ""}
+          <td align="center" class="tq-code" bgcolor="${BRAND.beige}" style="background-color:${BRAND.beige};border-radius:16px;padding:22px 12px">
+            <div dir="ltr" class="tq-ink" style="font-family:'Courier New',Consolas,monospace;font-size:38px;font-weight:bold;letter-spacing:10px;color:${BRAND.temptress}">${esc(c.code.value)}</div>
+            ${c.code.caption ? `<div class="tq-muted" style="margin-top:8px;font-size:12px;color:#5E5A4E">${esc(c.code.caption)}</div>` : ""}
           </td></tr></table>`,
         "4px 0 18px"
       )
@@ -310,22 +339,64 @@ function renderBody(c: EmailContent, theme?: EmailTheme): string {
 
   if (c.cta || c.secondary) {
     const btn = c.cta
-      ? `<a href="${c.cta.url}" style="display:inline-block;background-color:${a.button};color:${a.buttonInk};font-family:${FONT_STACK};font-size:15px;font-weight:bold;text-decoration:none;padding:13px 30px;border-radius:999px">${esc(c.cta.label)}</a>`
+      ? `<a href="${c.cta.url}" class="tq-btn" style="display:inline-block;background-color:${a.button};color:${a.buttonInk};font-family:${FONT_STACK};font-size:15px;font-weight:bold;text-decoration:none;padding:13px 30px;border-radius:999px">${esc(c.cta.label)}</a>`
       : "";
     const sec = c.secondary
-      ? `<a href="${c.secondary.url}" style="display:inline-block;color:${BRAND.temptress};font-family:${FONT_STACK};font-size:14px;font-weight:bold;text-decoration:none;padding:11px 22px;border-radius:999px;border:1.5px solid rgba(52,29,43,0.25);margin-top:8px">${esc(c.secondary.label)}</a>`
+      ? `<a href="${c.secondary.url}" class="tq-sec" style="display:inline-block;color:${BRAND.temptress};font-family:${FONT_STACK};font-size:14px;font-weight:bold;text-decoration:none;padding:11px 22px;border-radius:999px;border:1.5px solid rgba(52,29,43,0.25);margin-top:8px">${esc(c.secondary.label)}</a>`
       : "";
     rows.push(block(`<div style="text-align:center">${btn}${btn && sec ? "<br>" : ""}${sec}</div>`, "6px 0 16px"));
   }
 
   for (const p of c.after ?? []) {
-    rows.push(block(`<p class="tq-ink" style="margin:0;font-size:14px;line-height:1.85;color:#3D3745">${p}</p>`));
+    rows.push(block(`<p class="tq-body" style="margin:0;font-size:14px;line-height:1.85;color:#3D3745">${p}</p>`));
   }
   if (c.note) {
-    rows.push(block(`<p style="margin:0;font-size:12px;line-height:1.8;color:#8A8390;text-align:center">${esc(c.note)}</p>`, "4px 0 0"));
+    rows.push(block(`<p class="tq-muted" style="margin:0;font-size:12px;line-height:1.8;color:#8A8390;text-align:center">${esc(c.note)}</p>`, "4px 0 0"));
   }
 
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl" style="font-family:${FONT_STACK}">${rows.join("")}</table>`;
+}
+
+/** الترويسةُ والتذييلُ يبقيان داكنين في Gmail: لا يقلب صورةَ الخلفية، فتُرسَم
+ *  بتدرّجٍ من لونٍ واحد فوق اللون الصريح (ومن لا يدعم التدرّج يأخذ اللون). */
+const KEEP_DARK = `background-image:linear-gradient(${BRAND.temptress},${BRAND.temptress});`;
+
+/** نصٌّ فاتحٌ على ترويسةٍ داكنة يبقى فاتحاً حين يقلب Gmail الحبر.
+ *
+ *  `u + .body` لا يطابق إلا في Gmail (يُلحق `<u>` قبل المتن)، فالمزجُ لا يمسّ
+ *  غيره: `screen` ثم `difference` فوق الأسود يُعيدان الحبرَ المقلوب إلى أصله. */
+function keepLight(html: string): string {
+  return `<span class="gm-s"><span class="gm-d">${html}</span></span>`;
+}
+
+/** أنماطُ السمة الداكنة — لمن يحترم `prefers-color-scheme` ولـOutlook (`data-ogsc`) */
+function darkStyles(a: ReturnType<typeof accentOf>): string {
+  const btn = liftForDark(a.button, 3);
+  const accentInk = liftForDark(a.quote, 4.5);
+  const rules = `
+    .tq-page { background-color:${DARK.page} !important; }
+    .tq-card { background-color:${DARK.card} !important; border-color:${DARK.line} !important; }
+    .tq-ink { color:${DARK.ink} !important; }
+    .tq-body { color:${DARK.body} !important; }
+    .tq-muted { color:${DARK.muted} !important; }
+    .tq-line { border-color:${DARK.line} !important; }
+    .tq-panel { background-color:${DARK.panel} !important; border-right-color:${accentInk} !important; }
+    .tq-code { background-color:${DARK.panel} !important; border:1px solid ${accentInk}55 !important; }
+    .tq-btn { background-color:${btn} !important; color:#FFFFFF !important; }
+    .tq-sec { color:${accentInk} !important; border-color:${accentInk}66 !important; }
+    .tq-fine { color:${DARK.muted} !important; }
+    ${(Object.keys(TONE_DARK) as EmailTone[])
+      .map((t) => `.tq-badge-${t} { background-color:${TONE_DARK[t].bg} !important; color:${TONE_DARK[t].fg} !important; }`)
+      .join("\n    ")}`;
+  return `@media (prefers-color-scheme: dark) {${rules}
+  }
+  [data-ogsc] .tq-ink { color:${DARK.ink} !important; }
+  [data-ogsc] .tq-body { color:${DARK.body} !important; }
+  [data-ogsc] .tq-muted { color:${DARK.muted} !important; }
+  [data-ogsb] .tq-card { background-color:${DARK.card} !important; }
+  [data-ogsb] .tq-page { background-color:${DARK.page} !important; }
+  u + .body .gm-s { background:#000000; mix-blend-mode:screen; }
+  u + .body .gm-d { background:#000000; mix-blend-mode:difference; }`;
 }
 
 /** الرسالة كاملةً بالقالب الموحَّد (المفهوم «أ» المعتمد).
@@ -361,32 +432,31 @@ export function renderEmail(opts: {
 <meta name="supported-color-schemes" content="light dark">
 <style>
   :root { color-scheme: light dark; supported-color-schemes: light dark; }
-  [data-ogsc] .tq-card, [data-ogsb] .tq-card { background:#ffffff !important; }
-  [data-ogsc] .tq-ink { color:${BRAND.ink} !important; }
+  ${darkStyles(a)}
 </style>
 <title>${esc(opts.subject)}</title>
 </head>
-<body bgcolor="${BRAND.paper}" style="margin:0;padding:0;background-color:${BRAND.paper}">
+<body class="body tq-page" bgcolor="${BRAND.paper}" style="margin:0;padding:0;background-color:${BRAND.paper}">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(opts.preheader ?? opts.subject)}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BRAND.paper}" style="background-color:${BRAND.paper};padding:24px 12px">
+<table role="presentation" class="tq-page" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BRAND.paper}" style="background-color:${BRAND.paper};padding:24px 12px">
 <tr><td align="center">
   <table role="presentation" class="tq-card" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="max-width:600px;background-color:#ffffff;border-radius:20px;overflow:hidden;border:1px solid rgba(0,0,0,0.06)">
     <tr>
-      <td bgcolor="${BRAND.temptress}" style="background-color:${BRAND.temptress};padding:18px 26px">
+      <td bgcolor="${BRAND.temptress}" style="background-color:${BRAND.temptress};${KEEP_DARK}padding:18px 26px">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
           <td align="right" style="font-size:0;line-height:0"><img src="${assetUrl("/brand/lockup-on-dark.png")}" width="118" height="35" alt="تَـــلاقِ — TLAQI" style="display:block;border:0;width:118px;height:35px"></td>
-          <td align="left" style="font-family:${FONT_STACK};font-size:12px;font-weight:bold;color:rgba(238,246,223,0.72)">${dept ? esc(dept) : ""}</td>
+          <td align="left" style="font-family:${FONT_STACK};font-size:12px;font-weight:bold;color:rgba(238,246,223,0.72)">${dept ? keepLight(esc(dept)) : ""}</td>
         </tr></table>
       </td>
     </tr>
     <tr><td bgcolor="${a.rule}" style="height:5px;background-color:${a.rule};font-size:0;line-height:0">&nbsp;</td></tr>
     <tr><td class="tq-card" bgcolor="#ffffff" style="background-color:#ffffff;padding:26px 28px 24px">${bodyHtml}</td></tr>
     <tr>
-      <td align="center" bgcolor="${BRAND.temptress}" style="background-color:${BRAND.temptress};padding:22px 24px 16px">
+      <td align="center" bgcolor="${BRAND.temptress}" style="background-color:${BRAND.temptress};${KEEP_DARK}padding:22px 24px 16px">
         <img src="${assetUrl("/brand/lockup-on-dark.png")}" width="96" height="28" alt="TLAQI" style="display:block;border:0;width:96px;height:28px;margin:0 auto 10px">
-        <div style="font-family:${FONT_STACK};font-size:13px;font-weight:bold;color:${BRAND.beige};letter-spacing:0.5px">${esc(TAGLINE)}</div>
-        ${social ? `<div dir="ltr" style="font-family:${FONT_STACK};margin-top:10px">${social}</div>` : ""}
-        ${sameHandle ? `<div dir="ltr" style="font-family:${FONT_STACK};font-size:11px;color:rgba(238,246,223,0.55);margin-top:4px">@${esc(SOCIAL_LINKS[0].handle)}</div>` : ""}
+        <div style="font-family:${FONT_STACK};font-size:13px;font-weight:bold;color:${BRAND.beige};letter-spacing:0.5px">${keepLight(esc(TAGLINE))}</div>
+        ${social ? `<div dir="ltr" style="font-family:${FONT_STACK};margin-top:10px">${keepLight(social)}</div>` : ""}
+        ${sameHandle ? `<div dir="ltr" style="font-family:${FONT_STACK};font-size:11px;color:rgba(238,246,223,0.55);margin-top:4px">${keepLight("@" + esc(SOCIAL_LINKS[0].handle))}</div>` : ""}
       </td>
     </tr>
     <tr><td style="font-size:0;line-height:0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
@@ -395,7 +465,7 @@ export function renderEmail(opts: {
       <td bgcolor="${BRAND.beige}" style="height:5px;background-color:${BRAND.beige}">&nbsp;</td>
     </tr></table></td></tr>
   </table>
-  <div style="max-width:600px;margin:14px auto 0;font-family:${FONT_STACK};font-size:11px;line-height:1.8;color:rgba(0,0,0,0.45);text-align:center">
+  <div class="tq-fine" style="max-width:600px;margin:14px auto 0;font-family:${FONT_STACK};font-size:11px;line-height:1.8;color:rgba(0,0,0,0.45);text-align:center">
     مُرسَلة من إدارة تَـــلاقِ — لأن لك حساباً في منصّتها الداخلية.
   </div>
 </td></tr>
