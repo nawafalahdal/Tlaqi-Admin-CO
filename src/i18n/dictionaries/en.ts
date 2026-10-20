@@ -932,6 +932,27 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
     stageStopped: "Stopped",
     stageRejected: "Rejected",
   },
+  notificationsPage: {
+    title: "Notifications",
+    description: "The official notices sent to you alone — nobody else sees yours.",
+    scope:
+      "Only what is official and important shows here: your password and sign-in details, your invitation and joining card, announcements, membership decisions, and certificates and awards. Sign-in codes and ticket or request emails are left out — you'll find those in their own sections. The latest {n} notices are shown.",
+    deliveredTo: "Platform emails reach you at",
+    spamTitle: "⚠ Our emails may land in Spam",
+    spamBody:
+      "Look in your Spam folder for emails from {sender}, then choose “Not spam” or move them to your inbox, and add the address to your contacts — so sign-in codes and notices always reach your inbox.",
+    empty: "No official notices for you yet",
+    statusSent: "Delivered to your inbox",
+    statusFailed: "Could not be sent",
+    statusDisabled: "Not sent (email disabled)",
+    category: {
+      account: "Account & password",
+      joining: "Joining",
+      announcement: "Announcement",
+      membership: "Membership",
+      recognition: "Certificates & awards",
+    },
+  },
   sheetPage: {
     prepareTitle: "Prepare the templates",
     prepareBody: "Creates all four tabs, fully formatted in the Tlaqi identity, before any data arrives — so you see the columns ready and every entry lands in its place as it happens.",
