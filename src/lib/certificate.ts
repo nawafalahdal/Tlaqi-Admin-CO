@@ -14,6 +14,42 @@ import { gx, roleTitle, type MaybeGender } from "@/lib/gender";
 /** المدّة من الانضمام إلى الانتهاء — ركن الشهادة الذي لا تصحّ بدونه */
 export type CertificatePeriod = { start: Date; end: Date };
 
+/** **قرارُ المؤسس:** من يخرج من تَـــلاقِ خلال أول أسبوعين لا تُصدَر له
+ *  شهادة شكر وخبرة. أسبوعان لا يكفيان ليُشهَد بخبرةٍ لم تتكوّن بعد —
+ *  والشهادةُ شهادةٌ، لا مجاملة. */
+export const MIN_SERVICE_DAYS_FOR_CERTIFICATE = 14;
+
+/** تواريخ المسيرة كما تُقرأ للشهادة */
+export type ServiceDates = {
+  orgJoinDate: Date | null;
+  decidedAt: Date | null;
+  joinDate: Date;
+  endDate: Date | null;
+  stepDownAt: Date | null;
+  terminatedAt: Date | null;
+};
+
+/** مدّةُ المسيرة — هي نفسُها التي تُطبَع على الشهادة، فلا يُحسَب
+ *  الاستحقاقُ بتاريخٍ وتُطبَع الشهادةُ بغيره. تبدأ بالانضمام التنظيمي إن
+ *  سُجِّل، وتنتهي بتاريخ الانتهاء المتّفق عليه، فإن لم يكن فبالتنحّي. */
+export function servicePeriod(m: ServiceDates, now = new Date()): CertificatePeriod {
+  return {
+    start: m.orgJoinDate ?? m.decidedAt ?? m.joinDate,
+    end: m.endDate ?? m.stepDownAt ?? m.terminatedAt ?? now,
+  };
+}
+
+/** أيامُ المسيرة كاملةً — للعرض والسجلّ */
+export function serviceDays(m: ServiceDates, now = new Date()): number {
+  const p = servicePeriod(m, now);
+  return Math.max(0, Math.floor((p.end.getTime() - p.start.getTime()) / 86_400_000));
+}
+
+/** أتستحقّ مسيرتُه شهادة الشكر والخبرة؟ — أسبوعان فأكثر */
+export function earnsFinalCertificate(m: ServiceDates, now = new Date()): boolean {
+  return serviceDays(m, now) >= MIN_SERVICE_DAYS_FOR_CERTIFICATE;
+}
+
 export type CertificateSigner = {
   /** الصفة بجنس صاحبها: «قائدة قسم التسويق»، «المؤسس»، «الرئيس التنفيذي» */
   title: string;
@@ -213,15 +249,10 @@ export async function certificateFor(
       // شهادة التقدير تُكرّم مدّة التكليف، وشهادة الختام تُوثّق المسيرة
       // كلّها — فتبدأ من الانضمام التنظيمي إن كان مُسجَّلاً.
       start:
-        kind === "appreciation"
-          ? (member.decidedAt ?? member.joinDate)
-          : (member.orgJoinDate ?? member.decidedAt ?? member.joinDate),
+        kind === "appreciation" ? (member.decidedAt ?? member.joinDate) : servicePeriod(member).start,
       // شهادة التقدير تُصدَر في موعد الاستحقاق ومسيرتُه جارية، فنهايتها
       // يوم استحقاقها لا «اليوم»: من أُرسلت له متأخّرةً تبقى بتاريخها.
-      end:
-        kind === "appreciation"
-          ? (member.appreciationDueAt ?? issuedAt)
-          : (member.endDate ?? member.stepDownAt ?? member.terminatedAt ?? new Date()),
+      end: kind === "appreciation" ? (member.appreciationDueAt ?? issuedAt) : servicePeriod(member).end,
     },
     colorHex,
     signers,

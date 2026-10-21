@@ -3,8 +3,15 @@ import { appendMemberEvent } from "@/lib/googleSheets";
 import { sendExitEmail, sendCertificateEmail, sendFarewellEmail } from "@/lib/email";
 import { syncMemberLifecycleRow } from "@/lib/workflow";
 import { accountRoleLabel } from "@/lib/testTracks";
-import { certificateFor, certificateUrl } from "@/lib/certificate";
+import {
+  certificateFor,
+  certificateUrl,
+  earnsFinalCertificate,
+  serviceDays,
+  MIN_SERVICE_DAYS_FOR_CERTIFICATE,
+} from "@/lib/certificate";
 import { appBaseUrl } from "@/lib/emailBrand";
+import { dayCount } from "@/lib/dayCount";
 
 /** حوكمة التنحي.
  *
@@ -26,15 +33,19 @@ export type OffboardingStage =
   | "ready_to_close"
   | "closed";
 
-export function offboardingStage(member: {
-  stepDownAt: Date | null;
-  certificateIssuedAt: Date | null;
-  farewellDesignAt: Date | null;
-  offboardingClosedAt: Date | null;
-}): OffboardingStage {
+export function offboardingStage(
+  member: {
+    stepDownAt: Date | null;
+    certificateIssuedAt: Date | null;
+    farewellDesignAt: Date | null;
+    offboardingClosedAt: Date | null;
+  },
+  /** مسيرةٌ دون أسبوعين لا شهادة لها — فلا تُنتظَر (`earnsFinalCertificate`) */
+  earnsCertificate = true
+): OffboardingStage {
   if (member.offboardingClosedAt) return "closed";
   if (!member.stepDownAt) return "active";
-  const hasCert = Boolean(member.certificateIssuedAt);
+  const hasCert = Boolean(member.certificateIssuedAt) || !earnsCertificate;
   const hasFarewell = Boolean(member.farewellDesignAt);
   if (hasCert && hasFarewell) return "ready_to_close";
   if (!hasCert && !hasFarewell) return "stepped_down";
@@ -66,6 +77,9 @@ export async function stepDownMember(opts: {
   if (member.stepDownAt) return { ok: false, reason: "تمّت تنحيته سابقاً" };
 
   const at = new Date();
+  // يُكتب في السجل يومَ التنحّي أنّ هذه المسيرة لا شهادة لها — فلا يُنتظَر
+  // في الختام ما لا يأتي
+  const early = !earnsFinalCertificate({ ...member, endDate: opts.endDate, stepDownAt: at });
   await prisma.member.update({
     where: { id: member.id },
     data: {
@@ -85,7 +99,9 @@ export async function stepDownMember(opts: {
     email: member.email,
     event: "تنحٍّ عن المنصب",
     roleOrDepartment: await scopeOf(member),
-    details: `${opts.reason} — نفّذها ${opts.byName} — تاريخ الانتهاء ${opts.endDate.toISOString().slice(0, 10)} — التنبيهات ${member.warningsCount}/3`,
+    details:
+      `${opts.reason} — نفّذها ${opts.byName} — تاريخ الانتهاء ${opts.endDate.toISOString().slice(0, 10)} — التنبيهات ${member.warningsCount}/3` +
+      (early ? ` — خرج خلال أول أسبوعين: لا شهادة شكر وخبرة` : ""),
     at,
   });
   await syncMemberLifecycleRow(member.id);
@@ -110,6 +126,17 @@ export async function markCertificateShared(
   });
   // سُلِّمت ووصلت: لا إصدار ثانٍ ولا رسالة ثانية
   if (member.certificateSentAt) return { ok: true };
+
+  // **حوكمة الأسبوعين:** لا تُصدَر شهادة شكر وخبرة لمن خرج خلال أول
+  // أسبوعين من انضمامه. والشرطُ هنا في المَخنَق الوحيد للإصدار، فلا يمرّ
+  // من زرٍّ ولا من «الإصدار اليدوي» (`workflow`). وما صدر قبل القرار يبقى
+  // صادراً — لا تُسحَب شهادةٌ سُلِّمت.
+  if (!member.certificateIssuedAt && !earnsFinalCertificate(member)) {
+    return {
+      ok: false,
+      reason: `لا تُصدَر شهادة شكر وخبرة لمن خرج خلال أول أسبوعين من انضمامه — مسيرته ${dayCount(serviceDays(member))}، والحدّ ${dayCount(MIN_SERVICE_DAYS_FOR_CERTIFICATE)}`,
+    };
+  }
 
   const at = new Date();
   const issuedAt = member.certificateIssuedAt ?? at;
@@ -202,7 +229,9 @@ export async function closeOffboarding(
   if (!member) return { ok: false, reason: "السجل غير موجود" };
   if (member.offboardingClosedAt) return { ok: false, reason: "التجربة مُغلقة أصلاً" };
   if (!member.stepDownAt) return { ok: false, reason: "لم تُسجَّل تنحيته بعد" };
-  if (!member.certificateIssuedAt) return { ok: false, reason: "لم تُسلَّم شهادته بعد" };
+  // من خرج خلال أول أسبوعين لا شهادة له، فلا يُنتظَر تسليمها
+  const earns = Boolean(member.certificateIssuedAt) || earnsFinalCertificate(member);
+  if (earns && !member.certificateIssuedAt) return { ok: false, reason: "لم تُسلَّم شهادته بعد" };
   if (!member.farewellDesignAt) return { ok: false, reason: "لم يُسجَّل تصميم وداعه بعد" };
 
   const at = new Date();
@@ -213,6 +242,7 @@ export async function closeOffboarding(
     departmentName: member.department?.name ?? null,
     joinDate: member.joinDate,
     endDate: member.endDate ?? member.stepDownAt,
+    withCertificate: Boolean(member.certificateIssuedAt),
   });
 
   await prisma.member.update({
@@ -225,7 +255,9 @@ export async function closeOffboarding(
     email: member.email,
     event: "ختام التجربة",
     roleOrDepartment: member.department?.name ?? accountRoleLabel(member.invite.targetRole),
-    details: `أُرسلت رسالة الشكر وأُغلقت التجربة — أغلقها ${byName}. لا تصله رسائل بعد اليوم.`,
+    details:
+      `أُرسلت رسالة الشكر وأُغلقت التجربة — أغلقها ${byName}. لا تصله رسائل بعد اليوم.` +
+      (member.certificateIssuedAt ? "" : " بلا شهادة شكر وخبرة: خرج خلال أول أسبوعين."),
     at,
   });
   await syncMemberLifecycleRow(memberId);

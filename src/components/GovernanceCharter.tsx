@@ -23,7 +23,7 @@ export async function GovernanceCharter({
 }) {
   const t = getDictionary(await getLocale()).governance;
 
-  const musts = [t.must1, t.must2, t.must3, t.must4, t.must5];
+  const musts = [t.must1, t.must2, t.must3, t.must4, t.must5, t.must6];
   const nevers = [t.never1, t.never2, t.never3, t.never4, t.never5];
 
   return (

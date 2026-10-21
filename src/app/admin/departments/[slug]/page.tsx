@@ -1,4 +1,5 @@
 import { redirect, notFound } from "next/navigation";
+import { earnsFinalCertificate, servicePeriod, serviceDays } from "@/lib/certificate";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -500,6 +501,9 @@ export default async function DepartmentBoardPage({
                     certificateAt: m.certificateIssuedAt ? formatDate(m.certificateIssuedAt) : null,
                     farewellAt: m.farewellDesignAt ? formatDate(m.farewellDesignAt) : null,
                     closedAt: m.offboardingClosedAt ? formatDate(m.offboardingClosedAt) : null,
+                    serviceStart: servicePeriod(m).start.toISOString(),
+                    earnsCertificate: earnsFinalCertificate(m),
+                    serviceDays: serviceDays(m),
                   }}
                 />
               ))}

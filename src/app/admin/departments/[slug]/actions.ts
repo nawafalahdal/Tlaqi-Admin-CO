@@ -314,8 +314,11 @@ export async function markOffboardingStepAction(
   }
   try {
     const byName = session.user.name ?? "—";
-    if (step === "certificate") await markCertificateShared(memberId, byName);
-    else await markFarewellDesigned(memberId, byName);
+    // جوابُ الإصدار يُعاد لصاحب الزرّ — كان يُهمَل فيبدو الرفضُ نجاحاً
+    if (step === "certificate") {
+      const res = await markCertificateShared(memberId, byName);
+      if (!res.ok) return { error: res.reason };
+    } else await markFarewellDesigned(memberId, byName);
     revalidatePath("/admin/departments");
     return { error: null };
   } catch (err) {

@@ -1330,6 +1330,8 @@ export async function sendFarewellEmail(opts: {
   departmentName?: string | null;
   joinDate: Date;
   endDate: Date;
+  /** سُلِّمت له شهادة؟ — من خرج خلال أول أسبوعين لا شهادة له، فلا يُقال إنها سُلِّمت */
+  withCertificate?: boolean;
 }) {
   const r = await recipientOf(opts.to);
   const f = forms(r.gender);
@@ -1340,7 +1342,7 @@ export async function sendFarewellEmail(opts: {
     {
       tone: "farewell",
       title: `${f.thanks}، ${firstName(opts.fullName)}`,
-      lead: `انتهت رحلتك معنا رسمياً، وسُلِّمت شهادتك. وما ${gx(r.gender, "قدّمتَه", "قدّمتِه", "قُدِّم")} لم يذهب: هو جزءٌ ممّا بناه الفريق، ويبقى في سجلّنا باسمك.`,
+      lead: `انتهت رحلتك معنا رسمياً${opts.withCertificate === false ? "" : "، وسُلِّمت شهادتك"}. وما ${gx(r.gender, "قدّمتَه", "قدّمتِه", "قُدِّم")} لم يذهب: هو جزءٌ ممّا بناه الفريق، ويبقى في سجلّنا باسمك.`,
       facts: [
         ["الصفة", role],
         ["القسم", opts.departmentName],

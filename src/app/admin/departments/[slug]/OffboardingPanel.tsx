@@ -7,7 +7,8 @@ import {
   closeOffboardingAction,
 } from "./actions";
 import { Card, Button } from "@/components/ui";
-import { useTranslations } from "@/i18n/LocaleProvider";
+import { useLocale } from "@/i18n/LocaleProvider";
+import { dayCount } from "@/lib/dayCount";
 import type { themeFromColor } from "@/lib/brand";
 
 export type OffboardingMember = {
@@ -21,7 +22,16 @@ export type OffboardingMember = {
   certificateAt: string | null;
   farewellAt: string | null;
   closedAt: string | null;
+  /** بدايةُ مسيرته (ISO) — يُقاس بها تاريخُ الانتهاء المختار قبل التنحية */
+  serviceStart: string;
+  /** أتستحقّ مسيرتُه شهادة الشكر والخبرة؟ — من الخادم (`earnsFinalCertificate`) */
+  earnsCertificate: boolean;
+  /** أيامُ مسيرته كما تُحسب للشهادة */
+  serviceDays: number;
 };
+
+/** حوكمة الأسبوعين — الحدُّ نفسُه الذي يفرضه الخادم (`MIN_SERVICE_DAYS_FOR_CERTIFICATE`) */
+const MIN_DAYS = 14;
 
 /** حوكمة الخروج على بطاقة واحدة.
  *
@@ -36,7 +46,7 @@ export function OffboardingPanel({
   member: OffboardingMember;
   theme: ReturnType<typeof themeFromColor>;
 }) {
-  const dict = useTranslations();
+  const { t: dict, locale } = useLocale();
   const t = dict.offboarding;
   const [panel, setPanel] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,10 +55,19 @@ export function OffboardingPanel({
     error: null,
     success: false,
   });
+  // تاريخُ الانتهاء المختار: يُقال قبل التنفيذ إن كانت المسيرة دون أسبوعين
+  const [endPick, setEndPick] = useState("");
+  const pickedDays = endPick
+    ? Math.floor((new Date(endPick).getTime() - new Date(member.serviceStart).getTime()) / 86_400_000)
+    : null;
 
+  // من خرج خلال أول أسبوعين لا شهادة له — فالخطوةُ تُذكَر ولا تُنتظَر
+  const noCertificate = !member.earnsCertificate && !member.certificateAt;
   const steps = [
     { done: Boolean(member.stepDownAt), label: t.stepStepDown, at: member.stepDownAt },
-    { done: Boolean(member.certificateAt), label: t.stepCertificate, at: member.certificateAt },
+    noCertificate
+      ? { done: true, waived: true, label: t.noCertificateStep, at: null }
+      : { done: Boolean(member.certificateAt), label: t.stepCertificate, at: member.certificateAt },
     { done: Boolean(member.farewellAt), label: t.stepFarewell, at: member.farewellAt },
     { done: Boolean(member.closedAt), label: t.stepClosed, at: member.closedAt },
   ];
@@ -106,9 +125,16 @@ export function OffboardingPanel({
                 name="endDate"
                 required
                 dir="ltr"
+                value={endPick}
+                onChange={(e) => setEndPick(e.target.value)}
                 className="min-h-11 rounded-xl border border-black/10 px-3.5 text-sm outline-none focus:border-black/30"
               />
               <span className="text-xs text-black/45">{t.endDateHint}</span>
+              {pickedDays !== null && pickedDays < MIN_DAYS && (
+                <span role="status" className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+                  {t.earlyExitWarning.replace("{days}", dayCount(pickedDays, locale))}
+                </span>
+              )}
             </label>
             <textarea
               name="reason"
@@ -139,7 +165,7 @@ export function OffboardingPanel({
     );
   }
 
-  const ready = Boolean(member.certificateAt && member.farewellAt) && !member.closedAt;
+  const ready = Boolean((member.certificateAt || noCertificate) && member.farewellAt) && !member.closedAt;
 
   return (
     <Card className="p-4">
@@ -172,12 +198,16 @@ export function OffboardingPanel({
             <span
               aria-hidden="true"
               className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                s.done ? "bg-emerald-100 text-emerald-700" : "bg-black/[0.06] text-black/35"
+                "waived" in s
+                  ? "bg-amber-100 text-amber-800"
+                  : s.done
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-black/[0.06] text-black/35"
               }`}
             >
-              {s.done ? "✓" : "·"}
+              {"waived" in s ? "—" : s.done ? "✓" : "·"}
             </span>
-            <span className={s.done ? "text-black/70" : "text-black/40"}>
+            <span className={"waived" in s ? "text-amber-900" : s.done ? "text-black/70" : "text-black/40"}>
               {s.label}
               {s.at ? ` — ${s.at}` : ""}
             </span>
@@ -189,7 +219,7 @@ export function OffboardingPanel({
 
       {!member.closedAt && (
         <div className="mt-3 flex flex-wrap gap-2 border-t border-black/5 pt-3">
-          {!member.certificateAt && (
+          {!member.certificateAt && !noCertificate && (
             <Button theme={theme} variant="outline" disabled={pending} onClick={() => mark("certificate")}>
               {t.markCertificate}
             </Button>
@@ -208,8 +238,14 @@ export function OffboardingPanel({
       )}
 
       <p className="mt-3 border-t border-black/5 pt-3 text-xs leading-relaxed text-black/45">
-        {member.closedAt ? t.closedNote : ready ? t.readyNote : t.pendingNote}
+        {member.closedAt ? t.closedNote : ready ? t.readyNote : noCertificate ? t.pendingNoteNoCert : t.pendingNote}
       </p>
+      {/* حوكمة الأسبوعين مكتوبةٌ على بطاقته بعدد أيامه — لا يُظَنّ نسياناً */}
+      {noCertificate && (
+        <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+          {t.noCertificateNote.replace("{days}", dayCount(member.serviceDays, locale))}
+        </p>
+      )}
     </Card>
   );
 }
