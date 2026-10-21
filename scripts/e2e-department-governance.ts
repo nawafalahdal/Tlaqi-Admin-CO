@@ -31,7 +31,7 @@ const chk = (n: string, ok: boolean, extra = "") =>
   checks.push(`${ok ? "✓" : "✗ FAIL"} ${n}${extra ? " — " + extra : ""}`);
 
 const MARK = `e2e-dg-${Date.now()}`;
-const NAMES = [`طلب ${MARK}`, `مردود ${MARK}`, `مؤسس ${MARK}`];
+const NAMES = [`طلب ${MARK}`, `مردود ${MARK}`, `مؤسس ${MARK}`, `إدارة عليا ${MARK}`];
 
 async function cleanup() {
   // لو مرّت الدعوةُ خطأً فلا يبقى أثرُها
@@ -109,13 +109,16 @@ async function cleanup() {
   chk("وما يُنشئه المؤسس يُبنى مباشرةً", direct.committeeStatus === null);
 
   // ٣ — الحذف
-  const senior = await seniorDepartment();
-  if (senior) {
-    const s = await deleteDepartment({ departmentId: senior.id, confirmName: senior.name, actorRole: "super_admin", actorName: "المؤسس" });
-    chk("الإدارة العليا لا تُحذف", !s.ok && /الإدارة العليا/.test((s as { reason: string }).reason));
-  } else {
-    chk("الإدارة العليا لا تُحذف", false, "لا قسمَ إدارةٍ عليا في القاعدة المحلية");
-  }
+  // قاعدةٌ محليةٌ بلا قسم إدارةٍ عليا: يُنشأ مؤقتاً كما في فحص الهيكل (`e2e-org-chart`)
+  // ويُحذف في التنظيف باسمه — فيُفحص الحرسُ نفسه لا غيابُ البيانات
+  const senior =
+    (await seniorDepartment()) ??
+    (await prisma.department.create({
+      data: { name: NAMES[3], slug: `senior-dg-${Date.now()}`, colorHex: "#1A0E1C", leadershipOnly: true },
+      select: { id: true, name: true },
+    }));
+  const s = await deleteDepartment({ departmentId: senior.id, confirmName: senior.name, actorRole: "super_admin", actorName: "المؤسس" });
+  chk("الإدارة العليا لا تُحذف", !s.ok && /الإدارة العليا/.test((s as { reason: string }).reason));
   const busy = await prisma.department.findFirst({
     where: { parentId: null, admins: { some: {} } },
     select: { id: true, name: true },
