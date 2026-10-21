@@ -1,4 +1,7 @@
+// كما يفعل `prisma.config.ts`: القرارُ يُبنى على القاعدة نفسها التي سيصلها Prisma
+import "dotenv/config";
 import { spawnSync } from "node:child_process";
+import { migrationDecision } from "./migrationPolicy";
 
 /** `prisma migrate deploy` مع إعادةٍ محدودة على فشل قفل الترحيل وحده.
  *
@@ -37,6 +40,19 @@ function sleep(ms: number) {
   // انتظارٌ متزامن: هذه خطوةُ بناءٍ تسلسلية لا خادمٌ يخدم طلبات
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
+
+// **أين يُرحَّل — قبل كيف.** المعاينةُ تتخطّى، وما لا يُعرف يُفشِل البناء
+// (`migrationPolicy.ts`). ولا يُطبع شيءٌ من عنوان القاعدة.
+const decision = migrationDecision(process.env);
+if (decision.action === "skip") {
+  console.log(`⏭ لا ترحيل: ${decision.reason}`);
+  process.exit(0);
+}
+if (decision.action === "refuse") {
+  console.error(`✗ رُفض الترحيل: ${decision.reason}`);
+  process.exit(1);
+}
+console.log(`✓ الترحيل مسموح: ${decision.reason}`);
 
 for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
   const run = spawnSync("npx", ["prisma", "migrate", "deploy"], {
