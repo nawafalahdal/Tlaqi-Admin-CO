@@ -94,6 +94,10 @@ const MOCK = ["68%", "أحمد محمد", "اجتماع قيادة التَلا�
 const truth = JSON.parse(execFileSync("npx", ["tsx", "scripts/dashboard-truth.ts"], { encoding: "utf8", env: process.env }).trim().split("\n").pop());
 const HOME = { founder: "/admin", exec: "/admin", ops: "/admin/operations", lead: "/admin/departments/tech", member: "/member" };
 const SNAP = { founder: true, exec: true, ops: true, lead: false, member: false };
+// رأسُ المساحة (`WorkspaceOverview`) في بيوت التشغيل والقسم والعضو. وبيتُ المؤسس
+// والتنفيذي (`/admin`) صار مركزَ القيادة منذ 557a6cd («نظرةٌ عامة بلا تكرار»):
+// قراراتٌ وتذاكرُ وجداول — فلا يُنتظَر فيه الرأسُ، ويُتحقَّق أنه لا يتكرّر.
+const OVERVIEW = { founder: false, exec: false, ops: true, lead: true, member: true };
 const errors = [];
 for (const r of ROLES.filter((x) => !process.env.ONLY || process.env.ONLY.split(",").includes(x.key))) {
   console.log(`\n── ${r.key}`);
@@ -102,6 +106,10 @@ for (const r of ROLES.filter((x) => !process.env.ONLY || process.env.ONLY.split(
   page.on("pageerror", (e) => errors.push(`${r.key}: ${e}`));
   await page.goto(BASE + HOME[r.key], { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(1500);
+  if (!OVERVIEW[r.key]) {
+    check((await page.locator(".ws-hero").count()) === 0, `${r.key}: مركزُ القيادة بلا رأسِ مساحةٍ مكرَّر`);
+    check((await page.locator("main h1").count()) === 1, `${r.key}: عنوانُ الصفحة حاضر`);
+  } else {
   check((await page.locator(".ws-hero").count()) === 1, `${r.key}: الهدفُ القادم في رأس المساحة`);
   const text = await page.locator("main").innerText();
   const leaked = MOCK.filter((m) => text.includes(m));
@@ -117,6 +125,7 @@ for (const r of ROLES.filter((x) => !process.env.ONLY || process.env.ONLY.split(
   }
   const days = await page.locator(".ws-day").count();
   check(days === 42, `${r.key}: التقويم المختصر ٤٢ يوماً`, `${days}`);
+  }
 
   // كلُّ رابطٍ في الرأس يُفتَح لصاحبه
   const hrefs = [...new Set(await page.$$eval(".ws-hero a, .ws-card a", (els) => els.map((e) => e.getAttribute("href"))))];

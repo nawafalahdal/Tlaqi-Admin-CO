@@ -108,7 +108,9 @@ for (const r of ROLES.filter((x) => !process.env.ONLY || process.env.ONLY.split(
 
   // ١ب) المجموعات والشعار وذيل الحساب
   const groups = await page.$$eval(".app-sidebar__section", (els) => els.filter((e) => e.offsetParent).map((e) => e.textContent.trim()));
-  check(groups.length >= 2 && new Set(groups).size === groups.length, `${r.key}: عناوينُ مجموعاتٍ ظاهرة ولا تتكرّر`, groups.join(" | "));
+  // العنوانُ لا يُرسم إلا لمجموعةٍ فيها أكثرُ من بند (`SidebarRail`). وللعضو مجموعةٌ
+  // واحدةٌ كذلك (الاجتماعات والتواصل)؛ ولغيره مجموعتان فأكثر
+  check(groups.length >= (r.key === "member" ? 1 : 2) && new Set(groups).size === groups.length, `${r.key}: عناوينُ مجموعاتٍ ظاهرة ولا تتكرّر`, groups.join(" | "));
   const lockupShown = await page.locator(".app-sidebar__lockup").isVisible();
   const markShown = await page.locator(".app-sidebar__mark").isVisible();
   check(lockupShown && !markShown, `${r.key}: موسَّعةً: الشعارُ كاملاً لا الرمزُ وحده`);
