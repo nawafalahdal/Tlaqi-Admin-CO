@@ -1,12 +1,9 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
-import { AppHeader, Card } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
+import { Card } from "@/components/ui";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/PageStates";
-import { accountRoleLabel } from "@/lib/testTracks";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { OFFICIAL_NOTICE_KINDS, NOTICE_LOG_LIMIT, SUPPRESSED_STATUS } from "@/lib/officialNotices";
 
@@ -43,7 +40,6 @@ export default async function NotificationsPage() {
     select: { id: true, kind: true, subject: true, status: true, createdAt: true },
   });
 
-  const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
   // عنوانُ المرسِل وحده (لا الاسم) من الإعداد العلنيّ نفسه الذي يُرسل به البريد
   const fromSetting = process.env.EMAIL_FROM || "hello@tlaqiteam.site";
   const senderAddress = fromSetting.match(/<([^>]+)>/)?.[1] ?? fromSetting;
@@ -65,9 +61,6 @@ export default async function NotificationsPage() {
 
   return (
     <div className="min-h-screen bg-page">
-      <AppHeader theme={theme} roleName={accountRoleLabel(session.user.role)} userName={session.user.name ?? ""}>
-        <HeaderActions color={theme.text} />
-      </AppHeader>
 
       <main className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-6 sm:px-5 sm:py-8">
         <PageHeader title={t.title} description={t.description} />

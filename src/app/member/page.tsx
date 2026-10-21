@@ -3,8 +3,7 @@ import { avatarUrl } from "@/lib/avatarUrl";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { themeFromColor, BRAND } from "@/lib/brand";
-import { AppHeader, Card } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
+import { Card } from "@/components/ui";
 import { ThemedLockup } from "@/components/Logo";
 import { WarningCard } from "./WarningCard";
 import { MyTicketCard } from "./MyTicketCard";
@@ -93,14 +92,6 @@ export default async function MemberPortalPage() {
 
   return (
     <div className="min-h-screen bg-page">
-      <AppHeader
-        theme={theme}
-        roleName={member.department?.name ?? t.member.roleFallback}
-        userName={member.fullName}
-        homeHref="/member"
-      >
-        <HeaderActions color={theme.text} />
-      </AppHeader>
 
       <main className="mx-auto flex max-w-2xl flex-col gap-8 px-4 py-6 sm:px-5 sm:py-8">
         <WorkspaceOverview

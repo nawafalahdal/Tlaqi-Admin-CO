@@ -5,6 +5,8 @@ import { submitTaskWorkAction } from "@/app/admin/execution/actions";
 import { Button } from "@/components/ui";
 import { MAX_PLAN_FILE_BYTES, ALLOWED_PLAN_TYPES } from "@/lib/planFormats";
 import type { themeFromColor } from "@/lib/brand";
+import { FileField } from "../FileField";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 const ACCEPT = Object.keys(ALLOWED_PLAN_TYPES).join(",");
 const MAX_MB = (MAX_PLAN_FILE_BYTES / 1048576).toFixed(0);
@@ -23,6 +25,7 @@ export function SubmitWork({
   theme: ReturnType<typeof themeFromColor>;
   onDone?: () => void;
 }) {
+  const L = useTranslations().submitWork;
   const [state, formAction, pending] = useActionState(submitTaskWorkAction, {
     error: null,
     success: false,
@@ -47,7 +50,7 @@ export function SubmitWork({
         const f = formRef.current?.querySelector<HTMLInputElement>('input[name="evidence"]')?.files?.[0];
         if (f && f.size > MAX_PLAN_FILE_BYTES) {
           e.preventDefault();
-          setLocalError(`حجم الدليل ${(f.size / 1048576).toFixed(1)}MB — والحدّ ${MAX_MB}MB. ضَعه رابطاً.`);
+          setLocalError(L.tooLarge.replace("{size}", (f.size / 1048576).toFixed(1)).replace("{max}", MAX_MB));
           return;
         }
         setLocalError(null);
@@ -55,14 +58,15 @@ export function SubmitWork({
     >
       <input type="hidden" name="taskId" value={taskId} />
       <p className="text-xs leading-relaxed text-black/60">
-        اكتب ما أُنجز وأرفِق دليلَه. <strong>والرفعُ ليس إنجازاً</strong>: تنتقل المهمّة إلى
-        «بانتظار التحقّق» حتى يَطّلع المُراجِع على الدليل ويقرّر.
+        {L.introA}
+        <strong>{L.introStrong}</strong>
+        {L.introB}
       </p>
       <textarea
         name="note"
         required
         rows={2}
-        placeholder="ما الذي أُنجز؟ وكيف يُطابق معيار الإنجاز؟"
+        placeholder={L.notePlaceholder}
         className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-black/30"
       />
 
@@ -81,7 +85,7 @@ export function SubmitWork({
                 : { border: "1px solid color-mix(in oklab, var(--ink) 14%, transparent)" }
             }
           >
-            {m === "link" ? "رابط الدليل" : "ملف مرفوع"}
+            {m === "link" ? L.modeLink : L.modeFile}
           </button>
         ))}
       </div>
@@ -97,17 +101,17 @@ export function SubmitWork({
           />
           {/* المصادرُ تُقال قبل الرفض: من يَعرف المقبولَ لا يُجرّب المرفوض */}
           <span className="text-xs text-black/45">
-            من <b>جوجل درايف</b> أو <b>مستندات جوجل</b> أو <b>كانفا</b>. وتأكّد أن
-            المُراجِع يَملك صلاحيةَ فتحه — المنصةُ تَحفظ الرابطَ ولا تَملك الملف.
+            {L.sourcesFrom}
+            <b>{L.drive}</b>
+            {L.sep1}
+            <b>{L.docs}</b>
+            {L.sep2}
+            <b>{L.canva}</b>
+            {L.sourcesRest}
           </span>
         </div>
       ) : (
-        <input
-          type="file"
-          name="evidence"
-          accept={ACCEPT}
-          className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm file:me-3 file:rounded-lg file:border-0 file:bg-black/[0.06] file:px-3 file:py-1.5 file:text-xs file:font-bold"
-        />
+        <FileField name="evidence" accept={ACCEPT} />
       )}
 
       {(localError || state.error) && (
@@ -121,7 +125,7 @@ export function SubmitWork({
 
       <div>
         <Button theme={theme} type="submit" disabled={pending}>
-          {pending ? "جارٍ الرفع..." : "ارفع التسليم للمراجعة"}
+          {pending ? L.sending : L.submit}
         </Button>
       </div>
     </form>

@@ -21,7 +21,7 @@ export default async function ResetPasswordPage({
     >
       <div className="w-full max-w-sm">
         <div className="mb-4 flex justify-end">
-      <ControlGroup color="var(--ink)">
+      <ControlGroup color="var(--ink)" label={t.ui.displayTools}>
         <ThemeToggle />
       </ControlGroup>
         </div>

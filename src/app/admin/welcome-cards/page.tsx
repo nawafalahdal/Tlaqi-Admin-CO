@@ -1,9 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
-import { AppHeader } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable } from "@/components/DataTable";
 import { accountRoleLabel } from "@/lib/testTracks";
@@ -98,13 +95,9 @@ export default async function WelcomeCardsPage({
     })),
   ];
 
-  const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
 
   return (
     <div className="min-h-screen bg-page">
-      <AppHeader theme={theme} roleName={accountRoleLabel(session.user.role)} userName={session.user.name ?? ""}>
-        <HeaderActions color={theme.text} />
-      </AppHeader>
 
       <main className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-6 sm:px-5 sm:py-8">
         <PageHeader

@@ -3,8 +3,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { themeFromColor, SUPER_ADMIN_THEME, BRAND } from "@/lib/brand";
-import { AppHeader, Card } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
+import { Card } from "@/components/ui";
 import { formatDate, sinceLabel } from "@/lib/format";
 import { roleTitle } from "@/lib/gender";
 import { avatarUrl } from "@/lib/avatarUrl";
@@ -164,9 +163,6 @@ export default async function PersonPage({
 
   return (
     <div className="min-h-screen bg-page">
-      <AppHeader theme={theme} roleName="ملف الشخص" userName={session.user.name ?? ""}>
-        <HeaderActions color={theme.text} />
-      </AppHeader>
 
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 sm:px-5 sm:py-8">
         <div className="flex flex-wrap items-center justify-between gap-2">

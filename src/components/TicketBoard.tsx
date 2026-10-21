@@ -23,6 +23,9 @@ export async function TicketBoard({
 }) {
   const t = getDictionary(await getLocale());
   const tb = t.ticketBoard;
+  // اسمُ المرحلة بلغة الواجهة — والثابتُ العربيُّ في `lib/tickets` احتياطٌ لمرحلةٍ لا يعرفها القاموس
+  const stageLabel = (stage: string) =>
+    t.ticketStage.admin[stage as keyof typeof t.ticketStage.admin] ?? TICKET_STAGE_LABELS[stage];
   // هذا مكوّن خادم غير متزامن (`async`): يُنفَّذ مرّةً لكل طلب على
   // الخادم، فـ`Date.now()` هنا لحظةُ الطلب لا قيمةٌ تتبدّل بين إعادات
   // الرسم. وقاعدة `react-hooks/purity` لا تُميّز مكوّنات الخادم فتعدّه
@@ -76,7 +79,7 @@ export async function TicketBoard({
                     </span>
                   )}
                   <span className="w-full text-xs text-black/45">
-                    {ticketAuthor(x).name} ← {ticketTargetLabel(x)} · {TICKET_STAGE_LABELS[x.stage]} ·{" "}
+                    {ticketAuthor(x).name} ← {ticketTargetLabel(x)} · {stageLabel(x.stage)} ·{" "}
                     {formatDate(x.stageDueAt)}
                   </span>
                   <div className="flex w-full flex-wrap gap-2 pt-1">
@@ -93,8 +96,8 @@ export async function TicketBoard({
                         من المنصة إلى تقويم أحد. */}
                     <a
                       href={googleCalendarUrl({
-                        title: `تذكرة #${x.ticketNumber}: ${x.subject}`,
-                        details: `${x.description}\n\nمن: ${ticketAuthor(x).name}\nإلى: ${ticketTargetLabel(x)}\nالمرحلة: ${TICKET_STAGE_LABELS[x.stage]}`,
+                        title: tb.calTitle.replace("{n}", String(x.ticketNumber)).replace("{subject}", x.subject),
+                        details: `${x.description}\n\n${tb.calFrom}: ${ticketAuthor(x).name}\n${tb.calTo}: ${ticketTargetLabel(x)}\n${tb.calStage}: ${stageLabel(x.stage)}`,
                         start: new Date(x.stageDueAt.getTime() - 3600_000),
                         end: x.stageDueAt,
                       })}

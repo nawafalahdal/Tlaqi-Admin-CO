@@ -9,6 +9,7 @@ import {
 } from "@/app/admin/execution/actions";
 import { Button } from "@/components/ui";
 import { TaskCard, type TaskView } from "./TaskCard";
+import { useTranslations } from "@/i18n/LocaleProvider";
 import type { themeFromColor } from "@/lib/brand";
 
 /** خطةُ أسبوعِ القسم — يبنيها قائدُه ويرفعها للاعتماد.
@@ -58,6 +59,7 @@ export function WeekPlanPanel({
   /** يُعرَض حين تكون الخطةُ للقراءة فقط — الأسبوعُ لم يُفتَح بعد */
   readOnlyNote?: string;
 }) {
+  const L = useTranslations().weekPlan;
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -94,13 +96,7 @@ export function WeekPlanPanel({
                     : "bg-black/[0.06] text-black/60"
             }`}
           >
-            {plan.state === "approved"
-              ? "معتمَدة"
-              : plan.state === "submitted"
-                ? "مرفوعةٌ للاعتماد"
-                : plan.state === "returned"
-                  ? "مردودةٌ للتعديل"
-                  : "قيد البناء"}
+            {L.planState[plan.state as keyof typeof L.planState] ?? L.planState.draft}
           </span>
         )}
       </div>
@@ -112,15 +108,18 @@ export function WeekPlanPanel({
       )}
       {plan?.decisionNote && (
         <p className="rounded-lg bg-black/[0.03] px-3 py-2 text-xs leading-relaxed text-black/60">
-          ملاحظةُ القرار: {plan.decisionNote}
+          {L.decisionNote.replace("{note}", plan.decisionNote)}
         </p>
       )}
 
       {report && (
         <div className="rounded-xl bg-black/[0.03] p-3">
           <p className="text-xs font-semibold text-black/70">
-            الحِمل {report.totalPoints} من طاقةٍ {report.capacityPoints} — جديدٌ{" "}
-            {report.newPoints} ومُرحَّلٌ {report.carriedPoints}
+            {L.load
+              .replace("{total}", String(report.totalPoints))
+              .replace("{cap}", String(report.capacityPoints))
+              .replace("{new}", String(report.newPoints))
+              .replace("{carried}", String(report.carriedPoints))}
           </p>
           <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-black/[0.07]">
             <div
@@ -142,7 +141,7 @@ export function WeekPlanPanel({
           )}
           {canPlan && (
             <div className="mt-2.5 flex flex-wrap items-center gap-2">
-              <label className="text-[11px] text-black/55">طاقةُ القسم هذا الأسبوع</label>
+              <label className="text-[11px] text-black/55">{L.capacity}</label>
               <input
                 type="number"
                 min={1}
@@ -157,7 +156,7 @@ export function WeekPlanPanel({
                 disabled={pending || !plan}
                 onClick={() => plan && run(() => setCapacityAction(plan.id, cap))}
               >
-                اضبِطها
+                {L.setCapacity}
               </Button>
             </div>
           )}
@@ -177,7 +176,7 @@ export function WeekPlanPanel({
               disabled={pending}
               onClick={() => run(() => ensurePlanAction(periodId, departmentId))}
             >
-              أنشئ خطةَ هذا الأسبوع
+              {L.createPlan}
             </Button>
           </div>
         )
@@ -187,7 +186,7 @@ export function WeekPlanPanel({
           {carried.length > 0 && (
             <div className="flex flex-col gap-2.5">
               <h3 className="text-xs font-bold text-amber-900">
-                التزاماتٌ مُرحَّلة ({carried.length}) — تُقرّ أسبابُها وخططُ تصحيحها قبل الاعتماد
+                {L.carried.replace("{n}", String(carried.length))}
               </h3>
               {carried.map((t) => (
                 <TaskCard
@@ -201,10 +200,10 @@ export function WeekPlanPanel({
           )}
 
           <div className="flex flex-col gap-2.5">
-            <h3 className="text-xs font-bold text-black/70">التزاماتٌ جديدة ({fresh.length})</h3>
+            <h3 className="text-xs font-bold text-black/70">{L.fresh.replace("{n}", String(fresh.length))}</h3>
             {fresh.length === 0 ? (
               <p className="rounded-xl bg-black/[0.03] px-3 py-4 text-center text-xs text-black/45">
-                لا التزاماتٍ جديدةً بعد.
+                {L.freshEmpty}
               </p>
             ) : (
               fresh.map((t) => (
@@ -232,7 +231,7 @@ export function WeekPlanPanel({
               ) : (
                 <div className="flex flex-wrap gap-2">
                   <Button theme={theme} variant="outline" onClick={() => setAdding(true)}>
-                    أضف التزاماً
+                    {L.add}
                   </Button>
                   {(plan.state === "draft" || plan.state === "returned") && (
                     <Button
@@ -240,7 +239,7 @@ export function WeekPlanPanel({
                       disabled={pending}
                       onClick={() => run(() => submitPlanAction(plan.id))}
                     >
-                      ارفعها للاعتماد
+                      {L.submit}
                     </Button>
                   )}
                 </div>
@@ -268,6 +267,8 @@ function TaskForm({
   theme: ReturnType<typeof themeFromColor>;
   onDone: () => void;
 }) {
+  const t = useTranslations();
+  const L = t.weekPlan;
   const [state, formAction, pending] = useActionState(createTaskAction, {
     error: null,
     success: false,
@@ -284,12 +285,11 @@ function TaskForm({
     <form ref={ref} action={formAction} className="flex flex-col gap-3 rounded-xl bg-black/[0.03] p-3">
       <input type="hidden" name="planId" value={planId} />
       <p className="text-xs leading-relaxed text-black/55">
-        ولا يُقبَل التزامٌ بلا صاحبٍ وموعدٍ ومعيارِ إنجاز: بلا معيارٍ لا يُمكن التحقّقُ منه فيبقى
-        مفتوحاً، وبلا صاحبٍ لا يُحاسَب عليه أحد.
+        {L.formHint}
       </p>
 
       <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium text-black/70">العنوان</span>
+        <span className="font-medium text-black/70">{L.title}</span>
         <input
           name="title"
           required
@@ -299,26 +299,26 @@ function TaskForm({
       </label>
 
       <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium text-black/70">معيارُ الإنجاز</span>
+        <span className="font-medium text-black/70">{L.criteria}</span>
         <textarea
           name="acceptanceCriteria"
           required
           rows={2}
-          placeholder="متى تُعَدّ منجَزة؟"
+          placeholder={L.criteriaPlaceholder}
           className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm"
         />
       </label>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">المُسلَّم (اختياري)</span>
+          <span className="font-medium text-black/70">{L.deliverable}</span>
           <input
             name="deliverable"
             className="min-h-11 rounded-xl border border-black/10 bg-white px-3 text-sm"
           />
         </label>
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">صاحبُه</span>
+          <span className="font-medium text-black/70">{L.owner}</span>
           <select
             name="owner"
             required
@@ -326,7 +326,7 @@ function TaskForm({
             className="min-h-11 rounded-xl border border-black/10 bg-white px-3 text-sm"
           >
             <option value="" disabled>
-              اختر
+              {L.choose}
             </option>
             {owners.map((o) => (
               <option key={o.value} value={o.value}>
@@ -339,7 +339,7 @@ function TaskForm({
 
       <div className="grid gap-3 sm:grid-cols-4">
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">الموعد</span>
+          <span className="font-medium text-black/70">{L.due}</span>
           <input
             name="dueAt"
             type="date"
@@ -348,7 +348,7 @@ function TaskForm({
           />
         </label>
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">الوزن</span>
+          <span className="font-medium text-black/70">{L.weight}</span>
           <input
             name="weight"
             type="number"
@@ -359,20 +359,20 @@ function TaskForm({
           />
         </label>
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">الأولوية</span>
+          <span className="font-medium text-black/70">{L.priority}</span>
           <select
             name="priority"
             defaultValue="normal"
             className="min-h-11 rounded-xl border border-black/10 bg-white px-3 text-sm"
           >
-            <option value="critical">حرجة</option>
-            <option value="high">عالية</option>
-            <option value="normal">عادية</option>
-            <option value="low">منخفضة</option>
+            <option value="critical">{t.task.priority.critical}</option>
+            <option value="high">{t.task.priority.high}</option>
+            <option value="normal">{t.task.priority.normal}</option>
+            <option value="low">{t.task.priority.low}</option>
           </select>
         </label>
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">يخدم هدفاً</span>
+          <span className="font-medium text-black/70">{L.goal}</span>
           <select
             name="goalId"
             defaultValue=""
@@ -390,7 +390,7 @@ function TaskForm({
 
       {objectives.length > 0 && (
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">هدفُ القسم (اختياري)</span>
+          <span className="font-medium text-black/70">{L.objective}</span>
           <select
             name="objectiveId"
             defaultValue=""
@@ -412,10 +412,10 @@ function TaskForm({
 
       <div className="flex flex-wrap gap-2">
         <Button theme={theme} type="submit" disabled={pending}>
-          {pending ? "جارٍ..." : "أضفه إلى الخطة"}
+          {pending ? L.adding : L.addSubmit}
         </Button>
         <Button theme={theme} variant="outline" type="button" onClick={onDone}>
-          إلغاء
+          {t.common.cancel}
         </Button>
       </div>
     </form>

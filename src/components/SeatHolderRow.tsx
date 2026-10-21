@@ -5,12 +5,8 @@ import { permanentlyDeleteUserAction } from "@/app/admin/people/actions";
 import { Button } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import type { themeFromColor } from "@/lib/brand";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
-const APPROVAL_LABEL: Record<string, string> = {
-  approved: "معتمد",
-  pending_review: "بانتظار الاعتماد",
-  rejected: "مرفوض",
-};
 
 /** شاغلُ مقعدٍ مكرّر — بوقائعه وزرِّ محوه.
  *
@@ -40,6 +36,7 @@ export function SeatHolderRow({
   canPurge: boolean;
   theme: ReturnType<typeof themeFromColor>;
 }) {
+  const L = useTranslations().seatRow;
   const [open, setOpen] = useState(false);
   const [confirmEmail, setConfirmEmail] = useState("");
   const [reason, setReason] = useState("");
@@ -56,8 +53,8 @@ export function SeatHolderRow({
   }
 
   const approval = holder.approvalStatus
-    ? (APPROVAL_LABEL[holder.approvalStatus] ?? holder.approvalStatus)
-    : "لا سجلّ ترشّح";
+    ? (L.approval[holder.approvalStatus as keyof typeof L.approval] ?? holder.approvalStatus)
+    : L.noCandidacy;
   const suspect = !holder.everUsed || holder.approvalStatus !== "approved";
 
   return (
@@ -74,7 +71,7 @@ export function SeatHolderRow({
                 holder.everUsed ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
               }`}
             >
-              {holder.everUsed ? "استُعمل" : "لم يُستعمل قطّ"}
+              {holder.everUsed ? L.used : L.neverUsed}
             </span>
             <span
               className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
@@ -86,7 +83,7 @@ export function SeatHolderRow({
               {approval}
             </span>
             <span className="text-[10px] text-black/40">
-              أُنشئ {formatDate(holder.createdAt)}
+              {L.created.replace("{date}", formatDate(holder.createdAt))}
             </span>
           </div>
         </div>
@@ -104,7 +101,7 @@ export function SeatHolderRow({
                 : "bg-red-50 text-red-800 ring-1 ring-red-300"
             }`}
           >
-            حذف نهائي
+            {L.purge}
           </button>
         )}
       </div>
@@ -112,8 +109,7 @@ export function SeatHolderRow({
       {open && (
         <div className="mt-3 flex flex-col gap-2.5 border-t border-black/5 pt-3">
           <p className="text-[11px] leading-relaxed text-red-900/80">
-            يُزال الصفّ من قاعدة البيانات ويتحرّر البريد. ويبقى في الإكسل سجلٌّ بالاسم والدور
-            وسبب الحذف — بلا البريد. والتذاكر تُفَكّ ولا تُحذف.
+            {L.purgeWarning}
           </p>
           <input
             value={confirmEmail}
@@ -121,15 +117,15 @@ export function SeatHolderRow({
             dir="ltr"
             type="email"
             placeholder={holder.email}
-            aria-label="اكتب بريد الحساب للتأكيد"
+            aria-label={L.confirmEmail}
             className="min-h-11 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs outline-none focus:border-red-400"
           />
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={2}
-            placeholder="سبب الحذف (يُسجَّل في الإكسل)"
-            aria-label="سبب الحذف"
+            placeholder={L.reasonPlaceholder}
+            aria-label={L.reason}
             className="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs outline-none focus:border-red-400"
           />
           {error && <p className="text-xs font-semibold leading-relaxed text-red-700">{error}</p>}
@@ -153,17 +149,17 @@ export function SeatHolderRow({
                   }
                   setDone(
                     res.emailFreed
-                      ? `حُذف ${holder.fullName} — وتحرّر بريده.`
-                      : `حُذف ${holder.fullName} — والبريد ما زال محجوزاً في ${res.heldBy ?? "سجلٍّ آخر"}.`
+                      ? L.deletedFreed.replace("{name}", holder.fullName)
+                      : L.deletedHeld.replace("{name}", holder.fullName).replace("{where}", res.heldBy ?? L.otherRecord)
                   );
                 });
               }}
               className="inline-flex min-h-11 items-center rounded-xl bg-red-700 px-4 text-xs font-bold text-on-brand disabled:opacity-50"
             >
-              {pending ? "جارِ التنفيذ..." : "احذف نهائياً"}
+              {pending ? L.working : L.confirm}
             </button>
             <Button theme={theme} variant="ghost" onClick={() => setOpen(false)}>
-              إلغاء
+              {L.cancel}
             </Button>
           </div>
         </div>

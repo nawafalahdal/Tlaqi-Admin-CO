@@ -12,8 +12,7 @@ import {
 import { sweepTicketEscalation, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere, canRespondToTicket } from "@/lib/tickets";
 import { TicketCard } from "../../tickets/TicketCard";
 import { themeFromColor } from "@/lib/brand";
-import { AppHeader, Card } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
+import { Card } from "@/components/ui";
 import { ApprovalQueue } from "../../ApprovalQueue";
 import { TicketCta } from "@/components/tickets/TicketCta";
 import { ticketBoardData } from "@/components/tickets/boardData";
@@ -230,9 +229,6 @@ export default async function DepartmentBoardPage({
 
   return (
     <div className="min-h-screen bg-page">
-      <AppHeader theme={theme} roleName={`${t.deptBoard.adminRolePrefix} ${department.name}`} userName={session.user.name ?? ""}>
-        <HeaderActions color={theme.text} />
-      </AppHeader>
 
       <main className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-6 sm:px-5 sm:py-8">
         {/* رأسُ المساحة لقائد القسم في قسمه — لا لمن يزور القسم من فوق */}

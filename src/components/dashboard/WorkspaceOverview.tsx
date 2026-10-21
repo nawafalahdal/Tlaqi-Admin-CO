@@ -10,6 +10,8 @@ import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
 import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 import { formatDate } from "@/lib/format";
 import { NavGlyph } from "../icons";
+import { getLocale, getDictionary } from "@/i18n/server";
+import type { Locale } from "@/i18n";
 
 /** رأسُ مساحة العمل — بتصميم الأرشيف، وببيانات المنصة وحدها.
  *
@@ -26,24 +28,22 @@ import { NavGlyph } from "../icons";
  *
  *  وما لا بيانات له يُقال إنه فارغ — لا يُملأ بمثال. */
 
-const ROLE_COPY: Record<string, { title: string; desc: string }> = {
-  super_admin: { title: "مساحة المؤسس", desc: "نظرة شاملة على صحة المؤسسة والقرارات عالية الأولوية." },
-  executive: { title: "مساحة الرئيس التنفيذي", desc: "الأولويات المعتمدة، وما ينتظر قرارك، وما يجري في الأقسام." },
-  operations_officer: { title: "مساحة المتابعة والتشغيل", desc: "ركّز على العمل المعيّن والمتابعات والطلبات المفتوحة." },
-  department_admin: { title: "مساحة القسم", desc: "تابع فريقك وأهداف القسم والمهام التي تحتاج إلى إجراء." },
-  member: { title: "مساحة العضو", desc: "كل ما تحتاجه لمتابعة مهامك وجدولك وطلباتك." },
-};
-
-const WEEK_DAYS = ["س", "ح", "ن", "ث", "ر", "خ", "ج"];
-
-function riyadhLongDate(d: Date) {
-  return new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
+/** التاريخُ الطويل بلغة الواجهة — والتقويمُ الميلاديّ والأرقامُ اللاتينية في الحالين */
+function riyadhLongDate(d: Date, locale: Locale) {
+  return new Intl.DateTimeFormat(locale === "ar" ? "ar-SA-u-ca-gregory-nu-latn" : "en-GB-u-ca-gregory", {
     weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",
     timeZone: "Asia/Riyadh",
   }).format(d);
+}
+
+/** اسمُ الشهر: العربيُّ كما هو في التقويم، والإنجليزيُّ من المتصفّح نفسه */
+function monthName(year: number, month: number, locale: Locale) {
+  return locale === "ar"
+    ? MONTH_NAMES[month]
+    : new Intl.DateTimeFormat("en-GB-u-ca-gregory", { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(year, month, 1)));
 }
 
 export async function WorkspaceOverview({
@@ -59,6 +59,8 @@ export async function WorkspaceOverview({
   showDepartments?: boolean;
   announcementsHref?: string;
 }) {
+  const locale = await getLocale();
+  const w = getDictionary(locale).workspace;
   const now = new Date();
   const grid = monthGrid(now);
   const horizon = new Date(now.getTime() + 45 * 86_400_000);
@@ -92,17 +94,17 @@ export async function WorkspaceOverview({
   const today = todayKey();
   const monthKey = `${grid.year}-${String(grid.month + 1).padStart(2, "0")}`;
 
-  const copy = ROLE_COPY[session.user.role] ?? ROLE_COPY.member;
+  const copy = w.roles[session.user.role as keyof typeof w.roles] ?? w.roles.member;
   const firstName = (session.user.name ?? "").trim().split(/\s+/)[0] ?? "";
   const maxCount = Math.max(1, ...departments.map((d) => d._count.members));
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <p className="mb-2 text-sm text-black/45">{riyadhLongDate(now)}</p>
+        <p className="mb-2 text-sm text-black/45">{riyadhLongDate(now, locale)}</p>
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
           {copy.title}
-          {firstName ? `، ${firstName}` : ""} <span style={{ color: "var(--nav-active)" }}>.</span>
+          {firstName ? `${w.greetSep}${firstName}` : ""} <span style={{ color: "var(--nav-active)" }}>.</span>
         </h1>
         <p className="mt-2 text-sm text-black/50">{copy.desc}</p>
       </div>
@@ -114,7 +116,7 @@ export async function WorkspaceOverview({
         <div className="ws-hero__glow" aria-hidden="true" />
         <div className="relative max-w-2xl">
           <p className="mb-4 flex items-center gap-2 text-xs font-semibold" style={{ color: "#f0b08a" }}>
-            <NavGlyph name="execution" /> الهدف التنظيمي القادم
+            <NavGlyph name="execution" /> {w.nextGoal}
           </p>
           {upcoming ? (
             <>
@@ -125,33 +127,33 @@ export async function WorkspaceOverview({
               <div className="mt-6 flex flex-wrap items-end gap-6">
                 <div className="min-w-56 flex-1 sm:flex-none">
                   <div className="mb-2 flex items-center justify-between gap-10 text-xs ws-hero__muted">
-                    <span>التقدّم المتحقَّق منه</span>
+                    <span>{w.verified}</span>
                     <strong className="ws-hero__strong">{pct === null ? "—" : `${pct}%`}</strong>
                   </div>
-                  <div className="h-2 w-full rounded-full ws-hero__track sm:w-56" role="progressbar" aria-valuenow={pct ?? 0} aria-valuemin={0} aria-valuemax={100} aria-label="التقدّم المتحقَّق منه">
+                  <div className="h-2 w-full rounded-full ws-hero__track sm:w-56" role="progressbar" aria-valuenow={pct ?? 0} aria-valuemin={0} aria-valuemax={100} aria-label={w.verified}>
                     <div className="h-full rounded-full" style={{ width: `${pct ?? 0}%`, background: "#d86b2f" }} />
                   </div>
                   <p className="mt-2 text-[11px] ws-hero__faint">
-                    {pct === null ? "لا مهامّ مؤهَّلة للحساب بعد" : `يستحق في ${formatDate(upcoming.dueDate)}`}
+                    {pct === null ? w.noEligible : w.dueOn.replace("{date}", formatDate(upcoming.dueDate))}
                   </p>
                 </div>
                 {/* صفحةُ الأهداف للإداريين — العضو تردّه، فلا يُعرض له رابطٌ مردود */}
                 {session.user.role !== "member" && (
                   <Link href="/admin/execution/goals" className="ws-hero__btn">
-                    عرض تفاصيل الهدف
+                    {w.goalDetails}
                   </Link>
                 )}
               </div>
             </>
           ) : (
             <>
-              <h2 className="text-xl font-bold leading-tight sm:text-2xl">لا هدفَ معتمداً بعد</h2>
+              <h2 className="text-xl font-bold leading-tight sm:text-2xl">{w.noGoal}</h2>
               <p className="mt-3 max-w-xl text-sm leading-7 ws-hero__muted">
-                تُقترح الأهداف وتُعتمد من «التنفيذ والأهداف»، ثم يظهر أقربها هنا بتقدّمه الحقيقي.
+                {w.noGoalHint}
               </p>
               {session.user.role !== "member" && (
                 <Link href="/admin/execution/goals" className="ws-hero__btn mt-6 inline-flex">
-                  فتح الأهداف
+                  {w.openGoals}
                 </Link>
               )}
             </>
@@ -164,13 +166,13 @@ export async function WorkspaceOverview({
         <section className="ws-card">
           <div className="ws-card__head">
             <div>
-              <h2 className="font-bold">الإعلانات التنظيمية</h2>
-              <p className="mt-1 text-xs text-black/45">ما يستحق انتباهك اليوم</p>
+              <h2 className="font-bold">{w.announcements}</h2>
+              <p className="mt-1 text-xs text-black/45">{w.announcementsHint}</p>
             </div>
             <NavGlyph name="messages" className="ws-card__icon" />
           </div>
           {announcements.length === 0 ? (
-            <p className="ws-empty">لا إعلانات بعد.</p>
+            <p className="ws-empty">{w.noAnnouncements}</p>
           ) : (
             <ul className="mt-4 flex flex-col gap-3">
               {announcements.map((a) => (
@@ -182,7 +184,7 @@ export async function WorkspaceOverview({
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold">{a.title}</span>
                       <span className="mt-1 block text-[11px] text-black/45">
-                        {a.department?.name ?? (a.audience === "leadership" ? "القيادة" : "للجميع")} · {a.authorName} · {formatDate(a.createdAt)}
+                        {a.department?.name ?? (a.audience === "leadership" ? w.leadership : w.everyone)} · {a.authorName} · {formatDate(a.createdAt)}
                       </span>
                     </span>
                   </a>
@@ -190,20 +192,20 @@ export async function WorkspaceOverview({
               ))}
             </ul>
           )}
-          <a href={announcementsHref} className="ws-link">عرض كل الإعلانات</a>
+          <a href={announcementsHref} className="ws-link">{w.allAnnouncements}</a>
         </section>
 
         {/* ── الاجتماعات القادمة */}
         <section className="ws-card">
           <div className="ws-card__head">
             <div>
-              <h2 className="font-bold">الاجتماعات القادمة</h2>
-              <p className="mt-1 text-xs text-black/45">جدولك الأقرب — ٤٥ يوماً</p>
+              <h2 className="font-bold">{w.meetings}</h2>
+              <p className="mt-1 text-xs text-black/45">{w.meetingsHint}</p>
             </div>
             <NavGlyph name="calendar" className="ws-card__icon" />
           </div>
           {meetings.length === 0 ? (
-            <p className="ws-empty">لا اجتماعات مجدولة في الأيام القادمة.</p>
+            <p className="ws-empty">{w.noMeetings}</p>
           ) : (
             <ul className="mt-4 flex flex-col gap-2">
               {meetings.map((m) => (
@@ -221,7 +223,7 @@ export async function WorkspaceOverview({
               ))}
             </ul>
           )}
-          <Link href="/calendar" className="ws-link">فتح التقويم الكامل</Link>
+          <Link href="/calendar" className="ws-link">{w.fullCalendar}</Link>
         </section>
       </div>
 
@@ -231,13 +233,13 @@ export async function WorkspaceOverview({
           <section className="ws-card">
             <div className="ws-card__head">
               <div>
-                <h2 className="font-bold">لمحة الأقسام</h2>
-                <p className="mt-1 text-xs text-black/45">الأعضاء المعتمدون في كل قسم</p>
+                <h2 className="font-bold">{w.departments}</h2>
+                <p className="mt-1 text-xs text-black/45">{w.departmentsHint}</p>
               </div>
               <NavGlyph name="departments" className="ws-card__icon" />
             </div>
             {departments.length === 0 ? (
-              <p className="ws-empty">لا أقسام بعد.</p>
+              <p className="ws-empty">{w.noDepartments}</p>
             ) : (
               <ul className="mt-5 flex flex-col gap-4">
                 {departments.map((d) => (
@@ -259,15 +261,15 @@ export async function WorkspaceOverview({
         <section className="ws-card">
           <div className="ws-card__head">
             <div>
-              <h2 className="font-bold">التقويم المختصر</h2>
+              <h2 className="font-bold">{w.miniCalendar}</h2>
               <p className="mt-1 text-xs text-black/45">
-                {MONTH_NAMES[grid.month]} {grid.year} — الأيام المعلَّمة فيها مواعيد
+                {w.miniCalendarHint.replace("{month}", monthName(grid.year, grid.month, locale)).replace("{year}", String(grid.year))}
               </p>
             </div>
             <NavGlyph name="calendar" className="ws-card__icon" />
           </div>
           <div className="mt-4 grid grid-cols-7 gap-1.5 text-center text-xs text-black/45">
-            {WEEK_DAYS.map((d) => (
+            {w.weekDays.map((d) => (
               <span key={d} className="font-semibold">{d}</span>
             ))}
             {grid.days.map((day) => {
@@ -281,7 +283,7 @@ export async function WorkspaceOverview({
                   data-has={has ? "true" : undefined}
                   data-today={isToday ? "true" : undefined}
                   data-out={day.inMonth ? undefined : "true"}
-                  aria-label={`${day.key}${has ? " — فيه مواعيد" : ""}`}
+                  aria-label={`${day.key}${has ? w.hasEvents : ""}`}
                 >
                   {Number(day.key.slice(8, 10))}
                 </Link>

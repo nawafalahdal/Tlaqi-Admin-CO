@@ -44,7 +44,7 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
     isMember
       ? prisma.member.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true, gender: true, department: { select: { name: true, colorHex: true } } } })
       : prisma.user.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true, gender: true, department: { select: { name: true, colorHex: true } } } }),
-    badgesFor(session),
+    badgesFor(session, s),
   ]);
   const viewer = {
     role: session.user.role,
@@ -115,10 +115,14 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
  *  ثلاثةٌ فقط، ولكلٍّ مصدره: التذاكرُ المتأخرة مما يراه صاحبُ الحساب
  *  (`openTicketsWhere` — شرطُ الرؤية نفسه)، وما ينتظر اعتمادَه (طلباتُ
  *  الاعتماد المسمّاة له، ومعها طلباتُ الانضمام للمؤسس والتنفيذي)، وطلباتُ
- *  الإنهاء الجديدة لمن يقرّر فيها. والقراءةُ عدٌّ لا جلبُ صفوف. */
+ *  الإنهاء الجديدة لمن يقرّر فيها. والقراءةُ عدٌّ لا جلبُ صفوف، ونصُّ الشارة
+ *  من قاموس اللغة — كان عربياً ثابتاً يظهر في الواجهة الإنجليزية. */
 type NavBadge = NonNullable<ReturnType<typeof navFor>[number]["badge"]>;
 
-async function badgesFor(session: Session): Promise<Record<string, NavBadge | undefined>> {
+async function badgesFor(
+  session: Session,
+  s: { badgeLate: string; badgeAwaiting: string; badgeNew: string }
+): Promise<Record<string, NavBadge | undefined>> {
   const role = session.user.role;
   if (role === "member") return {};
   const top = role === "super_admin" || role === "executive";
@@ -137,9 +141,9 @@ async function badgesFor(session: Session): Promise<Record<string, NavBadge | un
         : Promise.resolve(0),
     ]);
     return {
-      tickets: late > 0 ? { text: `${late} متأخرة`, tone: "action" } : undefined,
-      approvals: approvals + joins > 0 ? { text: `${approvals + joins} بانتظارك`, tone: "action" } : undefined,
-      terminations: terminations > 0 ? { text: `${terminations} جديد`, tone: "info" } : undefined,
+      tickets: late > 0 ? { text: s.badgeLate.replace("{n}", String(late)), tone: "action" } : undefined,
+      approvals: approvals + joins > 0 ? { text: s.badgeAwaiting.replace("{n}", String(approvals + joins)), tone: "action" } : undefined,
+      terminations: terminations > 0 ? { text: s.badgeNew.replace("{n}", String(terminations)), tone: "info" } : undefined,
     };
   } catch (err) {
     // العدُّ زينةٌ لا شرط: إن تعذّر بقيت القائمة كما هي

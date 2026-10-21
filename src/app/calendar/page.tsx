@@ -2,9 +2,7 @@ import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/PageHeader";
 import Link from "next/link";
 import { auth } from "@/auth";
-import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
-import { AppHeader, Card } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
+import { Card } from "@/components/ui";
 import {
   calendarEntries,
   monthGrid,
@@ -53,8 +51,6 @@ export default async function CalendarPage({
     byDay.set(e.date, [...(byDay.get(e.date) ?? []), e]);
   }
 
-  const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
-  const isMember = session.user.role === "member";
   const today = todayKey();
 
   const prevAnchor = toRiyadh(new Date(grid.from.getTime() - 15 * 86_400_000));
@@ -68,14 +64,6 @@ export default async function CalendarPage({
 
   return (
     <div className="min-h-screen bg-page">
-      <AppHeader
-        theme={theme}
-        roleName="التقويم"
-        userName={session.user.name ?? ""}
-        homeHref={isMember ? "/member" : "/admin"}
-      >
-        <HeaderActions color={theme.text} />
-      </AppHeader>
 
       <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
         <PageHeader title="تقويمُ تَـــلاقِ" description={<>مواعيدُ الأهداف والمحطّات والالتزامات الأسبوعية واجتماعاتِ المراجعة — بتوقيت

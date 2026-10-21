@@ -11,7 +11,7 @@ import {
   sendTicketReminderEmail,
 } from "@/lib/email";
 import { upsertTicketRow } from "@/lib/googleSheets";
-import { ROLE_LABELS, accountRoleLabel } from "@/lib/testTracks";
+import { accountRoleLabel } from "@/lib/testTracks";
 
 export const TICKET_STAGE_DAYS = 2;
 

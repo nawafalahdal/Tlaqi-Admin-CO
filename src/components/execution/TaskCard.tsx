@@ -11,6 +11,7 @@ import {
 import { SubmitWork } from "./SubmitWork";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 /** بطاقةُ مهمّة — واحدةٌ تُعرَض لثلاثة: صاحبُها، وقائدُ قسمها، والمُراجِع.
  *
@@ -58,20 +59,6 @@ export type TaskView = {
   lastReviewNote: string | null;
 };
 
-export const STATE_LABEL: Record<string, string> = {
-  not_started: "لم تبدأ",
-  in_progress: "قيد التنفيذ",
-  submitted: "بانتظار التحقّق",
-  verified: "متحقَّقٌ منها",
-  returned: "رُدَّت للتصحيح",
-  incomplete: "غير مكتملة",
-  blocked: "معوَّقة",
-  waived: "أُسقطت بقرار",
-  cancelled: "أُلغيت",
-  superseded: "حلّ محلَّها غيرُها",
-  deferred: "أُجّلت",
-};
-
 const STATE_TONE: Record<string, string> = {
   verified: "bg-emerald-100 text-emerald-900",
   submitted: "bg-amber-100 text-amber-900",
@@ -82,13 +69,6 @@ const STATE_TONE: Record<string, string> = {
   cancelled: "bg-black/[0.06] text-black/55",
   superseded: "bg-black/[0.06] text-black/55",
   deferred: "bg-black/[0.06] text-black/55",
-};
-
-const PRIORITY_LABEL: Record<string, string> = {
-  critical: "حرجة",
-  high: "عالية",
-  normal: "عادية",
-  low: "منخفضة",
 };
 
 export function TaskCard({
@@ -107,6 +87,7 @@ export function TaskCard({
     carryPlan: boolean;
   };
 }) {
+  const L = useTranslations().task;
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [panel, setPanel] = useState<
@@ -146,36 +127,35 @@ export function TaskCard({
                 STATE_TONE[task.execState] ?? "bg-black/[0.06] text-black/60"
               }`}
             >
-              {STATE_LABEL[task.execState] ?? task.execState}
+              {L.state[task.execState as keyof typeof L.state] ?? task.execState}
             </span>
             {task.carryoverCount > 0 && (
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-900">
-                مُرحَّلة ×{task.carryoverCount}
-                {task.consecutiveCarryover > 1 ? ` (${task.consecutiveCarryover} متتالية)` : ""}
+                {L.carried.replace("{n}", String(task.carryoverCount))}
+                {task.consecutiveCarryover > 1 ? L.consecutive.replace("{n}", String(task.consecutiveCarryover)) : ""}
               </span>
             )}
             {task.overdue && (
               <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-800">
-                متأخّرة
+                {L.overdue}
               </span>
             )}
           </div>
 
           <p className="mt-1 text-xs leading-relaxed text-black/55">
-            <span className="font-semibold">معيار الإنجاز:</span> {task.acceptanceCriteria}
-            {task.deliverable ? ` · المُسلَّم: ${task.deliverable}` : ""}
+            <span className="font-semibold">{L.criteria}</span> {task.acceptanceCriteria}
+            {task.deliverable ? L.deliverable.replace("{d}", task.deliverable) : ""}
           </p>
 
           <p className="mt-1 text-[11px] text-black/45">
-            {task.ownerName ?? "بلا صاحب"}
-            {task.departmentName ? ` · ${task.departmentName}` : ""} · وزن {task.weight} ·{" "}
-            {PRIORITY_LABEL[task.priority] ?? task.priority} · {task.countdown}
+            {task.ownerName ?? L.noOwner}
+            {task.departmentName ? ` · ${task.departmentName}` : ""} · {L.weight.replace("{n}", String(task.weight))} ·{" "}
+            {L.priority[task.priority as keyof typeof L.priority] ?? task.priority} · {task.countdown}
             {dueDiffers && (
               <>
                 {" · "}
                 <span className="font-semibold">
-                  الموعد الأصلي {task.originalDueAt.slice(0, 10)} ← المعتمَد{" "}
-                  {task.dueAt.slice(0, 10)}
+                  {L.dueChanged.replace("{a}", task.originalDueAt.slice(0, 10)).replace("{b}", task.dueAt.slice(0, 10))}
                 </span>
               </>
             )}
@@ -183,29 +163,29 @@ export function TaskCard({
 
           {task.blockedReason && (
             <p className="mt-1.5 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs text-red-700">
-              المعوّق: {task.blockedReason}
+              {L.blocker.replace("{r}", task.blockedReason)}
             </p>
           )}
           {task.execState === "returned" && task.lastReviewNote && (
             <p className="mt-1.5 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs text-red-700">
-              رُدَّت: {task.lastReviewNote}
+              {L.returnedNote.replace("{r}", task.lastReviewNote)}
             </p>
           )}
           {task.waivedReason && (
             <p className="mt-1.5 rounded-lg bg-black/[0.04] px-2.5 py-1.5 text-xs text-black/60">
-              سببُ الإسقاط: {task.waivedReason} — ولا تُحتسَب إنجازاً
+              {L.waivedNote.replace("{r}", task.waivedReason)}
             </p>
           )}
           {task.carryoverCount > 0 && (
             <p className="mt-1.5 text-xs leading-relaxed text-black/55">
               {task.carryReason ? (
                 <>
-                  <span className="font-semibold">سببُ الترحيل:</span> {task.carryReason} ·{" "}
-                  <span className="font-semibold">التصحيح:</span> {task.correctivePlan}
+                  <span className="font-semibold">{L.carryReason}</span> {task.carryReason} ·{" "}
+                  <span className="font-semibold">{L.corrective}</span> {task.correctivePlan}
                 </>
               ) : (
                 <span className="font-semibold text-amber-900">
-                  مُرحَّلةٌ بلا سببٍ وخطةِ تصحيح — ولا تُعتمَد خطةُ الأسبوع قبل إقرارهما
+                  {L.carryMissing}
                 </span>
               )}
             </p>
@@ -213,7 +193,7 @@ export function TaskCard({
           {task.lastSubmission && (
             <div className="mt-2 rounded-xl bg-black/[0.03] px-3 py-2">
               <p className="text-[11px] font-bold text-black/60">
-                آخر تسليم — {task.lastSubmission.submittedByName} ·{" "}
+                {L.lastSubmission.replace("{name}", task.lastSubmission.submittedByName)}{" "}
                 {task.lastSubmission.submittedAt.slice(0, 10)}
               </p>
               <p className="mt-0.5 text-xs leading-relaxed text-black/70">
@@ -226,7 +206,7 @@ export function TaskCard({
                   rel="noopener noreferrer"
                   className="mt-1 inline-block text-xs font-bold underline"
                 >
-                  افتح دليلَ الرابط ←
+                  {L.openLink}
                 </a>
               )}
               {task.lastSubmission.evidenceFileName && (
@@ -236,14 +216,14 @@ export function TaskCard({
                   rel="noopener noreferrer"
                   className="mt-1 inline-block text-xs font-bold underline"
                 >
-                  افتح الملف المرفوع ({task.lastSubmission.evidenceFileName}) ←
+                  {L.openFile.replace("{name}", task.lastSubmission.evidenceFileName)}
                 </a>
               )}
             </div>
           )}
           {task.verifiedByName && (
             <p className="mt-1.5 text-[11px] font-semibold text-emerald-800">
-              تحقّق منها {task.verifiedByName}
+              {L.verifiedBy.replace("{name}", task.verifiedByName)}
             </p>
           )}
         </div>
@@ -262,21 +242,21 @@ export function TaskCard({
                 disabled={pending}
                 onClick={() => run(() => updateTaskStateAction(task.id, "in_progress"))}
               >
-                ابدأ العمل
+                {L.start}
               </Button>
             )}
             <Button theme={theme} onClick={() => setPanel(panel === "submit" ? null : "submit")}>
-              {task.execState === "submitted" ? "أعِد التسليم" : "ارفع التسليم"}
+              {task.execState === "submitted" ? L.resubmit : L.submit}
             </Button>
             <Button theme={theme} variant="ghost" onClick={() => setPanel(panel === "block" ? null : "block")}>
-              أعلِن معوّقاً
+              {L.declareBlock}
             </Button>
           </>
         )}
 
         {can.review && task.execState === "submitted" && (
           <Button theme={theme} onClick={() => setPanel(panel === "review" ? null : "review")}>
-            راجِع التسليم
+            {L.review}
           </Button>
         )}
         {can.review && !["waived", "cancelled", "superseded"].includes(task.execState) && (
@@ -286,18 +266,18 @@ export function TaskCard({
               variant="outline"
               onClick={() => setPanel(panel === "deadline" ? null : "deadline")}
             >
-              مدِّد الموعد
+              {L.extend}
             </Button>
             {task.execState !== "verified" && (
               <Button theme={theme} variant="ghost" onClick={() => setPanel(panel === "waive" ? null : "waive")}>
-                أسقِط الالتزام
+                {L.waive}
               </Button>
             )}
           </>
         )}
         {can.carryPlan && task.carryoverCount > 0 && !task.carryReason && (
           <Button theme={theme} onClick={() => setPanel(panel === "carry" ? null : "carry")}>
-            أقِرّ سببَ الترحيل
+            {L.confirmCarry}
           </Button>
         )}
       </div>
@@ -312,11 +292,11 @@ export function TaskCard({
       {panel === "block" && (
         <Panel
           theme={theme}
-          label="ما الذي يُعوِّقها؟ — ولا تُعلَن متوقّفةً بلا سبب"
+          label={L.blockPrompt}
           value={note}
           onChange={setNote}
           pending={pending}
-          submitLabel="أعلِن المعوّق"
+          submitLabel={L.blockSubmit}
           onSubmit={() => run(() => updateTaskStateAction(task.id, "blocked", note))}
           onCancel={() => setPanel(null)}
         />
@@ -325,14 +305,13 @@ export function TaskCard({
       {panel === "review" && (
         <div className="mt-3 flex flex-col gap-2.5 rounded-xl bg-black/[0.03] p-3">
           <p className="text-xs leading-relaxed text-black/60">
-            اطّلِع على الدليل أعلاه ثم قرِّر. والردُّ وعدمُ الاكتمال لا يقعان بلا سببٍ مكتوب،
-            والتسليمُ السابق يبقى محفوظاً.
+            {L.reviewHint}
           </p>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
-            placeholder="ملاحظةُ القرار"
+            placeholder={L.decisionNote}
             className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-black/30"
           />
           <div className="flex flex-wrap gap-2">
@@ -341,7 +320,7 @@ export function TaskCard({
               disabled={pending}
               onClick={() => run(() => reviewTaskAction(task.id, "verified", note))}
             >
-              تحقّقتُ منها
+              {L.verify}
             </Button>
             <Button
               theme={theme}
@@ -349,7 +328,7 @@ export function TaskCard({
               disabled={pending || !note.trim()}
               onClick={() => run(() => reviewTaskAction(task.id, "returned", note))}
             >
-              ردٌّ للتصحيح
+              {L.return}
             </Button>
             <Button
               theme={theme}
@@ -357,7 +336,7 @@ export function TaskCard({
               disabled={pending || !note.trim()}
               onClick={() => run(() => reviewTaskAction(task.id, "incomplete", note))}
             >
-              غير مكتملة
+              {L.incomplete}
             </Button>
             <Button
               theme={theme}
@@ -365,7 +344,7 @@ export function TaskCard({
               disabled={pending}
               onClick={() => run(() => reviewTaskAction(task.id, "flagged", note))}
             >
-              للنقاش
+              {L.flag}
             </Button>
           </div>
         </div>
@@ -374,7 +353,7 @@ export function TaskCard({
       {panel === "deadline" && (
         <div className="mt-3 flex flex-col gap-2.5 rounded-xl bg-black/[0.03] p-3">
           <p className="text-xs leading-relaxed text-black/60">
-            الموعدُ الأصليُّ يبقى محفوظاً ويُقاس به التأخّر — والتمديدُ لا يُبيّض تأخّراً وقع.
+            {L.deadlineHint}
           </p>
           <input
             type="date"
@@ -386,7 +365,7 @@ export function TaskCard({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
-            placeholder="سببُ التمديد — إلزامي"
+            placeholder={L.extendReason}
             className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-black/30"
           />
           <div className="flex flex-wrap gap-2">
@@ -395,10 +374,10 @@ export function TaskCard({
               disabled={pending || !date || !note.trim()}
               onClick={() => run(() => changeDeadlineAction(task.id, date, note))}
             >
-              مدِّد بقرارك
+              {L.extendSubmit}
             </Button>
             <Button theme={theme} variant="outline" onClick={() => setPanel(null)}>
-              إلغاء
+              {L.cancel}
             </Button>
           </div>
         </div>
@@ -407,23 +386,23 @@ export function TaskCard({
       {panel === "waive" && (
         <div className="mt-3 flex flex-col gap-2.5 rounded-xl bg-black/[0.03] p-3">
           <p className="text-xs leading-relaxed text-black/60">
-            <strong>المُسقَطُ لا يُحتسَب إنجازاً</strong> — يُعرَض وحده في التقرير، ويبقى
-            التزامُه التاريخيُّ مكتوباً.
+            <strong>{L.waiveStrong}</strong>
+            {L.waiveRest}
           </p>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
-            placeholder="السبب — إلزامي"
+            placeholder={L.reasonRequired}
             className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-black/30"
           />
           <div className="flex flex-wrap gap-2">
             {(
               [
-                ["waive", "أسقِط"],
-                ["defer", "أجِّل"],
-                ["cancel", "ألغِ"],
-                ["supersede", "استُبدلت"],
+                ["waive", L.waiveKinds.waive],
+                ["defer", L.waiveKinds.defer],
+                ["cancel", L.waiveKinds.cancel],
+                ["supersede", L.waiveKinds.supersede],
               ] as const
             ).map(([kind, label]) => (
               <Button
@@ -443,20 +422,20 @@ export function TaskCard({
       {panel === "carry" && (
         <div className="mt-3 flex flex-col gap-2.5 rounded-xl bg-amber-50 p-3">
           <p className="text-xs leading-relaxed text-amber-900">
-            الترحيلُ التزامٌ يُعاد إقرارُه: اكتب لماذا لم تكتمل، وكيف ستكتمل هذا الأسبوع.
+            {L.carryHint}
           </p>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
-            placeholder="سببُ عدم الاكتمال"
+            placeholder={L.carryWhy}
             className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-black/30"
           />
           <textarea
             value={note2}
             onChange={(e) => setNote2(e.target.value)}
             rows={2}
-            placeholder="خطةُ التصحيح — ما الذي يختلف هذا الأسبوع؟"
+            placeholder={L.carryPlan}
             className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-black/30"
           />
           <div className="flex flex-wrap gap-2">
@@ -465,10 +444,10 @@ export function TaskCard({
               disabled={pending || !note.trim() || !note2.trim()}
               onClick={() => run(() => recordCarryoverPlanAction(task.id, note, note2))}
             >
-              أقِرّهما
+              {L.carrySubmit}
             </Button>
             <Button theme={theme} variant="outline" onClick={() => setPanel(null)}>
-              إلغاء
+              {L.cancel}
             </Button>
           </div>
         </div>
@@ -496,6 +475,7 @@ function Panel({
   onSubmit: () => void;
   onCancel: () => void;
 }) {
+  const L = useTranslations().task;
   return (
     <div className="mt-3 flex flex-col gap-2.5 rounded-xl bg-black/[0.03] p-3">
       <p className="text-xs leading-relaxed text-black/60">{label}</p>
@@ -510,7 +490,7 @@ function Panel({
           {submitLabel}
         </Button>
         <Button theme={theme} variant="outline" onClick={onCancel}>
-          إلغاء
+          {L.cancel}
         </Button>
       </div>
     </div>

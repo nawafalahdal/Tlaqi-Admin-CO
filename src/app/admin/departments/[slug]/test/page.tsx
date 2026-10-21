@@ -3,8 +3,6 @@ import { redirect, notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { themeFromColor } from "@/lib/brand";
-import { AppHeader } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
 import { TestEditor } from "../../../tests/TestEditor";
 import { toQuestionViewModel } from "@/lib/testTracks";
 import { BackButton } from "@/components/BackButton";
@@ -43,9 +41,6 @@ export default async function DepartmentTestPage({
 
   return (
     <div className="min-h-screen bg-page">
-      <AppHeader theme={theme} roleName={`${t.deptBoard.adminRolePrefix} ${department.name}`} userName={session.user.name ?? ""}>
-        <HeaderActions color={theme.text} />
-      </AppHeader>
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-5 sm:py-8">
         <BackButton fallbackHref={`/admin/departments/${department.slug}`} />
         <PageHeader title={<>{t.testEditorPage.deptTitlePrefix} {department.name}</>} description={<>{t.testEditorPage.deptSubtitle}</>} />

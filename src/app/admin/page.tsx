@@ -11,8 +11,7 @@ import {
   announcementPowers,
 } from "@/lib/announcements";
 import { themeFromColor, SUPER_ADMIN_THEME, BRAND, brandInk } from "@/lib/brand";
-import { AppHeader, Card, StatusBadge } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
+import { Card, StatusBadge } from "@/components/ui";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable } from "@/components/DataTable";
 import { TicketBoard } from "@/components/TicketBoard";
@@ -166,13 +165,6 @@ export default async function AdminPage() {
 
   return (
     <div className="min-h-screen bg-page">
-      <AppHeader
-        theme={theme}
-        roleName={isSuperAdmin ? ta.founderRole : ta.ceoRole}
-        userName={session.user.name ?? ""}
-      >
-        <HeaderActions color={theme.text} />
-      </AppHeader>
 
       <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
         <PageHeader

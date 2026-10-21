@@ -1,58 +1,8 @@
 import type { ReactNode } from "react";
-import { ThemedLockup } from "./Logo";
-import { HeaderShell } from "./HeaderShell";
 import { brandInk, brandInkBorder, type themeFromColor } from "@/lib/brand";
-import { ImproveButton } from "./ImproveButton";
 export { StatusBadge } from "./StatusBadge";
 
 type Theme = ReturnType<typeof themeFromColor>;
-
-/** الشعار في الهيدر يعود به إلى بيته.
- *
- *  و«بيته» ليس صفحةً واحدة: `/admin` نفسها تُحوّل كلّ دور إلى لوحته —
- *  قائد القسم إلى قسمه، ومسؤول التشغيل إلى تشغيله، والعضو إلى بوابته.
- *  فيكفي رابطٌ واحد، ولا تُكرَّر قواعد التوجيه في سبعة عشر موضعاً حتى
- *  تختلف إحداها عن الباقي. */
-export function AppHeader({
-  theme,
-  roleName,
-  userName,
-  homeHref = "/admin",
-  children,
-}: {
-  theme: Theme;
-  roleName: string;
-  userName: string;
-  homeHref?: string;
-  children?: ReactNode;
-}) {
-  return (
-    <>
-      {/* ترويسةٌ محايدة بلون الصفحة — لا شريطٌ بلون القسم يملأ رأس كل شاشة.
-          كان الشريطُ في الداكن خمريّاً ثقيلاً، والاتفاقُ رماديٌّ محايد.
-          وهويةُ القسم لا تضيع: خطٌّ بلونه على حافّة الترويسة السفلى. */}
-      <header
-        className="app-header sticky top-0 z-20"
-        style={{ borderBlockEnd: `3px solid ${theme.base}` }}
-      >
-        <HeaderShell
-          textColor="var(--ink)"
-          borderColor="var(--hairline)"
-          userName={userName}
-          roleName={roleName}
-          homeHref={homeHref}
-          logo={<ThemedLockup height={30} />}
-          actions={children}
-        />
-      </header>
-      {/* «تحسين» العائم يُرسَم هنا — خارج الترويسة — لا مع أدواتها.
-          أدواتُ الترويسة تُرسَم مرّتين (شريطُ المكتب وقائمةُ الجوال) وأولاهما
-          مخفيّةٌ على الجوال؛ فزرٌّ بينها يختفي على الجوال ويتكرّر حين تُفتح
-          القائمة. وهنا يُرسَم مرّةً واحدةً في كل شاشة عمل. */}
-      <ImproveButton />
-    </>
-  );
-}
 
 export function Card({
   children,

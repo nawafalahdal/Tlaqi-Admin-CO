@@ -5,6 +5,7 @@ import { addPlanDocAction } from "./actions";
 import { Button } from "@/components/ui";
 import { MAX_PLAN_FILE_BYTES, ALLOWED_PLAN_TYPES } from "@/lib/planFormats";
 import type { themeFromColor } from "@/lib/brand";
+import { FileField } from "@/components/FileField";
 
 const ACCEPT = Object.keys(ALLOWED_PLAN_TYPES).join(",");
 const MAX_MB = (MAX_PLAN_FILE_BYTES / 1048576).toFixed(0);
@@ -111,8 +112,7 @@ export function AddPlanDoc({ theme }: { theme: ReturnType<typeof themeFromColor>
       {mode === "file" ? (
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium text-black/70">الملف</span>
-          <input
-            type="file"
+          <FileField
             name="file"
             accept={ACCEPT}
             onChange={(e) => {
@@ -120,7 +120,6 @@ export function AddPlanDoc({ theme }: { theme: ReturnType<typeof themeFromColor>
               setPicked(f ? `${f.name} — ${(f.size / 1048576).toFixed(2)}MB` : null);
               setLocalError(null);
             }}
-            className="rounded-xl border border-black/10 bg-white px-3.5 py-2.5 text-sm file:me-3 file:rounded-lg file:border-0 file:bg-black/[0.06] file:px-3 file:py-1.5 file:text-xs file:font-bold"
           />
           <span className="text-xs text-black/45">
             المقبول: {Object.values(ALLOWED_PLAN_TYPES).join("، ")} — وبحدٍّ أقصى {MAX_MB} ميغابايت.

@@ -43,7 +43,7 @@ export default async function MemberTestPage() {
       <div className="mb-6 flex w-full max-w-xl items-center justify-between gap-3">
         <ThemedLockup height={30} />
         <div className="flex flex-wrap items-center gap-2">
-      <ControlGroup color="var(--ink)">
+      <ControlGroup color="var(--ink)" label={t.ui.displayTools}>
         <ThemeToggle />
         <ControlDivider />
         <LocaleToggle />

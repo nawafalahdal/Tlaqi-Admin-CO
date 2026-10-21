@@ -42,7 +42,7 @@ export default async function MemberPendingPage() {
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
-      <ControlGroup color="var(--ink)">
+      <ControlGroup color="var(--ink)" label={t.ui.displayTools}>
         <ThemeToggle />
         <ControlDivider />
         <LocaleToggle />

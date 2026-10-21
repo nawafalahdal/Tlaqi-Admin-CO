@@ -8,10 +8,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { ControlGroup, ControlDivider } from "@/components/ControlGroup";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { PageHeader } from "@/components/PageHeader";
-import { AppHeader, Card } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
-import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
-import { accountRoleLabel } from "@/lib/testTracks";
+import { Card } from "@/components/ui";
 
 const ROLE_HOME: Record<string, string> = {
   super_admin: "/admin",
@@ -34,12 +31,8 @@ export default async function ChangePasswordPage() {
   // داخل مساحة العمل: رأسُ الصفحة الموحّد والبطاقةُ نفسها — والإجباريُّ
   // يبقى في صفحة الدخول المنفردة أدناه
   if (!forced) {
-    const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
     return (
       <div className="min-h-screen bg-page">
-      <AppHeader theme={theme} roleName={accountRoleLabel(session.user.role)} userName={session.user.name ?? ""}>
-        <HeaderActions color={theme.text} />
-      </AppHeader>
       <main className="mx-auto flex max-w-xl flex-col gap-5 px-4 py-6 sm:px-5 sm:py-8">
         <PageHeader
           title={t.changePassword.titleNormal}
@@ -60,7 +53,7 @@ export default async function ChangePasswordPage() {
     >
       <div className="w-full max-w-sm">
         <div className="mb-4 flex justify-end">
-      <ControlGroup color="var(--ink)">
+      <ControlGroup color="var(--ink)" label={t.ui.displayTools}>
         <ThemeToggle />
         <ControlDivider />
         <LocaleToggle />

@@ -4,6 +4,7 @@ import { readableTextOn } from "@/lib/colors";
 import type { OrgPerson } from "@/lib/orgChart";
 import { ORG_SENIOR_COLOR, outlineFor, needsOutline } from "@/lib/orgChart";
 import type { OrgChart, OrgDepartment } from "@/lib/orgChart";
+import { getLocale, getDictionary } from "@/i18n/server";
 
 /** الهيكل شجرةً واحدة موصولة — لا بطاقاتٍ في صناديق متفرّقة.
  *
@@ -20,7 +21,7 @@ import type { OrgChart, OrgDepartment } from "@/lib/orgChart";
  *  الطباعة لأن `print-color-adjust: exact` يُفرَض في صفحة الطباعة،
  *  فالنسخة المنزَّلة تحمل الشجرة نفسها لا بطاقاتٍ عائمة.
  */
-export function OrgTree({
+export async function OrgTree({
   chart,
   viewerId,
   viewerDepartmentId,
@@ -38,6 +39,7 @@ export function OrgTree({
   /** نسخة الطباعة: مقاساتٌ أصغر لتسع الورقة */
   compact?: boolean;
 }) {
+  const L = getDictionary(await getLocale()).ui.org;
   const size = compact ? "sm" : "md";
 
   return (
@@ -67,10 +69,10 @@ export function OrgTree({
               style={{ background: portraitTone(ORG_SENIOR_COLOR).background, color: "#fff" }}
             >
               <span className="flex flex-col">
-                <span className="text-sm font-bold">{chart.senior?.name ?? "الإدارة العليا"}</span>
+                <span className="text-sm font-bold">{chart.senior?.name ?? L.senior}</span>
                 {chart.ceo.kind === "filled" && (
                   <span className="text-[11px] font-semibold opacity-85">
-                    يقودها الرئيس التنفيذي: {chart.ceo.person.fullName}
+                    {L.ledByCeo.replace("{name}", chart.ceo.person.fullName)}
                   </span>
                 )}
               </span>
@@ -80,7 +82,7 @@ export function OrgTree({
                   chart.underCeo.filter((x) => x.kind === "filled").length +
                   (chart.senior?.lead.kind === "filled" ? 1 : 0) +
                   (chart.senior?.members.length ?? 0)}{" "}
-                أشخاص مع قائدها
+                {L.peopleWithLead}
               </span>
             </div>
             <div className="flex flex-wrap justify-center gap-3 px-4 py-4">
@@ -127,7 +129,7 @@ export function OrgTree({
       {chart.unassigned.length > 0 && (
         <div className="mt-6 w-full rounded-2xl border border-dashed border-black/15 px-4 py-4">
           <p className="mb-2 text-center text-[11px] font-bold text-black/45">
-            معتمدون بلا قسم — خارج السلسلة حتى يُصنَّفوا
+            {L.unassigned}
           </p>
           <div className="flex flex-wrap justify-center gap-2.5">
             {chart.unassigned.map((m) => (
@@ -156,7 +158,7 @@ export function OrgTree({
  *
  *  والتكرارُ ذاتيٌّ (`Branch` يُنادي نفسه) لأن المسار نفسه يدور: لجنةٌ
  *  في لجنة. والعمقُ محدودٌ عند الاقتراح لا عند الرسم. */
-function Branch({
+async function Branch({
   dept,
   size,
   viewerId,
@@ -169,6 +171,7 @@ function Branch({
   viewerDepartmentId?: string | null;
   depth?: number;
 }) {
+  const L = getDictionary(await getLocale()).ui.org;
   const mine = Boolean(viewerDepartmentId) && dept.id === viewerDepartmentId;
   const stem = outlineFor(dept.displayColor);
   // بطاقاتُ اللجان أصغر: فرعٌ داخل فرعٍ يحتاج تفاوتاً يُقرأ به العمق
@@ -198,10 +201,10 @@ function Branch({
         >
           <span className="text-sm font-bold">
             {/* لونُها لونُ قسمها، فالكلمةُ والتقطيعُ هما ما يُميّزانها */}
-            {dept.isCommittee ? `لجنة ${dept.name}` : dept.name}
-            {mine && <span className="ms-2 rounded-full bg-white/85 px-2 py-0.5 text-[10px] text-[#341D2B]">{dept.isCommittee ? "لجنتك" : "قسمك"}</span>}
+            {dept.isCommittee ? L.committee.replace("{name}", dept.name) : dept.name}
+            {mine && <span className="ms-2 rounded-full bg-white/85 px-2 py-0.5 text-[10px] text-[#341D2B]">{dept.isCommittee ? L.yourCommittee : L.yourDepartment}</span>}
           </span>
-          <span className="text-[11px] font-bold opacity-80">{people} أشخاص</span>
+          <span className="text-[11px] font-bold opacity-80">{L.people.replace("{n}", String(people))}</span>
         </div>
 
         <div className="flex flex-col items-center px-3 pb-4 pt-4">
@@ -225,7 +228,7 @@ function Branch({
               </ul>
             </>
           ) : (
-            <p className="mt-3 text-[11px] text-black/35">لا أعضاء بعد</p>
+            <p className="mt-3 text-[11px] text-black/35">{L.noMembers}</p>
           )}
         </div>
       </div>
@@ -278,7 +281,8 @@ function Branching({ count }: { count: number }) {
  *
  *  من لا صورة له يُرسم بحرفه الأول على لون قسمه — لا أيقونةٌ عامة تُساوي
  *  بين الناس. */
-function MemberChip({ person, color, highlight }: { person: OrgPerson; color: string; highlight: boolean }) {
+async function MemberChip({ person, color, highlight }: { person: OrgPerson; color: string; highlight: boolean }) {
+  const L = getDictionary(await getLocale()).ui.org;
   const light = needsOutline(color);
   return (
     <span
@@ -309,7 +313,7 @@ function MemberChip({ person, color, highlight }: { person: OrgPerson; color: st
         <span>{person.fullName}</span>
         <span className="text-[10px] font-medium text-black/45">{person.title}</span>
       </span>
-      {highlight && <span className="rounded-full bg-[#C34900] px-1.5 text-[9px] text-white">أنت</span>}
+      {highlight && <span className="rounded-full bg-[#C34900] px-1.5 text-[9px] text-white">{L.you}</span>}
     </span>
   );
 }

@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { submitSignatureAction } from "./actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
+import { FileField } from "@/components/FileField";
 
 /** لوح التوقيع — يُرسَم بالإصبع أو الفأرة، أو تُرفع صورةٌ جاهزة.
  *
@@ -136,13 +137,7 @@ export function SignaturePad({ theme }: { theme: ReturnType<typeof themeFromColo
         </Button>
         <label className="text-xs text-black/55">
           <span className="block pb-1">أو ارفع صورة (PNG / JPEG)</span>
-          <input
-            type="file"
-            accept="image/png,image/jpeg"
-            disabled={pending}
-            onChange={onFile}
-            className="text-xs"
-          />
+          <FileField accept="image/png,image/jpeg" disabled={pending} onChange={onFile} />
         </label>
       </div>
 

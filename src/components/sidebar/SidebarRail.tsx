@@ -7,6 +7,7 @@ import { activeNavId, NAV_GROUPS, type NavGroup, type NavItem } from "@/lib/navi
 import { useTranslations } from "@/i18n/LocaleProvider";
 import { LogoMark, ThemedLockup } from "../Logo";
 import { NavGlyph } from "../icons";
+import { WorkspaceBar } from "./WorkspaceBar";
 
 /** القائمة الجانبية — كبسولةٌ عمودية.
  *
@@ -15,7 +16,7 @@ import { NavGlyph } from "../icons";
  *    رأسها، ولا عناوين)، ويُحفظ الاختيار.
  *  - **اللوحيّ (٦٤٠–١٠٢٣):** مطويّةٌ دائماً — المساحةُ للمحتوى.
  *  - **الجوال (<٦٤٠):** لا قائمة جانبية. البنودُ نفسها، بمجموعاتها، في
- *    قائمة الترويسة (`HeaderShell`) عبر السياق أدناه — زرُّ قائمةٍ واحد.
+ *    قائمة شريط مساحة العمل (`WorkspaceBar`) — زرُّ قائمةٍ واحد.
  *
  *  والبنودُ تأتي من الخادم محسوبةً للدور ومرتّبةً بمجموعاتها (`navFor`)؛
  *  هذا المكوّن يرسمها ويُضيء الحاليّ فقط. وقائمةُ الحساب (`account`) تأتي
@@ -28,7 +29,7 @@ type Raise = { href: string; label: string };
 type Nav = { items: NavItem[]; homeHref: string; raise: Raise } | null;
 const NavContext = createContext<Nav>(null);
 
-/** لقائمة الجوال في الترويسة: البنودُ نفسها، أو لا شيء خارج مساحة العمل */
+/** لقائمة الجوال في شريط مساحة العمل: البنودُ نفسها، أو لا شيء خارجها */
 export function useAppNav() {
   return useContext(NavContext);
 }
@@ -90,6 +91,15 @@ export function SidebarProvider({
           avatar={avatar}
           avatarTone={avatarTone}
           pathname={pathname}
+        />
+      )}
+      {!bare && (
+        <WorkspaceBar
+          homeHref={homeHref}
+          userName={userName}
+          roleName={roleName}
+          account={account}
+          renderNav={(close) => <MobileNavList onNavigate={close} />}
         />
       )}
       {children}

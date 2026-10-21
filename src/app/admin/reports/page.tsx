@@ -2,9 +2,7 @@ import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/PageHeader";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
-import { AppHeader, Card } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
+import { Card } from "@/components/ui";
 import { DataTable } from "@/components/DataTable";
 import { formatDate } from "@/lib/format";
 import { departmentsReport, membersReport, closedOnTimeTickets } from "@/lib/reports";
@@ -32,7 +30,6 @@ export default async function ReportsPage() {
   const role = session.user.role;
   if (role === "member") redirect("/member");
 
-  const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
   const seesDepartments = role === "super_admin" || role === "executive" || role === "operations_officer";
   const isLead = role === "department_admin";
 
@@ -48,9 +45,6 @@ export default async function ReportsPage() {
 
   return (
     <div className="min-h-screen bg-page">
-      <AppHeader theme={theme} roleName="التقارير" userName={session.user.name ?? ""}>
-        <HeaderActions color={theme.text} />
-      </AppHeader>
 
       <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
         <PageHeader title="التقارير" description={<>{seesDepartments

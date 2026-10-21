@@ -22,7 +22,7 @@ export default async function LoginPage({
       <div aria-hidden className="login-glow login-glow--b" />
       <div className="relative w-full max-w-[448px]">
         <div className="mb-8 flex justify-end">
-          <ControlGroup color="var(--ink)">
+          <ControlGroup color="var(--ink)" label={t.ui.displayTools}>
             <ThemeToggle />
             <ControlDivider />
             <LocaleToggle />

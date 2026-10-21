@@ -1,8 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
-import { AppHeader, Card } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
+import { Card } from "@/components/ui";
 import { PageHeader } from "@/components/PageHeader";
 import { getLocale, getDictionary } from "@/i18n/server";
 
@@ -19,15 +17,11 @@ export default async function SheetPage() {
   if (session.user.role !== "super_admin") redirect("/admin");
 
   const t = getDictionary(await getLocale());
-  const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
   const sheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
   const sheetUrl = sheetId ? `https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetId)}/edit` : null;
 
   return (
     <div className="min-h-screen bg-page">
-      <AppHeader theme={theme} roleName={t.admin.founderRole} userName={session.user.name ?? ""}>
-        <HeaderActions color={theme.text} />
-      </AppHeader>
 
       <main className="mx-auto flex max-w-xl flex-col gap-5 px-4 py-6 sm:px-5 sm:py-8">
         <PageHeader title={t.sheetPage.title} description={t.sheetPage.subtitle} />

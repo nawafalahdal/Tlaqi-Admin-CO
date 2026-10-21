@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Alert } from "@/lib/alerts";
+import { getLocale, getDictionary } from "@/i18n/server";
 
 /** لوحةُ «ما ينتظرك» — أولُ ما يُقرأ في الصفحة الرئيسية.
  *
@@ -13,26 +14,27 @@ import type { Alert } from "@/lib/alerts";
  *  تتبع السمة الداكنة بخرطٍ مركزيٍّ في `globals.css`، فلا تَصرخ لوحةٌ
  *  كريميّةٌ في شاشةٍ داكنة.
  */
-export function AlertsPanel({
+export async function AlertsPanel({
   alerts,
-  title = "ما ينتظرك",
+  title,
   hint,
   grid = false,
 }: {
   alerts: Alert[];
-  /** عنوانُ اللوحة — «يحتاج قرارك» في لوحة القيادة */
+  /** عنوانُ اللوحة — «يحتاج قرارك» في لوحة القيادة، و«ما ينتظرك» من القاموس إن لم يُمرَّر */
   title?: string;
   hint?: string;
   /** عمودان على الشاشات العريضة — للوحة القيادة حيث تكثر البنود */
   grid?: boolean;
 }) {
+  const heading = title ?? getDictionary(await getLocale()).ui.alertsTitle;
   if (alerts.length === 0) return null;
 
   return (
-    <section className="flex flex-col gap-3 rounded-2xl border border-hairline bg-white p-4 shadow-sm shadow-black/[0.06] sm:p-5" aria-label={title}>
+    <section className="flex flex-col gap-3 rounded-2xl border border-hairline bg-white p-4 shadow-sm shadow-black/[0.06] sm:p-5" aria-label={heading}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="text-base font-bold sm:text-lg">{title}</h2>
+          <h2 className="text-base font-bold sm:text-lg">{heading}</h2>
           {hint && <p className="mt-0.5 text-xs text-black/45">{hint}</p>}
         </div>
         <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-900 ring-1 ring-amber-200">

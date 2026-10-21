@@ -4,12 +4,10 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { sweepTicketEscalation, TICKET_STAGE_LABELS, TICKET_INCLUDE, ticketAuthor, ticketTargetLabel, ticketVisibilityWhere, canRespondToTicket } from "@/lib/tickets";
 import { themeFromColor, SUPER_ADMIN_THEME, brandInk} from "@/lib/brand";
-import { AppHeader, Card } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
+import { Card } from "@/components/ui";
 import { TicketCard } from "./TicketCard";
 import { DataTable } from "@/components/DataTable";
 import { TicketCta } from "@/components/tickets/TicketCta";
-import { ROLE_LABELS } from "@/lib/testTracks";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { scheduleDueSweeps } from "@/lib/sweepThrottle";
@@ -52,9 +50,6 @@ export default async function TicketsPage() {
 
   return (
     <div className="min-h-screen bg-page">
-      <AppHeader theme={theme} roleName={t.admin.founderRole} userName={session.user.name ?? ""}>
-        <HeaderActions color={theme.text} />
-      </AppHeader>
 
       <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
         <PageHeader title={tt.title} description={<>{tt.subtitle}</>} />

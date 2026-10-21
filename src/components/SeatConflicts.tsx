@@ -2,6 +2,7 @@ import { Card } from "@/components/ui";
 import { seatConflicts } from "@/lib/workflow";
 import { SeatHolderRow } from "@/components/SeatHolderRow";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
+import { getLocale, getDictionary } from "@/i18n/server";
 
 /** تعارض المقاعد المفردة — يُعرض للمؤسس وحده، ولا يُعرض إن لم يكن.
  *
@@ -21,17 +22,16 @@ import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
  *  منهما يُخرج قائداً عاملاً من المنصة. */
 export async function SeatConflicts({ canPurge = false }: { canPurge?: boolean }) {
   const conflicts = await seatConflicts();
+  const L = getDictionary(await getLocale()).ui.seats;
   if (conflicts.length === 0) return null;
 
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
 
   return (
     <Card className="border-[#9A2E1C]/30 bg-[#9A2E1C]/[0.04] p-4 sm:p-5">
-      <h2 className="text-sm font-bold text-[#9A2E1C]">مقاعد قيادية مشغولة بأكثر من واحد</h2>
+      <h2 className="text-sm font-bold text-[#9A2E1C]">{L.title}</h2>
       <p className="mt-1 text-xs leading-relaxed text-black/60">
-        لكل منصبٍ قياديٍّ مقعدٌ واحد. والمنصة تمنع إنشاء مقعدٍ ثانٍ من الآن، لكنها لا تُعطّل
-        حسابات أُنشئت قبل هذه القاعدة. وما دام المنصب مشغولاً بأكثر من واحد، تصل رسائل
-        التصعيد إليهم جميعاً.
+        {L.body}
       </p>
 
       <div className="mt-4 flex flex-col gap-4">
@@ -40,7 +40,7 @@ export async function SeatConflicts({ canPurge = false }: { canPurge?: boolean }
             <p className="text-xs font-bold text-black/75">
               {c.roleLabel}
               {c.departmentName ? ` — ${c.departmentName}` : ""}
-              <span className="font-normal text-black/40"> · {c.holders.length} شاغلين</span>
+              <span className="font-normal text-black/40"> · {L.holders.replace("{n}", String(c.holders.length))}</span>
             </p>
             <div className="mt-2 flex flex-col gap-2">
               {c.holders.map((h) => (
@@ -52,9 +52,7 @@ export async function SeatConflicts({ canPurge = false }: { canPurge?: boolean }
       </div>
 
       <p className="mt-4 border-t border-black/10 pt-3 text-xs leading-relaxed text-black/50">
-        الكود لا يحسمها: حذف الحساب الخطأ من المكرّرين يُخرج قائداً عاملاً من المنصة. فاقرأ
-        السطور — «لم يُستعمل قطّ» و«غير معتمد» و«أُنشئ قبل» — واحذف الزائد، أو نحِّه إن أردت
-        إبقاء سجلّه.
+        {L.advice}
       </p>
     </Card>
   );

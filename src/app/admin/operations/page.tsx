@@ -7,8 +7,7 @@ import { alertsForUser } from "@/lib/alerts";
 import { sweepOverdueRequests, sweepExpiredCandidateAccounts } from "@/lib/workflow";
 import { sweepTicketEscalation, TICKET_STAGE_LABELS, ticketAuthor, ticketTargetLabel, TICKET_INCLUDE, openTicketsWhere } from "@/lib/tickets";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
-import { AppHeader, Card, StatusBadge } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
+import { Card, StatusBadge } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import { ReminderButton } from "./ReminderButton";
 import { getLocale, getDictionary } from "@/i18n/server";
@@ -82,9 +81,6 @@ export default async function OperationsPage() {
 
   return (
     <div className="min-h-screen bg-page">
-      <AppHeader theme={theme} roleName={tOps.role} userName={session.user.name ?? ""}>
-        <HeaderActions color={theme.text} />
-      </AppHeader>
 
       <main className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-6 sm:px-5 sm:py-8">
         <WorkspaceOverview

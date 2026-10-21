@@ -4,6 +4,8 @@ import { useRef, useState, useTransition } from "react";
 import { uploadMyAvatarAction, clearMyAvatarAction } from "@/app/structure/actions";
 import { Card, Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
+import { FileField, clearFileField } from "./FileField";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 /** رفع الصورة الشخصية — معاينةٌ قبل الحفظ، وصورةٌ واحدة.
  *
@@ -71,6 +73,7 @@ export function AvatarUpload({
   /** الصورةُ المحفوظة معتمةٌ بخلفيتها (`avatarHasTransparency`) — يُقال لصاحبها */
   opaque?: boolean;
 }) {
+  const L = useTranslations().avatar;
   const [preview, setPreview] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(current);
   const [msg, setMsg] = useState<{ kind: "ok" | "err" | "warn"; text: string } | null>(null);
@@ -81,11 +84,11 @@ export function AvatarUpload({
 
   return (
     <Card className="p-4 sm:p-5">
-      <h2 className="text-sm font-bold">صورتك في الهيكل التنظيمي</h2>
+      <h2 className="text-sm font-bold">{L.title}</h2>
       <p className="mt-1 text-xs leading-relaxed text-black/50">
-        صورةٌ واحدة لكل شخص، تظهر في بطاقتك داخل هيكل تَـــلاقِ. والمطلوب: وجهٌ واضح على
-        <strong> خلفية مفرَّغة (شفّافة)</strong> بصيغة PNG. وتُوحَّد أبعادُها عند الرفع فيبقى
-        الهيكل متناسقاً.
+        {L.introA}
+        <strong>{L.introStrong}</strong>
+        {L.introB}
       </p>
 
       <div className="mt-4 flex flex-wrap items-center gap-4">
@@ -94,7 +97,7 @@ export function AvatarUpload({
             // eslint-disable-next-line @next/next/no-img-element -- data URL أو معاينة محلّية
             <img
               src={shown}
-              alt="معاينة صورتك"
+              alt={L.previewAlt}
               className="h-24 w-24 rounded-full object-contain ring-1 ring-black/10"
               style={{ background: theme.surface }}
             />
@@ -103,15 +106,14 @@ export function AvatarUpload({
               className="flex h-24 w-24 items-center justify-center rounded-full border border-dashed border-black/20 text-xs text-black/35"
               style={{ background: theme.surface }}
             >
-              لا صورة
+              {L.none}
             </span>
           )}
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <input
-            ref={inputRef}
-            type="file"
+          <FileField
+            inputRef={inputRef}
             name="avatar"
             accept="image/png,image/jpeg,image/webp,image/avif"
             onChange={(e) => {
@@ -119,7 +121,6 @@ export function AvatarUpload({
               setMsg(null);
               setPreview(f ? URL.createObjectURL(f) : null);
             }}
-            className="block w-full cursor-pointer rounded-xl border border-black/10 bg-white p-2 text-xs file:me-3 file:rounded-lg file:border-0 file:bg-black/[0.06] file:px-3 file:py-2 file:text-xs file:font-semibold"
           />
           <div className="flex flex-wrap gap-2">
             <Button
@@ -141,7 +142,7 @@ export function AvatarUpload({
                   } catch {
                     setMsg({
                       kind: "err",
-                      text: "تعذّر إرسال الصورة — تحقّق من الاتصال وأعد المحاولة بصورة أصغر.",
+                      text: L.sendFailed,
                     });
                     return;
                   }
@@ -153,19 +154,19 @@ export function AvatarUpload({
                   // جديد لتُعرَض الصورة المعتمدة لا المعاينة المحلّية
                   setSaved(preview);
                   setPreview(null);
-                  if (inputRef.current) inputRef.current.value = "";
+                  clearFileField(inputRef.current);
                   setMsg(
                     res.transparent === false
                       ? {
                           kind: "warn",
-                          text: "حُفظت صورتك — لكنها ليست مفرَّغة الخلفية، فتظهر بخلفيتها لا بلون قسمك. ليظهر لونُ قسمك حولك ارفع صورة PNG مفرَّغة.",
+                          text: L.savedOpaque,
                         }
-                      : { kind: "ok", text: "حُفظت صورتك وستظهر في الهيكل بلون قسمك" }
+                      : { kind: "ok", text: L.saved }
                   );
                 });
               }}
             >
-              {pending ? "جارِ الحفظ..." : saved ? "استبدال الصورة" : "حفظ الصورة"}
+              {pending ? L.saving : saved ? L.replace : L.save}
             </Button>
             {saved && !preview && (
               <button
@@ -180,12 +181,12 @@ export function AvatarUpload({
                       return;
                     }
                     setSaved(null);
-                    setMsg({ kind: "ok", text: "حُذفت صورتك" });
+                    setMsg({ kind: "ok", text: L.removed });
                   });
                 }}
                 className="inline-flex min-h-11 items-center rounded-xl border border-black/10 px-4 text-sm font-semibold text-black/55 disabled:opacity-50"
               >
-                حذف الصورة
+                {L.remove}
               </button>
             )}
             {preview && (
@@ -194,10 +195,10 @@ export function AvatarUpload({
                 variant="ghost"
                 onClick={() => {
                   setPreview(null);
-                  if (inputRef.current) inputRef.current.value = "";
+                  clearFileField(inputRef.current);
                 }}
               >
-                إلغاء
+                {L.cancel}
               </Button>
             )}
           </div>
@@ -206,8 +207,7 @@ export function AvatarUpload({
 
       {opaque && !msg && (
         <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
-          صورتك الحالية ليست مفرَّغة الخلفية، فتظهر في الهيكل بخلفيتها لا بلون قسمك. ليظهر لونُ قسمك
-          حولك، ارفع صورة PNG مفرَّغة الخلفية.
+          {L.currentOpaque}
         </p>
       )}
 

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { correctOrgJoinDateAction } from "@/app/admin/actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 /** تصرّفان للمؤسس على عضوٍ بعينه: تصحيح تاريخ انضمامه، وإرسال بطاقته.
  *
@@ -35,6 +36,7 @@ export function FounderMemberControls({
   welcomeSentAt: string | null;
   theme: ReturnType<typeof themeFromColor>;
 }) {
+  const L = useTranslations().founderCtl;
   const [date, setDate] = useState(orgJoinDate);
   const [note, setNote] = useState("");
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
@@ -47,7 +49,7 @@ export function FounderMemberControls({
       setMsg(
         res.error
           ? { kind: "err", text: res.error }
-          : { kind: "ok", text: date ? `سُجِّل تاريخ الانضمام: ${date}` : "أُفرِغ تاريخ الانضمام" }
+          : { kind: "ok", text: date ? L.dateSaved.replace("{date}", date) : L.dateCleared }
       );
       if (!res.error) setNote("");
     });
@@ -56,11 +58,11 @@ export function FounderMemberControls({
 
   return (
     <div className="mt-3 border-t border-black/5 pt-3">
-      <p className="text-xs font-bold text-black/60">إجراءات المؤسس — {memberName}</p>
+      <p className="text-xs font-bold text-black/60">{L.title.replace("{name}", memberName)}</p>
 
       <div className="mt-2 flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-1 text-xs">
-          <span className="text-black/55">تاريخ الانضمام لتَـــلاقِ</span>
+          <span className="text-black/55">{L.joinDate}</span>
           <input
             type="date"
             value={date}
@@ -70,34 +72,32 @@ export function FounderMemberControls({
           />
         </label>
         <label className="flex min-w-40 flex-1 flex-col gap-1 text-xs">
-          <span className="text-black/55">سبب التصحيح (اختياري)</span>
+          <span className="text-black/55">{L.reason}</span>
           <input
             type="text"
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="انضمّ قبل وجود المنصة"
+            placeholder={L.reasonPlaceholder}
             className="min-h-9 rounded-lg border border-black/10 px-2.5 py-1.5 text-xs"
           />
         </label>
         <Button theme={theme} variant="outline" disabled={pendingDate} onClick={saveDate}>
-          {pendingDate ? "يُحفَظ..." : "حفظ التاريخ"}
+          {pendingDate ? L.saving : L.save}
         </Button>
       </div>
 
       <p className="mt-2 text-xs leading-relaxed text-black/40">
-        هذا تاريخ انضمامه للمنظمة، لا تاريخ إنشاء حسابه ولا بداية تكليفه الإداري. وتغييره لا
-        يُقدّم استحقاق شهادة الثلاثة أشهر ولا يُؤخّره — فهي تُقاس ببداية التكليف.
+        {L.dateHint}
       </p>
 
       <div className="mt-3">
         {welcomeSentAt && (
           <p className="mb-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-800">
-            ✓ آخر بطاقة انضمام قُبلت عند مزوّد البريد {welcomeSentAt}.
+            {L.welcomeAccepted.replace("{at}", welcomeSentAt)}
           </p>
         )}
         <p className="text-xs leading-relaxed text-black/45">
-          إعادةُ بطاقة الانضمام بيد مسؤول المتابعة والتشغيل وحده، من صفحة «بطاقات الانضمام» —
-          ولكل شخصٍ إعادةٌ واحدة بعد بطاقة الاعتماد.
+          {L.resendHint}
         </p>
       </div>
 

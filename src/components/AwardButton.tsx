@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { sendAwardAction } from "@/app/admin/people/actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
+import { useTranslations } from "@/i18n/LocaleProvider";
 
 /** زرّ التكريم — إنجازٌ وجائزةٌ وكلمة.
  *
@@ -20,6 +21,7 @@ export function AwardButton({
   personName: string;
   theme: ReturnType<typeof themeFromColor>;
 }) {
+  const L = useTranslations().award;
   const [open, setOpen] = useState(false);
   const [achievement, setAchievement] = useState("");
   const [award, setAward] = useState("");
@@ -42,34 +44,34 @@ export function AwardButton({
         onClick={() => setOpen(true)}
         className="inline-flex min-h-11 items-center rounded-xl bg-[var(--accent-soft)] px-4 text-sm font-semibold text-[var(--accent-soft-ink)] ring-1 ring-[var(--accent-soft-line)]"
       >
-        كرِّمه على إنجاز
+        {L.open}
       </button>
     );
   }
 
   return (
     <div className="mt-3 flex flex-col gap-3 rounded-2xl bg-[var(--accent-soft)] p-4 ring-1 ring-[var(--accent-soft-line)]">
-      <p className="text-xs font-bold text-[var(--accent-soft-ink)]">تكريم {personName}</p>
+      <p className="text-xs font-bold text-[var(--accent-soft-ink)]">{L.title.replace("{name}", personName)}</p>
       <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium text-black/70">الإنجاز (يصل كما تكتبه)</span>
+        <span className="font-medium text-black/70">{L.achievement}</span>
         <input
           value={achievement}
           onChange={(e) => setAchievement(e.target.value)}
-          placeholder="أنجز حملة الإطلاق قبل موعدها بأسبوع"
+          placeholder={L.achievementPlaceholder}
           className="min-h-11 rounded-xl border border-black/10 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
         />
       </label>
       <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium text-black/70">الجائزة المرافقة (اختياري)</span>
+        <span className="font-medium text-black/70">{L.prize}</span>
         <input
           value={award}
           onChange={(e) => setAward(e.target.value)}
-          placeholder="بطاقة شكر + مكافأة"
+          placeholder={L.prizePlaceholder}
           className="min-h-11 rounded-xl border border-black/10 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
         />
       </label>
       <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium text-black/70">كلمتك (اختياري)</span>
+        <span className="font-medium text-black/70">{L.note}</span>
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
@@ -92,15 +94,15 @@ export function AwardButton({
                 setMsg({ kind: "err", text: res.error });
                 return;
               }
-              setMsg({ kind: "ok", text: `وصل التكريم إلى ${res.to}` });
+              setMsg({ kind: "ok", text: L.sent.replace("{to}", String(res.to)) });
               setOpen(false);
             });
           }}
         >
-          {pending ? "يُرسَل..." : "أرسل التكريم"}
+          {pending ? L.sending : L.send}
         </Button>
         <Button theme={theme} variant="ghost" onClick={() => setOpen(false)}>
-          إلغاء
+          {L.cancel}
         </Button>
       </div>
     </div>

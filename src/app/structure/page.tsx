@@ -2,9 +2,6 @@ import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/PageHeader";
 import Link from "next/link";
 import { auth } from "@/auth";
-import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
-import { AppHeader } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
 import { OrgTree } from "@/components/OrgTree";
 import { buildOrgChart, MIN_DEPARTMENT_MEMBERS } from "@/lib/orgChart";
 
@@ -32,19 +29,10 @@ export default async function StructurePage() {
   if (!session) redirect("/login");
 
   const chart = await buildOrgChart();
-  const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
   const isMember = session.user.role === "member";
 
   return (
     <div className="min-h-screen bg-page">
-      <AppHeader
-        theme={theme}
-        roleName="الهيكل التنظيمي"
-        userName={session.user.name ?? ""}
-        homeHref={isMember ? "/member" : "/admin"}
-      >
-        <HeaderActions color={theme.text} />
-      </AppHeader>
 
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-5 sm:py-8">
 

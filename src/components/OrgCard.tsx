@@ -2,6 +2,7 @@ import { readableTextOn } from "@/lib/colors";
 import { outlineFor, needsOutline } from "@/lib/orgChart";
 import { portraitTone } from "@/lib/portraitTone";
 import type { OrgPerson, OrgSeat } from "@/lib/orgChart";
+import { getLocale, getDictionary } from "@/i18n/server";
 
 /** بطاقة شخصٍ في الهيكل — أربعة حقولٍ فقط، ولا إجراء.
  *
@@ -11,7 +12,7 @@ import type { OrgPerson, OrgSeat } from "@/lib/orgChart";
  *  وهي مكوّنٌ خادمي بلا `"use client"` وبلا `onClick`: لا تُسحَب ولا
  *  تُنقَل ولا تُعدَّل، لأنه لا يوجد ما يفعل ذلك — لا زرٌّ مخفيّ ولا
  *  إجراءٌ يُنادى من طرف العميل. */
-export function OrgCard({
+export async function OrgCard({
   person,
   color,
   size = "md",
@@ -36,6 +37,7 @@ export function OrgCard({
    *  ولا لونُ قسمها: التمييز للعين لا للهيكل. */
   highlight?: boolean;
 }) {
+  const L = getDictionary(await getLocale()).ui.org;
   const dims =
     size === "lg"
       ? { box: "w-[220px]", photo: "h-20 w-20", name: "text-base", title: "text-xs", band: "h-14", lift: "-mt-10" }
@@ -62,7 +64,7 @@ export function OrgCard({
     >
       {highlight && (
         <span className="absolute start-0 top-0 z-10 rounded-ee-lg bg-[#C34900] px-1.5 py-0.5 text-[9px] font-bold text-on-brand print:bg-[#C34900]">
-          أنت هنا
+          {L.youAreHere}
         </span>
       )}
       {/* الشريط يُرسَم بحدِّ العرض لا باللون الخام: الأبيض على أبيض
@@ -94,7 +96,7 @@ export function OrgCard({
               background: `${color}12`,
             }}
           >
-            لجنة {committee}
+            {L.committee.replace("{name}", committee)}
           </span>
         )}
       </div>
@@ -107,7 +109,7 @@ export function OrgCard({
  *  والافتراضي ليس مربّعاً رمادياً فارغاً: حرفُ الاسم الأول على لون
  *  المستوى. فالهيكل يبقى مقروءاً متناسقاً قبل أن يرفع أحدٌ صورته،
  *  ويبقى واضحاً أن الصورة ناقصة. */
-function Portrait({
+async function Portrait({
   src,
   name,
   color,
@@ -118,6 +120,7 @@ function Portrait({
   color: string;
   className: string;
 }) {
+  const L = getDictionary(await getLocale()).ui.org;
   if (src) {
     return (
       // الصورة مُوحَّدةٌ عند الاستلام إلى مربّع ٥١٢ شفّاف الخلفية، فـ
@@ -141,7 +144,7 @@ function Portrait({
   const ink = readableTextOn(color);
   return (
     <span
-      aria-label={`${name} — لم تُضَف صورته بعد`}
+      aria-label={L.noPhoto.replace("{name}", name)}
       className={`${className} flex items-center justify-center rounded-full border border-dashed text-lg font-bold`}
       // خلفيةٌ معتمة لا شفّافة: الدائرةُ تعلو شريطَ اللون، والشفّافةُ يَظهر
       // الشريطُ من خلالها فيُقصّ الحرفُ نصفين
@@ -157,7 +160,7 @@ function Portrait({
 }
 
 /** مقعدٌ شاغر — يُعلَن شاغراً ولا يُسنَد إلى أحد */
-export function VacantCard({
+export async function VacantCard({
   title,
   color,
   committee = null,
@@ -166,6 +169,7 @@ export function VacantCard({
   color: string;
   committee?: string | null;
 }) {
+  const L = getDictionary(await getLocale()).ui.org;
   return (
     <div
       className="w-[152px] shrink-0 overflow-hidden rounded-2xl border border-dashed bg-black/[0.02]"
@@ -177,7 +181,7 @@ export function VacantCard({
           —
         </span>
         <p className="mt-2 text-[13px] font-bold leading-tight text-black/45">{title}</p>
-        <p className="mt-0.5 text-[10.5px] font-semibold text-amber-700">منصب شاغر</p>
+        <p className="mt-0.5 text-[10.5px] font-semibold text-amber-700">{L.vacant}</p>
       </div>
     </div>
   );

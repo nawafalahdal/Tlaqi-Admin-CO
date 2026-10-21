@@ -118,8 +118,11 @@ for (const r of ROLES.filter((x) => !process.env.ONLY || process.env.ONLY.split(
     return n && f ? Math.round(f.top - n.bottom) : null;
   });
   check(ov !== null && ov >= -1, `${r.key}: ذيلُ الحساب لا يقع فوق البنود`, `${ov}px`);
-  const hdrAccount = await page.locator("header .hdr-account").evaluateAll((els) => els.filter((e) => e.offsetParent).length);
-  check(hdrAccount === 0, `${r.key}: أزرارُ الحساب لا تزحم الترويسة بجوار القائمة`, `${hdrAccount}`);
+  // شريطٌ واحدٌ في الغلاف، ولا ترويسةَ قديمةٌ في الصفحة (`.app-header`) ولا أزرارُ حسابٍ فيه بجوار القائمة
+  const bars = await page.locator(".ws-bar").count();
+  const legacy = await page.locator(".app-header, .hdr-account").count();
+  const barAccount = await page.locator(".ws-bar .account-menu__item").evaluateAll((els) => els.filter((e) => e.offsetParent).length);
+  check(bars === 1 && legacy === 0 && barAccount === 0, `${r.key}: شريطٌ واحد، بلا ترويسةٍ قديمة ولا حسابٍ مكرَّرٍ فيه`, `bars=${bars} legacy=${legacy} account=${barAccount}`);
   await page.click(".account-menu > summary");
   await page.waitForTimeout(250);
   const acct = await page.$$eval(".account-menu__item", (els) => els.map((e) => ({ label: e.textContent.trim(), href: e.getAttribute("href") })));
@@ -185,7 +188,7 @@ for (const r of ROLES.filter((x) => !process.env.ONLY || process.env.ONLY.split(
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
     check(!visible && overflow <= 0, `${r.key} @${w}: لا قائمةَ جانبية ولا تمريرَ أفقي`, `${overflow}px`);
     if (w === 390) {
-      await page.locator("header button[aria-expanded]").first().click();
+      await page.locator(".ws-bar__menu").click();
       await page.waitForTimeout(400);
       const mob = await page.$$eval(".mobile-nav__item", (els) => els.map((e) => e.textContent.trim()));
       check(JSON.stringify(mob) === JSON.stringify(labels), `${r.key} @390: البنودُ نفسُها في قائمة الترويسة`, `${mob.length}/${labels.length}`);

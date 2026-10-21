@@ -569,7 +569,7 @@ body:has(.improve-fab) main { padding-block-end: 6rem; }
 /* ══ القائمة الجانبية — كبسولةٌ عمودية ═════════════════════════════
  *  ثابتةٌ على جهة بداية السطر (يميناً في العربية)، بعيدةٌ عن الحافّة
  *  بهامش، بزوايا مستديرةٍ كاملة. والمحتوى يُزاح بقدرها من `body`.
- *  تحت ٦٤٠ لا تظهر: البنودُ في قائمة الترويسة. */
+ *  تحت ٦٤٠ لا تظهر: البنودُ في قائمة شريط مساحة العمل. */
 .app-sidebar { display: none; }
 @media (min-width: 640px) {
   .app-sidebar {
@@ -593,8 +593,6 @@ body:has(.improve-fab) main { padding-block-end: 6rem; }
   }
   body:has(.app-sidebar) { padding-inline-start: calc(78px + 1.25rem); }
   .app-sidebar__label, .app-sidebar__toggle { display: none; }
-  /* الشعارُ في رأس القائمة — فلا يُكرَّر في الترويسة بجوارها */
-  body:has(.app-sidebar) .app-header__logo { visibility: hidden; }
 }
 @media (min-width: 1024px) {
   .app-sidebar { width: 258px; }
@@ -697,11 +695,42 @@ body:has(.improve-fab) main { padding-block-end: 6rem; }
 }
 
 
-/* ── الترويسة المحايدة ── */
-.app-header {
+/* ── شريطُ مساحة العمل: واحدٌ في الغلاف (`WorkspaceBar`) ──
+ *  بلون الصفحة لا بلون القسم. من ٦٤٠ فأعلى أدواتُ العرض وحدها — الشعارُ
+ *  والحسابُ في القائمة الجانبية؛ وعلى الجوال الشعارُ وزرُّ القائمة. */
+.ws-bar {
+  position: sticky; top: 0; z-index: 20;
   background: color-mix(in oklab, var(--page) 90%, transparent);
   backdrop-filter: blur(16px);
   color: var(--ink);
+  border-block-end: 1px solid var(--hairline);
+}
+.ws-bar__inner {
+  max-width: 80rem; margin-inline: auto; padding: 0.75rem 1rem;
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+}
+.ws-bar__brand { display: inline-flex; min-width: 0; }
+.ws-bar__tools { display: flex; align-items: center; gap: 0.5rem; }
+.ws-bar__menu {
+  display: inline-flex; width: 2.75rem; height: 2.75rem; margin-inline-end: -0.5rem;
+  align-items: center; justify-content: center; border: 0; border-radius: 0.75rem;
+  background: transparent; color: var(--ink); cursor: pointer;
+}
+.ws-bar__menu:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.ws-bar__panel {
+  border-block-start: 1px solid var(--hairline); padding: 0.75rem 1rem 1rem;
+  max-height: calc(100dvh - 4.5rem); overflow-y: auto;
+}
+.ws-bar__who { margin-block-end: 0.5rem; }
+.ws-bar__name { font-size: 0.875rem; font-weight: 600; line-height: 1.4; }
+.ws-bar__role { font-size: 0.75rem; line-height: 1.4; color: var(--ink-muted); }
+.ws-bar__account { border-block-start: 1px solid var(--hairline); padding-block-start: 0.25rem; }
+/* قائمةُ الحساب نفسُها — في القائمة الجانبية أيقوناتٌ تحت ١٠٢٤، وهنا بأسمائها */
+.ws-bar__account .account-menu__item { justify-content: flex-start; padding-inline: 0.85rem; }
+.ws-bar__account .account-menu__item span { display: inline; }
+@media (min-width: 640px) {
+  .ws-bar__inner { padding-inline: 1.5rem; justify-content: flex-end; }
+  .ws-bar__brand, .ws-bar__menu, .ws-bar__panel { display: none; }
 }
 .logo-on-dark-theme { display: none; }
 :root[data-theme="dark"] .logo-on-dark-theme { display: inline-flex; }
@@ -839,11 +868,6 @@ body:has(.improve-fab) main { padding-block-end: 6rem; }
 :root[data-sidebar="collapsed"] .account-menu__item span { display: none; }
 @media (min-width: 1024px) { :root:not([data-sidebar="collapsed"]) .account-menu__item span { display: inline; } }
 
-/* أزرارُ الحساب في الترويسة: صارت في ذيل القائمة، فتُخفى بجوارها.
- *  وعلى الجوال لا قائمةَ جانبية، فتبقى في قائمة الترويسة كما هي. */
-@media (min-width: 640px) {
-  body:has(.app-sidebar) .hdr-account { display: none !important; }
-}
 
 /* ══ حالات الصفحة ورأسها ══════════════════════════════════════════ */
 .page-header { display: flex; flex-direction: column; gap: 0.5rem; }
@@ -1294,3 +1318,27 @@ body:has(.app-sidebar) main > section > div:first-child > h2:first-child {
 }
 @keyframes locale-spin { to { transform: rotate(360deg); } }
 .locale-toggle[aria-busy="true"] { cursor: progress; opacity: 0.75; }
+
+/* ══ حقلُ الملف (`FileField`) ══════════════════════════════════════
+ *  الحقلُ الأصليُّ يبقى في مكانه شفّافاً فوق الزرّ — فيُفتح بالنقر وبلوحة
+ *  المفاتيح ويُقرأ بقارئ الشاشة — والمرئيُّ زرٌّ بلغة الصفحة واسمُ الملف. */
+.file-field {
+  position: relative; display: flex; align-items: center; gap: 0.75rem; min-width: 0;
+  border: 1px solid var(--hairline); border-radius: 0.75rem; background: var(--surface);
+  padding: 0.4rem;
+}
+.file-field__input {
+  position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;
+}
+.file-field__input:disabled { cursor: not-allowed; }
+.file-field__button {
+  flex: none; display: inline-flex; align-items: center; min-height: 2.25rem; padding-inline: 0.85rem;
+  border-radius: 0.6rem; background: color-mix(in oklab, var(--ink) 7%, transparent);
+  font-size: 0.8rem; font-weight: 700; color: var(--ink); pointer-events: none;
+}
+.file-field__name {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 0.8rem; color: var(--ink-muted); pointer-events: none;
+}
+.file-field:has(.file-field__input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+.file-field[data-disabled="true"] { opacity: 0.55; }

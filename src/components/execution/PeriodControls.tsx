@@ -10,6 +10,7 @@ import {
   reopenPeriodAction,
 } from "@/app/admin/execution/actions";
 import { Button } from "@/components/ui";
+import { useTranslations } from "@/i18n/LocaleProvider";
 import type { themeFromColor } from "@/lib/brand";
 
 /** أزرارُ آلةِ حالة الأسبوع — ولكلِّ حالةٍ خطوتُها التالية وحدها.
@@ -18,35 +19,6 @@ import type { themeFromColor } from "@/lib/brand";
  *  إجراءٌ واحدٌ معلومُ الأثر. والفتحُ قبل اكتمال المراجعة يَفتح حقلَ
  *  سببٍ أولاً — فالاستثناءُ يُكتَب لا يُضغَط.
  */
-
-const STATE_TEXT: Record<string, { label: string; hint: string }> = {
-  draft: {
-    label: "قيد البناء",
-    hint: "تُبنى خططُ الأقسام ومهامُّها. ولا يُكتَب فيها تنفيذٌ قبل الفتح.",
-  },
-  submitted: {
-    label: "مرفوعةٌ للمراجعة",
-    hint: "رُفعت للمراجعة التنفيذية — تُعتمَد للعرض في اجتماع السبت.",
-  },
-  approved_for_review: {
-    label: "معتمَدةٌ للعرض",
-    hint: "تُعرَض في الاجتماع. ابدأ المراجعةَ عند انعقاده.",
-  },
-  awaiting_review: {
-    label: "المراجعةُ جارية",
-    hint: "اقضِ في التسليمات والمعوّقات، ثم أعلِن اكتمالها — أو افتح الأسبوع استثناءً بسببٍ مكتوب.",
-  },
-  awaiting_opening: {
-    label: "بانتظار إذن الفتح",
-    hint: "اكتملت المراجعة. الفتحُ قرارُك الصريح — ولا يقع بمرور التقويم.",
-  },
-  open: { label: "مفتوحةٌ للتنفيذ", hint: "يُكتَب فيها التنفيذُ والتسليمات." },
-  closed: {
-    label: "مُغلقة",
-    hint: "رُحِّل ما لم يكتمل إلى الأسبوع التالي بمعرّفاته وتاريخه.",
-  },
-  reopened: { label: "أُعيد فتحُها باستثناء", hint: "فُتحت ثانيةً بسببٍ مسجَّل." },
-};
 
 export function PeriodControls({
   periodId,
@@ -62,6 +34,7 @@ export function PeriodControls({
   unresolved: number;
   theme: ReturnType<typeof themeFromColor>;
 }) {
+  const L = useTranslations().period;
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -82,13 +55,13 @@ export function PeriodControls({
     });
   }
 
-  const text = STATE_TEXT[state] ?? { label: state, hint: "" };
+  const text = L.states[state as keyof typeof L.states] ?? { label: state, hint: "" };
 
   return (
     <div className="flex flex-col gap-3">
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-bold">حالةُ الأسبوع:</span>
+          <span className="text-sm font-bold">{L.weekState}</span>
           <span
             className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
               state === "open" || state === "reopened"
@@ -113,17 +86,17 @@ export function PeriodControls({
         <div className="flex flex-wrap gap-2">
           {state === "draft" && (
             <Button theme={theme} disabled={pending} onClick={() => run(() => submitPeriodAction(periodId))}>
-              ارفعها للمراجعة
+              {L.submit}
             </Button>
           )}
           {state === "submitted" && (
             <Button theme={theme} disabled={pending} onClick={() => run(() => approvePeriodAction(periodId))}>
-              اعتمِدها للعرض
+              {L.approve}
             </Button>
           )}
           {state === "approved_for_review" && (
             <Button theme={theme} disabled={pending} onClick={() => run(() => beginReviewAction(periodId))}>
-              ابدأ المراجعة
+              {L.beginReview}
             </Button>
           )}
           {state === "awaiting_review" && (
@@ -133,26 +106,26 @@ export function PeriodControls({
                 disabled={pending}
                 onClick={() => run(() => completeReviewAction(periodId))}
               >
-                أعلِن اكتمال المراجعة
-                {unresolved > 0 ? ` (${unresolved} معلَّق)` : ""}
+                {L.completeReview}
+                {unresolved > 0 ? L.pendingCount.replace("{n}", String(unresolved)) : ""}
               </Button>
               <Button
                 theme={theme}
                 variant="ghost"
                 onClick={() => setPanel(panel === "emergency" ? null : "emergency")}
               >
-                افتح استثناءً
+                {L.openException}
               </Button>
             </>
           )}
           {state === "awaiting_opening" && (
             <Button theme={theme} disabled={pending} onClick={() => run(() => openPeriodAction(periodId))}>
-              افتح الأسبوع للتنفيذ
+              {L.openWeek}
             </Button>
           )}
           {state === "closed" && (
             <Button theme={theme} variant="outline" onClick={() => setPanel(panel === "reopen" ? null : "reopen")}>
-              أعِد فتحَها باستثناء
+              {L.reopenException}
             </Button>
           )}
         </div>
@@ -161,15 +134,17 @@ export function PeriodControls({
       {panel === "emergency" && (
         <div className="flex flex-col gap-2.5 rounded-xl bg-amber-50 p-3">
           <p className="text-xs leading-relaxed text-amber-900">
-            المراجعةُ لم تكتمل{unresolved > 0 ? ` — وبقي ${unresolved} بنداً بلا قرار` : ""}.
-            والفتحُ الآن استثناء: <strong>لا يَمحو ما بقي</strong>، بل يُسجَّل عددُه وسببُه،
-            وتبقى البنودُ قائمةً تُرحَّل.
+            {L.emergencyA}
+            {unresolved > 0 ? L.emergencyLeft.replace("{n}", String(unresolved)) : ""}
+            {L.emergencyB}
+            <strong>{L.emergencyStrong}</strong>
+            {L.emergencyC}
           </p>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={2}
-            placeholder="سببُ الفتح قبل اكتمال المراجعة — إلزامي"
+            placeholder={L.emergencyReason}
             className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-black/30"
           />
           <div className="flex flex-wrap gap-2">
@@ -178,10 +153,10 @@ export function PeriodControls({
               disabled={pending || !reason.trim()}
               onClick={() => run(() => openPeriodAction(periodId, reason))}
             >
-              افتحه استثناءً
+              {L.emergencySubmit}
             </Button>
             <Button theme={theme} variant="outline" onClick={() => setPanel(null)}>
-              تراجع
+              {L.back}
             </Button>
           </div>
         </div>
@@ -190,13 +165,13 @@ export function PeriodControls({
       {panel === "reopen" && (
         <div className="flex flex-col gap-2.5 rounded-xl bg-amber-50 p-3">
           <p className="text-xs leading-relaxed text-amber-900">
-            إعادةُ الفتح تُعَدّ وتُسجَّل بسببها — وما رُحِّل منها لا يعود.
+            {L.reopenNote}
           </p>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={2}
-            placeholder="سببُ إعادة الفتح — إلزامي"
+            placeholder={L.reopenReason}
             className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-black/30"
           />
           <div className="flex flex-wrap gap-2">
@@ -205,10 +180,10 @@ export function PeriodControls({
               disabled={pending || !reason.trim()}
               onClick={() => run(() => reopenPeriodAction(periodId, reason))}
             >
-              أعِد الفتح
+              {L.reopenSubmit}
             </Button>
             <Button theme={theme} variant="outline" onClick={() => setPanel(null)}>
-              تراجع
+              {L.back}
             </Button>
           </div>
         </div>

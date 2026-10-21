@@ -1,10 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { themeFromColor, BRAND } from "@/lib/brand";
 import { TICKET_STAGE_DAYS } from "@/lib/tickets";
-import { AppHeader } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
 import { PageHeader } from "@/components/PageHeader";
 import { TicketComposer } from "@/components/tickets/TicketComposer";
 import { memberTicketTargets } from "@/components/tickets/targets";
@@ -29,7 +26,6 @@ export default async function NewMemberTicketPage() {
 
   const t = getDictionary(await getLocale());
   const tt = t.ticketsPage;
-  const theme = themeFromColor(member.department?.colorHex ?? BRAND.temptress);
   const targets = await memberTicketTargets(
     { id: member.id, departmentId: member.departmentId },
     { departments: tt.groupDepartments, leadership: tt.groupLeadership, members: tt.groupMembers },
@@ -38,14 +34,6 @@ export default async function NewMemberTicketPage() {
 
   return (
     <div className="min-h-screen bg-page">
-      <AppHeader
-        theme={theme}
-        roleName={member.department?.name ?? t.member.roleFallback}
-        userName={member.fullName}
-        homeHref="/member"
-      >
-        <HeaderActions color={theme.text} />
-      </AppHeader>
       <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
         <PageHeader title={t.composer.pageTitle} description={t.composer.pageDesc} />
         <TicketComposer

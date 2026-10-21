@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { themeFromColor, SUPER_ADMIN_THEME, BRAND } from "@/lib/brand";
-import { AppHeader, Card } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
+import { Card } from "@/components/ui";
 import { readPlanLibrary, canManagePlans, humanSize, typeLabel } from "@/lib/plans";
 import { formatDate } from "@/lib/format";
 import { PlanIntroEditor } from "./PlanIntroEditor";
@@ -27,19 +26,10 @@ export default async function PlansPage() {
 
   const { heading, intro, updatedByName, updatedAt, docs } = await readPlanLibrary();
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
-  const isMember = session.user.role === "member";
   const canManage = canManagePlans(session.user.role);
 
   return (
     <div className="min-h-screen bg-page">
-      <AppHeader
-        theme={theme}
-        roleName="مركز الخطط"
-        userName={session.user.name ?? ""}
-        homeHref={isMember ? "/member" : "/admin"}
-      >
-        <HeaderActions color={theme.text} />
-      </AppHeader>
 
       <main className="mx-auto max-w-4xl px-4 py-6 sm:px-5 sm:py-8">
 

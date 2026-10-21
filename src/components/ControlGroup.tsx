@@ -24,11 +24,14 @@ import type { CSSProperties, ReactNode } from "react";
  */
 export function ControlGroup({
   color,
+  label,
   children,
   className = "",
 }: {
   /** لونُ الترويسة — تُشتَقّ منه بقيّةُ الطبقات */
   color: string;
+  /** اسمُ المجموعة للقارئ الآليّ — من قاموس اللغة (`ui.displayTools`) */
+  label: string;
   children: ReactNode;
   className?: string;
 }) {
@@ -38,7 +41,7 @@ export function ControlGroup({
       style={{ "--ctl": color } as CSSProperties}
       // مجموعةُ أدواتٍ لا شريطُ تنقّل: يُعلَن دورُها للقارئ الآليّ
       role="group"
-      aria-label="أدوات العرض"
+      aria-label={label}
     >
       {children}
     </div>

@@ -10,8 +10,7 @@ import {
 } from "@/lib/approvals";
 import { accountRoleLabel } from "@/lib/testTracks";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
-import { AppHeader, Card } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
+import { Card } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import { ApprovalDecide } from "./ApprovalDecide";
 import { RequesterActions } from "./RequesterActions";
@@ -52,13 +51,6 @@ export default async function ApprovalsPage() {
 
   return (
     <div className="min-h-screen bg-page">
-      <AppHeader
-        theme={theme}
-        roleName={accountRoleLabel(session.user.role)}
-        userName={session.user.name ?? ""}
-      >
-        <HeaderActions color={theme.text} />
-      </AppHeader>
 
       <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
         <PageHeader title="الاعتمادات الإدارية" description={<>ما يحتاج موافقةَ مسؤولٍ أعلى قبل التنفيذ يمرّ من هنا. والحالة تُنقل بقرارٍ صريح —

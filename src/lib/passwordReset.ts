@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { clearFailedAttempts } from "@/lib/loginAttempts";
-import { ROLE_LABELS, accountRoleLabel } from "@/lib/testTracks";
+import { accountRoleLabel } from "@/lib/testTracks";
 
 export const RESET_TOKEN_MINUTES = 30;
 

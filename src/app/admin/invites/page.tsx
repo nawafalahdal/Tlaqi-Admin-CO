@@ -2,9 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { OPEN_DEPARTMENT_WHERE, DEPARTMENT_TAKE } from "@/lib/committees";
-import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
-import { AppHeader, Card } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
+import { Card } from "@/components/ui";
 import { DataTable } from "@/components/DataTable";
 import { AccountStageBadge } from "@/components/AccountStageBadge";
 import { CandidateWindow } from "@/components/CandidateWindow";
@@ -79,7 +77,6 @@ export default async function AdminInvitesPage() {
   const ta = dict.admin;
   const tw = dict.candidateWindow;
   const ts = dict.seats;
-  const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
 
   // البنكُ غير المُنشأ كالفارغ: الخادمُ يرفض الدعوة إليه بالقدر نفسه
   const count = (scope: string, departmentId: string | null = null) =>
@@ -119,13 +116,6 @@ export default async function AdminInvitesPage() {
 
   return (
     <div className="min-h-screen bg-page">
-      <AppHeader
-        theme={theme}
-        roleName={isSuperAdmin ? ta.founderRole : ta.ceoRole}
-        userName={session.user.name ?? ""}
-      >
-        <HeaderActions color={theme.text} />
-      </AppHeader>
 
       <main className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-6 sm:px-5 sm:py-8">
         <div>

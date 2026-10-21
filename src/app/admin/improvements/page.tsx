@@ -1,9 +1,7 @@
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/PageHeader";
 import { auth } from "@/auth";
-import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
-import { AppHeader, Card } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
+import { Card } from "@/components/ui";
 import {
   improvementInbox,
   myImprovements,
@@ -33,20 +31,10 @@ export default async function ImprovementsPage() {
     myImprovements(session),
   ]);
 
-  const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
-  const isMember = session.user.role === "member";
   const awaitingMe = mine.filter((t) => t.improvementState === "awaiting_user");
 
   return (
     <div className="min-h-screen bg-page">
-      <AppHeader
-        theme={theme}
-        roleName="مركز التحسين"
-        userName={session.user.name ?? ""}
-        homeHref={isMember ? "/member" : "/admin"}
-      >
-        <HeaderActions color={theme.text} />
-      </AppHeader>
 
       <main className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
         <PageHeader title="مركزُ التحسين" description={<>كلُّ ملاحظةٍ رُفعت من زرّ «تحسين» تصير تذكرةً هنا. ولا تُغلَق بإقرار من

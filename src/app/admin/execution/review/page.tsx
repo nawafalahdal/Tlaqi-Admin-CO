@@ -4,8 +4,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
-import { AppHeader, Card } from "@/components/ui";
-import { HeaderActions } from "@/components/HeaderActions";
+import { Card } from "@/components/ui";
 import { BackButton } from "@/components/BackButton";
 import { formatDate } from "@/lib/format";
 import { goalWeekSummary } from "@/lib/goalReview";
@@ -62,9 +61,6 @@ export default async function ReviewPage() {
 
   return (
     <div className="min-h-screen bg-page">
-      <AppHeader theme={theme} roleName="مراجعة السبت" userName={session.user.name ?? ""}>
-        <HeaderActions color={theme.text} />
-      </AppHeader>
 
       <main className="mx-auto flex max-w-5xl flex-col gap-7 px-4 py-6 sm:px-5 sm:py-8">
         <div>
