@@ -32,6 +32,8 @@ declare module "@auth/core/jwt" {
     remember?: boolean;
     /** اللحظة التي تنتهي عندها الجلسة بالمللي ثانية */
     sessionExpiry?: number;
+    /** بصمةُ كعكة ربط الجلسة بالمتصفّح (`lib/sessionBinding`) — لا القيمةُ نفسها */
+    sessionBinding?: string;
     role: SessionRole;
     departmentId: string | null;
     departmentSlug: string | null;

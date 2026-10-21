@@ -6,6 +6,7 @@ import { isLockedOut, recordFailedAttempt, clearFailedAttempts } from "@/lib/log
 import { verifyTotpCode } from "@/lib/totp";
 import { consumeLoginCode } from "@/lib/loginCodes";
 import { candidateWindowExpired, markFirstLogin } from "@/lib/workflow";
+import { issueSessionBinding, sessionBindingMatches, clearSessionBinding } from "@/lib/sessionBinding";
 
 /** جلسة قصيرة افتراضاً: ساعتان من آخر نشاط. من يعمل باستمرار لا تنقطع
  *  جلسته، ومن ترك جهازه ينتهي أثره بعدها. */
@@ -162,6 +163,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
+  events: {
+    // كلُّ خروجٍ يمحو كعكة الربط — من القائمة، ومن تغيير كلمة المرور، ومن
+    // مسار `/api/auth/signout` نفسه — فلا يُنسى بابٌ منها
+    signOut: async () => {
+      await clearSessionBinding();
+    },
+  },
   callbacks: {
     jwt: async ({ token, user }) => {
       if (user) {
@@ -177,10 +185,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         ? REMEMBER_DAYS * 24 * 3600_000
         : DEFAULT_SESSION_HOURS * 3600_000;
 
-      // الدخول الجديد يبدأ المدّة من الآن
+      // الدخول الجديد يبدأ المدّة من الآن، ويربط الجلسةَ بهذا المتصفّح
       if (user) {
         token.sessionExpiry = now + horizon;
+        token.sessionBinding = await issueSessionBinding();
         return token;
+      }
+
+      // **الجلسةُ لا تُقبل إلا مع كعكة ربطها** (`lib/sessionBinding`). الخروجُ
+      // يمحو الكعكة، فالتوكنُ الذي يُعيده ردٌّ متأخرٌ بعد الخروج يُرفض هنا —
+      // في كل ما يقرأ الجلسة، لا في المسارات المحروسة وحدها.
+      if (!(await sessionBindingMatches(token.sessionBinding))) {
+        return null;
       }
 
       // الفحص قبل التجديد لا بعده.
