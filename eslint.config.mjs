@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // نسخُ عملٍ محلية للوكلاء (مستثناةٌ في .gitignore) — ليست من كود المستودع
+    ".claude/**",
   ]),
 ]);
 
