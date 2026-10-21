@@ -13,6 +13,7 @@ import { purgeArchivedTickets, purgeOldEmailLogs } from "@/lib/retention";
 import { currentAndNextPeriod } from "@/lib/execution";
 import { sweepCarryover } from "@/lib/carryover";
 import { ensureMeeting } from "@/lib/reviewMeeting";
+import { cronAuthorization } from "@/lib/cronAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -25,14 +26,14 @@ export const dynamic = "force-dynamic";
  *  هذا المسار مطابقة القوائم والسجل للواقع، لا الحماية.
  *
  *  Vercel يرسل CRON_SECRET في ترويسة Authorization؛ بدون المفتاح يُرفض
- *  الطلب حتى لا يستنزف أحد المسار من الخارج. */
+ *  الطلب حتى لا يستنزف أحد المسار من الخارج. **وإن غاب المفتاح من البيئة
+ *  رُفض كلُّ طلب** — فالإعدادُ الناقص يُوقف الكنس لا يفتحه — ويُسجَّل
+ *  ذلك بلا قيمةٍ ولا ترويسة. والسائلُ لا يُخبَر أيّهما وقع. */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const header = request.headers.get("authorization");
-    if (header !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-    }
+  const auth = cronAuthorization(request.headers.get("authorization"));
+  if (auth !== "ok") {
+    if (auth === "unconfigured") console.error("[cron/sweep] refused: CRON_SECRET is not configured");
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   // التذكير قبل الكنس: من بقي له ساعات يُذكَّر، ومن انقضت مهلته يسقط
