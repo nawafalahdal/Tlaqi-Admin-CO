@@ -106,14 +106,15 @@ for (const r of ROLES.filter((x) => !process.env.ONLY || process.env.ONLY.split(
   page.on("pageerror", (e) => errors.push(`${r.key}: ${e}`));
   await page.goto(BASE + HOME[r.key], { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(1500);
+  // بياناتُ الأمثلة لا تتسرّب إلى أي بيت — بالرأس أو بدونه
+  const text = await page.locator("main").innerText();
+  const leaked = MOCK.filter((m) => text.includes(m));
+  check(leaked.length === 0, `${r.key}: لا بيانات أمثلةٍ من الأرشيف`, leaked.join("، "));
   if (!OVERVIEW[r.key]) {
     check((await page.locator(".ws-hero").count()) === 0, `${r.key}: مركزُ القيادة بلا رأسِ مساحةٍ مكرَّر`);
     check((await page.locator("main h1").count()) === 1, `${r.key}: عنوانُ الصفحة حاضر`);
   } else {
   check((await page.locator(".ws-hero").count()) === 1, `${r.key}: الهدفُ القادم في رأس المساحة`);
-  const text = await page.locator("main").innerText();
-  const leaked = MOCK.filter((m) => text.includes(m));
-  check(leaked.length === 0, `${r.key}: لا بيانات أمثلةٍ من الأرشيف`, leaked.join("، "));
   const snap = await page.$$eval(".ws-card li strong", (els) => els.length);
   check(SNAP[r.key] ? snap > 0 : true, `${r.key}: لمحة الأقسام ${SNAP[r.key] ? "حاضرة" : "ليست له"}`);
   if (SNAP[r.key]) {
