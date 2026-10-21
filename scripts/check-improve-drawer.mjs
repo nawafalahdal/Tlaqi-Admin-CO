@@ -76,14 +76,14 @@ await page.goto(BASE + "/admin", { waitUntil: "domcontentloaded" });
 await page.waitForTimeout(2500);
 const mobileVisible = await page.locator("button.improve-btn").first().isVisible();
 check(mobileVisible, "الجوال: الزرُّ ظاهرٌ والقائمةُ مغلقة");
-await page.locator("header button[aria-expanded]").first().click();
+await page.locator(".ws-bar__menu").click();
 await page.waitForTimeout(400);
 check((await page.locator("button.improve-btn").count()) === 1, "الجوال: وما زال واحداً حين تُفتح القائمة",
   `${await page.locator("button.improve-btn").count()}`);
 const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
 check(overflow <= 0, "الجوال: لا تمريرَ أفقيّ", `${overflow}px`);
 await page.screenshot({ path: SP + "/fab-mobile.png" });
-await page.locator("header button[aria-expanded]").first().click();
+await page.locator(".ws-bar__menu").click();
 await page.setViewportSize({ width: 420, height: 880 });
 await page.goto(BASE + "/admin", { waitUntil: "domcontentloaded" });
 await page.waitForTimeout(2000);

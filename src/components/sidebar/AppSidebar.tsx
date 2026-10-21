@@ -66,11 +66,15 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
     // «تغيير كلمة المرور» لا يتكرّر هنا: مكانُه في «بياناتي» وحدها (قرار المؤسس)
   ];
 
+  // **روابطُ الحساب لا تُجلَب مسبقاً.** فتحُ القائمة يُظهرها فيجلبها المتصفّح
+  // في اللحظة التي يُضغط فيها «خروج» — وكلُّ ردٍّ من مسارٍ محروس يُعيد إصدارَ
+  // كعكة الجلسة (`updateAge: 0`)، فإن وصل ردُّ الجلب بعد ردّ الخروج أعاد
+  // الجلسةَ القديمة إلى المتصفّح. والجلبُ المسبق لا يُفيد هنا أصلاً.
   const account = (
     <ul className="account-menu__list">
       {accountLinks.map((l) => (
         <li key={l.href}>
-          <Link href={l.href} className="account-menu__item">
+          <Link href={l.href} prefetch={false} className="account-menu__item">
             <NavGlyph name={l.icon} className="app-sidebar__icon" />
             <span>{l.label}</span>
           </Link>
