@@ -7,6 +7,27 @@
  *  مفتوحة من بناء سابق: معرّفات إجراءات الخادم تتغيّر مع كل بناء، فإرسال
  *  صفحة قديمة يقصد إجراءً لم يعد موجوداً. علاجه تحديث الصفحة — ولا سبيل
  *  لمعرفة ذلك ما لم يُقل. */
+/** نصوصُها هنا لا في القاموس: هذا الحدُّ يحلّ محلّ التخطيط الجذري نفسه،
+ *  فلا مُزوِّدَ لغةٍ فوقه — واللغةُ تُقرأ من كعكتها مباشرةً. */
+const TEXT = {
+  ar: {
+    staleTitle: "صدر تحديث للمنصة أثناء فتحك الصفحة",
+    title: "تعذّر إتمام العملية",
+    staleBody: "صفحتك كانت مفتوحة من نسخة سابقة، فلم يصل طلبك. حدّث الصفحة وأعد المحاولة — لم يُحفظ شيء ولم يضع شيء.",
+    body: "حدث خطأ غير متوقّع ولم يكتمل الإجراء. حدّث الصفحة وأعد المحاولة.",
+    reload: "تحديث الصفحة",
+    retry: "المحاولة دون تحديث",
+  },
+  en: {
+    staleTitle: "The platform was updated while your page was open",
+    title: "The action could not be completed",
+    staleBody: "Your page was open from a previous version, so your request did not arrive. Refresh the page and try again — nothing was saved and nothing was lost.",
+    body: "An unexpected error occurred and the action was not completed. Refresh the page and try again.",
+    reload: "Refresh the page",
+    retry: "Try again without refreshing",
+  },
+} as const;
+
 export default function GlobalError({
   error,
   reset,
@@ -18,8 +39,11 @@ export default function GlobalError({
     error.message?.includes("Failed to find Server Action") ||
     error.message?.includes("Server Action");
 
+  const lang = typeof document !== "undefined" && /(?:^|;\s*)locale=en(?:;|$)/.test(document.cookie) ? "en" : "ar";
+  const t = TEXT[lang];
+
   return (
-    <html dir="rtl" lang="ar">
+    <html dir={lang === "en" ? "ltr" : "rtl"} lang={lang}>
       <body
         style={{
           margin: 0,
@@ -53,12 +77,10 @@ export default function GlobalError({
             }}
           />
           <h1 style={{ fontSize: 18, margin: "0 0 10px", color: "#1A1023" }}>
-            {staleBuild ? "صدر تحديث للمنصة أثناء فتحك الصفحة" : "تعذّر إتمام العملية"}
+            {staleBuild ? t.staleTitle : t.title}
           </h1>
           <p style={{ fontSize: 14, lineHeight: 1.9, color: "rgba(0,0,0,0.55)", margin: "0 0 20px" }}>
-            {staleBuild
-              ? "صفحتك كانت مفتوحة من نسخة سابقة، فلم يصل طلبك. حدّث الصفحة وأعد المحاولة — لم يُحفظ شيء ولم يضع شيء."
-              : "حدث خطأ غير متوقّع ولم يكتمل الإجراء. حدّث الصفحة وأعد المحاولة."}
+            {staleBuild ? t.staleBody : t.body}
           </p>
           <button
             onClick={() => window.location.reload()}
@@ -74,7 +96,7 @@ export default function GlobalError({
               cursor: "pointer",
             }}
           >
-            تحديث الصفحة
+            {t.reload}
           </button>
           <div style={{ marginTop: 14 }}>
             <button
@@ -88,7 +110,7 @@ export default function GlobalError({
                 cursor: "pointer",
               }}
             >
-              المحاولة دون تحديث
+              {t.retry}
             </button>
           </div>
           {error.digest && (

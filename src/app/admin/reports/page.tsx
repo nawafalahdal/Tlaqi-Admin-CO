@@ -9,6 +9,8 @@ import { departmentsReport, membersReport, closedOnTimeTickets } from "@/lib/rep
 import { TICKET_RETENTION_DAYS } from "@/lib/retention";
 import { outlineFor } from "@/lib/orgChart";
 
+import { getLocale, getDictionary } from "@/i18n/server";
+import { fmt } from "@/i18n/fmt";
 export const dynamic = "force-dynamic";
 
 /** التقارير — ملخّصٌ لمن يملك قراءته.
@@ -25,6 +27,7 @@ export const dynamic = "force-dynamic";
  *  ما لم يُؤرشَف بعد، ويُقال ذلك صريحاً لا يُترَك لُبساً.
  */
 export default async function ReportsPage() {
+  const L = getDictionary(await getLocale()).rReportsPage;
   const session = await auth();
   if (!session) redirect("/login");
   const role = session.user.role;
@@ -47,25 +50,24 @@ export default async function ReportsPage() {
     <div className="min-h-screen bg-page">
 
       <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
-        <PageHeader title="التقارير" description={<>{seesDepartments
-              ? "ملخّص الأقسام وقادتها، والتذاكر التي أُغلقت في موعدها."
-              : "ملخّص أعضاء قسمك، والتذاكر التي أُغلقت في موعدها."}
-            {" "}
-            والأرقام تُعَدّ لحظة الإغلاق فتبقى بعد أرشفة التذاكر إلى الإكسل.</>} />
+        <PageHeader title={L.reports} description={<>{seesDepartments
+              ? L.aSummaryOfDepartments
+              : L.aSummaryOfYour}
+            {" "}{L.numbersAreCountedAt}</>} />
 
         {seesDepartments && (
           <section>
-            <h2 className="mb-3 text-base font-bold">ملخّص القادة والأقسام</h2>
+            <h2 className="mb-3 text-base font-bold">{L.leadsAndDepartmentsSummary}</h2>
             <DataTable
-              emptyLabel="لا أقسام بعد"
+              emptyLabel={L.noDepartmentsYet}
               columns={[
-                { key: "dept", label: "القسم", primary: true },
-                { key: "lead", label: "القائد" },
-                { key: "members", label: "الأعضاء" },
-                { key: "open", label: "تذاكر مفتوحة" },
-                { key: "onTime", label: "أُغلقت في موعدها" },
-                { key: "late", label: "متأخّرة" },
-                { key: "rate", label: "نسبة الالتزام" },
+                { key: "dept", label: L.department, primary: true },
+                { key: "lead", label: L.lead },
+                { key: "members", label: L.members },
+                { key: "open", label: L.openTickets },
+                { key: "onTime", label: L.closedOnTime },
+                { key: "late", label: L.late },
+                { key: "rate", label: L.commitmentRate },
               ]}
               rows={departments.map((d) => ({
                 id: d.departmentId,
@@ -79,14 +81,14 @@ export default async function ReportsPage() {
                       {d.departmentName}
                     </span>
                   ),
-                  lead: d.leadName ?? <span className="text-amber-700">شاغر</span>,
+                  lead: d.leadName ?? <span className="text-amber-700">{L.vacant}</span>,
                   members: d.membersCount,
                   open: d.openTickets,
                   onTime: d.tally.onTime,
                   late: d.tally.late,
                   rate:
                     d.onTimeRate === null ? (
-                      <span className="text-black/35">لا تذاكر بعد</span>
+                      <span className="text-black/35">{L.noTicketsYet}</span>
                     ) : (
                       <span
                         className={`font-bold ${d.onTimeRate >= 80 ? "text-emerald-700" : d.onTimeRate >= 50 ? "text-amber-700" : "text-red-700"}`}
@@ -97,38 +99,30 @@ export default async function ReportsPage() {
                 },
               }))}
             />
-            <p className="mt-2 text-xs leading-relaxed text-black/50">
-              تُعَدّ لكل قسمٍ تذاكرُه وتذاكرُ أشخاصه (والإدارة العليا يقودها الرئيس التنفيذي). وعدُّ
-              تذاكر الأشخاص لأقسامهم يبدأ من إغلاقات ٢٠/١٠/٢٠٢٦ — ما أُغلق قبلها يُعَدّ في القائمة
-              أدناه لا في هذا الجدول. و«لا تذاكر بعد» تعني أنه لم تُغلَق للقسم تذكرةٌ تُقاس بعد، لا
-              صفراً بالمئة.
-            </p>
+            <p className="mt-2 text-xs leading-relaxed text-black/50">{L.eachDepartmentCountsIts}</p>
           </section>
         )}
 
         {isLead && (
           <section>
-            <h2 className="mb-1 text-base font-bold">
-              أعضاء {myDepartment?.name ?? "قسمك"}
+            <h2 className="mb-1 text-base font-bold">{L.membersOf}{myDepartment?.name ?? L.yourDepartment}
             </h2>
-            <p className="mb-3 text-xs text-black/45">
-              أعضاء قسمك وحدهم — ولا تُقرأ من هنا أقسامٌ أخرى.
-            </p>
+            <p className="mb-3 text-xs text-black/45">{L.yourDepartmentSMembers}</p>
             <DataTable
-              emptyLabel="لا أعضاء معتمدين في قسمك بعد"
+              emptyLabel={L.noApprovedMembersIn}
               columns={[
-                { key: "name", label: "العضو", primary: true },
-                { key: "title", label: "المسمّى" },
-                { key: "open", label: "تذاكر مفتوحة عليه" },
-                { key: "raised", label: "رفعها" },
-                { key: "warnings", label: "تنبيهات" },
-                { key: "joined", label: "منذ" },
+                { key: "name", label: L.member, primary: true },
+                { key: "title", label: L.title },
+                { key: "open", label: L.openTicketsOnThem },
+                { key: "raised", label: L.raised },
+                { key: "warnings", label: L.warnings },
+                { key: "joined", label: L.since },
               ]}
               rows={members.map((m) => ({
                 id: m.memberId,
                 cells: {
                   name: m.fullName,
-                  title: m.jobTitle ?? "عضو",
+                  title: m.jobTitle ?? L.member2,
                   open: m.openTickets,
                   raised: m.raisedTotal,
                   warnings:
@@ -146,20 +140,17 @@ export default async function ReportsPage() {
 
         <section>
           <h2 className="mb-1 text-base font-bold">
-            أُغلقت في موعدها ({onTime.length})
-          </h2>
+            {fmt(L.closedOnTime2, onTime.length)}</h2>
           <p className="mb-3 text-xs leading-relaxed text-black/45">
-            المعروض هنا ما لم يُؤرشَف بعد — التذكرة تبقى {TICKET_RETENTION_DAYS} أيام بعد إغلاقها
-            ثم تنتقل إلى الإكسل ليلة السبت. وعددُها الكلّي في عمود «أُغلقت في موعدها» أعلاه.
-          </p>
+            {fmt(L.whatIsShownHere, TICKET_RETENTION_DAYS)}</p>
           <DataTable
-            emptyLabel="لا تذاكر مُغلقة في موعدها ضمن الأسبوع الجاري"
+            emptyLabel={L.noTicketsClosedOn}
             columns={[
-              { key: "subject", label: "الموضوع", primary: true },
-              { key: "number", label: "الرقم" },
-              { key: "dept", label: "القسم" },
-              { key: "by", label: "أغلقها" },
-              { key: "at", label: "تاريخ الإغلاق" },
+              { key: "subject", label: L.subject, primary: true },
+              { key: "number", label: L.number },
+              { key: "dept", label: L.department },
+              { key: "by", label: L.closedBy },
+              { key: "at", label: L.closingDate },
             ]}
             rows={onTime.map((t) => ({
               id: t.id,
@@ -174,10 +165,7 @@ export default async function ReportsPage() {
           />
         </section>
 
-        <Card className="p-4 text-xs leading-relaxed text-black/50">
-          السجلّ الكامل — كلُّ تذكرة بموضوعها وردّها ومن أغلقها ومتى، ولو أُرشفت من المنصة —
-          في ملفّ الإكسل المرجعي. والمنصة شاشةُ عملٍ لا أرشيف.
-        </Card>
+        <Card className="p-4 text-xs leading-relaxed text-black/50">{L.theFullRecordEvery}</Card>
       </main>
     </div>
   );

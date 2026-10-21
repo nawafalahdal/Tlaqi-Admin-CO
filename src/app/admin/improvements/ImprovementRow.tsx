@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import type { ImprovementKind, ImprovementState } from "@prisma/client";
 import { advanceImprovementAction } from "@/app/improve/actions";
 
+import { useTranslations } from "@/i18n/LocaleProvider";
 /** أزرارُ نقل الملاحظة في مسارها — ما يُنتقَل إليه فقط.
  *
  *  **والواجهةُ تُغذَّى بالحرس الذي يَفرضه الخادم:** لو عُرض كلُّ انتقالٍ
@@ -13,27 +14,30 @@ import { advanceImprovementAction } from "@/app/improve/actions";
  *  والإغلاقُ وحده يَفتح حقلَ السبب قبل أن يُرسَل: ملاحظةٌ تُغلَق بلا
  *  كلمةٍ تُقرأ تجاهلاً، والخادمُ يَرفضها كذلك.
  */
-const NEXT: Record<ImprovementState, readonly { to: ImprovementState; label: string }[]> = {
+// أسماءُ الخطوات من القاموس (`next`) — هنا الانتقالاتُ ومفاتيحُ أسمائها
+type NextLabel = "triage" | "start" | "closeWithReason" | "fixed" | "backToTriage" | "close" | "backToWork" | "reopen";
+
+const NEXT: Record<ImprovementState, readonly { to: ImprovementState; label: NextLabel }[]> = {
   new: [
-    { to: "triaged", label: "صنّفها" },
-    { to: "in_progress", label: "ابدأ العمل" },
-    { to: "closed", label: "أغلقها بسبب" },
+    { to: "triaged", label: "triage" },
+    { to: "in_progress", label: "start" },
+    { to: "closed", label: "closeWithReason" },
   ],
   triaged: [
-    { to: "in_progress", label: "ابدأ العمل" },
-    { to: "closed", label: "أغلقها بسبب" },
+    { to: "in_progress", label: "start" },
+    { to: "closed", label: "closeWithReason" },
   ],
   in_progress: [
-    { to: "awaiting_user", label: "أُصلحت — ليُجرّبها صاحبُها" },
-    { to: "triaged", label: "أعِدها للتصنيف" },
-    { to: "closed", label: "أغلقها بسبب" },
+    { to: "awaiting_user", label: "fixed" },
+    { to: "triaged", label: "backToTriage" },
+    { to: "closed", label: "closeWithReason" },
   ],
-  awaiting_user: [{ to: "closed", label: "أغلقها بسبب" }],
+  awaiting_user: [{ to: "closed", label: "closeWithReason" }],
   resolved: [
-    { to: "closed", label: "أغلقها" },
-    { to: "in_progress", label: "أعِدها للعمل" },
+    { to: "closed", label: "close" },
+    { to: "in_progress", label: "backToWork" },
   ],
-  closed: [{ to: "in_progress", label: "أعِد فتحها" }],
+  closed: [{ to: "in_progress", label: "reopen" }],
 };
 
 export function ImprovementRow({
@@ -45,6 +49,7 @@ export function ImprovementRow({
   state: ImprovementState;
   kind: ImprovementKind;
 }) {
+  const L = useTranslations().rImprRow;
   const [result, action, pending] = useActionState(advanceImprovementAction, { error: null });
   const [closing, setClosing] = useState(false);
   const [reason, setReason] = useState("");
@@ -60,9 +65,7 @@ export function ImprovementRow({
         <a
           href="/admin/execution"
           className="mb-2 inline-block rounded-lg border border-black/10 px-3 py-1.5 text-xs font-bold text-black/65 hover:bg-black/[0.04]"
-        >
-          حوِّلها مهمّةً في لوحة التنفيذ ←
-        </a>
+        >{L.turnItIntoA}</a>
       )}
 
       <div className="flex flex-wrap gap-2">
@@ -74,7 +77,7 @@ export function ImprovementRow({
               onClick={() => setClosing((v) => !v)}
               className="rounded-lg border border-black/10 px-3 py-1.5 text-xs font-bold text-black/60 hover:bg-black/[0.04]"
             >
-              {o.label}
+              {L.next[o.label]}
             </button>
           ) : (
             <form key={o.to} action={action}>
@@ -85,7 +88,7 @@ export function ImprovementRow({
                 disabled={pending}
                 className="rounded-lg border border-black/10 px-3 py-1.5 text-xs font-bold text-black/70 hover:bg-black/[0.04] disabled:opacity-50"
               >
-                {o.label}
+                {L.next[o.label]}
               </button>
             </form>
           )
@@ -101,16 +104,14 @@ export function ImprovementRow({
             rows={2}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="لماذا تُغلَق؟ — صاحبُ الملاحظة يقرؤه"
+            placeholder={L.whyIsItBeing}
             className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-black/30"
           />
           <button
             type="submit"
             disabled={pending || reason.trim().length === 0}
             className="self-start rounded-lg bg-black/[0.08] px-3 py-1.5 text-xs font-bold text-black/70 disabled:opacity-40"
-          >
-            أغلِقها
-          </button>
+          >{L.closeIt}</button>
         </form>
       )}
 

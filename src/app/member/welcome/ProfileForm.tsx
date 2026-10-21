@@ -81,11 +81,12 @@ function Field({
   hint?: string;
   dir?: "ltr" | "rtl";
 }) {
+  const L = useTranslations().rProfileForm;
   return (
     <label className="flex flex-col gap-1.5 text-sm">
       <span className="font-medium text-black/70">
         {label}
-        {!required && <span className="text-black/35"> — اختياري</span>}
+        {!required && <span className="text-black/35">{L.optional}</span>}
       </span>
       <input
         name={name}

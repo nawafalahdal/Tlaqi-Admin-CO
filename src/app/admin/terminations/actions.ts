@@ -9,9 +9,11 @@ import {
 import { prisma } from "@/lib/prisma";
 import { safeErrorMessage } from "@/lib/safeError";
 
+import { getLocale, getDictionary } from "@/i18n/server";
 async function requireSession() {
+  const L = getDictionary(await getLocale()).rTermActions;
   const session = await auth();
-  if (!session) throw new Error("يجب تسجيل الدخول");
+  if (!session) throw new Error(L.youNeedToSign);
   return session;
 }
 
@@ -26,10 +28,11 @@ export async function submitTerminationAction(
   reason: string,
   endDateIso?: string
 ): Promise<{ error: string | null }> {
+  const L = getDictionary(await getLocale()).rTermActions;
   const session = await requireSession();
   try {
     const member = await memberForSession(session);
-    if (!member) return { error: "لا سجلّ عضويةٍ مرتبطٌ بحسابك" };
+    if (!member) return { error: L.noMembershipRecordIs };
     const res = await submitTerminationRequest({
       memberId: member.id,
       reason,
@@ -47,10 +50,11 @@ export async function submitTerminationAction(
 
 /** يسحب صاحبُ الطلب طلبَه — والملكية مفروضة في الاستعلام */
 export async function withdrawTerminationAction(requestId: string): Promise<{ error: string | null }> {
+  const L = getDictionary(await getLocale()).rTermActions;
   const session = await requireSession();
   try {
     const member = await memberForSession(session);
-    if (!member) return { error: "لا سجلّ عضويةٍ مرتبطٌ بحسابك" };
+    if (!member) return { error: L.noMembershipRecordIs };
     const res = await withdrawTerminationRequest({ requestId, memberId: member.id });
     if (!res.ok) return { error: res.reason };
     revalidatePath("/member");
@@ -68,14 +72,15 @@ export async function decideTerminationAction(
   note?: string,
   endDateIso?: string
 ): Promise<{ error: string | null }> {
+  const L = getDictionary(await getLocale()).rTermActions;
   const session = await requireSession();
   try {
     const req = await prisma.terminationRequest.findUnique({
       where: { id: requestId },
       select: { memberId: true },
     });
-    if (!req) return { error: "الطلب غير موجود" };
-    if (!(await canDecide(req, session))) return { error: "غير مصرح لك بهذا الإجراء" };
+    if (!req) return { error: L.requestNotFound };
+    if (!(await canDecide(req, session))) return { error: L.youAreNotAllowed };
 
     const res = await decideTerminationRequest({
       requestId,

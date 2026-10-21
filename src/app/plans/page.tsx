@@ -8,6 +8,8 @@ import { PlanIntroEditor } from "./PlanIntroEditor";
 import { PlanDocManager } from "./PlanDocManager";
 import { AddPlanDoc } from "./AddPlanDoc";
 
+import { getLocale, getDictionary } from "@/i18n/server";
+import { fmt } from "@/i18n/fmt";
 export const dynamic = "force-dynamic";
 
 /** مركزُ خطط تَـــلاقِ — نبذةٌ يقرؤها الجميع، ثم الوثائق مرقَّمةً.
@@ -21,6 +23,8 @@ export const dynamic = "force-dynamic";
  *  يملك المركز يُبدّل الترتيب بسهمَين، فلا يُعاد الرفعُ لتُقدَّم وثيقة.
  */
 export default async function PlansPage() {
+  const locale = await getLocale();
+  const L = getDictionary(locale).rPlansPage;
   const session = await auth();
   if (!session) redirect("/login");
 
@@ -46,9 +50,7 @@ export default async function PlansPage() {
             <span
               className="inline-block rounded-full px-3 py-1 text-[11px] font-bold"
               style={{ background: "#FFFFFF22", color: BRAND.beige }}
-            >
-              وثائق التوجّه — للجميع
-            </span>
+            >{L.guidingDocumentsForEveryone}</span>
             <h1 className="mt-3 text-xl font-bold sm:text-2xl" style={{ color: BRAND.beige }}>
               {heading}
             </h1>
@@ -72,15 +74,13 @@ export default async function PlansPage() {
             ) : (
               <p className="mt-4 text-sm" style={{ color: "#FFFFFFAA" }}>
                 {canManage
-                  ? "لم تُكتب النبذة بعد — اكتبها من «تحرير النبذة» أسفل الصفحة: من نحن، ولماذا، وكيف."
-                  : "النبذة لم تُكتب بعد."}
+                  ? L.theIntroductionHasNot
+                  : L.theIntroductionHasNot2}
               </p>
             )}
             {updatedAt && (
               <p className="mt-5 text-[11px]" style={{ color: "#FFFFFF88" }}>
-                آخر تحديث {formatDate(updatedAt)}
-                {updatedByName ? ` — ${updatedByName}` : ""}
-              </p>
+                {fmt(L.lastUpdated, formatDate(updatedAt), updatedByName ? ` — ${updatedByName}` : "")}</p>
             )}
           </div>
         </section>
@@ -88,16 +88,12 @@ export default async function PlansPage() {
         {/* ── الوثائق: مرقَّمةٌ بالترتيب المقصود */}
         <section className="mt-6">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-base font-bold">الوثائق والملفات ({docs.length})</h2>
-            <p className="text-xs text-black/45">
-              بالترتيب الذي رتّبته الإدارة — اقرأها من الأولى
-            </p>
+            <h2 className="text-base font-bold">{fmt(L.documentsAndFiles, docs.length)}</h2>
+            <p className="text-xs text-black/45">{L.inTheOrderManagement}</p>
           </div>
 
           {docs.length === 0 ? (
-            <Card className="p-8 text-center text-sm text-black/45">
-              لا وثائق بعد.
-              {canManage ? " أضف أولَ وثيقةٍ من النموذج أسفل الصفحة." : ""}
+            <Card className="p-8 text-center text-sm text-black/45">{L.noDocumentsYet}{canManage ? L.addTheFirstDocument : ""}
             </Card>
           ) : (
             <ol className="flex flex-col gap-3">
@@ -125,9 +121,9 @@ export default async function PlansPage() {
                         )}
                         <p className="mt-1.5 text-[11px] text-black/40">
                           {d.kind === "file"
-                            ? `${typeLabel(d.mimeType)} · ${humanSize(d.byteSize)}`
-                            : "رابط خارجي"}
-                          {" · أضافها "}
+                            ? `${typeLabel(d.mimeType, locale)} · ${humanSize(d.byteSize, locale)}`
+                            : L.externalLink}
+                          {L.addedBy}
                           {d.uploadedByName} · {formatDate(d.createdAt)}
                         </p>
                       </div>
@@ -140,7 +136,7 @@ export default async function PlansPage() {
                         className="shrink-0 rounded-xl px-3.5 py-2 text-xs font-bold text-on-brand transition-opacity hover:opacity-90"
                         style={{ background: BRAND.mahogany }}
                       >
-                        {d.kind === "file" ? "افتح الملف" : "افتح الرابط"}
+                        {d.kind === "file" ? L.openTheFile : L.openTheLink}
                       </a>
                     </div>
 
@@ -164,17 +160,14 @@ export default async function PlansPage() {
         {/* ── أدواتُ من يملك المركز: المؤسس والتنفيذي */}
         {canManage && (
           <section className="mt-8 flex flex-col gap-4">
-            <h2 className="text-base font-bold">إدارة المركز</h2>
+            <h2 className="text-base font-bold">{L.manageTheCentre}</h2>
             <Card className="p-4 sm:p-5">
               <AddPlanDoc theme={theme} />
             </Card>
             <Card className="p-4 sm:p-5">
               <PlanIntroEditor heading={heading} intro={intro} theme={theme} />
             </Card>
-            <Card className="p-4 text-xs leading-relaxed text-black/50">
-              الكتابةُ هنا لك وللمدير التنفيذي وحدكما، والقراءةُ لكل من يدخل المنصة — عضواً كان أو
-              قائداً. وكلُّ إضافةٍ أو حذفٍ يُكتَب في السجل الحيّ باسم صاحبه.
-            </Card>
+            <Card className="p-4 text-xs leading-relaxed text-black/50">{L.writingHereIsFor}</Card>
           </section>
         )}
       </main>

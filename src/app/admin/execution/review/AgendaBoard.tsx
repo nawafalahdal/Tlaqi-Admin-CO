@@ -6,6 +6,8 @@ import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import type { AgendaStageKey } from "@/lib/reviewMeeting";
 
+import { useTranslations } from "@/i18n/LocaleProvider";
+import { fmt } from "@/i18n/fmt";
 /** أجندةُ المراجعة: مراحلُها تُعلَّم بالضغط، وتبقى غيرُ المُعلَّمة ظاهرة.
  *
  *  **ولا مرحلةَ تُعلَّم بمرور الوقت:** الاجتماعُ قد يُعقَد ولا تُراجَع
@@ -26,6 +28,7 @@ export function AgendaBoard({
   decisions: { id: string; text: string; dueAt: string | null; createdByName: string }[];
   theme: ReturnType<typeof themeFromColor>;
 }) {
+  const L = useTranslations().rReviewAgenda;
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [decision, setDecision] = useState("");
@@ -46,12 +49,10 @@ export function AgendaBoard({
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-sm font-bold">
-          أجندةُ المراجعة — {doneCount} من {stages.length}
-        </h2>
+          {fmt(L.reviewAgendaOf, doneCount, stages.length)}</h2>
         {unresolved > 0 && (
           <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-900">
-            {unresolved} بنداً ينتظر قراراً
-          </span>
+            {fmt(L.itemsAwaitingADecision, unresolved)}</span>
         )}
       </div>
 
@@ -86,14 +87,12 @@ export function AgendaBoard({
 
       {!meetingHeld && (
         <div className="flex flex-col gap-2 border-t border-black/5 pt-3">
-          <p className="text-xs leading-relaxed text-black/50">
-            ومرورُ موعد الاجتماع لا يَعقده: يبقى مستحقّاً ظاهراً حتى تُعلِن انعقادَه.
-          </p>
+          <p className="text-xs leading-relaxed text-black/50">{L.aMeetingIsNot}</p>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
-            placeholder="محضرٌ مختصر (اختياري)"
+            placeholder={L.shortMinutesOptional}
             className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-black/30"
           />
           <div>
@@ -101,19 +100,14 @@ export function AgendaBoard({
               theme={theme}
               disabled={pending}
               onClick={() => run(() => markMeetingHeldAction(periodId, notes))}
-            >
-              أعلِن انعقادَ الاجتماع
-            </Button>
+            >{L.declareTheMeetingHeld}</Button>
           </div>
         </div>
       )}
 
       <div className="flex flex-col gap-2 border-t border-black/5 pt-3">
-        <h3 className="text-xs font-bold text-black/70">قراراتُ الاجتماع ({decisions.length})</h3>
-        <p className="text-xs leading-relaxed text-black/50">
-          والقرارُ هنا يُسجَّل ويُتابَع — <strong>ولا يُغيّر بنفسه التزاماً معتمَداً</strong>:
-          تمديدُ موعدٍ أو نقلُ مسؤوليةٍ يمرّ من بابه على المهمّة نفسها.
-        </p>
+        <h3 className="text-xs font-bold text-black/70">{fmt(L.meetingDecisions, decisions.length)}</h3>
+        <p className="text-xs leading-relaxed text-black/50">{L.aDecisionHereIs}<strong>{L.itDoesNotBy}</strong>{L.extendingADueDate}</p>
         {decisions.length > 0 && (
           <ul className="flex flex-col gap-1.5">
             {decisions.map((d) => (
@@ -121,7 +115,7 @@ export function AgendaBoard({
                 <p className="text-black/75">{d.text}</p>
                 <p className="mt-0.5 text-[11px] text-black/40">
                   {d.createdByName}
-                  {d.dueAt ? ` · الموعد ${d.dueAt.slice(0, 10)}` : ""}
+                  {d.dueAt ? fmt(L.due, d.dueAt.slice(0, 10)) : ""}
                 </p>
               </li>
             ))}
@@ -131,7 +125,7 @@ export function AgendaBoard({
           value={decision}
           onChange={(e) => setDecision(e.target.value)}
           rows={2}
-          placeholder="نصُّ القرار"
+          placeholder={L.decisionText}
           className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-black/30"
         />
         <div>
@@ -140,9 +134,7 @@ export function AgendaBoard({
             variant="outline"
             disabled={pending || !decision.trim()}
             onClick={() => run(() => addDecisionAction(periodId, decision))}
-          >
-            سجِّل القرار
-          </Button>
+          >{L.recordTheDecision}</Button>
         </div>
       </div>
     </div>

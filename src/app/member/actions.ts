@@ -6,9 +6,11 @@ import { raiseTicket } from "@/lib/tickets";
 import { safeErrorMessage } from "@/lib/safeError";
 import { revalidatePath } from "next/cache";
 
+import { getLocale, getDictionary } from "@/i18n/server";
 export async function acknowledgeWarningAction(warningId: string) {
+  const L = getDictionary(await getLocale()).rMemberActions;
   const session = await auth();
-  if (!session || session.user.role !== "member") throw new Error("غير مصرح");
+  if (!session || session.user.role !== "member") throw new Error(L.notAllowed);
   await acknowledgeWarning(warningId, session.user.id);
   revalidatePath("/member");
 }
@@ -17,8 +19,9 @@ export async function raiseTicketAction(
   _prevState: { error: string | null; success: boolean },
   formData: FormData
 ): Promise<{ error: string | null; success: boolean }> {
+  const L = getDictionary(await getLocale()).rMemberActions;
   const session = await auth();
-  if (!session || session.user.role !== "member") return { error: "غير مصرح", success: false };
+  if (!session || session.user.role !== "member") return { error: L.notAllowed, success: false };
 
   const subject = String(formData.get("subject") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
@@ -27,7 +30,7 @@ export async function raiseTicketAction(
   const target = String(formData.get("target") ?? "");
 
   if (!subject || !description || !target) {
-    return { error: "جميع الحقول مطلوبة", success: false };
+    return { error: L.allFieldsAreRequired, success: false };
   }
 
   const [kind, id] = target.split(":");

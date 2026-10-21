@@ -5,6 +5,7 @@ import { decideGoalAction, decideObjectiveAction } from "../actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 
+import { useTranslations } from "@/i18n/LocaleProvider";
 /** قرارُ الإدارة في مقترَح — والردُّ لا يقع بلا سببٍ مكتوب */
 export function ProposalDecision({
   kind,
@@ -15,6 +16,7 @@ export function ProposalDecision({
   id: string;
   theme: ReturnType<typeof themeFromColor>;
 }) {
+  const L = useTranslations().rProposalDecision;
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -37,22 +39,18 @@ export function ProposalDecision({
         value={note}
         onChange={(e) => setNote(e.target.value)}
         rows={2}
-        placeholder="ملاحظةُ القرار (إلزاميةٌ في الردّ)"
+        placeholder={L.decisionNoteRequiredWhen}
         className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-black/30"
       />
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
       <div className="flex flex-wrap gap-2">
-        <Button theme={theme} disabled={pending} onClick={() => run("approved")}>
-          اعتمِده
-        </Button>
+        <Button theme={theme} disabled={pending} onClick={() => run("approved")}>{L.approveIt}</Button>
         <Button
           theme={theme}
           variant="outline"
           disabled={pending || !note.trim()}
           onClick={() => run("rejected")}
-        >
-          ردٌّ بسبب
-        </Button>
+        >{L.returnWithAReason}</Button>
       </div>
     </div>
   );

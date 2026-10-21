@@ -7,6 +7,7 @@ import { raiseTicket, escalateTicketNow, respondToTicket, canRespondToTicket } f
 import { safeErrorMessage } from "@/lib/safeError";
 import { isSafeHttpUrl } from "@/lib/calendar";
 
+import { getLocale, getDictionary } from "@/i18n/server";
 const TICKET_ROLES = ["super_admin", "executive", "operations_officer", "department_admin"];
 
 /** كل حساب إداري يرفع تذكرة — الفاوندر والتنفيذي ومسؤول التشغيل وقادة الأقسام.
@@ -15,9 +16,10 @@ export async function raiseAdminTicketAction(
   _prev: { error: string | null; success: boolean },
   formData: FormData
 ): Promise<{ error: string | null; success: boolean }> {
+  const L = getDictionary(await getLocale()).rTicketsActions;
   const session = await auth();
   if (!session || !TICKET_ROLES.includes(session.user.role)) {
-    return { error: "غير مصرح لك برفع تذكرة", success: false };
+    return { error: L.youAreNotAllowed, success: false };
   }
 
   const subject = String(formData.get("subject") ?? "").trim();
@@ -25,11 +27,11 @@ export async function raiseAdminTicketAction(
   const target = String(formData.get("target") ?? "");
   const linkUrl = String(formData.get("linkUrl") ?? "").trim();
 
-  if (!subject || !description) return { error: "الموضوع والتفاصيل مطلوبان", success: false };
-  if (!target) return { error: "اختر وجهة التذكرة", success: false };
+  if (!subject || !description) return { error: L.subjectAndDetailsAre, success: false };
+  if (!target) return { error: L.chooseTheTicketS, success: false };
   // نصٌّ ليس رابطاً في موضع يُنقر يُربك قارئه
   if (linkUrl && !isSafeHttpUrl(linkUrl)) {
-    return { error: "الرابط المرفق غير صالح — يبدأ بـ https://", success: false };
+    return { error: L.invalidAttachedLinkIt, success: false };
   }
 
   // الوجهة تصل كقيمة واحدة مسبوقة بنوعها، فلا يحتمل النموذج وجهتين معاً
@@ -55,9 +57,10 @@ export async function raiseAdminTicketAction(
 
 /** تصعيد يدوي فوري بدل انتظار المهلة — لصاحب التذكرة أو من يملكها الآن */
 export async function escalateTicketAction(ticketId: string) {
+  const L = getDictionary(await getLocale()).rTicketsActions;
   const session = await auth();
   if (!session || !TICKET_ROLES.includes(session.user.role)) {
-    throw new Error("غير مصرح لك بهذا الإجراء");
+    throw new Error(L.youAreNotAllowed2);
   }
   await escalateTicketNow(ticketId, session.user.name ?? "—");
   revalidatePath("/admin/tickets");
@@ -70,9 +73,10 @@ export async function respondToTicketAction(
   status: "in_progress" | "resolved",
   resolutionNote?: string
 ) {
+  const L = getDictionary(await getLocale()).rTicketsActions;
   const session = await auth();
   if (!session || !TICKET_ROLES.includes(session.user.role)) {
-    throw new Error("غير مصرح لك بهذا الإجراء");
+    throw new Error(L.youAreNotAllowed2);
   }
 
   const ticket = await prisma.ticket.findUniqueOrThrow({
@@ -81,7 +85,7 @@ export async function respondToTicketAction(
   });
 
   // الردّ لصاحب المرحلة الحالية وحده، ولا يردّ أحد على تذكرة رفعها بنفسه
-  if (!canRespondToTicket(ticket, session)) throw new Error("غير مصرح لك بهذا الإجراء");
+  if (!canRespondToTicket(ticket, session)) throw new Error(L.youAreNotAllowed2);
 
   const res = await respondToTicket({
     ticketId,

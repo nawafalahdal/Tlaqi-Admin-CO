@@ -17,6 +17,8 @@ import { MemberAccountRow } from "../../MemberAccountRow";
 import { MyAccountCard } from "../../MyAccountCard";
 import { FounderMemberControls } from "@/components/FounderMemberControls";
 
+import { getLocale, getDictionary } from "@/i18n/server";
+import { fmt } from "@/i18n/fmt";
 export const dynamic = "force-dynamic";
 
 const OPEN_TASK = ["not_started", "in_progress", "submitted", "returned", "incomplete", "blocked"] as const;
@@ -65,6 +67,8 @@ export default async function PersonPage({
   params: Promise<{ kind: string; id: string }>;
   searchParams: Promise<{ from?: string }>;
 }) {
+  const locale = await getLocale();
+  const L = getDictionary(locale).rPersonPage;
   const session = await auth();
   if (!session) redirect("/login");
   const { kind, id } = await params;
@@ -134,7 +138,7 @@ export default async function PersonPage({
     senior ? { name: senior.name, colorHex: senior.colorHex } : null
   );
   const color = dept?.colorHex ?? BRAND.temptress;
-  const title = roleTitle(accountRole, person.gender, dept?.name);
+  const title = roleTitle(accountRole, person.gender, dept?.name, locale);
   const joined = user ? user.createdAt : (member!.orgJoinDate ?? member!.decidedAt ?? member!.joinDate);
   const avatar = avatarUrl(kind, person.id, person.avatarVersion);
   // خلفيةُ الصورة بلون انتمائه كما في الهيكل — والإدارة العليا ببنفسجيّها
@@ -142,21 +146,21 @@ export default async function PersonPage({
   const isSelf = user?.id === session.user.id;
   const statusOk = person.isActive;
   const commStatus = (s: string) =>
-    s === "أُرسلت" ? "قُبلت عند المزوّد" : s;
+    s === "أُرسلت" ? L.acceptedByTheProvider : s;
 
   const identity: [string, string][] = [
-    ["البريد", person.email],
-    ["الجوال", person.phone ?? "—"],
-    ["القسم", dept?.name ?? "—"],
-    ["المسمّى الوظيفي", person.jobTitle ?? "—"],
-    ["تاريخ الانضمام", formatDate(joined)],
-    ["المدة", sinceLabel(joined, now)],
-    ...(user ? ([["التحقق بخطوتين", user.totpEnabled ? "مُفعّل" : "غير مُفعّل"]] as [string, string][]) : []),
+    [L.email, person.email],
+    [L.mobile, person.phone ?? "—"],
+    [L.department, dept?.name ?? "—"],
+    [L.jobTitle, person.jobTitle ?? "—"],
+    [L.joined, formatDate(joined)],
+    [L.tenure, sinceLabel(joined, now, locale)],
+    ...(user ? ([[L.twoFactorAuthentication, user.totpEnabled ? L.enabled : L.notEnabled]] as [string, string][]) : []),
     ...(member
       ? ([
-          ["أول دخول", member.firstLoginAt ? formatDate(member.firstLoginAt) : "لم يدخل بعد"],
-          ["نتيجة الاختبار", member.testScore === null ? "—" : `${member.testScore}%`],
-          ["التنبيهات", `${member.warningsCount} من ٣`],
+          [L.firstLogin, member.firstLoginAt ? formatDate(member.firstLoginAt) : L.notSignedInYet],
+          [L.testResult, member.testScore === null ? "—" : `${member.testScore}%`],
+          [L.warnings, fmt(L.of3, member.warningsCount)],
         ] as [string, string][])
       : []),
   ];
@@ -166,17 +170,17 @@ export default async function PersonPage({
 
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 sm:px-5 sm:py-8">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <nav className="text-xs font-bold text-black/45" aria-label="المسار">
+          <nav className="text-xs font-bold text-black/45" aria-label={L.breadcrumb}>
             {top ? (
-              <Link href={backHref} className="hover:underline">الأفراد والحسابات</Link>
+              <Link href={backHref} className="hover:underline">{L.peopleAndAccounts}</Link>
             ) : (
-              <Link href={leadHome} className="hover:underline">قسمي</Link>
+              <Link href={leadHome} className="hover:underline">{L.myDepartment}</Link>
             )}
             {" ‹ "}
             <span aria-current="page" className="text-black/70">{person.fullName}</span>
           </nav>
           <Link href={top ? backHref : leadHome} className="wizard-btn-2 !min-h-9 !px-3 !text-xs">
-            {top ? "→ عودة إلى القائمة" : "→ عودة إلى القسم"}
+            {top ? L.backToTheList : L.backToTheDepartment}
           </Link>
         </div>
 
@@ -197,20 +201,18 @@ export default async function PersonPage({
                   statusOk ? "bg-green-50 text-green-800 ring-green-200" : "bg-black/[0.04] text-black/60 ring-black/10"
                 }`}
               >
-                {statusOk ? "نشط" : "غير نشط"}
+                {statusOk ? L.active : L.inactive}
               </span>
             </p>
           </div>
           {top && (
-            <a href="#manage" className="wizard-btn-2">
-              إدارة الحساب
-            </a>
+            <a href="#manage" className="wizard-btn-2">{L.manageTheAccount}</a>
           )}
         </Card>
 
         <div className="grid gap-4 lg:grid-cols-3">
           <Card className="p-4 sm:p-5">
-            <h2 className="text-base font-bold">الهوية والحساب</h2>
+            <h2 className="text-base font-bold">{L.identityAndAccount}</h2>
             <dl className="mt-2">
               {identity.map(([k, v]) => (
                 <div key={k} className="flex justify-between gap-3 border-b border-hairline py-2 text-sm last:border-0">
@@ -222,33 +224,34 @@ export default async function PersonPage({
           </Card>
 
           <Card className="p-4 sm:p-5">
-            <h2 className="text-base font-bold">العمل والإسهام</h2>
+            <h2 className="text-base font-bold">{L.workAndContribution}</h2>
             <div className="mt-3 grid grid-cols-2 gap-2.5">
               {[
-                [done, "مهمة مُنجزة (متحقَّق منها)"],
-                [overdue, "مهمة متأخرة"],
-                [openTasks, "مهمة قائمة"],
-                [raised, `تذكرة رفعها${raisedResolved ? ` · ${raisedResolved} حُلّت` : ""}`],
-                ...(closedFor !== null ? ([[closedFor, "تذكرة أغلقها"]] as [number, string][]) : []),
+                [done, L.tasksDoneVerified],
+                [overdue, L.overdueTasks],
+                [openTasks, L.openTasks],
+                [raised, `${L.ticketsRaised}${raisedResolved ? fmt(L.resolvedN, raisedResolved) : ""}`],
+                ...(closedFor !== null ? ([[closedFor, L.ticketsTheyClosed]] as [number, string][]) : []),
               ].map(([v, l]) => (
                 <div key={l as string} className="rounded-xl bg-black/[0.03] p-3">
-                  <p className={`text-xl font-bold ${l === "مهمة متأخرة" && (v as number) > 0 ? "text-red-800" : ""}`}>{v}</p>
+                  <p className={`text-xl font-bold ${l === L.overdueTasks && (v as number) > 0 ? "text-red-800" : ""}`}>{v}</p>
                   <p className="text-xs text-black/50">{l}</p>
                 </div>
               ))}
             </div>
-            <p className="mt-3 text-[11px] text-black/45">من الالتزامات الأسبوعية والتذاكر المسجّلة — لا تقدير.</p>
+            <p className="mt-3 text-[11px] text-black/45">{L.fromWeeklyCommitmentsAnd}</p>
           </Card>
 
           <Card className="p-4 sm:p-5">
-            <h2 className="text-base font-bold">التواصل</h2>
+            <h2 className="text-base font-bold">{L.communication}</h2>
             {comms.length === 0 ? (
-              <p className="py-6 text-center text-sm text-black/40">لا رسائل مسجّلة بعد</p>
+              <p className="py-6 text-center text-sm text-black/40">{L.noMessagesRecordedYet}</p>
             ) : (
               <ul className="mt-2">
                 {comms.map((c) => (
                   <li key={c.id} className="border-b border-hairline py-2 last:border-0">
-                    <p className="text-sm font-bold">{c.kind}</p>
+                    {/* النوعُ مخزَّنٌ بالعربية في سجل الرسائل — يُعرض بلغة الواجهة */}
+                    <p className="text-sm font-bold">{L.commKind[c.kind as keyof typeof L.commKind] ?? c.kind}</p>
                     <p className="text-xs text-black/50">
                       {commStatus(c.status)} · {formatDate(c.createdAt)}
                     </p>
@@ -256,20 +259,20 @@ export default async function PersonPage({
                 ))}
               </ul>
             )}
-            <p className="mt-2 text-[11px] text-black/45">من «سجل الرسائل» — «قُبلت» لا تعني «فُتحت».</p>
+            <p className="mt-2 text-[11px] text-black/45">{L.fromTheMessageLog}</p>
           </Card>
         </div>
 
         {member && member.warnings.length > 0 && (
           <Card className="p-4 sm:p-5">
-            <h2 className="text-base font-bold">التنبيهات الرسمية</h2>
+            <h2 className="text-base font-bold">{L.officialWarnings}</h2>
             <ul className="mt-2">
               {member.warnings.map((w) => (
                 <li key={w.id} className="flex gap-4 border-b border-hairline py-2 text-sm last:border-0">
                   <span className="w-24 shrink-0 text-xs text-black/45">{formatDate(w.createdAt)}</span>
                   <span>{w.reason}</span>
                   <span className="ms-auto shrink-0 text-xs text-black/45">
-                    {w.acknowledgedAt ? "اطّلع عليه" : "لم يطّلع بعد"}
+                    {w.acknowledgedAt ? L.seen : L.notSeenYet}
                   </span>
                 </li>
               ))}
@@ -282,7 +285,7 @@ export default async function PersonPage({
             لوحة قسمه كما كانت. */}
         {top && (
           <section id="manage" className="scroll-mt-24">
-            <h2 className="mb-3 text-base font-bold">إدارة الحساب</h2>
+            <h2 className="mb-3 text-base font-bold">{L.manageTheAccount}</h2>
             <div className="flex flex-col gap-3">
               {user && isSelf && isFounder && (
                 <MyAccountCard
@@ -292,7 +295,7 @@ export default async function PersonPage({
                     fullName: user.fullName,
                     email: user.email,
                     roleLabel: title,
-                    welcomeSentAt: user.welcomeEmailSentAt ? `في ${formatDate(user.welcomeEmailSentAt)}` : null,
+                    welcomeSentAt: user.welcomeEmailSentAt ? fmt(L.on, formatDate(user.welcomeEmailSentAt)) : null,
                   }}
                 />
               )}
@@ -325,7 +328,7 @@ export default async function PersonPage({
                         memberId={member.id}
                         memberName={member.fullName}
                         orgJoinDate={member.orgJoinDate ? member.orgJoinDate.toISOString().slice(0, 10) : ""}
-                        welcomeSentAt={member.welcomeEmailSentAt ? `في ${formatDate(member.welcomeEmailSentAt)}` : null}
+                        welcomeSentAt={member.welcomeEmailSentAt ? fmt(L.on, formatDate(member.welcomeEmailSentAt)) : null}
                         theme={theme}
                       />
                     </Card>

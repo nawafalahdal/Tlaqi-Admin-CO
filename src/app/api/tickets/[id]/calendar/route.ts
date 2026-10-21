@@ -8,6 +8,8 @@ import {
   ticketVisibilityWhere,
 } from "@/lib/tickets";
 
+import { getLocale, getDictionary } from "@/i18n/server";
+import { fmt } from "@/i18n/fmt";
 export const dynamic = "force-dynamic";
 
 /** يهرّب الأحرف التي تكسر صيغة iCalendar */
@@ -27,6 +29,7 @@ function stamp(d: Date) {
  *
  *  والصلاحية هي صلاحية رؤية التذكرة نفسها: من لا يراها لا يُنزّل موعدها. */
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const L = getDictionary(await getLocale()).rApiTicketIcs;
   const session = await auth();
   if (!session || session.user.role === "member") {
     return new Response("unauthorized", { status: 401 });
@@ -54,15 +57,15 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     `DTSTAMP:${stamp(new Date())}`,
     `DTSTART:${stamp(start)}`,
     `DTEND:${stamp(due)}`,
-    `SUMMARY:${ics(`تذكرة #${ticket.ticketNumber}: ${ticket.subject}`)}`,
+    `SUMMARY:${ics(fmt(L.ticket, ticket.ticketNumber, ticket.subject))}`,
     `DESCRIPTION:${ics(
-      `${ticket.description}\n\nمن: ${ticketAuthor(ticket).name}\nإلى: ${ticketTargetLabel(ticket)}\nالمرحلة: ${TICKET_STAGE_LABELS[ticket.stage]}\n\n${process.env.APP_BASE_URL ?? ""}/admin/tickets`
+      fmt(L.fromToStageAdmin, ticket.description, ticketAuthor(ticket).name, ticketTargetLabel(ticket), TICKET_STAGE_LABELS[ticket.stage], process.env.APP_BASE_URL ?? "")
     )}`,
     `URL:${process.env.APP_BASE_URL ?? ""}/admin/tickets`,
     "BEGIN:VALARM",
     "TRIGGER:-PT2H",
     "ACTION:DISPLAY",
-    `DESCRIPTION:${ics(`يقترب موعد تذكرة #${ticket.ticketNumber}`)}`,
+    `DESCRIPTION:${ics(fmt(L.ticketIsDueSoon, ticket.ticketNumber))}`,
     "END:VALARM",
     "END:VEVENT",
     "END:VCALENDAR",

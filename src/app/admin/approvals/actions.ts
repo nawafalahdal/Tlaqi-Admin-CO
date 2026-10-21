@@ -13,6 +13,7 @@ import {
 import type { ApprovalKind } from "@prisma/client";
 import { safeErrorMessage } from "@/lib/safeError";
 
+import { getLocale, getDictionary } from "@/i18n/server";
 const KINDS: ApprovalKind[] = [
   "marketing_plan",
   "financial_plan",
@@ -41,9 +42,10 @@ export async function requestApprovalAction(
   approverUserId: string,
   chain: string[]
 ): Promise<{ error: string | null; done?: boolean }> {
+  const L = getDictionary(await getLocale()).rApprActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
-  if (!KINDS.includes(kind as ApprovalKind)) return { error: "نوع طلبٍ غير معروف" };
+  if (!session) return { error: L.youNeedToSign };
+  if (!KINDS.includes(kind as ApprovalKind)) return { error: L.unknownRequestType };
 
   try {
     const res = await requestApproval({
@@ -68,10 +70,11 @@ export async function decideApprovalAction(
   decision: string,
   note: string
 ): Promise<{ error: string | null; state?: string; nextApproverName?: string | null }> {
+  const L = getDictionary(await getLocale()).rApprActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
   if (!DECISIONS.includes(decision as ApprovalDecisionInput)) {
-    return { error: "قرارٌ غير معروف" };
+    return { error: L.unknownDecision };
   }
 
   try {
@@ -95,8 +98,9 @@ export async function resubmitApprovalAction(
   ticketId: string,
   note: string
 ): Promise<{ error: string | null; done?: boolean }> {
+  const L = getDictionary(await getLocale()).rApprActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
   try {
     const res = await resubmitApproval({
       ticketId,
@@ -116,9 +120,10 @@ export async function advanceExecutionAction(
   ticketId: string,
   to: "executing" | "completed"
 ): Promise<{ error: string | null; done?: boolean }> {
+  const L = getDictionary(await getLocale()).rApprActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
-  if (to !== "executing" && to !== "completed") return { error: "مرحلةٌ غير معروفة" };
+  if (!session) return { error: L.youNeedToSign };
+  if (to !== "executing" && to !== "completed") return { error: L.unknownStage };
   try {
     const res = await advanceExecution({ ticketId, requesterUserId: session.user.id, to });
     if (!res.ok) return { error: res.reason };

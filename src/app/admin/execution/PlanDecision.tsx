@@ -5,6 +5,7 @@ import { decidePlanAction } from "./actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 
+import { useTranslations } from "@/i18n/LocaleProvider";
 /** قرارُ التنفيذي في خطةِ قسم: اعتمادٌ أو ردٌّ بسبب.
  *
  *  **والتحميلُ الزائد يُقَرّ صراحةً لا يُمرَّر صامتاً:** حين تتجاوز
@@ -19,6 +20,7 @@ export function PlanDecision({
   overloaded: boolean;
   theme: ReturnType<typeof themeFromColor>;
 }) {
+  const L = useTranslations().rExecPlanDecision;
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -47,17 +49,14 @@ export function PlanDecision({
             onChange={(e) => setAck(e.target.checked)}
             className="mt-0.5 h-4 w-4 shrink-0"
           />
-          <span>
-            أُقِرّ أن الأسبوع مُحمَّلٌ فوق طاقة القسم، وأعتمده على هذا العلم — ويُكتَب سببي في
-            الملاحظة أدناه.
-          </span>
+          <span>{L.iAcknowledgeTheWeek}</span>
         </label>
       )}
       <textarea
         value={note}
         onChange={(e) => setNote(e.target.value)}
         rows={2}
-        placeholder={returning ? "سببُ الردّ — إلزامي" : "ملاحظةُ القرار (إلزاميةٌ في الردّ)"}
+        placeholder={returning ? L.reasonForReturningRequired : L.decisionNoteRequiredWhen}
         className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-black/30"
       />
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
@@ -66,9 +65,7 @@ export function PlanDecision({
           theme={theme}
           disabled={pending || (overloaded && !ack)}
           onClick={() => run("approved")}
-        >
-          اعتمِد الخطة
-        </Button>
+        >{L.approveThePlan}</Button>
         <Button
           theme={theme}
           variant="outline"
@@ -77,9 +74,7 @@ export function PlanDecision({
             setReturning(true);
             run("returned");
           }}
-        >
-          ردٌّ للتعديل
-        </Button>
+        >{L.returnForChanges}</Button>
       </div>
     </div>
   );

@@ -27,12 +27,15 @@ import {
 } from "@/lib/committees";
 import { revalidatePath } from "next/cache";
 
+import { getLocale, getDictionary } from "@/i18n/server";
+import { fmt } from "@/i18n/fmt";
 /** حوكمة صارمة: إصدار دعوة عضو داخل قسم معيّن هو حصراً من صلاحية أدمن ذلك
  *  القسم — حتى المؤسس نفسه لا يملك هذا الإجراء مباشرة */
 export async function createMemberInviteAction(
   _prevState: { error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } },
   formData: FormData
 ): Promise<{ error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } }> {
+  const L = getDictionary(await getLocale()).rDeptActions;
   try {
     const session = await auth();
     const departmentId = String(formData.get("departmentId") ?? "");
@@ -42,7 +45,7 @@ export async function createMemberInviteAction(
       session.user.role !== "department_admin" ||
       session.user.departmentId !== departmentId
     ) {
-      return { error: "هذا الإجراء خاص بأدمن هذا القسم فقط", success: false };
+      return { error: L.thisActionIsOnly, success: false };
     }
 
     const fullName = String(formData.get("fullName") ?? "").trim();
@@ -50,7 +53,7 @@ export async function createMemberInviteAction(
     const jobTitle = String(formData.get("jobTitle") ?? "").trim();
     // المسمى تحدّده الإدارة الداعية لا المرشّح: هي من تعرف لماذا دعته
     if (!fullName || !email || !jobTitle) {
-      return { error: "الاسم والبريد والمسمى الوظيفي مطلوبة", success: false };
+      return { error: L.nameEmailAndJob, success: false };
     }
 
     const track = await getTrackForTarget("member", departmentId);
@@ -76,19 +79,20 @@ export async function issueWarningAction(
   _prevState: { error: string | null; success: boolean },
   formData: FormData
 ): Promise<{ error: string | null; success: boolean }> {
+  const L = getDictionary(await getLocale()).rDeptActions;
   try {
     const session = await auth();
     const memberId = String(formData.get("memberId") ?? "");
     const reason = String(formData.get("reason") ?? "").trim();
-    if (!session) return { error: "يجب تسجيل الدخول", success: false };
-    if (!reason) return { error: "يجب كتابة سبب التنبيه", success: false };
+    if (!session) return { error: L.youNeedToSign, success: false };
+    if (!reason) return { error: L.writeTheReasonFor, success: false };
 
     const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
     const allowed =
       session.user.role === "super_admin" ||
       session.user.role === "executive" ||
       (session.user.role === "department_admin" && session.user.departmentId === member.departmentId);
-    if (!allowed) return { error: "غير مصرح لك بهذا الإجراء", success: false };
+    if (!allowed) return { error: L.youAreNotAllowed, success: false };
 
     await issueWarning({ memberId, issuedByUserId: session.user.id, reason });
     revalidatePath(`/admin/departments`);
@@ -104,13 +108,14 @@ export async function resetMemberCredentialsAction(
   memberId: string,
   newEmail: string
 ): Promise<{ error: string | null; tempPassword?: string; email?: string }> {
+  const L = getDictionary(await getLocale()).rDeptActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
 
   const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
   // الاستعادة صارت ذاتية عبر البريد؛ وتعيينها يدوياً شبكة أمان للفاوندر وحده
   if (session.user.role !== "super_admin") {
-    return { error: "استعادة كلمة المرور صارت ذاتية عبر البريد — وتعيينها يدوياً خاص بالمؤسس" };
+    return { error: L.passwordRecoveryIsNow };
   }
 
   const trimmedEmail = newEmail.trim().toLowerCase();
@@ -133,19 +138,20 @@ export async function markMemberExitedAction(
   _prevState: { error: string | null; success: boolean },
   formData: FormData
 ): Promise<{ error: string | null; success: boolean }> {
+  const L = getDictionary(await getLocale()).rDeptActions;
   try {
     const session = await auth();
     const memberId = String(formData.get("memberId") ?? "");
     const reason = String(formData.get("reason") ?? "").trim();
-    if (!session) return { error: "يجب تسجيل الدخول", success: false };
-    if (!reason) return { error: "يجب كتابة سبب إنهاء العضوية", success: false };
+    if (!session) return { error: L.youNeedToSign, success: false };
+    if (!reason) return { error: L.writeTheReasonFor2, success: false };
 
     const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
     const allowed =
       session.user.role === "super_admin" ||
       session.user.role === "executive" ||
       (session.user.role === "department_admin" && session.user.departmentId === member.departmentId);
-    if (!allowed) return { error: "غير مصرح لك بهذا الإجراء", success: false };
+    if (!allowed) return { error: L.youAreNotAllowed, success: false };
 
     await markMemberExited(memberId, reason);
     revalidatePath(`/admin/departments`);
@@ -157,15 +163,16 @@ export async function markMemberExitedAction(
 
 /** إصدار شهادة إتمام لعضو — قرار يدوي من أدمن القسم أو المؤسس/التنفيذي */
 export async function issueCertificateAction(memberId: string): Promise<{ error: string | null }> {
+  const L = getDictionary(await getLocale()).rDeptActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
 
   const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
   const allowed =
     session.user.role === "super_admin" ||
     session.user.role === "executive" ||
     (session.user.role === "department_admin" && session.user.departmentId === member.departmentId);
-  if (!allowed) return { error: "غير مصرح لك بهذا الإجراء" };
+  if (!allowed) return { error: L.youAreNotAllowed };
 
   try {
     const res = await issueCertificate(memberId);
@@ -189,22 +196,23 @@ export async function respondToTicketAction(
   status: "in_progress" | "resolved",
   resolutionNote: string
 ): Promise<{ error: string | null }> {
+  const L = getDictionary(await getLocale()).rDeptActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
 
   const ticket = await prisma.ticket.findUnique({
     where: { id: ticketId },
     include: { member: true, raisedByUser: true, targetMember: true },
   });
-  if (!ticket) return { error: "التذكرة غير موجودة" };
+  if (!ticket) return { error: L.ticketNotFound };
 
   // قاعدة واحدة تحكم الردّ في كل الشاشات — ومنها أن صاحب التذكرة لا يُغلقها
   if (!canRespondToTicket(ticket, session)) {
     return {
       error:
         ticket.raisedByUserId === session.user.id
-          ? "هذه تذكرة رفعتَها أنت — وإغلاقها إقرارٌ بأن الطرف الآخر أجاب. إن لم تعد تحتاجها فاسحبها."
-          : "الردّ على هذه التذكرة لصاحب مرحلتها الحالية",
+          ? L.youRaisedThisTicket
+          : L.replyingToThisTicket,
     };
   }
 
@@ -227,8 +235,9 @@ export async function withdrawTicketAction(
   ticketId: string,
   reason: string
 ): Promise<{ error: string | null }> {
+  const L = getDictionary(await getLocale()).rDeptActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
 
   const res = await withdrawTicket({
     ticketId,
@@ -269,22 +278,23 @@ export async function stepDownMemberAction(
   _prev: { error: string | null; success: boolean },
   formData: FormData
 ): Promise<{ error: string | null; success: boolean }> {
+  const L = getDictionary(await getLocale()).rDeptActions;
   try {
     const session = await auth();
-    if (!session) return { error: "يجب تسجيل الدخول", success: false };
+    if (!session) return { error: L.youNeedToSign, success: false };
 
     const memberId = String(formData.get("memberId") ?? "");
     const reason = String(formData.get("reason") ?? "").trim();
     const endDateRaw = String(formData.get("endDate") ?? "").trim();
 
     if (!(await canManageMemberExit(session, memberId))) {
-      return { error: "غير مصرح لك بهذا الإجراء", success: false };
+      return { error: L.youAreNotAllowed, success: false };
     }
-    if (!reason) return { error: "اكتب سبب التنحي — يُسجَّل في السجل الحي", success: false };
-    if (!endDateRaw) return { error: "حدّد تاريخ الانتهاء", success: false };
+    if (!reason) return { error: L.writeTheReasonFor3, success: false };
+    if (!endDateRaw) return { error: L.setTheEndDate, success: false };
 
     const endDate = new Date(`${endDateRaw}T00:00:00`);
-    if (Number.isNaN(endDate.getTime())) return { error: "تاريخ غير صالح", success: false };
+    if (Number.isNaN(endDate.getTime())) return { error: L.invalidDate, success: false };
 
     const res = await stepDownMember({
       memberId,
@@ -307,10 +317,11 @@ export async function markOffboardingStepAction(
   memberId: string,
   step: "certificate" | "farewell"
 ): Promise<{ error: string | null }> {
+  const L = getDictionary(await getLocale()).rDeptActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
   if (!(await canManageMemberExit(session, memberId))) {
-    return { error: "غير مصرح لك بهذا الإجراء" };
+    return { error: L.youAreNotAllowed };
   }
   try {
     const byName = session.user.name ?? "—";
@@ -331,10 +342,11 @@ export async function markOffboardingStepAction(
 export async function closeOffboardingAction(
   memberId: string
 ): Promise<{ error: string | null }> {
+  const L = getDictionary(await getLocale()).rDeptActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
   if (!(await canManageMemberExit(session, memberId))) {
-    return { error: "غير مصرح لك بهذا الإجراء" };
+    return { error: L.youAreNotAllowed };
   }
   const res = await closeOffboarding(memberId, session.user.name ?? "—");
   if (!res.ok) return { error: res.reason };
@@ -351,9 +363,10 @@ export async function requestCommitteeAction(
   _prevState: { error: string | null; success: boolean; message?: string },
   formData: FormData
 ): Promise<{ error: string | null; success: boolean; message?: string }> {
+  const L = getDictionary(await getLocale()).rDeptActions;
   try {
     const session = await auth();
-    if (!session) return { error: "يجب تسجيل الدخول", success: false };
+    if (!session) return { error: L.youNeedToSign, success: false };
 
     const res = await requestCommittee({
       parentId: String(formData.get("parentId") ?? ""),
@@ -370,8 +383,8 @@ export async function requestCommitteeAction(
       error: null,
       success: true,
       message: res.approverName
-        ? `أُرسل اقتراح «${res.name}» إلى ${res.approverName} — لا تُفتح حتى يُعتمد`
-        : `سُجِّل اقتراح «${res.name}» — ولم يُوجَد معتمِدٌ نشطٌ ليُخبَر`,
+        ? fmt(L.theProposalWasSent, res.name, res.approverName)
+        : fmt(L.theProposalWasRecorded, res.name),
     };
   } catch (err) {
     return { error: safeErrorMessage(err), success: false };
@@ -382,8 +395,9 @@ export async function requestCommitteeAction(
 export async function withdrawCommitteeAction(
   committeeId: string
 ): Promise<{ error: string | null; done?: boolean; name?: string }> {
+  const L = getDictionary(await getLocale()).rDeptActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
   try {
     const res = await withdrawCommittee({ committeeId, session });
     if (!res.ok) return { error: res.reason };
@@ -406,9 +420,10 @@ export async function inviteCommitteeLeadAction(
   _prevState: { error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } },
   formData: FormData
 ): Promise<{ error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } }> {
+  const L = getDictionary(await getLocale()).rDeptActions;
   try {
     const session = await auth();
-    if (!session) return { error: "يجب تسجيل الدخول", success: false };
+    if (!session) return { error: L.youNeedToSign, success: false };
 
     const committeeId = String(formData.get("committeeId") ?? "");
     const committee = await prisma.department.findUnique({
@@ -416,18 +431,18 @@ export async function inviteCommitteeLeadAction(
       select: { id: true, name: true, leadTitle: true, parentId: true, committeeStatus: true },
     });
     if (!committee || !committee.parentId) {
-      return { error: "اللجنة غير موجودة", success: false };
+      return { error: L.committeeNotFound, success: false };
     }
     if (committee.committeeStatus !== "approved") {
-      return { error: "هذه اللجنة لم تُعتمد بعد — لا تُدعى لها قيادة قبل فتحها", success: false };
+      return { error: L.thisCommitteeIsNot, success: false };
     }
     if (!canRequestCommitteeIn(session, committee.parentId)) {
-      return { error: "دعوة قيادة اللجنة لقائد القسم نفسه — ومن يعلوه", success: false };
+      return { error: L.invitingACommitteeLead, success: false };
     }
 
     const fullName = String(formData.get("fullName") ?? "").trim();
     const email = String(formData.get("email") ?? "").trim().toLowerCase();
-    if (!fullName || !email) return { error: "الاسم والبريد مطلوبان", success: false };
+    if (!fullName || !email) return { error: L.nameAndEmailAre, success: false };
 
     // المسمّى مسمّى اللجنة المُقَرّ، لا ما يكتبه الداعي لحظتها: أُقِرَّ
     // مع اعتمادها فلا يُغيَّر بعده من نموذجٍ عابر

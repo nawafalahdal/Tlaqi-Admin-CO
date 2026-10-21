@@ -9,6 +9,8 @@ import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 import { canResendWelcome, canRequestWelcomeResend, resendTargetsFor, WELCOME_MAX_SENDS } from "@/lib/welcomeResend";
 import { ResendWelcomeButton } from "./ResendWelcomeButton";
 
+import { getLocale, getDictionary } from "@/i18n/server";
+import { fmt } from "@/i18n/fmt";
 export const dynamic = "force-dynamic";
 
 
@@ -26,6 +28,8 @@ export default async function WelcomeCardsPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
+  const locale = await getLocale();
+  const L = getDictionary(locale).rWelcomePage;
   const session = await auth();
   if (!session) redirect("/login");
   const canSend = await canResendWelcome(session);
@@ -79,7 +83,7 @@ export default async function WelcomeCardsPage({
       kind: "user" as const,
       id: u.id,
       name: u.fullName,
-      role: accountRoleLabel(u.role),
+      role: accountRoleLabel(u.role, locale),
       dept: u.department?.name ?? "—",
       sentAt: u.welcomeEmailSentAt,
       count: u.welcomeEmailCount,
@@ -88,7 +92,7 @@ export default async function WelcomeCardsPage({
       kind: "member" as const,
       id: m.id,
       name: m.fullName,
-      role: "عضو",
+      role: L.member,
       dept: m.department?.name ?? "—",
       sentAt: m.welcomeEmailSentAt,
       count: m.welcomeEmailCount,
@@ -101,11 +105,11 @@ export default async function WelcomeCardsPage({
 
       <main className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-6 sm:px-5 sm:py-8">
         <PageHeader
-          title="بطاقات الانضمام"
+          title={L.welcomeCards}
           description={
             canSend
-              ? "أعِد إرسال بطاقة الانضمام لمن ضاعت منه أو لم تصله، بعد أن تتأكّد من بريده. لكل شخصٍ إعادةٌ واحدة بعد بطاقة الاعتماد، وتُسجَّل باسمك. وبلاغاتُ «لم تصلني» تصلك تذاكرَ."
-              : "اطلب إعادة بطاقة الانضمام لمن ضاعت منه أو لم تصله، فيصل طلبك تذكرةً إلى مسؤول المتابعة والتشغيل وهو من يُرسلها. لكل شخصٍ إعادةٌ واحدة."
+              ? L.resendTheWelcomeCard
+              : L.requestAWelcomeCard
           }
         />
 
@@ -113,20 +117,20 @@ export default async function WelcomeCardsPage({
           <input
             name="q"
             defaultValue={q}
-            placeholder="ابحث بالاسم"
-            aria-label="ابحث بالاسم"
+            placeholder={L.searchByName}
+            aria-label={L.searchByName}
             className="min-h-11 min-w-56 flex-1 rounded-xl border border-black/10 bg-white px-3 text-sm"
           />
-          <button type="submit" className="wizard-btn-2">بحث</button>
+          <button type="submit" className="wizard-btn-2">{L.search}</button>
         </form>
 
         <DataTable
-          emptyLabel={q ? "لا أحد بهذا الاسم" : "لا قادة ولا أعضاء معتمدون بعد"}
+          emptyLabel={q ? L.noOneWithThat : L.noApprovedLeadersOr}
           columns={[
-            { key: "name", label: "الاسم", primary: true },
-            { key: "role", label: "الصفة" },
-            { key: "dept", label: "القسم" },
-            { key: "last", label: "البطاقات" },
+            { key: "name", label: L.name, primary: true },
+            { key: "role", label: L.role },
+            { key: "dept", label: L.department },
+            { key: "last", label: L.cards },
             { key: "actions", label: "" },
           ]}
           rows={rows.map((r) => ({
@@ -138,9 +142,9 @@ export default async function WelcomeCardsPage({
               last: (
                 <span className="text-xs">
                   <span className={`font-bold ${r.count >= WELCOME_MAX_SENDS ? "text-black/45" : ""}`}>
-                    {r.count >= WELCOME_MAX_SENDS ? "استُنفدت الإعادة" : r.count === 0 ? "لم تُرسَل" : "بقيت إعادةٌ واحدة"}
+                    {r.count >= WELCOME_MAX_SENDS ? L.resendUsedUp : r.count === 0 ? L.notSent : L.oneResendLeft}
                   </span>
-                  {r.sentAt ? ` · آخرها قُبلت ${formatDate(r.sentAt)}` : " · لم تُرسَل بعد"}
+                  {r.sentAt ? fmt(L.lastOneAccepted, formatDate(r.sentAt)) : L.notSentYet}
                 </span>
               ),
               actions: (

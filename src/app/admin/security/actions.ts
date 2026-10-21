@@ -7,9 +7,11 @@ import { generateTotpSecret, buildTotpEnrollment, verifyTotpCode } from "@/lib/t
 import { safeErrorMessage } from "@/lib/safeError";
 import { revalidatePath } from "next/cache";
 
+import { getLocale, getDictionary } from "@/i18n/server";
 async function requireAdminUser() {
+  const L = getDictionary(await getLocale()).rSecurityActions;
   const session = await auth();
-  if (!session || session.user.role === "member") throw new Error("غير مصرح");
+  if (!session || session.user.role === "member") throw new Error(L.notAllowed);
   const user = await prisma.user.findUniqueOrThrow({ where: { id: session.user.id } });
   return user;
 }
@@ -34,12 +36,13 @@ export async function confirmTotpSetupAction(
   _prevState: { error: string | null; success: boolean },
   formData: FormData
 ): Promise<{ error: string | null; success: boolean }> {
+  const L = getDictionary(await getLocale()).rSecurityActions;
   try {
     const user = await requireAdminUser();
     const code = String(formData.get("code") ?? "");
-    if (!user.totpSecret) return { error: "ابدأ الإعداد أولاً", success: false };
+    if (!user.totpSecret) return { error: L.startTheSetupFirst, success: false };
     if (!verifyTotpCode(user.totpSecret, code, user.email)) {
-      return { error: "الرمز غير صحيح، تأكد من المزامنة وحاول مجدداً", success: false };
+      return { error: L.theCodeIsWrong, success: false };
     }
     await prisma.user.update({ where: { id: user.id }, data: { totpEnabled: true } });
     revalidatePath("/admin/security");
@@ -53,11 +56,12 @@ export async function disableTotpAction(
   _prevState: { error: string | null },
   formData: FormData
 ): Promise<{ error: string | null }> {
+  const L = getDictionary(await getLocale()).rSecurityActions;
   try {
     const user = await requireAdminUser();
     const currentPassword = String(formData.get("currentPassword") ?? "");
     if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
-      return { error: "كلمة المرور غير صحيحة" };
+      return { error: L.incorrectPassword };
     }
     await prisma.user.update({
       where: { id: user.id },

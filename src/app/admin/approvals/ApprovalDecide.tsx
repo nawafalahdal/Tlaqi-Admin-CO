@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { decideApprovalAction } from "./actions";
 import { Button } from "@/components/ui";
 
+import { useTranslations } from "@/i18n/LocaleProvider";
+import { fmt } from "@/i18n/fmt";
 /** قرارُ المعتمِد — والاعتماد لا يقع بضغطةٍ واحدة.
  *
  *  **نافذةُ التأكيد ليست تزييناً.** الاعتماد يُطلِق التنفيذ ويُسجَّل
@@ -29,6 +31,7 @@ export function ApprovalDecide({
   isReviewing: boolean;
   theme: Parameters<typeof Button>[0]["theme"];
 }) {
+  const L = useTranslations().rApprDecide;
   const [panel, setPanel] = useState<"none" | "approve" | "return" | "reject">("none");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -48,13 +51,13 @@ export function ApprovalDecide({
       setDone(
         decision === "approved"
           ? res.nextApproverName
-            ? `اعتمدتَه — وانتقل إلى ${res.nextApproverName} لاستكمال الموافقات`
-            : "اعتمدتَه نهائياً — وصاحبه يستطيع الانتقال إلى التنفيذ"
+            ? fmt(L.youApprovedItIt, res.nextApproverName)
+            : L.youGaveFinalApproval
           : decision === "returned"
-            ? "أُعيد لصاحبه للتعديل"
+            ? L.returnedToItsOwner
             : decision === "rejected"
-              ? "رُفض الطلب وسُجِّل السبب"
-              : "صار «قيد المراجعة»"
+              ? L.theRequestWasRejected
+              : L.itIsNowUnder
       );
     });
   }
@@ -71,9 +74,7 @@ export function ApprovalDecide({
     <div className="mt-3 border-t border-black/5 pt-3">
       {panel === "none" && (
         <div className="flex flex-wrap gap-2">
-          <Button theme={theme} disabled={pending} onClick={() => setPanel("approve")}>
-            اعتماد الطلب
-          </Button>
+          <Button theme={theme} disabled={pending} onClick={() => setPanel("approve")}>{L.approveTheRequest}</Button>
           <button
             type="button"
             disabled={pending}
@@ -82,9 +83,7 @@ export function ApprovalDecide({
               setPanel("return");
             }}
             className="inline-flex min-h-11 items-center rounded-xl border border-amber-300 px-4 text-sm font-semibold text-amber-900 disabled:opacity-50"
-          >
-            إعادة للتعديل
-          </button>
+          >{L.returnForChanges}</button>
           <button
             type="button"
             disabled={pending}
@@ -93,13 +92,9 @@ export function ApprovalDecide({
               setPanel("reject");
             }}
             className="inline-flex min-h-11 items-center rounded-xl border border-red-200 px-4 text-sm font-semibold text-red-700 disabled:opacity-50"
-          >
-            رفض الطلب
-          </button>
+          >{L.rejectTheRequest}</button>
           {!isReviewing && (
-            <Button theme={theme} variant="ghost" disabled={pending} onClick={() => run("reviewing")}>
-              أدرسه الآن
-            </Button>
+            <Button theme={theme} variant="ghost" disabled={pending} onClick={() => run("reviewing")}>{L.iMReviewingIt}</Button>
           )}
         </div>
       )}
@@ -107,14 +102,11 @@ export function ApprovalDecide({
       {/* خطوة التأكيد — الاعتماد لا يقع بضغطةٍ واحدة */}
       {panel === "approve" && (
         <div className="flex flex-col gap-3 rounded-2xl bg-green-50/70 p-4 ring-1 ring-green-200">
-          <p className="text-xs font-bold text-green-900">تأكيد الاعتماد</p>
-          <p className="text-xs leading-relaxed text-green-900/80">
-            أنت على وشك اعتماد <strong>#{ticketNumber} — {subject}</strong> المرفوع من{" "}
-            <strong>{requesterName}</strong>. والاعتماد يُجيز لصاحبه الانتقال إلى التنفيذ، ويُسجَّل
-            باسمك ووقته في سجلّ الطلب.
-          </p>
+          <p className="text-xs font-bold text-green-900">{L.confirmApproval}</p>
+          <p className="text-xs leading-relaxed text-green-900/80">{L.youAreAboutTo}<strong>#{ticketNumber} — {subject}</strong>{L.raisedBy}{" "}
+            <strong>{requesterName}</strong>{L.approvalLetsItsOwner}</p>
           <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium text-black/70">ملاحظة (اختيارية)</span>
+            <span className="font-medium text-black/70">{L.noteOptional}</span>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -130,11 +122,9 @@ export function ApprovalDecide({
               onClick={() => run("approved")}
               className="inline-flex min-h-11 items-center rounded-xl bg-green-700 px-4 text-sm font-bold text-on-brand disabled:opacity-50"
             >
-              {pending ? "جارِ الاعتماد..." : "تأكيد الاعتماد"}
+              {pending ? L.approving : L.confirmApproval}
             </button>
-            <Button theme={theme} variant="ghost" onClick={() => setPanel("none")}>
-              إلغاء
-            </Button>
+            <Button theme={theme} variant="ghost" onClick={() => setPanel("none")}>{L.cancel}</Button>
           </div>
         </div>
       )}
@@ -146,18 +136,18 @@ export function ApprovalDecide({
           }`}
         >
           <p className="text-xs font-bold text-black/75">
-            {panel === "return" ? "إعادة الطلب للتعديل" : "رفض الطلب"}
+            {panel === "return" ? L.returnTheRequestFor : L.rejectTheRequest}
           </p>
           <p className="text-xs leading-relaxed text-black/60">
             {panel === "return"
-              ? "اكتب ما تريد تعديله — يصل صاحبَ الطلب ويستطيع تعديله وإعادة إرساله."
-              : "اكتب سبب الرفض — يُسجَّل في سجلّ الطلب ويصل صاحبَه."}
+              ? L.writeWhatShouldChange
+              : L.writeTheReasonFor}
           </p>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={3}
-            placeholder={panel === "return" ? "ما ينبغي تعديله..." : "سبب الرفض..."}
+            placeholder={panel === "return" ? L.whatShouldChange : L.reasonForRejection}
             className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-black/30"
           />
           {error && <p className="text-sm font-semibold text-red-700">{error}</p>}
@@ -170,11 +160,9 @@ export function ApprovalDecide({
                 panel === "return" ? "bg-amber-700" : "bg-red-700"
               }`}
             >
-              {pending ? "جارِ التنفيذ..." : panel === "return" ? "أعِده للتعديل" : "ارفض الطلب"}
+              {pending ? L.working : panel === "return" ? L.returnItForChanges : L.rejectTheRequest2}
             </button>
-            <Button theme={theme} variant="ghost" onClick={() => setPanel("none")}>
-              إلغاء
-            </Button>
+            <Button theme={theme} variant="ghost" onClick={() => setPanel("none")}>{L.cancel}</Button>
           </div>
         </div>
       )}

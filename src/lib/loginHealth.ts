@@ -25,8 +25,20 @@ export type LoginHealth = {
 };
 
 /** جُمَلٌ تُقرأ كما هي — لا رموزٌ يُترجمها من ينظر */
-export function loginHealthNotes(h: LoginHealth, now: Date = new Date()): string[] {
+export function loginHealthNotes(h: LoginHealth, now: Date = new Date(), locale: "ar" | "en" = "ar"): string[] {
   const notes: string[] = [];
+  if (locale === "en") {
+    if (h.lockedUntil && h.lockedUntil > now) {
+      const minutes = Math.max(1, Math.ceil((h.lockedUntil.getTime() - now.getTime()) / 60_000));
+      notes.push(`Temporarily locked — ${minutes} min left`);
+    } else if (h.failCount >= 3) {
+      notes.push(`${h.failCount} failed sign-in attempts in a row`);
+    }
+    if (h.neverSignedIn) notes.push("Has not signed in yet");
+    if (h.mustChangePassword) notes.push("Still on the temporary password — not changed");
+    if (!h.totpEnabled) notes.push("Authenticator app not enabled (the email code is enough)");
+    return notes;
+  }
   if (h.lockedUntil && h.lockedUntil > now) {
     const minutes = Math.max(1, Math.ceil((h.lockedUntil.getTime() - now.getTime()) / 60_000));
     notes.push(`مقفل مؤقتاً — ${minutes} دقيقة متبقّية`);

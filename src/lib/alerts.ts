@@ -6,6 +6,8 @@ import { canManagePlans } from "@/lib/plans";
 import { canGovernPeriod, OUTSTANDING_STATES } from "@/lib/execution";
 import { improvementCounts } from "@/lib/improvements";
 
+import { getDictionary, type Locale } from "@/i18n";
+import { fmt } from "@/i18n/fmt";
 /** تنبيهاتُ الصفحة الرئيسية — ما على هذا الشخص أن يفعله الآن.
  *
  *  **العطب الذي تُصلحه:** المنصة صارت عشرَ صفحات، فما ينتظر الشخصَ
@@ -43,7 +45,8 @@ function canReviewRole(role: string) {
 }
 
 /** يبني تنبيهاتِ صاحبِ حسابٍ إداري (مؤسس، تنفيذي، مسؤول تشغيل، قائد قسم) */
-export async function alertsForUser(session: Session): Promise<Alert[]> {
+export async function alertsForUser(session: Session, locale: Locale = "ar"): Promise<Alert[]> {
+  const L = getDictionary(locale).libAlerts;
   const userId = session.user.id;
   const role = session.user.role;
   const alerts: Alert[] = [];
@@ -118,37 +121,37 @@ export async function alertsForUser(session: Session): Promise<Alert[]> {
     alerts.push({
       id: "temp-password",
       tone: "danger",
-      title: "كلمة مرورك ما زالت مؤقتة",
-      body: "الرمزُ المؤقت سُلِّم إليك ليُستبدَل. وما دام قائماً فمن اطّلع عليه يدخل بحسابك.",
+      title: L.yourPasswordIsStill,
+      body: L.theTemporaryCodeWas,
       href: "/change-password",
-      cta: "غيّرها الآن",
+      cta: L.changeItNow,
     });
   }
   if (!me.totpEnabled) {
     alerts.push({
       id: "totp",
       tone: "warn",
-      title: "التحقق بخطوتين غير مُفعَّل",
-      body: "دخولك معلَّقٌ ببريدك وحده — فإن تعذّر الوصول إليه يوماً فلا طريق ثانياً لك. والتفعيلُ دقيقة.",
+      title: L.twoFactorAuthenticationIs,
+      body: L.yourSignInHangs,
       href: "/admin/security",
-      cta: "فعّله",
+      cta: L.turnItOn,
     });
   }
 
   // ── البيانات: الهيكلُ والشهادةُ يُقرآن منها
   const missing: string[] = [];
-  if (!me.jobTitle?.trim()) missing.push("المسمّى الوظيفي");
-  if (!me.phone?.trim()) missing.push("رقم الجوال");
-  if (!me.avatarVersion) missing.push("الصورة الشخصية");
-  if (!me.departmentId && role === "super_admin") missing.push("قسمك في الهيكل");
+  if (!me.jobTitle?.trim()) missing.push(L.jobTitle);
+  if (!me.phone?.trim()) missing.push(L.mobileNumber);
+  if (!me.avatarVersion) missing.push(L.profilePhoto);
+  if (!me.departmentId && role === "super_admin") missing.push(L.yourDepartmentInThe);
   if (missing.length > 0) {
     alerts.push({
       id: "profile",
       tone: "warn",
-      title: `بياناتك ناقصة: ${missing.join("، ")}`,
-      body: "بطاقتُك في الهيكل التنظيمي وشهادتُك تُقرآن من هذه البيانات — والناقصُ يظهر ناقصاً للجميع.",
+      title: fmt(L.missingData, missing.join(L.listSep)),
+      body: L.yourCardInThe,
       href: "/admin/profile",
-      cta: "أكمِلها",
+      cta: L.completeThem,
     });
   }
 
@@ -157,89 +160,89 @@ export async function alertsForUser(session: Session): Promise<Alert[]> {
     alerts.push({
       id: "tickets-overdue",
       tone: "danger",
-      title: `${overdueTickets} تذكرة تأخّرت عن موعدها وهي باسمك`,
-      body: "المتأخّرةُ تُصعَّد إلى من فوقك تلقائياً، وتُحسَب تأخّراً في تقرير الالتزام.",
+      title: fmt(L.ticketsInYourName, overdueTickets),
+      body: L.lateTicketsEscalateAutomatically,
       href: "/admin/tickets",
-      cta: "افتحها",
+      cta: L.openThem,
     });
   } else if (openAssignedTickets > 0) {
     alerts.push({
       id: "tickets-open",
       tone: "info",
-      title: `${openAssignedTickets} تذكرة مفتوحة موجَّهة إليك`,
-      body: "لكلٍّ موعدٌ محدَّد — وما تأخّر منها يُصعَّد من تلقائه.",
+      title: fmt(L.openTicketsAreAssigned, openAssignedTickets),
+      body: L.eachHasASet,
       href: "/admin/tickets",
-      cta: "افتحها",
+      cta: L.openThem,
     });
   }
   if (awaitingApprovals > 0) {
     alerts.push({
       id: "approvals",
       tone: "warn",
-      title: `${awaitingApprovals} طلب اعتماد ينتظر قرارك`,
-      body: "صاحبُها لا يبدأ التنفيذ حتى تقرّر — والانتظارُ بلا قرارٍ تعطيلٌ لا حياد.",
+      title: fmt(L.approvalRequestsAwaitYour, awaitingApprovals),
+      body: L.theirOwnersCannotStart,
       href: "/admin/approvals",
-      cta: "قرِّر فيها",
+      cta: L.decideOnThem,
     });
   }
   if (returnedApprovals > 0) {
     alerts.push({
       id: "approvals-returned",
       tone: "warn",
-      title: `${returnedApprovals} طلب من طلباتك رُدَّ إليك للتعديل`,
-      body: "بملاحظاتٍ مكتوبة — تُعدَّل ويُعاد الطلب، ولا يُنشأ طلبٌ جديد.",
+      title: fmt(L.ofYourRequestsWere, returnedApprovals),
+      body: L.withWrittenNotesThey,
       href: "/admin/approvals",
-      cta: "عدّلها",
+      cta: L.editThem,
     });
   }
   if (signatureTodo > 0) {
     alerts.push({
       id: "signature",
       tone: "warn",
-      title: "توقيعك مطلوبٌ ولم يُرفَع بعد",
-      body: "الشهاداتُ التي تصدر باسمك تُرسَم بتوقيعك أنت — ولا يُستعمل توقيعُ غيرك مكانه.",
+      title: L.yourSignatureIsRequired,
+      body: L.certificatesIssuedInYour,
       href: "/admin/signature",
-      cta: "ارفع توقيعك",
+      cta: L.uploadYourSignature,
     });
   }
   if (signaturesToApprove > 0) {
     alerts.push({
       id: "signatures-approve",
       tone: "info",
-      title: `${signaturesToApprove} توقيع ينتظر اعتمادك`,
-      body: "ولا يُرسَم توقيعٌ على شهادةٍ قبل اعتماده.",
+      title: fmt(L.signaturesAwaitYourApproval, signaturesToApprove),
+      body: L.noSignatureIsDrawn,
       href: "/admin/signature",
-      cta: "راجِعها",
+      cta: L.reviewThem,
     });
   }
   if (pendingCommittees > 0) {
     alerts.push({
       id: "committees",
       tone: "warn",
-      title: `${pendingCommittees} اقتراح لجنة ينتظر قرارك`,
-      body: "اللجنةُ لا تُفتح ولا يُدعى لها قائدٌ قبل اعتمادك — واقتراحُها يقف حتى تقرّر.",
+      title: fmt(L.committeeProposalsAwaitYour, pendingCommittees),
+      body: L.aCommitteeDoesNot,
       href: "/admin/departments",
-      cta: "افتح الطابور",
+      cta: L.openTheQueue,
     });
   }
   if (departmentRequests > 0) {
     alerts.push({
       id: "department-requests",
       tone: "warn",
-      title: `${departmentRequests} طلب إنشاء قسم ينتظر اعتمادك`,
-      body: "القسمُ لا يُبنى ولا يظهر في الهيكل ولا يُدعى إليه أحدٌ قبل اعتمادك.",
+      title: fmt(L.departmentCreationRequestsAwait, departmentRequests),
+      body: L.aDepartmentIsNot,
       href: "/admin/departments",
-      cta: "افتح الطلبات",
+      cta: L.openTheRequests,
     });
   }
   if (terminationsToDecide > 0) {
     alerts.push({
       id: "terminations",
       tone: "warn",
-      title: `${terminationsToDecide} طلب إنهاء فترة إدارة ينتظر قراراً`,
-      body: "أمامك الموافقةُ بتاريخٍ أو الرفضُ بتفسيرٍ أو طلبُ لقاءٍ قبل أن تقرّر.",
+      title: fmt(L.administrationTermTerminationRequests, terminationsToDecide),
+      body: L.youCanApproveWith,
       href: "/admin/terminations",
-      cta: "افتحها",
+      cta: L.openThem,
     });
   }
 
@@ -279,49 +282,49 @@ export async function alertsForUser(session: Session): Promise<Alert[]> {
     alerts.push({
       id: "exec-overdue",
       tone: "danger",
-      title: `${myOverdueTasks} التزاماً تأخّر عن موعده وهو باسمك`,
-      body: "وما لم يكتمل لا يَختفي بانتهاء الأسبوع: يُرحَّل بموعده الأصلي ويُطلَب سببُه وخطةُ تصحيحه.",
+      title: fmt(L.commitmentsInYourName, myOverdueTasks),
+      body: L.whatIsUnfinishedDoes,
       href: "/admin/execution",
-      cta: "افتحها",
+      cta: L.openThem,
     });
   } else if (myOpenTasks > 0) {
     alerts.push({
       id: "exec-open",
       tone: "info",
-      title: `${myOpenTasks} التزاماً قائماً باسمك هذا الأسبوع`,
-      body: "لكلٍّ معيارُ إنجازٍ ومُراجِع — والتحقّقُ لا يقع على إعلانٍ بل على دليل.",
+      title: fmt(L.openCommitmentsInYour, myOpenTasks),
+      body: L.eachHasAnAcceptance,
       href: "/admin/execution",
-      cta: "افتحها",
+      cta: L.openThem,
     });
   }
   if (awaitingVerify > 0) {
     alerts.push({
       id: "exec-verify",
       tone: "warn",
-      title: `${awaitingVerify} تسليماً ينتظر تحقّقك`,
-      body: "ولا يُحتسَب أيٌّ منها إنجازاً معتمَداً قبل قرارك — والنسبةُ تُقرأ كما هي.",
+      title: fmt(L.submissionsAwaitYourVerification, awaitingVerify),
+      body: L.noneCountsAsApproved,
       href: "/admin/execution/review",
-      cta: "راجِعها",
+      cta: L.reviewThem,
     });
   }
   if (carryNeedsPlan > 0) {
     alerts.push({
       id: "exec-carry",
       tone: "warn",
-      title: `${carryNeedsPlan} التزاماً مُرحَّلاً بلا سببٍ وخطةِ تصحيح`,
-      body: "ولا تُرفَع خطةُ قسمك ولا تُعتمَد قبل إقرارهما — الترحيلُ التزامٌ يُعاد إقرارُه.",
+      title: fmt(L.carriedOverCommitmentsLack, carryNeedsPlan),
+      body: L.yourDepartmentSPlan,
       href: "/admin",
-      cta: "أقِرَّها",
+      cta: L.confirmThem,
     });
   }
   if (unopenedNext > 0) {
     alerts.push({
       id: "exec-open-week",
       tone: "warn",
-      title: "اكتملت المراجعةُ وأسبوعٌ ينتظر إذنَ الفتح",
-      body: "ولا يُفتَح بمرور التقويم — الإذنُ قرارُك الصريح.",
+      title: L.theReviewIsComplete,
+      body: L.itDoesNotOpen,
       href: "/admin/execution",
-      cta: "افتحه",
+      cta: L.openIt,
     });
   }
 
@@ -330,12 +333,12 @@ export async function alertsForUser(session: Session): Promise<Alert[]> {
     alerts.push({
       id: "plans",
       tone: "info",
-      title: `${freshPlans} وثيقة جديدة في مركز الخطط`,
+      title: fmt(L.newDocumentsInThe, freshPlans),
       body: canManagePlans(role)
-        ? "أُضيفت خلال الأسبوع — راجِع ترتيبَها ونبذتَها."
-        : "أُضيفت خلال الأسبوع ويقرؤها الجميع.",
+        ? L.addedDuringTheWeek
+        : L.addedDuringTheWeek2,
       href: "/plans",
-      cta: "اقرأها",
+      cta: L.readThem,
     });
   }
 
@@ -349,20 +352,20 @@ export async function alertsForUser(session: Session): Promise<Alert[]> {
       alerts.push({
         id: "improve-mine",
         tone: "warn",
-        title: `${awaitingMe} ملاحظةٌ أُصلحت وتَنتظر تجربتَك`,
-        body: "جرّبها واشهَد: لا تُغلَق ملاحظةٌ بإقرار من أصلحها وحده.",
+        title: fmt(L.fixedNotesAwaitYour, awaitingMe),
+        body: L.tryItAndConfirm,
         href: "/admin/improvements",
-        cta: "جرّبها",
+        cta: L.tryIt,
       });
     }
     if (inbox > 0) {
       alerts.push({
         id: "improve-inbox",
         tone: "info",
-        title: `${inbox} ملاحظةُ تحسينٍ في الصندوق`,
-        body: "رُفعت من زرّ «تحسين» وتَنتظر تصنيفاً أو بدءَ عمل.",
+        title: fmt(L.improvementNotesInThe, inbox),
+        body: L.raisedFromTheImprove,
         href: "/admin/improvements",
-        cta: "افتح الصندوق",
+        cta: L.openTheInbox,
       });
     }
   }
@@ -378,7 +381,8 @@ export async function alertsForMember(opts: {
   avatarVersion: Date | null;
   phone: string | null;
   unacknowledgedWarnings: number;
-}): Promise<Alert[]> {
+}, locale: Locale = "ar"): Promise<Alert[]> {
+  const L = getDictionary(locale).libAlerts;
   const alerts: Alert[] = [];
   const weekAgo = new Date(Date.now() - 7 * 86_400_000);
 
@@ -403,35 +407,35 @@ export async function alertsForMember(opts: {
     alerts.push({
       id: "temp-password",
       tone: "danger",
-      title: "كلمة مرورك ما زالت مؤقتة",
-      body: "الرمزُ المؤقت سُلِّم إليك ليُستبدَل — وما دام قائماً فمن اطّلع عليه يدخل بحسابك.",
+      title: L.yourPasswordIsStill,
+      body: L.theTemporaryCodeWas2,
       href: "/change-password",
-      cta: "غيّرها الآن",
+      cta: L.changeItNow,
     });
   }
   if (opts.unacknowledgedWarnings > 0) {
     alerts.push({
       id: "warnings",
       tone: "danger",
-      title: `${opts.unacknowledgedWarnings} تنبيه لم تطّلع عليه بعد`,
-      body: "ثلاثةُ تنبيهاتٍ تؤدّي إلى إنهاء العضوية — والاطّلاعُ يُسجَّل باسمك.",
+      title: fmt(L.warningsYouHaveNot, opts.unacknowledgedWarnings),
+      body: L.threeWarningsLeadTo,
       href: "/member",
-      cta: "اطّلع عليها",
+      cta: L.viewThem,
     });
   }
 
   const missing: string[] = [];
-  if (!opts.phone?.trim()) missing.push("رقم الجوال");
-  if (!opts.avatarVersion) missing.push("الصورة الشخصية");
-  if (!opts.profileCompletedAt) missing.push("بيانات التخصص والشعبة");
+  if (!opts.phone?.trim()) missing.push(L.mobileNumber);
+  if (!opts.avatarVersion) missing.push(L.profilePhoto);
+  if (!opts.profileCompletedAt) missing.push(L.specialisationAndSectionDetails);
   if (missing.length > 0) {
     alerts.push({
       id: "profile",
       tone: "warn",
-      title: `بياناتك ناقصة: ${missing.join("، ")}`,
-      body: "بطاقتُك في الهيكل التنظيمي وشهادتُك تُقرآن منها — والناقصُ يظهر ناقصاً للجميع.",
+      title: fmt(L.missingData, missing.join(L.listSep)),
+      body: L.yourCardInThe2,
       href: "/member/welcome",
-      cta: "أكمِلها",
+      cta: L.completeThem,
     });
   }
 
@@ -439,29 +443,29 @@ export async function alertsForMember(opts: {
     alerts.push({
       id: "tickets-overdue",
       tone: "danger",
-      title: `${overdueTickets} تذكرة تأخّرت عن موعدها وهي باسمك`,
-      body: "المتأخّرةُ تُصعَّد إلى قائد قسمك تلقائياً.",
+      title: fmt(L.ticketsInYourName, overdueTickets),
+      body: L.lateTicketsEscalateAutomatically2,
       href: "/member",
-      cta: "افتحها",
+      cta: L.openThem,
     });
   } else if (openTickets > 0) {
     alerts.push({
       id: "tickets-open",
       tone: "info",
-      title: `${openTickets} تذكرة مفتوحة موجَّهة إليك`,
-      body: "لكلٍّ موعدٌ محدَّد — وما تأخّر يُصعَّد من تلقائه.",
+      title: fmt(L.openTicketsAreAssigned, openTickets),
+      body: L.eachHasASet2,
       href: "/member",
-      cta: "افتحها",
+      cta: L.openThem,
     });
   }
   if (openTermination > 0) {
     alerts.push({
       id: "termination",
       tone: "info",
-      title: "طلبُ إنهاء فترة إدارتك قائمٌ بانتظار القرار",
-      body: "وأنت على عملك حتى يُقرَّر وتحلّ المهلة — الرفعُ لا يُعطّل أحداً.",
+      title: L.yourRequestToEnd,
+      body: L.youStayInYour,
       href: "/member",
-      cta: "تابِعه",
+      cta: L.followIt,
     });
   }
   const [myOpen, myOverdue] = await Promise.all([
@@ -480,19 +484,19 @@ export async function alertsForMember(opts: {
     alerts.push({
       id: "exec-overdue",
       tone: "danger",
-      title: `${myOverdue} التزاماً تأخّر عن موعده وهو باسمك`,
-      body: "ولا يَختفي بانتهاء الأسبوع: يُرحَّل بموعده الأصلي ويُطلَب سببُه وخطةُ تصحيحه.",
+      title: fmt(L.commitmentsInYourName, myOverdue),
+      body: L.itDoesNotDisappear,
       href: "/member",
-      cta: "افتحها",
+      cta: L.openThem,
     });
   } else if (myOpen > 0) {
     alerts.push({
       id: "exec-open",
       tone: "info",
-      title: `${myOpen} التزاماً قائماً باسمك`,
-      body: "لكلٍّ معيارُ إنجازٍ ودليلٌ يُرفَع — والتحقّقُ من مسؤولك لا منك.",
+      title: fmt(L.openCommitmentsInYour2, myOpen),
+      body: L.eachHasAnAcceptance2,
       href: "/member",
-      cta: "افتحها",
+      cta: L.openThem,
     });
   }
 
@@ -500,10 +504,10 @@ export async function alertsForMember(opts: {
     alerts.push({
       id: "plans",
       tone: "info",
-      title: `${freshPlans} وثيقة جديدة في مركز الخطط`,
-      body: "خطةُ تَـــلاقِ وأهدافُها — أُضيفت خلال الأسبوع.",
+      title: fmt(L.newDocumentsInThe, freshPlans),
+      body: L.tlaqiSPlanAnd,
       href: "/plans",
-      cta: "اقرأها",
+      cta: L.readThem,
     });
   }
 
@@ -517,20 +521,20 @@ export async function alertsForMember(opts: {
       alerts.push({
         id: "improve-mine",
         tone: "warn",
-        title: `${awaitingMe} ملاحظةٌ أُصلحت وتَنتظر تجربتَك`,
-        body: "جرّبها واشهَد: لا تُغلَق ملاحظةٌ بإقرار من أصلحها وحده.",
+        title: fmt(L.fixedNotesAwaitYour, awaitingMe),
+        body: L.tryItAndConfirm,
         href: "/admin/improvements",
-        cta: "جرّبها",
+        cta: L.tryIt,
       });
     }
     if (inbox > 0) {
       alerts.push({
         id: "improve-inbox",
         tone: "info",
-        title: `${inbox} ملاحظةُ تحسينٍ في الصندوق`,
-        body: "رُفعت من زرّ «تحسين» وتَنتظر تصنيفاً أو بدءَ عمل.",
+        title: fmt(L.improvementNotesInThe, inbox),
+        body: L.raisedFromTheImprove,
         href: "/admin/improvements",
-        cta: "افتح الصندوق",
+        cta: L.openTheInbox,
       });
     }
   }

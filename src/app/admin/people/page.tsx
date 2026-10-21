@@ -21,7 +21,7 @@ import {
   sweepExpiredCandidateAccounts,
   candidateWindowExpired,
 } from "@/lib/workflow";
-import { ROLE_LABELS } from "@/lib/testTracks";
+import { accountRoleLabel } from "@/lib/testTracks";
 import { loginHealthFor, loginHealthNotes, loginHealthBlocked } from "@/lib/loginHealth";
 import { scheduleDueSweeps } from "@/lib/sweepThrottle";
 import { isRosterMember } from "@/lib/roster";
@@ -29,6 +29,7 @@ import { affiliationFor } from "@/lib/seniorAffiliation";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { portraitColorFor } from "@/lib/portraitTone";
 
+import { fmt } from "@/i18n/fmt";
 /** إدارة الأعضاء والهيكل التنظيمي — موضعٌ واحد للشخص وموقعه وقسمه.
  *
  *  كانت «إدارة حسابات القيادة» و«سجلّ الأعضاء» صفحتين: الأولى للإجراء
@@ -44,13 +45,14 @@ import { portraitColorFor } from "@/lib/portraitTone";
  *  نفسها، فمن أُضيف هنا ظهر فيه وحده ولا يُكتَب مرتين.
  */
 type Tab = "all" | "leaders" | "members" | "joining" | "attention" | "removed";
-const TABS: { id: Tab; label: string }[] = [
-  { id: "all", label: "الكل" },
-  { id: "leaders", label: "القيادة" },
-  { id: "members", label: "الأعضاء" },
-  { id: "joining", label: "قيد الانضمام" },
-  { id: "attention", label: "يحتاج انتباهاً" },
-  { id: "removed", label: "المنحّون والمنتهون" },
+// أسماءُ التبويبات من القاموس (`tabs`) — هنا معرّفاتُها وترتيبُها
+const TABS: { id: Tab }[] = [
+  { id: "all" },
+  { id: "leaders" },
+  { id: "members" },
+  { id: "joining" },
+  { id: "attention" },
+  { id: "removed" },
 ];
 
 export default async function PeoplePage({
@@ -58,6 +60,8 @@ export default async function PeoplePage({
 }: {
   searchParams: Promise<{ tab?: string; q?: string; dept?: string }>;
 }) {
+  const locale = await getLocale();
+  const L = getDictionary(locale).rPeoplePage;
   const sp = await searchParams;
   const tab: Tab = TABS.find((x) => x.id === sp.tab)?.id ?? "all";
   const q = (sp.q ?? "").trim().toLowerCase();
@@ -67,7 +71,7 @@ export default async function PeoplePage({
   if (session.user.role !== "super_admin" && session.user.role !== "executive") redirect("/admin");
 
   const isSuperAdmin = session.user.role === "super_admin";
-  const t = getDictionary(await getLocale());
+  const t = getDictionary(locale);
   const tm = t.membersPage;
 
   scheduleDueSweeps({ candidate_expiry: () => sweepExpiredCandidateAccounts() });
@@ -150,8 +154,8 @@ export default async function PeoplePage({
   );
   /** جملةُ الوصول — أو `null` لمن لم تصله بعد */
   const welcomedLabel = (email: string, at: Date | null): string | null => {
-    if (at) return `في ${formatDate(at)}`;
-    return welcomedEmails.has(email.toLowerCase()) ? "سابقاً (مثبَّتٌ في سجل الرسائل)" : null;
+    if (at) return fmt(L.on, formatDate(at));
+    return welcomedEmails.has(email.toLowerCase()) ? L.earlierRecordedInThe : null;
   };
 
   // ── حالةُ الدخول: للمؤسس وحده. ولا تُجلَب أصلاً لغيره — لا تُجلَب
@@ -181,7 +185,7 @@ export default async function PeoplePage({
     if (!seesLoginHealth) return undefined;
     const h = health.get(email.toLowerCase());
     if (!h || !loginHealthBlocked(h)) return undefined;
-    return loginHealthNotes(h);
+    return loginHealthNotes(h, undefined, locale);
   };
 
 
@@ -232,7 +236,7 @@ export default async function PeoplePage({
     id: m.id,
     fullName: m.fullName,
     email: m.email,
-    scope: m.department?.name ?? (ROLE_LABELS[m.invite.targetRole] ?? "—"),
+    scope: m.department?.name ?? accountRoleLabel(m.invite.targetRole, locale),
     stage: stageOf(m),
     testScore: m.testScore,
     warningsCount: m.warningsCount,
@@ -266,7 +270,7 @@ export default async function PeoplePage({
             {m.department.name}
           </span>
         ) : (
-          (ROLE_LABELS[m.invite.targetRole] ?? "—")
+          accountRoleLabel(m.invite.targetRole, locale)
         ),
         stage: <StageBadge label={stageOf(m)} />,
         score: m.testScore === null ? "—" : `${m.testScore}%`,
@@ -306,14 +310,14 @@ export default async function PeoplePage({
     self: boolean;
   };
   const welcomeOf = (email: string, at: Date | null): Row["welcome"] => {
-    if (welcomedLabel(email, at)) return { label: "قُبلت ✓", tone: "ok" };
-    if (failedWelcome.has(email.toLowerCase())) return { label: "فشل الإرسال", tone: "bad" };
-    return { label: "لم تُرسل", tone: "warn" };
+    if (welcomedLabel(email, at)) return { label: L.accepted, tone: "ok" };
+    if (failedWelcome.has(email.toLowerCase())) return { label: L.sendingFailed, tone: "bad" };
+    return { label: L.notSent, tone: "warn" };
   };
   const statusOf = (email: string, totp: boolean | null): Row["status"] => {
-    if (notesFor(email)) return { label: "دخولٌ متعثّر", tone: "warn" };
-    if (totp === false) return { label: "بلا تحقق ثنائي", tone: "warn" };
-    return { label: "نشط", tone: "ok" };
+    if (notesFor(email)) return { label: L.loginTrouble, tone: "warn" };
+    if (totp === false) return { label: L.noTwoFactor, tone: "warn" };
+    return { label: L.active, tone: "ok" };
   };
 
   // المؤسس والتنفيذي ومسؤول التشغيل من الإدارة العليا بدورهم — `seniorAffiliation`
@@ -327,7 +331,7 @@ export default async function PeoplePage({
             id: me.id,
             name: me.fullName,
             email: me.email,
-            role: roleTitle(me.role, me.gender, me.department?.name),
+            role: roleTitle(me.role, me.gender, me.department?.name, locale),
             dept: affiliationFor(me.role, me.department, seniorRef),
             since: me.createdAt,
             avatar: avatarUrl("user", me.id, me.avatarVersion),
@@ -343,7 +347,7 @@ export default async function PeoplePage({
       id: a.id,
       name: a.fullName,
       email: a.email,
-      role: roleTitle(a.role, a.gender, a.department?.name),
+      role: roleTitle(a.role, a.gender, a.department?.name, locale),
       dept: affiliationFor(
         a.role,
         a.department ? { id: a.department.id, name: a.department.name, colorHex: a.department.colorHex } : null,
@@ -362,7 +366,7 @@ export default async function PeoplePage({
     id: m.id,
     name: m.fullName,
     email: m.email,
-    role: [roleTitle("member", m.gender), m.jobTitle?.trim()].filter(Boolean).join(" · "),
+    role: [roleTitle("member", m.gender, null, locale), m.jobTitle?.trim()].filter(Boolean).join(" · "),
     dept: m.department ? { id: m.department.id, name: m.department.name, colorHex: m.department.colorHex } : null,
     since: m.orgJoinDate ?? m.decidedAt ?? m.joinDate,
     avatar: avatarUrl("member", m.id, m.avatarVersion),
@@ -408,12 +412,10 @@ export default async function PeoplePage({
 
       <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 sm:px-5 sm:py-8">
         <PageHeader
-          title="الأعضاء"
-          description="سجلٌّ واحد لكل من في تَـــلاقِ — كل شخصٍ يظهر مرّةً واحدة، وإجراءاتُه في ملفه وفي قائمته المختصرة."
+          title={L.members}
+          description={L.oneRegisterForEveryone}
           actions={
-            <Link href="/admin/invites" className="btn-brand ticket-cta__btn">
-              ＋ دعوة شخص
-            </Link>
+            <Link href="/admin/invites" className="btn-brand ticket-cta__btn">{L.inviteSomeone}</Link>
           }
         />
 
@@ -421,10 +423,10 @@ export default async function PeoplePage({
         <SeatConflicts canPurge={isSuperAdmin} />
 
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <nav className="roster-tabs" aria-label="تبويبات السجل">
+          <nav className="roster-tabs" aria-label={L.registerTabs}>
             {TABS.map((x) => (
               <Link key={x.id} href={href({ tab: x.id })} aria-current={tab === x.id ? "page" : undefined} className="roster-tab">
-                {x.label} <span className="roster-tab__n">{counts[x.id]}</span>
+                {L.tabs[x.id]} <span className="roster-tab__n">{counts[x.id]}</span>
               </Link>
             ))}
           </nav>
@@ -434,40 +436,38 @@ export default async function PeoplePage({
               <input
                 name="q"
                 defaultValue={sp.q ?? ""}
-                placeholder="بحث بالاسم أو البريد"
-                aria-label="بحث بالاسم أو البريد"
+                placeholder={L.searchByNameOr}
+                aria-label={L.searchByNameOr}
                 className="min-h-10 w-56 rounded-xl border border-black/10 bg-white px-3.5 text-sm outline-none focus:border-black/30"
               />
               <select
                 name="dept"
                 defaultValue={deptFilter}
-                aria-label="القسم"
+                aria-label={L.department}
                 className="min-h-10 rounded-xl border border-black/10 bg-white px-3 text-sm"
               >
-                <option value="">كل الأقسام</option>
+                <option value="">{L.allDepartments}</option>
                 {allDepartments.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
                   </option>
                 ))}
               </select>
-              <button type="submit" className="wizard-btn-2 !min-h-10">
-                تصفية
-              </button>
+              <button type="submit" className="wizard-btn-2 !min-h-10">{L.filter}</button>
             </form>
           )}
         </div>
 
         {rosterTab && (
           <DataTable
-            emptyLabel={q || deptFilter ? "لا أحد يطابق البحث" : t.opsExtras.memberAccountsEmpty}
+            emptyLabel={q || deptFilter ? L.noOneMatchesThe : t.opsExtras.memberAccountsEmpty}
             columns={[
-              { key: "name", label: "الاسم", primary: true },
-              { key: "role", label: "الصفة" },
-              { key: "dept", label: "القسم" },
-              { key: "status", label: "الحالة" },
-              { key: "since", label: "المدة" },
-              { key: "welcome", label: "بطاقة الانضمام" },
+              { key: "name", label: L.name, primary: true },
+              { key: "role", label: L.role },
+              { key: "dept", label: L.department },
+              { key: "status", label: L.status },
+              { key: "since", label: L.tenure },
+              { key: "welcome", label: L.welcomeCard },
               { key: "actions", label: "" },
             ]}
             rows={shown.map((r) => ({
@@ -484,7 +484,7 @@ export default async function PeoplePage({
                     <span className="min-w-0">
                       <span className="block font-bold">
                         {r.name}
-                        {r.self && <span className="ms-1.5 text-[11px] font-semibold text-black/40">(أنت)</span>}
+                        {r.self && <span className="ms-1.5 text-[11px] font-semibold text-black/40">{L.you}</span>}
                       </span>
                       <span className="block break-all text-[11px] text-black/45">{r.email}</span>
                     </span>
@@ -500,7 +500,7 @@ export default async function PeoplePage({
                   "—"
                 ),
                 status: <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ring-1 ${tone[r.status.tone]}`}>{r.status.label}</span>,
-                since: <span className="text-xs text-black/50">{sinceLabel(r.since)}</span>,
+                since: <span className="text-xs text-black/50">{sinceLabel(r.since, undefined, locale)}</span>,
                 welcome: <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ring-1 ${tone[r.welcome.tone]}`}>{r.welcome.label}</span>,
                 actions: (
                   <RosterRowActions
@@ -516,9 +516,7 @@ export default async function PeoplePage({
         )}
 
         {rosterTab && (
-          <p className="text-[11px] leading-relaxed text-black/45">
-            «قُبلت ✓» تعني أن مزوّد البريد قبل الرسالة — لا أنها فُتحت. هذا ما تسجّله المنصة فعلاً.
-          </p>
+          <p className="text-[11px] leading-relaxed text-black/45">{L.acceptedMeansTheEmail}</p>
         )}
 
         {/* ── قيد الانضمام: العالقون، ثم الساقطون بالمهلة — كلٌّ في قسمه وحده */}
@@ -563,7 +561,7 @@ export default async function PeoplePage({
             <section>
               <h2 className="mb-3 text-lg font-bold">{t.seats.removedTitle}</h2>
               {removedUsers.length === 0 ? (
-                <Card className="p-8 text-center text-sm text-black/40">لا حسابات قيادية مُنحّاة</Card>
+                <Card className="p-8 text-center text-sm text-black/40">{L.noRemovedLeadershipAccounts}</Card>
               ) : (
                 <div className="flex flex-col gap-3">
                   {removedUsers.map((u) => (

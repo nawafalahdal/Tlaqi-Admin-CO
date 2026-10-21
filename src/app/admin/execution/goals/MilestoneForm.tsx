@@ -5,6 +5,7 @@ import { createMilestoneAction } from "../actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 
+import { useTranslations } from "@/i18n/LocaleProvider";
 /** محطّةٌ شهرية — بنتيجةٍ متوقَّعةٍ ومعيارِ قبول، لا بقسمةٍ على الأشهر */
 export function MilestoneForm({
   goalId,
@@ -15,6 +16,7 @@ export function MilestoneForm({
   leaders: { id: string; fullName: string }[];
   theme: ReturnType<typeof themeFromColor>;
 }) {
+  const L = useTranslations().rMilestoneForm;
   const [state, formAction, pending] = useActionState(createMilestoneAction, {
     error: null,
     success: false,
@@ -35,9 +37,7 @@ export function MilestoneForm({
 
   if (!open) {
     return (
-      <Button theme={theme} variant="outline" onClick={() => setOpen(true)}>
-        أضف محطّة
-      </Button>
+      <Button theme={theme} variant="outline" onClick={() => setOpen(true)}>{L.addAMilestone}</Button>
     );
   }
 
@@ -46,7 +46,7 @@ export function MilestoneForm({
       <input type="hidden" name="goalId" value={goalId} />
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">عنوان المحطّة</span>
+          <span className="font-medium text-black/70">{L.milestoneTitle}</span>
           <input
             name="title"
             required
@@ -54,7 +54,7 @@ export function MilestoneForm({
           />
         </label>
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">صاحبُها</span>
+          <span className="font-medium text-black/70">{L.owner}</span>
           <select
             name="ownerUserId"
             defaultValue=""
@@ -70,7 +70,7 @@ export function MilestoneForm({
         </label>
       </div>
       <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium text-black/70">النتيجةُ المتوقَّعة — ماذا يُسلَّم؟</span>
+        <span className="font-medium text-black/70">{L.expectedResultWhatIs}</span>
         <textarea
           name="expectedResult"
           required
@@ -79,7 +79,7 @@ export function MilestoneForm({
         />
       </label>
       <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium text-black/70">معيارُ القبول</span>
+        <span className="font-medium text-black/70">{L.acceptanceCriterion}</span>
         <textarea
           name="acceptanceCriteria"
           required
@@ -89,7 +89,7 @@ export function MilestoneForm({
       </label>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">البداية</span>
+          <span className="font-medium text-black/70">{L.start}</span>
           <input
             name="startDate"
             type="date"
@@ -98,7 +98,7 @@ export function MilestoneForm({
           />
         </label>
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">الموعد</span>
+          <span className="font-medium text-black/70">{L.dueDate}</span>
           <input
             name="dueDate"
             type="date"
@@ -112,11 +112,9 @@ export function MilestoneForm({
       )}
       <div className="flex flex-wrap gap-2">
         <Button theme={theme} type="submit" disabled={pending}>
-          {pending ? "جارٍ..." : "أضف المحطّة"}
+          {pending ? L.working : L.addTheMilestone}
         </Button>
-        <Button theme={theme} variant="outline" type="button" onClick={() => setOpen(false)}>
-          إلغاء
-        </Button>
+        <Button theme={theme} variant="outline" type="button" onClick={() => setOpen(false)}>{L.cancel}</Button>
       </div>
     </form>
   );

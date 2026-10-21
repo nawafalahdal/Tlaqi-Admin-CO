@@ -5,6 +5,8 @@ import { decideCommitteeAction } from "./actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 
+import { useTranslations } from "@/i18n/LocaleProvider";
+import { fmt } from "@/i18n/fmt";
 /** طابورُ اللجان المنتظِرة — أمام المدير التنفيذي (والمؤسس).
  *
  *  والردُّ لا يُقبَل بلا سببٍ مكتوب، والواجهةُ تُظهر ذلك قبل الضغط لا
@@ -29,14 +31,12 @@ export function CommitteeRequests({
   requests: PendingCommittee[];
   theme: ReturnType<typeof themeFromColor>;
 }) {
+  const L = useTranslations().rCommitteeRequests;
   const [done, setDone] = useState<string | null>(null);
 
   if (requests.length === 0) {
     return (
-      <p className="text-xs leading-relaxed text-black/45">
-        لا اقتراحات لجان بانتظار قرارك. وقائدُ كل قسمٍ يقترح لجانَ قسمه من لوحته، فتَصلك هنا — ولا
-        تُفتح لجنةٌ ولا يُدعى لها قائدٌ قبل اعتمادك.
-      </p>
+      <p className="text-xs leading-relaxed text-black/45">{L.noCommitteeProposalsAwait}</p>
     );
   }
 
@@ -61,6 +61,7 @@ function RequestRow({
   theme: ReturnType<typeof themeFromColor>;
   onDone: (message: string) => void;
 }) {
+  const L = useTranslations().rCommitteeRequests;
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState(false);
@@ -85,28 +86,26 @@ function RequestRow({
           aria-hidden
         />
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-bold">
-            لجنة {r.name}{" "}
-            <span className="font-medium text-black/45">داخل {r.parentName}</span>
+          <h3 className="text-sm font-bold">{L.committee}{r.name}{" "}
+            <span className="font-medium text-black/45">{fmt(L.within, r.parentName)}</span>
           </h3>
-          <p className="mt-0.5 text-xs text-black/45">
-            تأخذ لون «{r.parentName}» بإطارٍ متقطّعٍ يميّزها · مسمّى قائدها:{" "}
-            {r.leadTitle?.trim() || `قائد لجنة ${r.name}`}
-            {r.requestedByName ? ` · اقترحها ${r.requestedByName}` : ""}
+          <p className="mt-0.5 text-xs text-black/45">{L.itTakesTheColour}{r.parentName}{L.withADashedFrame}{" "}
+            {r.leadTitle?.trim() || fmt(L.committeeLead, r.name)}
+            {r.requestedByName ? fmt(L.proposedBy, r.requestedByName) : ""}
           </p>
         </div>
       </div>
 
       {rejecting && (
         <label className="mt-3 flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">سببُ الردّ — يقرؤه مقترِحُها</span>
+          <span className="font-medium text-black/70">{L.reasonForReturnIts}</span>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={2}
             required
             className="rounded-xl border border-black/10 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-black/30"
-            placeholder="مثال: نطاقُها يتقاطع مع لجنةٍ قائمة — ادمِجها فيها"
+            placeholder={L.eGItsScope}
           />
         </label>
       )}
@@ -117,11 +116,9 @@ function RequestRow({
         {!rejecting ? (
           <>
             <Button theme={theme} disabled={pending} onClick={() => decide("approved")}>
-              {pending ? "جارٍ..." : "اعتمدها وافتحها"}
+              {pending ? L.working : L.approveAndOpenIt}
             </Button>
-            <Button theme={theme} variant="ghost" onClick={() => setRejecting(true)}>
-              ردّها بسبب
-            </Button>
+            <Button theme={theme} variant="ghost" onClick={() => setRejecting(true)}>{L.returnItWithA}</Button>
           </>
         ) : (
           <>
@@ -130,11 +127,9 @@ function RequestRow({
               disabled={pending || note.trim().length === 0}
               onClick={() => decide("rejected")}
             >
-              {pending ? "جارٍ..." : "أرسل الردّ"}
+              {pending ? L.working : L.sendTheReply}
             </Button>
-            <Button theme={theme} variant="outline" onClick={() => setRejecting(false)}>
-              إلغاء
-            </Button>
+            <Button theme={theme} variant="outline" onClick={() => setRejecting(false)}>{L.cancel}</Button>
           </>
         )}
       </div>

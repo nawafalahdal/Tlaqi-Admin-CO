@@ -6,16 +6,19 @@ import { Card } from "@/components/ui";
 import {
   calendarEntries,
   monthGrid,
-  MONTH_NAMES,
-  KIND_LABEL,
+  monthName,
+  kindLabel,
   todayKey,
   type CalendarEntry,
 } from "@/lib/orgCalendar";
 import { fromRiyadhParts, toRiyadh } from "@/lib/riyadh";
 
+import { getLocale, getDictionary } from "@/i18n/server";
+import { fmt } from "@/i18n/fmt";
 export const dynamic = "force-dynamic";
 
-const WEEKDAYS = ["السبت", "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"];
+// أسماءُ الأيام من القاموس (`weekdays`) — والأسبوعُ يبدأ بالسبت
+const WEEKDAYS = ["sat", "sun", "mon", "tue", "wed", "thu", "fri"] as const;
 
 /** التقويمُ الموحَّد — مواعيدُ الأهداف والمحطّات والالتزامات والاجتماعات.
  *
@@ -31,6 +34,8 @@ export default async function CalendarPage({
 }: {
   searchParams: Promise<{ m?: string }>;
 }) {
+  const locale = await getLocale();
+  const L = getDictionary(locale).rCalendarPage;
   const session = await auth();
   if (!session) redirect("/login");
 
@@ -44,7 +49,7 @@ export default async function CalendarPage({
   }
 
   const grid = monthGrid(anchor);
-  const entries = await calendarEntries({ session, from: grid.from, to: grid.to });
+  const entries = await calendarEntries({ session, from: grid.from, to: grid.to, locale });
 
   const byDay = new Map<string, CalendarEntry[]>();
   for (const e of entries) {
@@ -66,33 +71,26 @@ export default async function CalendarPage({
     <div className="min-h-screen bg-page">
 
       <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
-        <PageHeader title="تقويمُ تَـــلاقِ" description={<>مواعيدُ الأهداف والمحطّات والالتزامات الأسبوعية واجتماعاتِ المراجعة — بتوقيت
-            الرياض. وكلُّ مدخلٍ يُفضي إلى سجلّه، ولا يُعرَض لأحدٍ ما لا يخصّه.</>} />
+        <PageHeader title={L.tlaqiCalendar} description={<>{L.dueDatesForGoals}</>} />
 
         {/* ── التنقّل بين الأشهر */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-bold">
-            {MONTH_NAMES[grid.month]} {grid.year}
+            {monthName(grid.month, locale)} {grid.year}
           </h2>
           <div className="flex gap-2 text-xs">
             <Link
               href={`/calendar?m=${key(prevAnchor)}`}
               className="rounded-lg border border-black/10 px-3 py-1.5 font-bold text-black/70"
-            >
-              → الشهر السابق
-            </Link>
+            >{L.previousMonth}</Link>
             <Link
               href="/calendar"
               className="rounded-lg border border-black/10 px-3 py-1.5 font-bold text-black/70"
-            >
-              هذا الشهر
-            </Link>
+            >{L.thisMonth}</Link>
             <Link
               href={`/calendar?m=${key(nextAnchor)}`}
               className="rounded-lg border border-black/10 px-3 py-1.5 font-bold text-black/70"
-            >
-              الشهر القادم ←
-            </Link>
+            >{L.nextMonth}</Link>
           </div>
         </div>
 
@@ -101,7 +99,7 @@ export default async function CalendarPage({
           <div className="grid grid-cols-7 border-b border-black/5">
             {WEEKDAYS.map((d) => (
               <div key={d} className="px-2 py-2 text-center text-[11px] font-bold text-black/50">
-                {d}
+                {L.weekdays[d]}
               </div>
             ))}
           </div>
@@ -139,7 +137,7 @@ export default async function CalendarPage({
                       <Link
                         key={e.id}
                         href={e.href}
-                        title={`${KIND_LABEL[e.kind]}: ${e.title}${e.detail ? ` — ${e.detail}` : ""}`}
+                        title={`${kindLabel(e.kind, locale)}: ${e.title}${e.detail ? ` — ${e.detail}` : ""}`}
                         className={`block truncate rounded px-1.5 py-0.5 text-[10px] font-semibold ${
                           e.overdue ? "ring-1 ring-red-400" : ""
                         }`}
@@ -154,8 +152,7 @@ export default async function CalendarPage({
                     ))}
                     {items.length > 3 && (
                       <span className="px-1.5 text-[10px] text-black/35">
-                        +{items.length - 3} غيرها
-                      </span>
+                        {fmt(L.more, items.length - 3)}</span>
                     )}
                   </div>
                 </div>
@@ -166,11 +163,9 @@ export default async function CalendarPage({
 
         {/* ── القادمُ قريباً: قائمةٌ تُقرأ على الجوّال */}
         <section>
-          <h2 className="mb-3 text-base font-bold">القادمُ قريباً</h2>
+          <h2 className="mb-3 text-base font-bold">{L.comingUp}</h2>
           {upcoming.length === 0 ? (
-            <Card className="p-6 text-center text-sm text-black/45">
-              لا مواعيدَ قادمةً في هذا الشهر.
-            </Card>
+            <Card className="p-6 text-center text-sm text-black/45">{L.noUpcomingDatesThis}</Card>
           ) : (
             <ul className="flex flex-col gap-2">
               {upcoming.map((e) => (
@@ -185,18 +180,14 @@ export default async function CalendarPage({
                             color: `light-dark(${e.colorHex}, var(--ink))`,
                           }}
                         >
-                          {KIND_LABEL[e.kind]}
+                          {kindLabel(e.kind, locale)}
                         </span>
                         <span className="text-sm font-bold">{e.title}</span>
                         {e.carried && (
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-900">
-                            مُرحَّل
-                          </span>
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-900">{L.carriedOver}</span>
                         )}
                         {e.overdue && (
-                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-800">
-                            متأخّر
-                          </span>
+                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-800">{L.late}</span>
                         )}
                       </div>
                       <p className="mt-1 text-xs text-black/50">

@@ -12,6 +12,7 @@ import { CredentialsReveal } from "@/components/CredentialsReveal";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
 
+import { fmt } from "@/i18n/fmt";
 export function AccountRow({
   account,
   theme,
@@ -28,6 +29,7 @@ export function AccountRow({
   /** يملك المُشاهد تكريمه؟ */
   canAward?: boolean;
 }) {
+  const L = useTranslations().rAccountRow;
   const [open, setOpen] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
   const [removeReason, setRemoveReason] = useState("");
@@ -253,9 +255,9 @@ export function AccountRow({
                   // ما انتقل إلى خَلَفِه يُقال صريحاً: الحذف لا يُسقط
                   // دعوةً أرسلها ولا طلباً ينتظره — يُورَّث
                   setPurgeDone(
-                    res.handover && res.handover !== "لا عمل معلَّق باسمه"
-                      ? `حُذف الحساب نهائياً. ${res.handover}.`
-                      : "حُذف الحساب نهائياً — ولا عمل معلَّق كان باسمه."
+                    res.handover && res.handover !== L.noPendingWorkIn
+                      ? fmt(L.theAccountWasPermanently, res.handover)
+                      : L.theAccountWasPermanently2
                   );
                   setPurgeOpen(false);
                 });

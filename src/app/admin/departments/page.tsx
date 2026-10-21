@@ -23,6 +23,7 @@ import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 import { SENIOR_ROLES, seniorDepartment } from "@/lib/seniorAffiliation";
 import { formatDate } from "@/lib/format";
 
+import { fmt } from "@/i18n/fmt";
 /** فهرس الأقسام — صفحةُ حوكمة الهيكل.
  *
  *  تُقرأ من أعلى إلى أسفل كما يُتَّخذ القرار: خلاصةٌ بالأرقام، ثم ما
@@ -38,6 +39,7 @@ import { formatDate } from "@/lib/format";
 const SENIOR_THEME = themeFromColor("#341D2B");
 
 export default async function DepartmentsIndexPage() {
+  const L = getDictionary(await getLocale()).rDepartmentsPage;
   const session = await auth();
   if (!session) redirect("/login");
   if (session.user.role === "member") redirect("/member");
@@ -182,11 +184,8 @@ export default async function DepartmentsIndexPage() {
             )}
             {pending.length > 0 && (
               <Card className="p-4 sm:p-5">
-                <h3 className="mb-1 text-sm font-bold">اقتراحات اللجان ({pending.length})</h3>
-                <p className="mb-3 text-xs leading-relaxed text-black/50">
-                  اللجنة قسمٌ داخل قسم: يقترحها قائدُ القسم بلونها ومسمّى قائدها، وتُفتح باعتمادك —
-                  فيصير لها بنكُ أسئلة، وتظهر في الهيكل فرعاً داخل أبيها، ويدعو قائدُ القسم قيادتَها.
-                </p>
+                <h3 className="mb-1 text-sm font-bold">{fmt(L.committeeProposals, pending.length)}</h3>
+                <p className="mb-3 text-xs leading-relaxed text-black/50">{L.aCommitteeIsA}</p>
                 <CommitteeRequests
                   theme={theme}
                   requests={pending.map((p) => ({
@@ -238,7 +237,7 @@ export default async function DepartmentsIndexPage() {
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-sm font-bold">{isCommittee ? `لجنة ${d.name}` : d.name}</h3>
+                      <h3 className="text-sm font-bold">{isCommittee ? fmt(L.committee, d.name) : d.name}</h3>
                       {isCommittee && (
                         <span
                           className="rounded-full border border-dashed px-2.5 py-0.5 text-[11px] font-bold"
@@ -250,17 +249,16 @@ export default async function DepartmentsIndexPage() {
                             color: `light-dark(${d.colorHex}, var(--ink))`,
                           }}
                         >
-                          داخل {d.parent?.name ?? "—"}
-                        </span>
+                          {fmt(L.within, d.parent?.name ?? "—")}</span>
                       )}
                       {d.committeeStatus === "pending_review" && (
                         <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-900">
-                          {isCommittee ? "بانتظار الاعتماد" : td.statusPendingFounder}
+                          {isCommittee ? L.awaitingApproval : td.statusPendingFounder}
                         </span>
                       )}
                       {d.committeeStatus === "rejected" && (
                         <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-[11px] font-bold text-red-700">
-                          {isCommittee ? "لم تُعتمد" : td.statusRejected}
+                          {isCommittee ? L.notApproved : td.statusRejected}
                         </span>
                       )}
                       {d.leadershipOnly && (
@@ -279,7 +277,7 @@ export default async function DepartmentsIndexPage() {
                       <div className="flex gap-1">
                         <dt className="text-black/45">{isSenior ? td.seniorLeadLabel : td.leadLabel}:</dt>
                         <dd className="font-semibold text-black/75">
-                          {leadNames.length > 0 ? leadNames.join("، ") : td.noLead}
+                          {leadNames.length > 0 ? leadNames.join(L.t7) : td.noLead}
                         </dd>
                       </div>
                       <div className="flex gap-1">
@@ -297,7 +295,7 @@ export default async function DepartmentsIndexPage() {
                     </dl>
 
                     {isCommittee && (
-                      <p className="mt-1 text-xs text-black/40">مسمّى قائدها: {committeeLeadTitle(d.name, d.leadTitle)}</p>
+                      <p className="mt-1 text-xs text-black/40">{fmt(L.leadTitle, committeeLeadTitle(d.name, d.leadTitle))}</p>
                     )}
                     {/* ما بُني بطلبٍ يبقى منسوباً: من طلبه، ومن اعتمده */}
                     {!isCommittee && d.requestedByName && (

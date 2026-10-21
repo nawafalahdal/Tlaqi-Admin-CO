@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { Session } from "next-auth";
 import type { PeriodState, TaskExecState, Prisma } from "@prisma/client";
 import { lastWeekdayAt, nextWeekdayAt, SATURDAY, riyadhDaysBetween } from "@/lib/riyadh";
+import { getDictionary, type Locale } from "@/i18n";
 
 /** فتراتُ التنفيذ الأسبوعية: آلةُ حالةٍ صريحة، وقفلٌ يُفرَض في الخادم.
  *
@@ -248,18 +249,9 @@ async function transition(opts: {
   return { ok: true, message: opts.successMessage };
 }
 
-export function stateLabel(state: PeriodState): string {
-  const map: Record<PeriodState, string> = {
-    draft: "قيد البناء",
-    submitted: "مرفوعةٌ للمراجعة",
-    approved_for_review: "معتمَدةٌ للعرض",
-    awaiting_review: "بانتظار إتمام المراجعة",
-    awaiting_opening: "بانتظار إذن الفتح",
-    open: "مفتوحةٌ للتنفيذ",
-    closed: "مُغلقة",
-    reopened: "أُعيد فتحُها باستثناء",
-  };
-  return map[state];
+/** اسمُ حالة الفترة. والعربيةُ افتراضاً: سجلُّ التغييرات يكتبه بها. */
+export function stateLabel(state: PeriodState, locale: Locale = "ar"): string {
+  return getDictionary(locale).libLabels.periodState[state];
 }
 
 /** رفعُ خطط الأسبوع للمراجعة — لقائد قسمٍ أو للإدارة */
@@ -464,10 +456,11 @@ export async function reopenPeriod(opts: {
 }
 
 /** حالةُ الفترة كما تُعرَض: اسمُها، وتواريخُها، وأيُّ أسبوعٍ هي */
-export function periodLabel(weekStart: Date, now: Date = new Date()): string {
+export function periodLabel(weekStart: Date, now: Date = new Date(), locale: Locale = "ar"): string {
+  const when = getDictionary(locale).libLabels.periodWhen;
   const days = riyadhDaysBetween(weekStart, now);
-  if (days >= 0 && days < 7) return "الأسبوع الجاري";
-  if (days < 0 && days >= -7) return "الأسبوع القادم";
-  if (days >= 7 && days < 14) return "الأسبوع الماضي";
+  if (days >= 0 && days < 7) return when.current;
+  if (days < 0 && days >= -7) return when.next;
+  if (days >= 7 && days < 14) return when.previous;
   return "";
 }

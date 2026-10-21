@@ -28,7 +28,7 @@ import { canDecideCandidate } from "@/lib/permissions";
 import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 import { approvedGoals, canApproveGoal } from "@/lib/goals";
 import { periodStartFor, stateLabel } from "@/lib/execution";
-import { calendarEntries, KIND_LABEL } from "@/lib/orgCalendar";
+import { calendarEntries, kindLabel } from "@/lib/orgCalendar";
 
 export default async function AdminPage() {
   const session = await auth();
@@ -107,8 +107,8 @@ export default async function AdminPage() {
     // وهي والتقويمُ والتنبيهاتُ في الرحلة نفسها: كانت ثلاثَ رحلاتٍ متتالية
     // بعد هذه، ولا تعتمد واحدةٌ منها على ما قبلها
     ticketBoardData(session),
-    calendarEntries({ session, from: now, to: new Date(now.getTime() + 45 * 86_400_000) }),
-    alertsForUser(session),
+    calendarEntries({ session, from: now, to: new Date(now.getTime() + 45 * 86_400_000), locale: await getLocale() }),
+    alertsForUser(session, await getLocale()),
   ]);
 
   const upcoming = calendar.filter((e) => e.kind !== "ticket" && e.kind !== "task").slice(0, 5);
@@ -160,7 +160,7 @@ export default async function AdminPage() {
     { v: pendingJoins, l: to.mJoins, s: to.mJoinsSub, href: "/admin/approvals#joins" },
     { v: goals.length, l: to.mGoals, s: nextGoal ? to.mGoalsNext.replace("{d}", formatDate(nextGoal.dueDate)) : to.mGoalsNone, href: "/admin/execution" },
     { v: activeMembers, l: to.mMembers, s: n(to.mMembersSub, departments.filter((d) => !d.parentId).length), href: "/admin/people" },
-    { v: week ? stateLabel(week.state) : "—", l: to.mWeek, s: week ? formatDate(week.weekStart) : "", href: "/admin/execution" },
+    { v: week ? stateLabel(week.state, locale) : "—", l: to.mWeek, s: week ? formatDate(week.weekStart) : "", href: "/admin/execution" },
   ];
 
   return (
@@ -220,7 +220,7 @@ export default async function AdminPage() {
                       <span className="w-1 shrink-0 rounded-full" style={{ background: e.colorHex }} />
                       <span className="min-w-0">
                         <span className="block text-xs font-bold" style={{ color: e.colorHex }}>
-                          {KIND_LABEL[e.kind]} · {formatDate(e.date)}
+                          {kindLabel(e.kind, locale)} · {formatDate(e.date)}
                         </span>
                         <span className="block text-sm font-bold">{e.title}</span>
                         {e.detail && <span className="block text-xs text-black/45">{e.detail}</span>}

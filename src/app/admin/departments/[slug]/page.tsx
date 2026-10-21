@@ -43,6 +43,7 @@ import { TicketBoard } from "@/components/TicketBoard";
 import { scheduleDueSweeps } from "@/lib/sweepThrottle";
 import { WorkspaceOverview } from "@/components/dashboard/WorkspaceOverview";
 
+import { fmt } from "@/i18n/fmt";
 function isCertificateEligible(decidedAt: Date | null) {
   if (!decidedAt) return false;
   return Date.now() - decidedAt.getTime() >= 90 * 24 * 60 * 60 * 1000;
@@ -53,6 +54,8 @@ export default async function DepartmentBoardPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
+  const locale = await getLocale();
+  const L = getDictionary(locale).rDeptPage;
   const { slug } = await params;
   const session = await auth();
   if (!session) redirect("/login");
@@ -83,7 +86,7 @@ export default async function DepartmentBoardPage({
   // هو من اقترحها، فحجبُها عنه يُخفي عليه مصير طلبه
   const committees = await committeesOf(department.id);
   // ما ينتظر القائدَ شخصياً — ومركزُ الخطط يُقرأ من لوحته كما من لوحة غيره
-  const alerts = isOwnDept ? await alertsForUser(session) : [];
+  const alerts = isOwnDept ? await alertsForUser(session, await getLocale()) : [];
 
   // ── خطةُ التنفيذ الأسبوعية لهذا القسم: الجارية والقادمة
   const { current: curPeriod, next: nextPeriod } = await currentAndNextPeriod();
@@ -313,7 +316,7 @@ export default async function DepartmentBoardPage({
 
           <Card className="p-4 sm:p-5">
             <WeekPlanPanel
-              title={`خطةُ الأسبوع الجاري — ${stateLabel(curPeriod.state)}`}
+              title={fmt(L.thisWeekSPlan, stateLabel(curPeriod.state, locale))}
               plan={curPlan}
               periodId={curPeriod.id}
               departmentId={department.id}
@@ -330,14 +333,14 @@ export default async function DepartmentBoardPage({
               readOnlyNote={
                 curPeriod.state === "open" || curPeriod.state === "reopened"
                   ? undefined
-                  : `الأسبوعُ «${stateLabel(curPeriod.state)}» — ولا يُكتَب فيه تنفيذٌ قبل فتحه بإذن الإدارة.`
+                  : fmt(L.theWeekIsNothing, stateLabel(curPeriod.state, locale))
               }
             />
           </Card>
 
           <Card className="p-4 sm:p-5">
             <WeekPlanPanel
-              title={`خطةُ الأسبوع القادم — ${stateLabel(nextPeriod.state)}`}
+              title={fmt(L.nextWeekSPlan, stateLabel(nextPeriod.state, locale))}
               plan={nextPlan}
               periodId={nextPeriod.id}
               departmentId={department.id}
@@ -351,7 +354,7 @@ export default async function DepartmentBoardPage({
               canPlan={canPlanHere}
               canReview={canReviewHere}
               theme={theme}
-              readOnlyNote="تُبنى الآن وتُرفَع للاعتماد — ولا يُكتَب فيها تنفيذٌ حتى تُفتَح بإذن الإدارة بعد مراجعة السبت."
+              readOnlyNote={L.beingBuiltNowAnd}
             />
           </Card>
         </section>
@@ -583,18 +586,14 @@ export default async function DepartmentBoardPage({
         <section>
           <Card className="p-5 flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-bold">تقارير {department.name}</h2>
-              <p className="text-xs text-black/40">
-                ملخّص أعضائك، والتذاكر التي أُغلقت في موعدها
-              </p>
+              <h2 className="text-sm font-bold">{fmt(L.reports, department.name)}</h2>
+              <p className="text-xs text-black/40">{L.aSummaryOfYour}</p>
             </div>
             <Link
               href="/admin/reports"
               className="rounded-lg px-3 py-1.5 text-xs font-semibold"
               style={{ background: theme.surface, color: theme.onSurface }}
-            >
-              افتح التقارير
-            </Link>
+            >{L.openTheReports}</Link>
           </Card>
         </section>
 

@@ -12,7 +12,7 @@ import { AdminProfileForm } from "./ProfileForm";
 import { seniorDepartment, affiliationFor } from "@/lib/seniorAffiliation";
 import { PageHeader } from "@/components/PageHeader";
 import { avatarHasTransparency } from "@/lib/avatars";
-import { WELCOME_MAX_SENDS, RESENDER_LABEL, resenderRoleFor } from "@/lib/welcomeResend";
+import { WELCOME_MAX_SENDS, resenderRoleFor } from "@/lib/welcomeResend";
 import { WelcomeMailCard } from "@/components/WelcomeMailCard";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { portraitColorFor } from "@/lib/portraitTone";
@@ -25,6 +25,8 @@ import { GovernanceCharter } from "@/components/GovernanceCharter";
  *  الفاوندر والتنفيذي والمشغّل وقادة الأقسام — بلا سجلّ إلا اسم وبريد.
  *  اللقب لا يُغني عن السجلّ: من يقود الفريق جزءٌ منه. */
 export default async function AdminProfilePage() {
+  const locale = await getLocale();
+  const L = getDictionary(locale).rProfilePage;
   const session = await auth();
   if (!session) redirect("/login");
   if (session.user.role === "member") redirect("/member");
@@ -38,10 +40,10 @@ export default async function AdminProfilePage() {
   // فلا يُسأل أحدهم عن قسمه، وكان المؤسس يُسجّله بنفسه هنا مرّة.
   const shownDepartment = affiliationFor(user.role, user.department, await seniorDepartment());
 
-  const t = getDictionary(await getLocale());
+  const t = getDictionary(locale);
   const tp = t.adminProfile;
   const theme = themeFromColor(user.department?.colorHex ?? SUPER_ADMIN_THEME.colorHex);
-  const roleLabel = accountRoleLabel(user.role);
+  const roleLabel = accountRoleLabel(user.role, locale);
   const identityColor = shownDepartment?.colorHex ?? SUPER_ADMIN_THEME.colorHex;
 
   return (
@@ -52,9 +54,7 @@ export default async function AdminProfilePage() {
           title={tp.title}
           description={tp.subtitle}
           actions={
-            <a href="#edit" className="wizard-btn-2">
-              تعديل بياناتك
-            </a>
+            <a href="#edit" className="wizard-btn-2">{L.editYourDetails}</a>
           }
         />
 
@@ -82,7 +82,7 @@ export default async function AdminProfilePage() {
                   user.totpEnabled ? "bg-green-50 text-green-800 ring-green-200" : "bg-amber-50 text-amber-900 ring-amber-200"
                 }`}
               >
-                {user.totpEnabled ? "التحقق بخطوتين مُفعّل" : "التحقق بخطوتين غير مُفعّل"}
+                {user.totpEnabled ? L.twoFactorAuthenticationIs : L.twoFactorAuthenticationIs2}
               </span>
             </p>
             <p className="mt-1 text-xs text-black/45">
@@ -94,7 +94,7 @@ export default async function AdminProfilePage() {
         <div className="grid gap-5 lg:grid-cols-2">
           {/* الهوية: تُعرض ولا تُعدَّل من هنا */}
           <Card className="p-5">
-            <h2 className="text-base font-bold">الحساب</h2>
+            <h2 className="text-base font-bold">{L.account}</h2>
             <dl className="mt-3 divide-y divide-black/[0.06]">
               <Row label={tp.email} value={user.email} ltr />
               <Row label={tp.since} value={formatDate(user.createdAt)} />
@@ -114,22 +114,18 @@ export default async function AdminProfilePage() {
               // المؤسسُ لنفسه بلا سقف؛ وغيرُه بطاقةُ الاعتماد وإعادةٌ واحدة
               canReport={user.role === "super_admin" || user.welcomeEmailCount < WELCOME_MAX_SENDS}
               selfSend={user.role === "super_admin" ? user.id : undefined}
-              resenderLabel={RESENDER_LABEL[resenderRoleFor(user.role)]}
+              resenderLabel={t.shell.roles[resenderRoleFor(user.role)]}
             />
             <Card className="p-5">
-              <h2 className="text-base font-bold">الأمان</h2>
+              <h2 className="text-base font-bold">{L.security}</h2>
               <p className="mt-1 text-xs leading-relaxed text-black/50">
                 {user.totpEnabled
-                  ? "دخولك محميٌّ بطريقين: كلمة المرور ورمز التطبيق أو البريد."
-                  : "دخولك معلّقٌ ببريدك وحده — فعّل التحقق بخطوتين ليبقى لك طريقٌ ثانٍ."}
+                  ? L.yourSignInIs
+                  : L.yourSignInHangs}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <a href="/admin/security" className="wizard-btn-2">
-                  التحقق بخطوتين
-                </a>
-                <a href="/change-password" className="wizard-btn-2">
-                  تغيير كلمة المرور
-                </a>
+                <a href="/admin/security" className="wizard-btn-2">{L.twoFactorAuthentication}</a>
+                <a href="/change-password" className="wizard-btn-2">{L.changePassword}</a>
               </div>
             </Card>
           </div>
@@ -160,13 +156,13 @@ export default async function AdminProfilePage() {
 
         {/* المرجع: يُفتح عند الحاجة ولا يُطيل الصفحة */}
         <details className="group rounded-2xl">
-          <summary className="wizard-btn-2 cursor-pointer list-none">شروط كلمة المرور والتحقق بخطوتين</summary>
+          <summary className="wizard-btn-2 cursor-pointer list-none">{L.passwordRulesAndTwo}</summary>
           <div className="mt-3">
             <SecurityGuidance theme={theme} totpEnabled={user.totpEnabled} />
           </div>
         </details>
         <details className="group rounded-2xl">
-          <summary className="wizard-btn-2 cursor-pointer list-none">الحوكمة — ما يجب وما لا يجوز</summary>
+          <summary className="wizard-btn-2 cursor-pointer list-none">{L.governanceWhatIsRequired}</summary>
           <div className="mt-3">
             <GovernanceCharter theme={theme} />
           </div>

@@ -9,6 +9,7 @@ import { ROLE_LABELS } from "@/lib/testTracks";
 import { safeErrorMessage } from "@/lib/safeError";
 import { parseGender } from "@/lib/gender";
 
+import { getLocale, getDictionary } from "@/i18n/server";
 /** يسجّل بيانات المرشّح قبل بدء اختباره.
  *
  *  البيانات تُكتب في الشيت فور حفظها، لا بعد الاختبار ولا بعد الاعتماد:
@@ -18,8 +19,9 @@ export async function saveCandidateProfileAction(
   _prev: { error: string | null },
   formData: FormData
 ): Promise<{ error: string | null }> {
+  const L = getDictionary(await getLocale()).rMemberWelcomeActions;
   const session = await auth();
-  if (!session || session.user.role !== "member") return { error: "غير مصرح" };
+  if (!session || session.user.role !== "member") return { error: L.notAllowed };
 
   const fullName = String(formData.get("fullName") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
@@ -30,7 +32,7 @@ export async function saveCandidateProfileAction(
   // وهو محفوظ على السجل. قبولُه من هنا يعني أن يسمّي كلٌّ نفسه بما يشاء.
 
   if (!fullName || !phone || !specialization || !gender) {
-    return { error: "الاسم والمخاطبة ورقم الجوال والتخصص مطلوبة" };
+    return { error: L.nameFormOfAddress };
   }
 
   try {

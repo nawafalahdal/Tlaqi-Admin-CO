@@ -5,8 +5,6 @@ import {
   approvalsAwaiting,
   myApprovalRequests,
   possibleApprovers,
-  APPROVAL_KIND_LABELS,
-  APPROVAL_STATE_LABELS,
 } from "@/lib/approvals";
 import { accountRoleLabel } from "@/lib/testTracks";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
@@ -19,6 +17,8 @@ import { myTicketsWithoutApproval } from "./actions";
 import { CandidateApprovals } from "./CandidateApprovals";
 import type { ApprovalKind, ApprovalState } from "@prisma/client";
 
+import { getLocale, getDictionary } from "@/i18n/server";
+import { fmt } from "@/i18n/fmt";
 /** الاعتمادات الإدارية — «بانتظار اعتمادي» و«طلباتي» في صفحةٍ واحدة.
  *
  *  والصفحة لا تمنح تصريحاً: كلُّ زرٍّ فيها يستدعي إجراءً يفرض شرطه في
@@ -30,6 +30,8 @@ export const dynamic = "force-dynamic";
 const OPEN_STATES: ApprovalState[] = ["draft", "awaiting", "reviewing", "returned", "executing"];
 
 export default async function ApprovalsPage() {
+  const locale = await getLocale();
+  const L = getDictionary(locale).rApprPage;
   const session = await auth();
   if (!session) redirect("/login");
 
@@ -53,8 +55,7 @@ export default async function ApprovalsPage() {
     <div className="min-h-screen bg-page">
 
       <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
-        <PageHeader title="الاعتمادات الإدارية" description={<>ما يحتاج موافقةَ مسؤولٍ أعلى قبل التنفيذ يمرّ من هنا. والحالة تُنقل بقرارٍ صريح —
-            فتحُ الطلب وقراءته لا يُغيّر حالته.</>} />
+        <PageHeader title={L.administrativeApprovals} description={<>{L.anythingThatNeedsA}</>} />
 
         {/* طلباتُ الانضمام: للمؤسس والرئيس التنفيذي — موضعُها الواحد */}
         {(session.user.role === "super_admin" || session.user.role === "executive") && (
@@ -63,12 +64,9 @@ export default async function ApprovalsPage() {
 
         <section>
           <h2 className="mb-3 text-base font-bold">
-            بانتظار اعتمادي ({awaiting.length})
-          </h2>
+            {fmt(L.awaitingMyApproval, awaiting.length)}</h2>
           {awaiting.length === 0 ? (
-            <Card className="p-8 text-center text-sm text-black/40">
-              لا طلبات على طاولتك الآن.
-            </Card>
+            <Card className="p-8 text-center text-sm text-black/40">{L.nothingOnYourDesk}</Card>
           ) : (
             <div className="flex flex-col gap-3">
               {awaiting.map((x) => (
@@ -82,9 +80,9 @@ export default async function ApprovalsPage() {
                     createdAt={x.createdAt}
                     personName={x.raisedByUser?.fullName ?? "—"}
                     personTitle={x.raisedByUser?.jobTitle ?? null}
-                    personRole={x.raisedByUser ? accountRoleLabel(x.raisedByUser.role) : null}
+                    personRole={x.raisedByUser ? accountRoleLabel(x.raisedByUser.role, locale) : null}
                     personDept={x.raisedByUser?.department?.name ?? null}
-                    personLabel="مُقدِّم الطلب"
+                    personLabel={L.requester}
                     step={x.approvalStep}
                     chainLength={x.approvalChain.length}
                   />
@@ -108,18 +106,16 @@ export default async function ApprovalsPage() {
           approvers={approvers.map((a) => ({
             id: a.id,
             label: a.department
-              ? `${a.fullName} — ${accountRoleLabel(a.role)} · ${a.department.name}`
-              : `${a.fullName} — ${accountRoleLabel(a.role)}`,
+              ? `${a.fullName} — ${accountRoleLabel(a.role, locale)} · ${a.department.name}`
+              : `${a.fullName} — ${accountRoleLabel(a.role, locale)}`,
           }))}
           theme={theme}
         />
 
         <section>
-          <h2 className="mb-3 text-base font-bold">طلباتي القائمة ({openMine.length})</h2>
+          <h2 className="mb-3 text-base font-bold">{fmt(L.myOpenRequests, openMine.length)}</h2>
           {openMine.length === 0 ? (
-            <Card className="p-8 text-center text-sm text-black/40">
-              لا طلبات اعتمادٍ قائمةً لك.
-            </Card>
+            <Card className="p-8 text-center text-sm text-black/40">{L.youHaveNoOpen}</Card>
           ) : (
             <div className="flex flex-col gap-3">
               {openMine.map((x) => (
@@ -135,7 +131,7 @@ export default async function ApprovalsPage() {
                     personTitle={null}
                     personRole={null}
                     personDept={null}
-                    personLabel="عند المعتمِد"
+                    personLabel={L.withTheApprover}
                     step={x.approvalStep}
                     chainLength={x.approvalChain.length}
                   />
@@ -154,8 +150,7 @@ export default async function ApprovalsPage() {
         {settledMine.length > 0 && (
           <section>
             <h2 className="mb-3 text-base font-bold">
-              طلباتٌ انتهت ({settledMine.length})
-            </h2>
+              {fmt(L.settledRequests, settledMine.length)}</h2>
             <div className="flex flex-col gap-3">
               {settledMine.map((x) => (
                 <Card key={x.id} className="p-4 sm:p-5">
@@ -170,7 +165,7 @@ export default async function ApprovalsPage() {
                     personTitle={null}
                     personRole={null}
                     personDept={null}
-                    personLabel={x.approvalState === "approved" ? "اعتمده" : "آخر من قرّر"}
+                    personLabel={x.approvalState === "approved" ? L.approvedBy : L.lastToDecide}
                     step={x.approvalStep}
                     chainLength={x.approvalChain.length}
                   />
@@ -185,7 +180,8 @@ export default async function ApprovalsPage() {
   );
 }
 
-function StateChip({ state }: { state: ApprovalState }) {
+async function StateChip({ state }: { state: ApprovalState }) {
+  const labels = getDictionary(await getLocale()).libLabels;
   const tone =
     state === "approved" || state === "completed"
       ? "bg-green-50 text-green-800 ring-green-200"
@@ -198,12 +194,12 @@ function StateChip({ state }: { state: ApprovalState }) {
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ${tone}`}
     >
-      {APPROVAL_STATE_LABELS[state]}
+      {labels.approvalState[state]}
     </span>
   );
 }
 
-function RequestHead({
+async function RequestHead({
   ticketNumber,
   subject,
   description,
@@ -232,6 +228,8 @@ function RequestHead({
   step: number;
   chainLength: number;
 }) {
+  const t = getDictionary(await getLocale());
+  const L = t.rApprPage;
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -239,15 +237,14 @@ function RequestHead({
         {state && <StateChip state={state} />}
         {kind && (
           <span className="inline-flex items-center rounded-full bg-black/[0.04] px-2.5 py-1 text-[11px] font-semibold text-black/60">
-            {APPROVAL_KIND_LABELS[kind]}
+            {t.libLabels.approvalKind[kind]}
           </span>
         )}
         {/* المسار المتسلسل يُقال صريحاً: الاعتماد الأول ليس نهائياً إن
             كان بعده معتمِد، فيُعرَض موضعُ الطلب من السلسلة */}
         {chainLength > 0 && (
           <span className="text-[11px] font-semibold text-black/45">
-            موافقة {step} من {chainLength + 1}
-          </span>
+            {fmt(L.approvalOf, step, chainLength + 1)}</span>
         )}
       </div>
 
@@ -262,14 +259,14 @@ function RequestHead({
           {personTitle ? ` — ${personTitle}` : personRole ? ` — ${personRole}` : ""}
           {personDept ? ` · ${personDept}` : ""}
         </span>
-        <span className="text-black/35">رُفع في {formatDate(createdAt)}</span>
+        <span className="text-black/35">{fmt(L.raisedOn, formatDate(createdAt))}</span>
       </div>
     </div>
   );
 }
 
 /** سجلّ القرارات — صفٌّ لكل قرار، لا يُستبدَل ولا يُحرَّر */
-function Trail({
+async function Trail({
   decisions,
 }: {
   decisions: {
@@ -282,11 +279,12 @@ function Trail({
   }[];
 }) {
   if (decisions.length === 0) return null;
+  const labels = getDictionary(await getLocale()).libLabels;
   return (
     <ol className="mt-3 flex flex-col gap-2 border-t border-black/5 pt-3">
       {decisions.map((d) => (
         <li key={d.id} className="text-xs leading-relaxed text-black/60">
-          <span className="font-semibold text-black/70">{APPROVAL_STATE_LABELS[d.decision]}</span>
+          <span className="font-semibold text-black/70">{labels.approvalState[d.decision]}</span>
           {" — "}
           {d.deciderName}
           <span className="text-black/35"> · {formatDate(d.decidedAt)}</span>

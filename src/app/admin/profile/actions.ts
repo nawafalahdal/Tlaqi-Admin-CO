@@ -9,6 +9,7 @@ import { accountRoleLabel } from "@/lib/testTracks";
 import { safeErrorMessage } from "@/lib/safeError";
 import { parseGender } from "@/lib/gender";
 
+import { getLocale, getDictionary } from "@/i18n/server";
 /** يحفظ بيانات صاحب الحساب الإداري.
  *
  *  كلٌّ يملأ بياناته هو ولا أحد سواه: البيانات الشخصية ليست حقلاً إدارياً
@@ -22,9 +23,10 @@ export async function saveAdminProfileAction(
   _prev: { error: string | null; saved: boolean },
   formData: FormData
 ): Promise<{ error: string | null; saved: boolean }> {
+  const L = getDictionary(await getLocale()).rProfileActions;
   const session = await auth();
   if (!session || session.user.role === "member") {
-    return { error: "غير مصرح", saved: false };
+    return { error: L.notAllowed, saved: false };
   }
 
   const fullName = String(formData.get("fullName") ?? "").trim();
@@ -35,9 +37,9 @@ export async function saveAdminProfileAction(
   const gender = parseGender(formData.get("gender"));
 
   if (!fullName || !phone || !jobTitle || !specialization || !gender) {
-    return { error: "الاسم والمخاطبة ورقم الجوال والمسمى الوظيفي والتخصص مطلوبة", saved: false };
+    return { error: L.nameFormOfAddress, saved: false };
   }
-  if (fullName.length < 3) return { error: "اكتب اسمك الكامل", saved: false };
+  if (fullName.length < 3) return { error: L.writeYourFullName, saved: false };
 
   try {
     const before = await prisma.user.findUniqueOrThrow({ where: { id: session.user.id } });

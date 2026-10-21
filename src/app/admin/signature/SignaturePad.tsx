@@ -6,6 +6,7 @@ import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import { FileField } from "@/components/FileField";
 
+import { useTranslations } from "@/i18n/LocaleProvider";
 /** لوح التوقيع — يُرسَم بالإصبع أو الفأرة، أو تُرفع صورةٌ جاهزة.
  *
  *  والرسم المباشر مقصود: من يُطلب منه توقيعٌ على جواله لا يجد ماسحاً
@@ -14,6 +15,7 @@ import { FileField } from "@/components/FileField";
  *  والخلفية شفّافة عمداً: الشهادة أربع خلفيات ملوّنة، وتوقيعٌ بخلفيةٍ
  *  بيضاء يُنتج مستطيلاً أبيض على الأخضر والبرتقالي. */
 export function SignaturePad({ theme }: { theme: ReturnType<typeof themeFromColor> }) {
+  const L = useTranslations().rSigPad;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const dirty = useRef(false);
@@ -84,14 +86,14 @@ export function SignaturePad({ theme }: { theme: ReturnType<typeof themeFromColo
       setMsg(
         res.error
           ? { kind: "err", text: res.error }
-          : { kind: "ok", text: "رُفع توقيعك — ينتظر اعتماد الإدارة قبل أن يُرسَم على أي شهادة" }
+          : { kind: "ok", text: L.yourSignatureWasUploaded }
       );
     });
   }
 
   function submitDrawn() {
     if (!dirty.current) {
-      setMsg({ kind: "err", text: "ارسم توقيعك أولاً" });
+      setMsg({ kind: "err", text: L.drawYourSignatureFirst });
       return;
     }
     const c = canvasRef.current;
@@ -104,12 +106,12 @@ export function SignaturePad({ theme }: { theme: ReturnType<typeof themeFromColo
     if (!file) return;
     // الحدّ يُفرَض هنا أيضاً لتُقال الرسالة قبل الرفع — والخادم يفرضه
     if (file.size > 400_000) {
-      setMsg({ kind: "err", text: "حجم الصورة أكبر من ٤٠٠ كيلوبايت" });
+      setMsg({ kind: "err", text: L.theImageIsLarger });
       return;
     }
     const reader = new FileReader();
     reader.onload = () => send(String(reader.result));
-    reader.onerror = () => setMsg({ kind: "err", text: "تعذّر قراءة الصورة" });
+    reader.onerror = () => setMsg({ kind: "err", text: L.theImageCouldNot });
     reader.readAsDataURL(file);
   }
 
@@ -126,17 +128,15 @@ export function SignaturePad({ theme }: { theme: ReturnType<typeof themeFromColo
         className="w-full touch-none rounded-xl border-2 border-dashed border-black/15 bg-white"
         style={{ aspectRatio: "700 / 220" }}
       />
-      <p className="mt-1.5 text-xs text-black/40">ارسم توقيعك داخل الإطار بإصبعك أو بالفأرة.</p>
+      <p className="mt-1.5 text-xs text-black/40">{L.drawYourSignatureInside}</p>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button theme={theme} disabled={pending} onClick={submitDrawn}>
-          {pending ? "يُرفَع..." : "ارفع التوقيع المرسوم"}
+          {pending ? L.uploading : L.uploadTheDrawnSignature}
         </Button>
-        <Button theme={theme} variant="outline" disabled={pending} onClick={clear}>
-          امسح
-        </Button>
+        <Button theme={theme} variant="outline" disabled={pending} onClick={clear}>{L.clear}</Button>
         <label className="text-xs text-black/55">
-          <span className="block pb-1">أو ارفع صورة (PNG / JPEG)</span>
+          <span className="block pb-1">{L.orUploadAnImage}</span>
           <FileField accept="image/png,image/jpeg" disabled={pending} onChange={onFile} />
         </label>
       </div>

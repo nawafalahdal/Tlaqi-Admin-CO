@@ -5,9 +5,11 @@ import { auth } from "@/auth";
 import { submitSignature, decideSignature, requestSignature } from "@/lib/signatures";
 import { safeErrorMessage } from "@/lib/safeError";
 
+import { getLocale, getDictionary } from "@/i18n/server";
 async function requireSession() {
+  const L = getDictionary(await getLocale()).rSigActions;
   const session = await auth();
-  if (!session) throw new Error("يجب تسجيل الدخول");
+  if (!session) throw new Error(L.youNeedToSign);
   return session;
 }
 
@@ -53,9 +55,10 @@ export async function decideSignatureAction(
 
 /** طلب توقيعٍ من قائدٍ لم يُعتمد له توقيع — يُعاد الطلب إن ضاع بريده */
 export async function requestSignatureAction(userId: string): Promise<{ error: string | null }> {
+  const L = getDictionary(await getLocale()).rSigActions;
   const session = await requireSession();
   if (session.user.role !== "super_admin" && session.user.role !== "executive") {
-    return { error: "طلب التوقيعات للمؤسس والتنفيذي" };
+    return { error: L.requestingSignaturesIsFor };
   }
   try {
     const res = await requestSignature({ userId, reason: `طلبته الإدارة (${session.user.name ?? "—"})` });

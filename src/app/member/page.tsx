@@ -26,7 +26,7 @@ import { AnnouncementList } from "@/app/admin/hub/AnnouncementList";
 import { scheduleDueSweeps } from "@/lib/sweepThrottle";
 import { WorkspaceOverview } from "@/components/dashboard/WorkspaceOverview";
 import { avatarHasTransparency } from "@/lib/avatars";
-import { WELCOME_MAX_SENDS, RESENDER_LABEL, resenderRoleFor } from "@/lib/welcomeResend";
+import { WELCOME_MAX_SENDS, resenderRoleFor } from "@/lib/welcomeResend";
 
 export default async function MemberPortalPage() {
   const session = await auth();
@@ -87,7 +87,7 @@ export default async function MemberPortalPage() {
     avatarVersion: member.avatarVersion,
     phone: member.phone,
     unacknowledgedWarnings: unacknowledged,
-  });
+  }, await getLocale());
 
 
   return (
@@ -131,7 +131,7 @@ export default async function MemberPortalPage() {
             theme={theme}
             sentAt={member.welcomeEmailSentAt ? formatDate(member.welcomeEmailSentAt) : null}
             canReport={member.welcomeEmailCount < WELCOME_MAX_SENDS}
-            resenderLabel={RESENDER_LABEL[resenderRoleFor("member")]}
+            resenderLabel={t.shell.roles[resenderRoleFor("member")]}
           />
           <SecurityGuidance theme={theme} totpEnabled={null} />
           {/* تغييرُ كلمة المرور هنا في صفحته — لا في القائمة الجانبية */}

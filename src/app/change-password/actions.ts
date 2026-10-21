@@ -6,12 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { clearFailedAttempts } from "@/lib/loginAttempts";
 import { passwordProblem } from "@/lib/passwordPolicy";
 
+import { getLocale, getDictionary } from "@/i18n/server";
 export async function changePasswordAction(
   _prevState: { error: string | null },
   formData: FormData
 ): Promise<{ error: string | null }> {
+  const L = getDictionary(await getLocale()).rChangePasswordActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
 
   const currentPassword = String(formData.get("currentPassword") ?? "");
   const newPassword = String(formData.get("newPassword") ?? "");
@@ -21,7 +23,7 @@ export async function changePasswordAction(
   const weak = passwordProblem(newPassword);
   if (weak) return { error: weak };
   if (newPassword !== confirmPassword) {
-    return { error: "كلمتا المرور غير متطابقتين" };
+    return { error: L.thePasswordsDoNot };
   }
 
   const isMember = session.user.role === "member";
@@ -30,7 +32,7 @@ export async function changePasswordAction(
   if (isMember) {
     const member = await prisma.member.findUniqueOrThrow({ where: { id: session.user.id } });
     if (!member.passwordHash || !(await bcrypt.compare(currentPassword, member.passwordHash))) {
-      return { error: "كلمة المرور الحالية غير صحيحة" };
+      return { error: L.theCurrentPasswordIs };
     }
     await prisma.member.update({
       where: { id: member.id },
@@ -39,7 +41,7 @@ export async function changePasswordAction(
   } else {
     const user = await prisma.user.findUniqueOrThrow({ where: { id: session.user.id } });
     if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
-      return { error: "كلمة المرور الحالية غير صحيحة" };
+      return { error: L.theCurrentPasswordIs };
     }
     await prisma.user.update({
       where: { id: user.id },

@@ -9,6 +9,8 @@
  *  فإن وُجدت صيغةٌ محايدة سليمة كُتبت له، وإلا فالمذكّر الذي جرى به
  *  عُرف المخاطبة العامة في العربية. */
 
+import { getDictionary, type Locale } from "@/i18n";
+
 export type Gender = "male" | "female";
 export type MaybeGender = Gender | null | undefined;
 
@@ -29,8 +31,14 @@ export function parseGender(value: unknown): Gender | null {
  *
  *  المسمّيات نفسها هي مسمّيات المنصة (`shell.roles`)، لا تُغيَّر؛ وإنما
  *  تُصرَّف. و`departmentName` يُلحَق بالقائد: «قائدة قسم التسويق». */
-export function roleTitle(role: string, g: MaybeGender, departmentName?: string | null): string {
+export function roleTitle(role: string, g: MaybeGender, departmentName?: string | null, locale: Locale = "ar"): string {
   const dept = departmentName?.trim();
+  // المسمّى الإنجليزيّ لا يُصرَّف بالجنس، والقسمُ يُلحَق باسمه كما هو
+  if (locale === "en") {
+    const roles = getDictionary("en").shell.roles as Record<string, string>;
+    if (role === "department_admin" && dept) return `${roles.department_admin} · ${dept}`;
+    return roles[role] ?? role;
+  }
   switch (role) {
     case "super_admin":
       return gx(g, "المؤسس", "المؤسِّسة");

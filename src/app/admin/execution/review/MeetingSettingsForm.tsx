@@ -6,7 +6,9 @@ import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import type { MeetingSettings } from "@/lib/reviewMeeting";
 
-const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+import { useTranslations } from "@/i18n/LocaleProvider";
+// أسماءُ الأيام من القاموس (`days`) — والقيمةُ رقمُ اليوم كما يحفظه الخادم
+const DAYS = ["d0", "d1", "d2", "d3", "d4", "d5", "d6"] as const;
 
 /** إعداداتُ الاجتماع — ولا ساعةَ مكتوبةٌ في الكود.
  *
@@ -20,6 +22,7 @@ export function MeetingSettingsForm({
   settings: MeetingSettings;
   theme: ReturnType<typeof themeFromColor>;
 }) {
+  const L = useTranslations().rReviewMeeting;
   const [state, formAction, pending] = useActionState(saveMeetingSettingsAction, {
     error: null,
     success: false,
@@ -27,13 +30,10 @@ export function MeetingSettingsForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      <p className="text-xs leading-relaxed text-black/50">
-        بتوقيت الرياض — ويُطبَّق على الاجتماعات التي تُنشَأ بعد الحفظ. والاجتماعُ لا يتكرّر
-        لأسبوعٍ واحد مهما أُعيد الحساب.
-      </p>
+      <p className="text-xs leading-relaxed text-black/50">{L.riyadhTimeAppliedTo}</p>
       <div className="grid gap-4 sm:grid-cols-4">
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">اليوم</span>
+          <span className="font-medium text-black/70">{L.day}</span>
           <select
             name="weekday"
             defaultValue={settings.weekday}
@@ -41,13 +41,13 @@ export function MeetingSettingsForm({
           >
             {DAYS.map((d, i) => (
               <option key={i} value={i}>
-                {d}
+                {L.days[d]}
               </option>
             ))}
           </select>
         </label>
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">الساعة</span>
+          <span className="font-medium text-black/70">{L.hour}</span>
           <input
             name="hour"
             type="number"
@@ -58,7 +58,7 @@ export function MeetingSettingsForm({
           />
         </label>
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">الدقيقة</span>
+          <span className="font-medium text-black/70">{L.minute}</span>
           <input
             name="minute"
             type="number"
@@ -69,7 +69,7 @@ export function MeetingSettingsForm({
           />
         </label>
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">المدّة (دقيقة)</span>
+          <span className="font-medium text-black/70">{L.durationMinutes}</span>
           <input
             name="durationMinutes"
             type="number"
@@ -82,7 +82,7 @@ export function MeetingSettingsForm({
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">المُنظِّم</span>
+          <span className="font-medium text-black/70">{L.organiser}</span>
           <input
             name="organizerName"
             defaultValue={settings.organizerName ?? ""}
@@ -90,7 +90,7 @@ export function MeetingSettingsForm({
           />
         </label>
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">مكانُه أو رابطُه</span>
+          <span className="font-medium text-black/70">{L.itsPlaceOrLink}</span>
           <input
             name="locationOrUrl"
             dir="ltr"
@@ -105,14 +105,12 @@ export function MeetingSettingsForm({
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>
       )}
       {state.success && (
-        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          حُفظت الإعدادات — وتُطبَّق على الاجتماعات الجديدة.
-        </p>
+        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{L.settingsSavedTheyApply}</p>
       )}
 
       <div>
         <Button theme={theme} type="submit" disabled={pending}>
-          {pending ? "جارٍ الحفظ..." : "احفظ الإعدادات"}
+          {pending ? L.saving : L.saveTheSettings}
         </Button>
       </div>
     </form>

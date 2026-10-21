@@ -16,12 +16,13 @@ export default async function NewAdminTicketPage() {
   const allowed = ["super_admin", "executive", "operations_officer", "department_admin"];
   if (!allowed.includes(session.user.role)) redirect("/admin");
 
-  const dict = getDictionary(await getLocale());
+  const locale = await getLocale();
+  const dict = getDictionary(locale);
   const tt = dict.ticketsPage;
   const targets = await adminTicketTargets(
     { id: session.user.id, role: session.user.role },
     { departments: tt.groupDepartments, leadership: tt.groupLeadership, members: tt.groupMembers },
-    accountRoleLabel
+    (role) => accountRoleLabel(role, locale)
   );
 
   return (

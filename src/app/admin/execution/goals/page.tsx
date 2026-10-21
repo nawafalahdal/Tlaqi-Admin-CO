@@ -14,6 +14,8 @@ import { PageHeader } from "@/components/PageHeader";
 import { MilestoneForm } from "./MilestoneForm";
 import { ProposalDecision } from "./ProposalDecision";
 
+import { getLocale, getDictionary } from "@/i18n/server";
+import { fmt } from "@/i18n/fmt";
 export const dynamic = "force-dynamic";
 
 /** الأهدافُ الاستراتيجية ومحطّاتُها — وطابورُ المقترَحات.
@@ -23,6 +25,8 @@ export const dynamic = "force-dynamic";
  *  — فلا تُحسَب أمنيةٌ التزاماً.
  */
 export default async function GoalsPage() {
+  const locale = await getLocale();
+  const L = getDictionary(locale).rGoalsPage;
   const session = await auth();
   if (!session) redirect("/login");
   if (session.user.role === "member") redirect("/member");
@@ -52,8 +56,8 @@ export default async function GoalsPage() {
       <main className="mx-auto flex max-w-5xl flex-col gap-7 px-4 py-6 sm:px-5 sm:py-8">
         <PageHeader
           back={<BackButton fallbackHref="/admin/execution" />}
-          title="الأهدافُ الاستراتيجية ومحطّاتُها"
-          description="الهدفُ لا يصير التزاماً تنظيمياً إلا باعتماد الإدارة، والمحطّةُ نتيجةٌ تُسلَّم لا قسمةٌ حسابيةٌ للهدف — فلكلِّ محطّةٍ نتيجتُها ومعيارُ قبولها."
+          title={L.strategicGoalsAndTheir}
+          description={L.aGoalOnlyBecomes}
           actions={canCreate ? <GoalWizard canApprove={canApprove} leaders={leaders} /> : undefined}
         />
 
@@ -61,18 +65,16 @@ export default async function GoalsPage() {
         {canApprove && (proposals.goals.length > 0 || proposals.objectives.length > 0) && (
           <section>
             <h2 className="mb-3 text-base font-bold">
-              مقترَحاتٌ تنتظر قرارك ({proposals.goals.length + proposals.objectives.length})
-            </h2>
+              {fmt(L.proposalsAwaitingYourDecision, proposals.goals.length + proposals.objectives.length)}</h2>
             <div className="flex flex-col gap-3">
               {proposals.goals.map((g) => (
                 <Card key={g.id} className="p-4">
                   <h3 className="text-sm font-bold">{g.title}</h3>
                   <p className="mt-1 text-xs leading-relaxed text-black/55">
-                    <span className="font-semibold">المسوّغ:</span> {g.rationale}
+                    <span className="font-semibold">{L.rationale}</span> {g.rationale}
                   </p>
                   <p className="mt-1 text-[11px] text-black/40">
-                    اقترحه {g.proposedByName} · الموعد {formatDate(g.dueDate)}
-                  </p>
+                    {fmt(L.proposedByDue, g.proposedByName, formatDate(g.dueDate))}</p>
                   <ProposalDecision kind="goal" id={g.id} theme={theme} />
                 </Card>
               ))}
@@ -90,9 +92,8 @@ export default async function GoalsPage() {
                       {o.department.name}
                     </span>
                   </div>
-                  <p className="mt-1 text-[11px] text-black/40">
-                    اقترحه {o.proposedByName}
-                    {o.goal ? ` · يخدم «${o.goal.title}»` : " · بلا هدفٍ تنظيميٍّ مرتبط"}
+                  <p className="mt-1 text-[11px] text-black/40">{L.proposedBy}{o.proposedByName}
+                    {o.goal ? fmt(L.serves, o.goal.title) : L.notLinkedToAn}
                     {o.dueDate ? ` · ${formatDate(o.dueDate)}` : ""}
                   </p>
                   <ProposalDecision kind="objective" id={o.id} theme={theme} />
@@ -104,9 +105,9 @@ export default async function GoalsPage() {
 
         {/* ── الأهدافُ المعتمَدة */}
         <section>
-          <h2 className="mb-3 text-base font-bold">الأهدافُ المعتمَدة ({rows.length})</h2>
+          <h2 className="mb-3 text-base font-bold">{fmt(L.approvedGoals, rows.length)}</h2>
           {rows.length === 0 ? (
-            <Card className="p-6 text-center text-sm text-black/45">لا أهدافَ بعد.</Card>
+            <Card className="p-6 text-center text-sm text-black/45">{L.noGoalsYet}</Card>
           ) : (
             <div className="flex flex-col gap-4">
               {rows.map(({ goal, progress }) => (
@@ -115,12 +116,12 @@ export default async function GoalsPage() {
                     <h3 className="text-base font-bold">{goal.title}</h3>
                     <span className="text-[11px] text-black/45">
                       {formatDate(goal.startDate)} ← {formatDate(goal.dueDate)} ·{" "}
-                      {countdownLabel(goal.dueDate)}
+                      {countdownLabel(goal.dueDate, undefined, locale)}
                     </span>
                   </div>
                   <p className="mt-1 text-xs leading-relaxed text-black/60">{goal.description}</p>
                   <p className="mt-1 text-xs leading-relaxed text-black/55">
-                    <span className="font-semibold">معيار النجاح:</span> {goal.successCriteria}
+                    <span className="font-semibold">{L.successCriterion}</span> {goal.successCriteria}
                   </p>
                   <div className="mt-3">
                     <ProgressBars b={progress} />
@@ -128,8 +129,7 @@ export default async function GoalsPage() {
 
                   <div className="mt-3 border-t border-black/5 pt-3">
                     <h4 className="text-xs font-bold text-black/70">
-                      المحطّاتُ الشهرية ({goal.milestones.length})
-                    </h4>
+                      {fmt(L.monthlyMilestones, goal.milestones.length)}</h4>
                     {goal.milestones.length > 0 && (
                       <ol className="mt-2 flex flex-col gap-1.5">
                         {goal.milestones.map((m, i) => (
@@ -140,7 +140,7 @@ export default async function GoalsPage() {
                             <p className="mt-0.5 text-black/55">{m.expectedResult}</p>
                             <p className="mt-0.5 text-[11px] text-black/40">
                               {formatDate(m.startDate)} ← {formatDate(m.dueDate)} ·{" "}
-                              {countdownLabel(m.dueDate)}
+                              {countdownLabel(m.dueDate, undefined, locale)}
                             </p>
                           </li>
                         ))}

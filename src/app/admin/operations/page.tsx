@@ -66,7 +66,7 @@ export default async function OperationsPage() {
     }),
   ]);
 
-  const alerts = await alertsForUser(session);
+  const alerts = await alertsForUser(session, await getLocale());
 
   const dict = getDictionary(await getLocale());
   const tOps = dict.operations;

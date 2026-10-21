@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { requestApprovalAction } from "./actions";
 import { Card, Button } from "@/components/ui";
 
+import { useTranslations } from "@/i18n/LocaleProvider";
 /** تعليق طلبِ اعتمادٍ على تذكرةٍ قائمة.
  *
  *  **والاعتماد اختياري لا لازم:** هذا النموذج لا يظهر في رفع التذكرة،
@@ -14,14 +15,8 @@ import { Card, Button } from "@/components/ui";
  *  والمسار المتسلسل اختياريٌّ أيضاً: معتمِدٌ واحد افتراضاً، ويُضاف من
  *  بعده عند الحاجة.
  */
-const KINDS = [
-  { value: "marketing_plan", label: "خطة تسويقية" },
-  { value: "financial_plan", label: "خطة مالية" },
-  { value: "initiative", label: "مبادرة أو مشروع" },
-  { value: "resources", label: "تخصيص موارد أو ميزانية" },
-  { value: "operational", label: "مقترح تشغيلي" },
-  { value: "other", label: "طلب آخر" },
-];
+// أسماءُ الأنواع من القاموس (`kinds`) — هنا قيمُها وترتيبُها
+const KINDS = ["marketing_plan", "financial_plan", "initiative", "resources", "operational", "other"] as const;
 
 export function RequestApproval({
   tickets,
@@ -32,6 +27,7 @@ export function RequestApproval({
   approvers: { id: string; label: string }[];
   theme: Parameters<typeof Button>[0]["theme"];
 }) {
+  const L = useTranslations().rApprRequest;
   const [open, setOpen] = useState(false);
   const [ticketId, setTicketId] = useState("");
   const [kind, setKind] = useState("");
@@ -43,20 +39,14 @@ export function RequestApproval({
 
   if (tickets.length === 0) {
     return (
-      <Card className="p-4 text-xs leading-relaxed text-black/50">
-        لا تذاكر مفتوحة لك بلا طلبِ اعتماد. ارفع تذكرةً أولاً من صفحة التذاكر، ثم علّق عليها
-        طلبَ اعتمادٍ من هنا إن احتاجت موافقة.
-      </Card>
+      <Card className="p-4 text-xs leading-relaxed text-black/50">{L.youHaveNoOpen}</Card>
     );
   }
 
   return (
     <Card className="p-4 sm:p-5">
-      <h2 className="text-sm font-bold">اطلب اعتماداً على تذكرة</h2>
-      <p className="mt-1 text-xs leading-relaxed text-black/50">
-        الاعتماد اختياري: التذكرة العادية لا تحتاجه. وما لا يبدأ تنفيذه إلا بموافقة مسؤولٍ أعلى
-        — خطةٌ أو ميزانيةٌ أو مبادرة — يُعلَّق عليه طلبُ اعتماد.
-      </p>
+      <h2 className="text-sm font-bold">{L.requestApprovalOnA}</h2>
+      <p className="mt-1 text-xs leading-relaxed text-black/50">{L.approvalIsOptionalAn}</p>
 
       {done && (
         <p className="mt-3 rounded-lg bg-green-50 px-3 py-2 text-xs font-semibold text-green-800">
@@ -65,12 +55,10 @@ export function RequestApproval({
       )}
 
       {!open ? (
-        <Button theme={theme} variant="outline" className="mt-3" onClick={() => setOpen(true)}>
-          طلب اعتماد جديد
-        </Button>
+        <Button theme={theme} variant="outline" className="mt-3" onClick={() => setOpen(true)}>{L.newApprovalRequest}</Button>
       ) : (
         <div className="mt-4 flex flex-col gap-3">
-          <Field label="التذكرة">
+          <Field label={L.ticket}>
             <select
               value={ticketId}
               onChange={(e) => setTicketId(e.target.value)}
@@ -85,7 +73,7 @@ export function RequestApproval({
             </select>
           </Field>
 
-          <Field label="نوع الطلب">
+          <Field label={L.requestType}>
             <select
               value={kind}
               onChange={(e) => setKind(e.target.value)}
@@ -93,14 +81,14 @@ export function RequestApproval({
             >
               <option value="">—</option>
               {KINDS.map((k) => (
-                <option key={k.value} value={k.value}>
-                  {k.label}
+                <option key={k} value={k}>
+                  {L.kinds[k]}
                 </option>
               ))}
             </select>
           </Field>
 
-          <Field label="المعتمِد">
+          <Field label={L.approver}>
             <select
               value={approver}
               onChange={(e) => setApprover(e.target.value)}
@@ -115,13 +103,13 @@ export function RequestApproval({
             </select>
           </Field>
 
-          <Field label="معتمِدٌ ثانٍ بعده (اختياري)">
+          <Field label={L.aSecondApproverAfter}>
             <select
               value={second}
               onChange={(e) => setSecond(e.target.value)}
               className="min-h-11 w-full rounded-xl border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-black/30"
             >
-              <option value="">لا — موافقةٌ واحدة تكفي</option>
+              <option value="">{L.noOneApprovalIs}</option>
               {approvers
                 .filter((a) => a.id !== approver)
                 .map((a) => (
@@ -131,9 +119,7 @@ export function RequestApproval({
                 ))}
             </select>
           </Field>
-          <p className="-mt-1 text-[11px] leading-relaxed text-black/40">
-            إن أضفتَ ثانياً فلا يصير الطلب «معتمداً نهائياً» إلا بعد موافقتهما معاً، بالترتيب.
-          </p>
+          <p className="-mt-1 text-[11px] leading-relaxed text-black/40">{L.ifYouAddA}</p>
 
           {error && <p className="text-sm font-semibold leading-relaxed text-red-700">{error}</p>}
 
@@ -154,7 +140,7 @@ export function RequestApproval({
                     setError(res.error);
                     return;
                   }
-                  setDone("أُرسل الطلب إلى المعتمِد، وينتظر قراره");
+                  setDone(L.theRequestWasSent);
                   setOpen(false);
                   setTicketId("");
                   setKind("");
@@ -163,11 +149,9 @@ export function RequestApproval({
                 });
               }}
             >
-              {pending ? "جارِ الإرسال..." : "أرسل الطلب"}
+              {pending ? L.sending : L.sendTheRequest}
             </Button>
-            <Button theme={theme} variant="ghost" onClick={() => setOpen(false)}>
-              إلغاء
-            </Button>
+            <Button theme={theme} variant="ghost" onClick={() => setOpen(false)}>{L.cancel}</Button>
           </div>
         </div>
       )}

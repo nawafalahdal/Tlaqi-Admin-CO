@@ -9,6 +9,8 @@ import { issueLoginCode, LOGIN_CODE_MINUTES } from "@/lib/loginCodes";
 import { sendLoginCodeEmail } from "@/lib/email";
 import { candidateWindowExpired } from "@/lib/workflow";
 
+import { getLocale, getDictionary } from "@/i18n/server";
+import { fmt } from "@/i18n/fmt";
 /** يسمح فقط بمسار داخلي نسبي (يبدأ بـ "/" وليس "//" أو "/\") لمنع Open Redirect
  *  عبر callbackUrl القادم من query string (قابل للتحكم الكامل من المهاجم) */
 function safeRedirectPath(input: string): string {
@@ -16,7 +18,6 @@ function safeRedirectPath(input: string): string {
   return "/admin";
 }
 
-const GENERIC_ERROR = "البريد الإلكتروني أو كلمة المرور غير صحيح";
 
 export type LoginStep1 = {
   error: string | null;
@@ -45,17 +46,18 @@ export async function requestLoginCodeAction(
   _prev: LoginStep1,
   formData: FormData
 ): Promise<LoginStep1> {
+  const L = getDictionary(await getLocale()).rLoginActions;
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   const base: LoginStep1 = { error: null, codeSent: false, needsTotp: false, maskedEmail: null };
 
-  if (!email || !password) return { ...base, error: "البريد وكلمة المرور مطلوبان" };
+  if (!email || !password) return { ...base, error: L.emailAndPasswordAre };
 
   const minutes = await lockoutMinutesLeft(email);
   if (minutes > 0 || (await isLockedOut(email))) {
     return {
       ...base,
-      error: `الحساب مقفل مؤقتاً بعد محاولات دخول متتالية. أعد المحاولة بعد ${Math.max(minutes, 1)} دقيقة.`,
+      error: fmt(L.theAccountIsTemporarily, Math.max(minutes, 1)),
     };
   }
 
@@ -80,10 +82,11 @@ export async function requestLoginCodeAction(
   }
 
   await recordFailedAttempt(email);
-  return { ...base, error: GENERIC_ERROR };
+  return { ...base, error: L.genericError };
 }
 
 async function deliverCode(email: string, fullName: string): Promise<LoginStep1> {
+  const L = getDictionary(await getLocale()).rLoginActions;
   const code = await issueLoginCode(email);
   const result = await sendLoginCodeEmail({
     to: email,
@@ -105,7 +108,7 @@ async function deliverCode(email: string, fullName: string): Promise<LoginStep1>
   if (result.skipped) {
     return {
       error:
-        "تعذّر إرسال رمز الدخول إلى بريدك الآن. أعد المحاولة بعد قليل، وإن تكرّر فراجع مسؤول المنصة.",
+        L.couldNotSendThe,
       codeSent: false,
       needsTotp: false,
       maskedEmail: null,
@@ -119,6 +122,7 @@ export async function loginAction(
   _prevState: { error: string | null },
   formData: FormData
 ): Promise<{ error: string | null }> {
+  const L = getDictionary(await getLocale()).rLoginActions;
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
   const totp = String(formData.get("totp") ?? "");
@@ -138,10 +142,10 @@ export async function loginAction(
       const minutes = await lockoutMinutesLeft(email.toLowerCase().trim());
       if (minutes > 0) {
         return {
-          error: `الحساب مقفل مؤقتاً بعد محاولات دخول متتالية. أعد المحاولة بعد ${minutes} دقيقة — كلمة المرور لم تتغيّر.`,
+          error: fmt(L.theAccountIsTemporarily2, minutes),
         };
       }
-      return { error: "الرمز غير صحيح أو انتهت صلاحيته — اطلب رمزاً جديداً" };
+      return { error: L.theCodeIsWrong };
     }
     throw err;
   }

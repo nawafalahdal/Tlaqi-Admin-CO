@@ -13,8 +13,15 @@ export function formatDate(date: Date | string) {
 }
 
 /** المدّة منذ تاريخٍ بكلمات: «منذ ٣ أشهر»، «منذ سنتين» — للسجلّ والملف */
-export function sinceLabel(d: Date, now: Date = new Date()): string {
+export function sinceLabel(d: Date, now: Date = new Date(), locale: "ar" | "en" = "ar"): string {
   const months = Math.floor((now.getTime() - d.getTime()) / (30.44 * 86_400_000));
+  // الإنجليزيةُ بلا مثنّى: صيغتان تكفيان (مثل `dayCount`)
+  if (locale === "en") {
+    if (months < 1) return "Less than a month";
+    if (months < 12) return months === 1 ? "1 month" : `${months} months`;
+    const years = Math.floor(months / 12);
+    return years === 1 ? "1 year" : `${years} years`;
+  }
   if (months < 1) return "أقل من شهر";
   if (months < 12) return months === 1 ? "منذ شهر" : months === 2 ? "منذ شهرين" : `منذ ${months} أشهر`;
   const y = Math.floor(months / 12);

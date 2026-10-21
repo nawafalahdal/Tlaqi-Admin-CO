@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { BRAND } from "@/lib/brand";
 import { accountRoleLabel } from "@/lib/testTracks";
+import { getDictionary, type Dictionary, type Locale } from "@/i18n";
+import { fmt } from "@/i18n/fmt";
 import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
 import { avatarUrl } from "@/lib/avatarUrl";
 import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
@@ -157,8 +159,8 @@ function personFromUser(u: {
   role: string;
   avatarVersion: Date | null;
   department?: { name: string } | null;
-}): OrgPerson {
-  const roleLabel = accountRoleLabel(u.role);
+}, locale: Locale): OrgPerson {
+  const roleLabel = accountRoleLabel(u.role, locale);
   const title = u.jobTitle?.trim() || roleLabel;
   // القسم يُعرض حين يُضيف: «قائدة التسويق» لا تحتاج أن يُقال بعدها
   // «التسويق»، أما «أخصائية» فتحتاج
@@ -173,8 +175,8 @@ function personFromMember(m: {
   jobTitle: string | null;
   avatarVersion: Date | null;
   department?: { name: string } | null;
-}): OrgPerson {
-  const title = m.jobTitle?.trim() || "عضو";
+}, T: Dictionary["libOrgChart"]): OrgPerson {
+  const title = m.jobTitle?.trim() || T.member;
   const deptName = m.department?.name ?? null;
   const scope = deptName && !title.includes(deptName) ? deptName : null;
   return { id: m.id, fullName: m.fullName, title, scope, avatarUrl: avatarUrl("member", m.id, m.avatarVersion) };
@@ -204,22 +206,21 @@ const MEMBER_SELECT = {
  *
  *  فلجنةٌ فرعيةٌ بلا قائدٍ مقعدٌ شاغرٌ كغيره، وإخفاؤه لأنه في الطبقة
  *  الثانية يُنزِّل ورقةً تقول «لا مقاعد شاغرة» وفيها مقعد. */
-function collectCommitteeBlockers(dept: OrgDepartment, blockers: string[]) {
+function collectCommitteeBlockers(dept: OrgDepartment, blockers: string[], T: Dictionary["libOrgChart"]) {
   for (const c of dept.committees) {
     if (c.lead.kind !== "filled") {
-      blockers.push(`لجنة «${c.name}» في «${dept.name}» بلا قائد`);
+      blockers.push(fmt(T.committeeNoLead, c.name, dept.name));
     }
     if (c.members.length < MIN_COMMITTEE_MEMBERS) {
-      blockers.push(
-        `لجنة «${c.name}»: ${c.members.length} من ${MIN_COMMITTEE_MEMBERS} أعضاء خلا القائد`
-      );
+      blockers.push(fmt(T.committeeFewMembers, c.name, c.members.length, MIN_COMMITTEE_MEMBERS));
     }
-    collectCommitteeBlockers(c, blockers);
+    collectCommitteeBlockers(c, blockers, T);
   }
 }
 
-/** يبني الهيكل من الحقيقة المسجَّلة. */
-export async function buildOrgChart(): Promise<OrgChart> {
+/** يبني الهيكل من الحقيقة المسجَّلة. والعربيةُ افتراضاً: النسخةُ الرسمية تُكتب بها. */
+export async function buildOrgChart(locale: Locale = "ar"): Promise<OrgChart> {
+  const T = getDictionary(locale).libOrgChart;
   /** بُرُد أصحاب الحسابات الإدارية النشطة.
    *
    *  **والسبب عطبٌ رأيتُه مرسوماً:** من رُقِّي إلى قائدٍ يبقى له سجلُّ
@@ -303,26 +304,26 @@ export async function buildOrgChart(): Promise<OrgChart> {
   });
 
   const founderSeat: OrgSeat = founder
-    ? { kind: "filled", person: asSenior(personFromUser(founder)) }
-    : ((vacancies++, { kind: "vacant", title: "المؤسس" }) as OrgSeat);
+    ? { kind: "filled", person: asSenior(personFromUser(founder, locale)) }
+    : ((vacancies++, { kind: "vacant", title: T.vacantFounder }) as OrgSeat);
 
   const ceoSeat: OrgSeat = ceo
-    ? { kind: "filled", person: asSenior(personFromUser(ceo)) }
-    : ((vacancies++, { kind: "vacant", title: "الرئيس التنفيذي" }) as OrgSeat);
+    ? { kind: "filled", person: asSenior(personFromUser(ceo, locale)) }
+    : ((vacancies++, { kind: "vacant", title: T.vacantCeo }) as OrgSeat);
 
   // مسؤول التشغيل: يُعرَض شاغراً إن لم يُعيَّن — منصبٌ معتمدٌ في المنصة
   const underCeo: OrgSeat[] =
     opsOfficers.length > 0
-      ? opsOfficers.map((u) => ({ kind: "filled", person: personFromUser(u) }))
-      : [{ kind: "vacant", title: "مسؤول التشغيل" }];
+      ? opsOfficers.map((u) => ({ kind: "filled", person: personFromUser(u, locale) }))
+      : [{ kind: "vacant", title: T.vacantOps }];
   if (opsOfficers.length === 0) vacancies++;
 
   const flat: OrgDepartment[] = deptRows.map((d) => {
     const leadRow = d.admins[0];
     const isCommittee = Boolean(d.parentId);
     const lead: OrgSeat = leadRow
-      ? { kind: "filled", person: personFromUser(leadRow) }
-      : { kind: "vacant", title: isCommittee ? `قائد لجنة ${d.name}` : `قائد ${d.name}` };
+      ? { kind: "filled", person: personFromUser(leadRow, locale) }
+      : { kind: "vacant", title: fmt(isCommittee ? T.vacantCommitteeLead : T.vacantDeptLead, d.name) };
     // الإدارةُ العليا يرأسها المؤسس والتنفيذي — لا مقعدَ «قائدٍ» لها يُعَدّ شاغراً
     if (!leadRow && !(d.leadershipOnly && !d.parentId)) vacancies++;
     return {
@@ -332,7 +333,7 @@ export async function buildOrgChart(): Promise<OrgChart> {
       displayColor: departmentDisplayColor(d.name, d.colorHex),
       leadershipOnly: d.leadershipOnly,
       lead,
-      members: d.members.filter(notAlreadyShown).map(personFromMember),
+      members: d.members.filter(notAlreadyShown).map((m) => personFromMember(m, T)),
       committees: [],
       isCommittee,
     };
@@ -370,33 +371,31 @@ export async function buildOrgChart(): Promise<OrgChart> {
   const senior = departments.find((d) => d.leadershipOnly) ?? null;
   const branches = departments.filter((d) => !d.leadershipOnly);
 
-  const unassignedShown = unassignedMembers.filter(notAlreadyShown).map(personFromMember);
+  const unassignedShown = unassignedMembers.filter(notAlreadyShown).map((m) => personFromMember(m, T));
 
   const blockers: string[] = [];
-  if (founderSeat.kind !== "filled") blockers.push("مقعد المؤسس شاغر");
-  if (ceoSeat.kind !== "filled") blockers.push("مقعد الرئيس التنفيذي شاغر");
-  if (branches.length === 0) blockers.push("لا أقسام عاملة في الهيكل بعد");
+  if (founderSeat.kind !== "filled") blockers.push(T.founderVacant);
+  if (ceoSeat.kind !== "filled") blockers.push(T.ceoVacant);
+  if (branches.length === 0) blockers.push(T.noBranches);
   for (const d of branches) {
     // الاسمُ بين قوسين لا بسابقةِ «قسم»: أسماءُ بعض الأقسام تبدأ بها
     // فيُقرأ «قسم قسم التسويق»
-    if (d.lead.kind !== "filled") blockers.push(`«${d.name}» بلا قائد`);
+    if (d.lead.kind !== "filled") blockers.push(fmt(T.noLead, d.name));
     if (d.members.length < MIN_DEPARTMENT_MEMBERS) {
-      blockers.push(
-        `«${d.name}»: ${d.members.length} من ${MIN_DEPARTMENT_MEMBERS} أعضاء خلا القائد`
-      );
+      blockers.push(fmt(T.fewMembers, d.name, d.members.length, MIN_DEPARTMENT_MEMBERS));
     }
-    collectCommitteeBlockers(d, blockers);
+    collectCommitteeBlockers(d, blockers, T);
   }
   // ومسؤولو التشغيل منها: لا تُعَدّ خاليةً وفيها مسؤولُ تشغيلٍ معيَّن
   const opsFilled = underCeo.some((seat) => seat.kind === "filled");
   if (senior && senior.members.length === 0 && senior.lead.kind !== "filled" && !opsFilled) {
-    blockers.push("الإدارة العليا بلا أعضاء");
+    blockers.push(T.seniorEmpty);
   }
   // وأيُّ مقعدٍ شاغرٍ يمنع: الورقة الرسمية تقول في تذييلها «لا مقاعد
   // شاغرة»، وكانت تقولها بينما يظهر فيها مقعدٌ شاغر — وثيقةٌ تُناقض
   // نفسها. فإمّا أن يُملأ المقعد أو لا تُنزَّل النسخة.
   for (const seat of underCeo) {
-    if (seat.kind === "vacant") blockers.push(`«${seat.title}» منصبٌ شاغر`);
+    if (seat.kind === "vacant") blockers.push(fmt(T.seatVacant, seat.title));
   }
   if (unassignedShown.length > 0) {
     blockers.push(`${unassignedShown.length} عضواً غير مصنّفٍ في قسم`);

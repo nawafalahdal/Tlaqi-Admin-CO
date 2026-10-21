@@ -36,6 +36,8 @@ import {
 } from "@/lib/reviewMeeting";
 import { prisma } from "@/lib/prisma";
 
+import { getLocale, getDictionary } from "@/i18n/server";
+import { fmt } from "@/i18n/fmt";
 /** إجراءاتُ نظام التنفيذ.
  *
  *  **والتصريحُ يُفرَض في طبقة المنطق لا هنا:** كلُّ دالّةٍ في
@@ -57,8 +59,9 @@ function refresh() {
 type Res = { error: string | null; message?: string };
 
 async function need() {
+  const L = getDictionary(await getLocale()).rExecActions;
   const session = await auth();
-  if (!session) throw new Error("يجب تسجيل الدخول");
+  if (!session) throw new Error(L.youNeedToSign);
   return session;
 }
 
@@ -138,6 +141,7 @@ export async function reopenPeriodAction(periodId: string, reason: string): Prom
 // ── خططُ الأقسام ───────────────────────────────────────────────────
 
 export async function ensurePlanAction(periodId: string, departmentId: string): Promise<Res> {
+  const L = getDictionary(await getLocale()).rExecActions;
   try {
     const session = await need();
     // الإنشاءُ لا يَمنح صلاحية: `createTask` و`submitWeekPlan` يَفحصان
@@ -146,7 +150,7 @@ export async function ensurePlanAction(periodId: string, departmentId: string): 
       session.user.role !== "executive" &&
       !(session.user.role === "department_admin" && session.user.departmentId === departmentId)
     ) {
-      return { error: "خطةُ القسم لقائده — ومن يعلوه" };
+      return { error: L.theDepartmentSPlan };
     }
     await ensureWeekPlan(periodId, departmentId);
     refresh();
@@ -190,22 +194,23 @@ export async function decidePlanAction(
 }
 
 export async function setCapacityAction(planId: string, capacityPoints: number): Promise<Res> {
+  const L = getDictionary(await getLocale()).rExecActions;
   try {
     const session = await need();
     const plan = await prisma.weekPlan.findUnique({
       where: { id: planId },
       select: { departmentId: true },
     });
-    if (!plan) return { error: "الخطة غير موجودة" };
+    if (!plan) return { error: L.planNotFound };
     const allowed =
       session.user.role === "super_admin" ||
       session.user.role === "executive" ||
       (session.user.role === "department_admin" && session.user.departmentId === plan.departmentId);
-    if (!allowed) return { error: "ضبطُ الطاقة لقائد القسم — ومن يعلوه" };
+    if (!allowed) return { error: L.settingCapacityIsFor };
     const points = Math.max(1, Math.min(200, Math.round(capacityPoints)));
     await prisma.weekPlan.update({ where: { id: planId }, data: { capacityPoints: points } });
     refresh();
-    return { error: null, message: `ضُبطت الطاقة على ${points}` };
+    return { error: null, message: fmt(L.capacitySetTo, points) };
   } catch (err) {
     return { error: safeErrorMessage(err) };
   }
@@ -216,6 +221,7 @@ export async function recordCarryoverPlanAction(
   reason: string,
   correctivePlan: string
 ): Promise<Res> {
+  const L = getDictionary(await getLocale()).rExecActions;
   try {
     const res = await recordCarryoverPlan({
       taskId,
@@ -225,7 +231,7 @@ export async function recordCarryoverPlanAction(
     });
     if (!res.ok) return { error: res.reason };
     refresh();
-    return { error: null, message: "أُقِرّ سببُ الترحيل وخطةُ تصحيحه" };
+    return { error: null, message: L.theCarryOverReason };
   } catch (err) {
     return { error: safeErrorMessage(err) };
   }
@@ -237,12 +243,13 @@ export async function createTaskAction(
   _prev: { error: string | null; success: boolean },
   formData: FormData
 ): Promise<{ error: string | null; success: boolean }> {
+  const L = getDictionary(await getLocale()).rExecActions;
   try {
     const session = await need();
     const owner = String(formData.get("owner") ?? "");
     const [kind, id] = owner.split(":");
     const dueRaw = String(formData.get("dueAt") ?? "");
-    if (!dueRaw) return { error: "موعدُ المهمّة مطلوب", success: false };
+    if (!dueRaw) return { error: L.theTaskSDue, success: false };
 
     const res = await createTask({
       planId: String(formData.get("planId") ?? ""),
@@ -330,8 +337,9 @@ export async function changeDeadlineAction(
   newDueAt: string,
   reason: string
 ): Promise<Res> {
+  const L = getDictionary(await getLocale()).rExecActions;
   try {
-    if (!newDueAt) return { error: "الموعد الجديد مطلوب" };
+    if (!newDueAt) return { error: L.theNewDueDate };
     const res = await changeTaskDeadline({
       taskId,
       newDueAt: new Date(newDueAt),
@@ -389,6 +397,7 @@ export async function createGoalAction(
   _prev: { error: string | null; success: boolean; message?: string },
   formData: FormData
 ): Promise<{ error: string | null; success: boolean; message?: string }> {
+  const L = getDictionary(await getLocale()).rExecActions;
   try {
     const session = await need();
     const res = await createGoal({
@@ -412,7 +421,7 @@ export async function createGoalAction(
     return {
       error: null,
       success: true,
-      message: res.status === "approved" ? "أُنشئ الهدف معتمَداً" : "أُرسل الاقتراح للاعتماد",
+      message: res.status === "approved" ? L.theGoalWasCreated : L.theProposalWasSent,
     };
   } catch (err) {
     return { error: safeErrorMessage(err), success: false };
@@ -463,6 +472,7 @@ export async function proposeObjectiveAction(
   _prev: { error: string | null; success: boolean; message?: string },
   formData: FormData
 ): Promise<{ error: string | null; success: boolean; message?: string }> {
+  const L = getDictionary(await getLocale()).rExecActions;
   try {
     const res = await proposeObjective({
       departmentId: String(formData.get("departmentId") ?? ""),
@@ -478,7 +488,7 @@ export async function proposeObjectiveAction(
     return {
       error: null,
       success: true,
-      message: res.status === "approved" ? "أُنشئ معتمَداً" : "أُرسل الاقتراح للتنفيذي",
+      message: res.status === "approved" ? L.createdAsApproved : L.theProposalWasSent2,
     };
   } catch (err) {
     return { error: safeErrorMessage(err), success: false };
@@ -556,6 +566,7 @@ export async function addDecisionAction(
   text: string,
   dueAt?: string
 ): Promise<Res> {
+  const L = getDictionary(await getLocale()).rExecActions;
   try {
     const res = await addMeetingDecision({
       periodId,
@@ -565,7 +576,7 @@ export async function addDecisionAction(
     });
     if (!res.ok) return { error: res.reason };
     refresh();
-    return { error: null, message: "سُجِّل القرار" };
+    return { error: null, message: L.theDecisionWasRecorded };
   } catch (err) {
     return { error: safeErrorMessage(err) };
   }
@@ -602,6 +613,7 @@ export async function createGoalWizardAction(input: {
   | { ok: true; status: string; message: string; milestoneErrors: string[] }
   | { ok: false; error: string }
 > {
+  const L = getDictionary(await getLocale()).rExecActions;
   try {
     const session = await need();
     const res = await createGoal({
@@ -635,7 +647,7 @@ export async function createGoalWizardAction(input: {
           ownerUserId: m.ownerUserId || null,
           session,
         });
-        if (!r.ok) milestoneErrors.push(`«${m.title || "محطّة"}»: ${r.reason}`);
+        if (!r.ok) milestoneErrors.push(`«${m.title || L.milestone}»: ${r.reason}`);
       }
     }
     refresh();
@@ -643,7 +655,7 @@ export async function createGoalWizardAction(input: {
     return {
       ok: true,
       status: res.status,
-      message: res.status === "approved" ? "أُنشئ الهدف معتمَداً" : "أُرسل الاقتراح للاعتماد",
+      message: res.status === "approved" ? L.theGoalWasCreated : L.theProposalWasSent,
       milestoneErrors,
     };
   } catch (err) {

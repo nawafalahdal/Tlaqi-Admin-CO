@@ -48,15 +48,34 @@ export const INLINE_PLAN_TYPES = new Set([
 ]);
 
 /** حجمٌ يُقرأ: «٢٫٤ ميغابايت» لا «2516582» */
-export function humanSize(bytes: number | null): string {
+export function humanSize(bytes: number | null, locale: "ar" | "en" = "ar"): string {
   if (!bytes || bytes <= 0) return "—";
+  if (locale === "en") {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1048576) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / 1048576).toFixed(1)} MB`;
+  }
   if (bytes < 1024) return `${bytes} بايت`;
   if (bytes < 1048576) return `${(bytes / 1024).toFixed(0)} كيلوبايت`;
   return `${(bytes / 1048576).toFixed(1)} ميغابايت`;
 }
 
 /** اسمُ النوع بالعربية — لا وسمُ MIME خاماً في الواجهة */
-export function typeLabel(mimeType: string | null): string {
+export function typeLabel(mimeType: string | null, locale: "ar" | "en" = "ar"): string {
+  if (locale === "en") return (mimeType && PLAN_TYPES_EN[mimeType]) || "File";
   if (!mimeType) return "ملف";
   return ALLOWED_PLAN_TYPES[mimeType] ?? "ملف";
 }
+
+/** أسماءُ الأنواع بالإنجليزية — للواجهة الإنجليزية وحدها، والمفاتيحُ مفاتيحُ `ALLOWED_PLAN_TYPES` */
+const PLAN_TYPES_EN: Record<string, string> = {
+  "application/pdf": "PDF",
+  "image/png": "PNG image",
+  "image/jpeg": "JPEG image",
+  "image/webp": "WebP image",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "Word document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "Excel spreadsheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "PowerPoint presentation",
+  "text/plain": "Text",
+  "text/csv": "CSV table",
+};

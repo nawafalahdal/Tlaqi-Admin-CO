@@ -5,6 +5,8 @@ import { savePlanIntroAction } from "./actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 
+import { useTranslations } from "@/i18n/LocaleProvider";
+import { fmt } from "@/i18n/fmt";
 /** تحريرُ النبذة والعنوان — للمؤسس والمدير التنفيذي.
  *
  *  والنصُّ يُعرَض فقراتٍ كما يُكتب: السطرُ الفارغ يفصل فقرة. ولا
@@ -19,6 +21,7 @@ export function PlanIntroEditor({
   intro: string;
   theme: ReturnType<typeof themeFromColor>;
 }) {
+  const L = useTranslations().rPlansIntro;
   const [state, formAction, pending] = useActionState(savePlanIntroAction, {
     error: null,
     success: false,
@@ -30,20 +33,15 @@ export function PlanIntroEditor({
     return (
       <div className="flex flex-col gap-2">
         <div>
-          <h3 className="text-sm font-bold">نبذة المركز</h3>
-          <p className="mt-1 text-xs leading-relaxed text-black/50">
-            ما يقرؤه كلُّ من يفتح الصفحة قبل الملفّات: من نحن، ولماذا، وكيف. والسطرُ الفارغ يفصل
-            فقرةً عن فقرة.
-          </p>
+          <h3 className="text-sm font-bold">{L.centreIntroduction}</h3>
+          <p className="mt-1 text-xs leading-relaxed text-black/50">{L.whatEveryoneWhoOpens}</p>
         </div>
         {state.success && (
-          <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-            حُفظت النبذة — وتُقرأ الآن أعلى الصفحة.
-          </p>
+          <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{L.theIntroductionWasSaved}</p>
         )}
         <div>
           <Button theme={theme} variant="outline" onClick={() => setOpen(true)}>
-            {intro.trim() ? "حرّر النبذة" : "اكتب النبذة"}
+            {intro.trim() ? L.editTheIntroduction : L.writeTheIntroduction}
           </Button>
         </div>
       </div>
@@ -53,7 +51,7 @@ export function PlanIntroEditor({
   return (
     <form action={formAction} className="flex flex-col gap-4">
       <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium text-black/70">عنوان المركز</span>
+        <span className="font-medium text-black/70">{L.centreTitle}</span>
         <input
           name="heading"
           defaultValue={heading}
@@ -63,17 +61,17 @@ export function PlanIntroEditor({
       </label>
 
       <label className="flex flex-col gap-1.5 text-sm">
-        <span className="font-medium text-black/70">النبذة</span>
+        <span className="font-medium text-black/70">{L.introduction}</span>
         <textarea
           name="intro"
           value={body}
           onChange={(e) => setBody(e.target.value)}
           rows={10}
           maxLength={8000}
-          placeholder={"ما هي تَـــلاقِ؟\n\nلماذا وُجدت، وما الذي نريد أن نصل إليه؟\n\nكيف نعمل؟"}
+          placeholder={L.whatIsTlaqiWhy}
           className="rounded-xl border border-black/10 bg-white px-3.5 py-3 text-sm leading-relaxed outline-none focus:border-black/30"
         />
-        <span className="text-xs text-black/45">{body.length} من ٨٠٠٠ حرف</span>
+        <span className="text-xs text-black/45">{fmt(L.of8000Characters, body.length)}</span>
       </label>
 
       {state.error && (
@@ -82,11 +80,9 @@ export function PlanIntroEditor({
 
       <div className="flex flex-wrap gap-2">
         <Button theme={theme} type="submit" disabled={pending}>
-          {pending ? "جارٍ الحفظ..." : "احفظ النبذة"}
+          {pending ? L.saving : L.saveTheIntroduction}
         </Button>
-        <Button theme={theme} variant="outline" type="button" onClick={() => setOpen(false)}>
-          إلغاء
-        </Button>
+        <Button theme={theme} variant="outline" type="button" onClick={() => setOpen(false)}>{L.cancel}</Button>
       </div>
     </form>
   );

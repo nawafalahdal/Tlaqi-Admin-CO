@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
+import { getLocale, getDictionary } from "@/i18n/server";
 export const runtime = "nodejs";
 
 /** الصورةُ الشخصية — تُطلَب مرّةً وتُخزَّن في المتصفّح.
@@ -29,12 +30,13 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ kind: string; id: string }> }
 ) {
+  const L = getDictionary(await getLocale()).rApiAvatar;
   const session = await auth();
-  if (!session) return new NextResponse("يجب تسجيل الدخول", { status: 401 });
+  if (!session) return new NextResponse(L.youNeedToSign, { status: 401 });
 
   const { kind, id } = await params;
   if (kind !== "member" && kind !== "user") {
-    return new NextResponse("غير موجود", { status: 404 });
+    return new NextResponse(L.notFound, { status: 404 });
   }
 
   const row =
@@ -43,12 +45,12 @@ export async function GET(
       : await prisma.user.findUnique({ where: { id }, select: { avatarData: true } });
 
   const dataUrl = row?.avatarData;
-  if (!dataUrl) return new NextResponse("غير موجود", { status: 404 });
+  if (!dataUrl) return new NextResponse(L.notFound, { status: 404 });
 
   // المخزَّن data URL (كما تُخزَّن التواقيع)، فيُقشَر إلى بايتات.
   // وما لم يكن بالصيغة المنتظَرة لا يُخمَّن له نوع.
   const match = /^data:(image\/[a-z+]+);base64,(.+)$/i.exec(dataUrl);
-  if (!match) return new NextResponse("غير موجود", { status: 404 });
+  if (!match) return new NextResponse(L.notFound, { status: 404 });
   const bytes = Buffer.from(match[2], "base64");
 
   return new NextResponse(new Uint8Array(bytes), {

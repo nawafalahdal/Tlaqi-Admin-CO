@@ -6,6 +6,7 @@ import { requestsAwaiting } from "@/lib/termination";
 import { formatDate } from "@/lib/format";
 import { TerminationDecision } from "./TerminationDecision";
 
+import { getLocale, getDictionary } from "@/i18n/server";
 export const dynamic = "force-dynamic";
 
 /** طلبات إنهاء فترة الإدارة — كلٌّ يرى ما يخصّه.
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
  *  قائد القسم يرى طلبات قسمه، والتنفيذي والمؤسس يريان الكلّ. والحصر في
  *  `requestsAwaiting` لا في الصفحة: الصفحة تعرض ما أعطيَت. */
 export default async function TerminationsPage() {
+  const L = getDictionary(await getLocale()).rTermPage;
   const session = await auth();
   if (!session) redirect("/login");
 
@@ -26,8 +28,7 @@ export default async function TerminationsPage() {
     <div className="min-h-screen bg-page">
 
       <main className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-6 sm:px-5">
-        <PageHeader title="طلبات إنهاء فترة الإدارة" description={<>يرفعها أصحابها. ولم يتوقّف عمل أحدهم بالرفع — يبقى على تكليفه حتى تقرّر وتحلّ
-            المهلة. وعند الموافقة يُنفَّذ الخروج في تاريخه، وتصدر شهادة الشكر عند الختام.</>} />
+        <PageHeader title={L.requestsToEndAn} description={<>{L.theirOwnersRaiseThem}</>} />
 
         <TerminationDecision
           theme={theme}

@@ -68,8 +68,8 @@ export async function WorkspaceOverview({
   const [goals, announcements, monthEntries, ahead, departments] = await Promise.all([
     approvedGoals(),
     announcementsForSession(session, 3),
-    calendarEntries({ session, from: grid.from, to: grid.to }),
-    calendarEntries({ session, from: now, to: horizon }),
+    calendarEntries({ session, from: grid.from, to: grid.to, locale }),
+    calendarEntries({ session, from: now, to: horizon, locale }),
     showDepartments
       ? prisma.department.findMany({
           where: { ...OPEN_DEPARTMENT_WHERE, parentId: null },

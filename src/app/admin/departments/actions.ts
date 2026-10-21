@@ -15,14 +15,17 @@ import { prisma } from "@/lib/prisma";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { safeErrorMessage } from "@/lib/safeError";
 
+import { getLocale, getDictionary } from "@/i18n/server";
+import { fmt } from "@/i18n/fmt";
 export async function createDepartmentAction(
   _prev: { error: string | null; success: boolean; requested?: boolean },
   formData: FormData
 ): Promise<{ error: string | null; success: boolean; requested?: boolean }> {
+  const L = getDictionary(await getLocale()).rDepartmentsActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول", success: false };
+  if (!session) return { error: L.youNeedToSign, success: false };
   if (!canCreateDepartment(session.user.role)) {
-    return { error: "إنشاء الأقسام خاص بالفاوندر والمدير التنفيذي", success: false };
+    return { error: L.creatingDepartmentsIsFor, success: false };
   }
 
   const name = String(formData.get("name") ?? "");
@@ -32,7 +35,7 @@ export async function createDepartmentAction(
   // القسم الاستثنائي يتبع الإدارة العليا، فإنشاؤه بيدها وحدها —
   // ومسؤول التشغيل خارجها هنا
   if (leadershipOnly && session.user.role !== "super_admin" && session.user.role !== "executive") {
-    return { error: "القسم الاستثنائي يُنشئه المؤسس أو المدير التنفيذي", success: false };
+    return { error: L.anExceptionalDepartmentIs, success: false };
   }
 
   // المدير التنفيذي يرفع طلباً يعتمده المؤسس — والقرارُ هنا في الخادم لا في الواجهة
@@ -62,13 +65,14 @@ export async function updateDepartmentColorAction(
   departmentId: string,
   colorHex: string
 ): Promise<{ error: string | null }> {
+  const L = getDictionary(await getLocale()).rDepartmentsActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
   if (!canCreateDepartment(session.user.role)) {
-    return { error: "تغيير ألوان الأقسام خاص بالمؤسس والمدير التنفيذي" };
+    return { error: L.changingDepartmentColoursIs };
   }
   if (!/^#[0-9a-fA-F]{6}$/.test(colorHex)) {
-    return { error: "اللون يجب أن يكون بصيغة #RRGGBB" };
+    return { error: L.theColourMustBe };
   }
 
   try {
@@ -97,8 +101,9 @@ export async function deleteDepartmentAction(
   departmentId: string,
   confirmName: string
 ): Promise<{ error: string | null; done?: boolean; name?: string }> {
+  const L = getDictionary(await getLocale()).rDepartmentsActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
 
   try {
     const res = await deleteDepartment({
@@ -121,8 +126,9 @@ export async function assignMemberDepartmentAction(
   memberId: string,
   departmentId: string
 ): Promise<{ error: string | null; done?: boolean; departmentName?: string }> {
+  const L = getDictionary(await getLocale()).rDepartmentsActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
 
   try {
     const res = await assignMemberDepartment({
@@ -147,8 +153,9 @@ export async function decideCommitteeAction(
   decision: "approved" | "rejected",
   note: string
 ): Promise<{ error: string | null; done?: boolean; message?: string }> {
+  const L = getDictionary(await getLocale()).rDepartmentsActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
 
   try {
     const res = await decideCommittee({ committeeId, decision, note, session });
@@ -161,8 +168,8 @@ export async function decideCommitteeAction(
       done: true,
       message:
         res.decision === "approved"
-          ? `فُتحت لجنة «${res.name}» داخل ${res.parentName} — ويدعو قائدُ القسم قيادتها الآن`
-          : `رُدَّ اقتراح «${res.name}» — ووصل السبب مقترِحَها`,
+          ? fmt(L.theCommitteeWasOpened, res.name, res.parentName)
+          : fmt(L.theProposalWasReturned, res.name),
     };
   } catch (err) {
     return { error: safeErrorMessage(err) };
@@ -175,8 +182,9 @@ export async function decideDepartmentRequestAction(
   decision: "approved" | "rejected",
   note: string
 ): Promise<{ error: string | null; done?: boolean; message?: string }> {
+  const L = getDictionary(await getLocale()).rDepartmentsActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
 
   try {
     const res = await decideDepartmentRequest({ departmentId, decision, note, session });
@@ -189,8 +197,8 @@ export async function decideDepartmentRequestAction(
       done: true,
       message:
         res.decision === "approved"
-          ? `بُني قسم «${res.name}» — ويظهر الآن في الهيكل والقوائم`
-          : `رُدَّ طلب «${res.name}» — ويقرأ طالبُه السبب في صفحة الأقسام`,
+          ? fmt(L.theDepartmentWasCreated, res.name)
+          : fmt(L.theRequestWasReturned, res.name),
     };
   } catch (err) {
     return { error: safeErrorMessage(err) };

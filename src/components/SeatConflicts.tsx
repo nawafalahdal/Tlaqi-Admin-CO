@@ -3,6 +3,7 @@ import { seatConflicts } from "@/lib/workflow";
 import { SeatHolderRow } from "@/components/SeatHolderRow";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { getLocale, getDictionary } from "@/i18n/server";
+import { accountRoleLabel } from "@/lib/testTracks";
 
 /** تعارض المقاعد المفردة — يُعرض للمؤسس وحده، ولا يُعرض إن لم يكن.
  *
@@ -22,7 +23,8 @@ import { getLocale, getDictionary } from "@/i18n/server";
  *  منهما يُخرج قائداً عاملاً من المنصة. */
 export async function SeatConflicts({ canPurge = false }: { canPurge?: boolean }) {
   const conflicts = await seatConflicts();
-  const L = getDictionary(await getLocale()).ui.seats;
+  const locale = await getLocale();
+  const L = getDictionary(locale).ui.seats;
   if (conflicts.length === 0) return null;
 
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
@@ -38,7 +40,7 @@ export async function SeatConflicts({ canPurge = false }: { canPurge?: boolean }
         {conflicts.map((c) => (
           <div key={`${c.role}-${c.departmentName ?? ""}`}>
             <p className="text-xs font-bold text-black/75">
-              {c.roleLabel}
+              {accountRoleLabel(c.role, locale)}
               {c.departmentName ? ` — ${c.departmentName}` : ""}
               <span className="font-normal text-black/40"> · {L.holders.replace("{n}", String(c.holders.length))}</span>
             </p>

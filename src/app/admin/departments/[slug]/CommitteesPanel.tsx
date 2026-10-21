@@ -10,6 +10,8 @@ import { Button } from "@/components/ui";
 import { CredentialsReveal } from "@/components/CredentialsReveal";
 import type { themeFromColor } from "@/lib/brand";
 
+import { useTranslations } from "@/i18n/LocaleProvider";
+import { fmt } from "@/i18n/fmt";
 /** لجانُ القسم — في لوحة قائده، حيث يملك القرار.
  *
  *  والبطاقةُ تقول في كل حالٍ ما الخطوةُ التالية بلا أن يُسأل أحد:
@@ -49,17 +51,12 @@ export function CommitteesPanel({
   theme: ReturnType<typeof themeFromColor>;
   canPropose: boolean;
 }) {
+  const L = useTranslations().rDeptCommittees;
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-sm font-bold">اللجان داخل {parentName}</h2>
-        <p className="mt-1 text-xs leading-relaxed text-black/50">
-          اللجنة قسمٌ داخل قسمك: لها اسمُها ومسمّى قائدها، ولقائدها لوحةٌ ودعواتٌ وبنك أسئلةٍ
-          كلوحتك — في نطاق لجنته وحدها. و<strong>لونُها لونُ قسمك</strong>، فهي منه لا بجانبه؛
-          ويُميّزها في الهيكل شكلُها: إطارٌ متقطّعٌ، ووسمُ «لجنة» على ترويستها وعلى بطاقة قائدها
-          وكلِّ عضوٍ فيها. ولا تُفتح باقتراحها: القرار للمدير التنفيذي، وما لم يُعتمد لا يظهر في
-          الهيكل ولا تُوجَّه إليه تذكرةٌ ولا يُدعى له أحد.
-        </p>
+        <h2 className="text-sm font-bold">{fmt(L.committeesWithin, parentName)}</h2>
+        <p className="mt-1 text-xs leading-relaxed text-black/50">{L.aCommitteeIsA}<strong>{L.itsColourIsYour}</strong>{L.soItBelongsTo}</p>
       </div>
 
       {committees.length > 0 && (
@@ -78,10 +75,11 @@ export function CommitteesPanel({
 }
 
 function StatusChip({ status }: { status: CommitteeRow["committeeStatus"] }) {
+  const L = useTranslations().rDeptCommittees;
   const map = {
-    pending_review: { label: "بانتظار اعتماد التنفيذي", cls: "bg-amber-100 text-amber-900" },
-    approved: { label: "معتمدة ومفتوحة", cls: "bg-emerald-100 text-emerald-900" },
-    rejected: { label: "لم تُعتمد", cls: "bg-red-50 text-red-700" },
+    pending_review: { label: L.awaitingCeoApproval, cls: "bg-amber-100 text-amber-900" },
+    approved: { label: L.approvedAndOpen, cls: "bg-emerald-100 text-emerald-900" },
+    rejected: { label: L.notApproved, cls: "bg-red-50 text-red-700" },
   } as const;
   const s = map[status ?? "pending_review"];
   return <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${s.cls}`}>{s.label}</span>;
@@ -96,10 +94,11 @@ function CommitteeCard({
   theme: ReturnType<typeof themeFromColor>;
   canManage: boolean;
 }) {
+  const L = useTranslations().rDeptCommittees;
   const [inviting, setInviting] = useState(false);
   const [removing, startRemoving] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const leadLabel = c.leadTitle?.trim() || `قائد لجنة ${c.name}`;
+  const leadLabel = c.leadTitle?.trim() || fmt(L.committeeLead, c.name);
   // الساكنةُ وحدها تُزال من هنا: المفتوحةُ قسمٌ عاملٌ يمرّ بشروط الحذف
   const removable = canManage && c.committeeStatus !== "approved";
   // الدعوةُ لمقعدٍ شاغرٍ في لجنةٍ مفتوحة. وشرطُها يُحسَب مرّةً ويُستعمل
@@ -117,21 +116,20 @@ function CommitteeCard({
         />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-bold">لجنة {c.name}</h3>
+            <h3 className="text-sm font-bold">{fmt(L.committee, c.name)}</h3>
             <StatusChip status={c.committeeStatus} />
           </div>
           <p className="mt-0.5 text-xs text-black/45">
             {leadLabel}
-            {c.lead ? ` · ${c.lead.fullName}` : " · المنصب شاغر"}
-            {c.committeeStatus === "approved" && ` · الأعضاء: ${c.memberCount}`}
-            {c.subCommitteeCount > 0 && ` · لجان فرعية: ${c.subCommitteeCount}`}
+            {c.lead ? ` · ${c.lead.fullName}` : L.positionVacant}
+            {c.committeeStatus === "approved" && fmt(L.members, c.memberCount)}
+            {c.subCommitteeCount > 0 && fmt(L.subCommittees, c.subCommitteeCount)}
           </p>
           {c.committeeStatus === "pending_review" && c.requestedByName && (
-            <p className="mt-1 text-xs text-black/40">اقترحها {c.requestedByName}</p>
+            <p className="mt-1 text-xs text-black/40">{fmt(L.proposedBy, c.requestedByName)}</p>
           )}
           {c.committeeStatus === "rejected" && c.decisionNote && (
-            <p className="mt-1.5 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs leading-relaxed text-red-700">
-              سببُ الردّ من {c.decidedByName ?? "الإدارة"}: {c.decisionNote}
+            <p className="mt-1.5 rounded-lg bg-red-50 px-2.5 py-1.5 text-xs leading-relaxed text-red-700">{L.reasonForReturnFrom}{c.decidedByName ?? L.management}: {c.decisionNote}
             </p>
           )}
         </div>
@@ -145,7 +143,7 @@ function CommitteeCard({
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-black/5 pt-3">
           {canInviteLead && (
             <Button theme={theme} variant="outline" onClick={() => setInviting((v) => !v)}>
-              {inviting ? "إلغاء" : "ادعُ قائد اللجنة"}
+              {inviting ? L.cancel : L.inviteTheCommitteeLead}
             </Button>
           )}
           {removable && (
@@ -162,10 +160,10 @@ function CommitteeCard({
               }
             >
               {removing
-                ? "جارٍ الإزالة..."
+                ? L.removing
                 : c.committeeStatus === "rejected"
-                  ? "أزِل المردودة"
-                  : "اسحب الاقتراح"}
+                  ? L.removeTheReturnedProposal
+                  : L.withdrawTheProposal}
             </Button>
           )}
         </div>
@@ -189,6 +187,7 @@ function InviteLeadForm({
   theme: ReturnType<typeof themeFromColor>;
   leadLabel: string;
 }) {
+  const L = useTranslations().rDeptCommittees;
   const [state, formAction, pending] = useActionState(inviteCommitteeLeadAction, {
     error: null,
     success: false,
@@ -214,14 +213,10 @@ function InviteLeadForm({
   return (
     <form ref={formRef} action={formAction} className="flex flex-col gap-3">
       <input type="hidden" name="committeeId" value={committee.id} />
-      <p className="text-xs leading-relaxed text-black/50">
-        سيدخل بمسمّى <strong>{leadLabel}</strong> — وهو المسمّى المُقَرّ عند اعتماد اللجنة، لا
-        يُكتب من هنا. ويمرّ باختبار القادة نفسه، ثم يصير قائداً للجنته: يدعو أعضاءها ويملأ بنك
-        أسئلتهم ويُدير تذاكرها.
-      </p>
+      <p className="text-xs leading-relaxed text-black/50">{L.theyWillJoinWith}<strong>{leadLabel}</strong>{L.theTitleApprovedWith}</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">الاسم الكامل</span>
+          <span className="font-medium text-black/70">{L.fullName}</span>
           <input
             name="fullName"
             required
@@ -229,7 +224,7 @@ function InviteLeadForm({
           />
         </label>
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">البريد الإلكتروني</span>
+          <span className="font-medium text-black/70">{L.email}</span>
           <input
             name="email"
             type="email"
@@ -245,7 +240,7 @@ function InviteLeadForm({
       )}
       <div>
         <Button theme={theme} type="submit" disabled={pending}>
-          {pending ? "جارٍ إنشاء الحساب..." : "أنشئ حساب قائد اللجنة"}
+          {pending ? L.creatingTheAccount : L.createTheCommitteeLead}
         </Button>
       </div>
     </form>
@@ -261,6 +256,7 @@ function ProposeForm({
   theme: ReturnType<typeof themeFromColor>;
   parentColorHex: string;
 }) {
+  const L = useTranslations().rDeptCommittees;
   const [state, formAction, pending] = useActionState(requestCommitteeAction, {
     error: null,
     success: false,
@@ -283,9 +279,7 @@ function ProposeForm({
           </p>
         )}
         <div>
-          <Button theme={theme} variant="outline" onClick={() => setOpen(true)}>
-            اقترح لجنة جديدة
-          </Button>
+          <Button theme={theme} variant="outline" onClick={() => setOpen(true)}>{L.proposeANewCommittee}</Button>
         </div>
       </div>
     );
@@ -296,36 +290,34 @@ function ProposeForm({
       <input type="hidden" name="parentId" value={parentId} />
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">اسم اللجنة</span>
+          <span className="font-medium text-black/70">{L.committeeName}</span>
           <input
             name="name"
             required
             maxLength={60}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="مثال: التطوير"
+            placeholder={L.eGDevelopment}
             className="min-h-11 rounded-xl border border-black/10 bg-white px-3.5 text-sm outline-none focus:border-black/30"
           />
-          <span className="text-xs text-black/45">تُعرض «لجنة {name.trim() || "..."}»</span>
+          <span className="text-xs text-black/45">{fmt(L.shownAsCommittee, name.trim() || "...")}</span>
         </label>
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium text-black/70">مسمّى قائدها</span>
+          <span className="font-medium text-black/70">{L.leadTitle}</span>
           <input
             name="leadTitle"
             maxLength={60}
-            placeholder={`قائد لجنة ${name.trim() || "..."}`}
+            placeholder={fmt(L.committeeLead, name.trim() || "...")}
             className="min-h-11 rounded-xl border border-black/10 bg-white px-3.5 text-sm outline-none focus:border-black/30"
           />
-          <span className="text-xs text-black/45">
-            اتركه فارغاً فيُشتقّ من اسمها. وهو ما يحمله قائدها في الهيكل وفي بطاقته.
-          </span>
+          <span className="text-xs text-black/45">{L.leaveItEmptyTo}</span>
         </label>
       </div>
 
       {/* معاينةُ ما سيُرسَم: لونُ القسم، وشكلُ اللجنة — لا مُنتقي ألوان.
           فاللونُ لم يعد خياراً، والمعاينةُ تُغني عن شرحٍ طويل. */}
       <div className="flex flex-col gap-2 text-sm">
-        <span className="font-medium text-black/70">هكذا ستظهر في الهيكل</span>
+        <span className="font-medium text-black/70">{L.howItWillAppear}</span>
         <div className="flex items-center gap-2">
           <span
             className="rounded-xl border-dashed px-3 py-1.5 text-xs font-bold"
@@ -334,11 +326,8 @@ function ProposeForm({
               border: `1.5px dashed ${parentColorHex}`,
             }}
           >
-            لجنة {name.trim() || "..."}
-          </span>
-          <span className="text-xs text-black/45">
-            بلون قسمك، وبإطارٍ متقطّعٍ يقول إنها لجنة
-          </span>
+            {fmt(L.committee, name.trim() || "...")}</span>
+          <span className="text-xs text-black/45">{L.inYourDepartmentS}</span>
         </div>
       </div>
 
@@ -348,11 +337,9 @@ function ProposeForm({
 
       <div className="flex flex-wrap gap-2">
         <Button theme={theme} type="submit" disabled={pending}>
-          {pending ? "جارٍ الإرسال..." : "أرسل الاقتراح للتنفيذي"}
+          {pending ? L.sending : L.sendTheProposalTo}
         </Button>
-        <Button theme={theme} variant="outline" type="button" onClick={() => setOpen(false)}>
-          إلغاء
-        </Button>
+        <Button theme={theme} variant="outline" type="button" onClick={() => setOpen(false)}>{L.cancel}</Button>
       </div>
     </form>
   );

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { resubmitApprovalAction, advanceExecutionAction } from "./actions";
 import { Button } from "@/components/ui";
 
+import { useTranslations } from "@/i18n/LocaleProvider";
 /** إجراءات صاحب الطلب — بحسب حالته، لا كلُّها في كل حال.
  *
  *  المردود للتعديل يُعاد، والمعتمَد يبدأ تنفيذه، والجاري يُعلَن إكماله.
@@ -21,6 +22,7 @@ export function RequesterActions({
   state: string;
   theme: Parameters<typeof Button>[0]["theme"];
 }) {
+  const L = useTranslations().rApprRequester;
   const [note, setNote] = useState("");
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +43,7 @@ export function RequesterActions({
         {open ? (
           <div className="flex flex-col gap-2">
             <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium text-black/70">ما عدّلته (يُسجَّل في السجل)</span>
+              <span className="font-medium text-black/70">{L.whatYouChangedRecorded}</span>
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
@@ -59,21 +61,17 @@ export function RequesterActions({
                   startTransition(async () => {
                     const res = await resubmitApprovalAction(ticketId, note);
                     if (res.error) setError(res.error);
-                    else setDone("أُعيد إرساله إلى المعتمِد نفسه");
+                    else setDone(L.resubmittedToTheSame);
                   });
                 }}
               >
-                {pending ? "جارِ الإرسال..." : "أعِد الإرسال"}
+                {pending ? L.sending : L.resubmit}
               </Button>
-              <Button theme={theme} variant="ghost" onClick={() => setOpen(false)}>
-                إلغاء
-              </Button>
+              <Button theme={theme} variant="ghost" onClick={() => setOpen(false)}>{L.cancel}</Button>
             </div>
           </div>
         ) : (
-          <Button theme={theme} onClick={() => setOpen(true)}>
-            عدّلته — أعِد الإرسال
-          </Button>
+          <Button theme={theme} onClick={() => setOpen(true)}>{L.iChangedItResubmit}</Button>
         )}
       </div>
     );
@@ -92,11 +90,11 @@ export function RequesterActions({
             startTransition(async () => {
               const res = await advanceExecutionAction(ticketId, to);
               if (res.error) setError(res.error);
-              else setDone(to === "executing" ? "بدأ التنفيذ" : "أُعلن الإكمال");
+              else setDone(to === "executing" ? L.executionStarted : L.completionDeclared);
             });
           }}
         >
-          {pending ? "جارِ التنفيذ..." : to === "executing" ? "ابدأ التنفيذ" : "أعلِن الإكمال"}
+          {pending ? L.working : to === "executing" ? L.startExecution : L.declareCompletion}
         </Button>
       </div>
     );

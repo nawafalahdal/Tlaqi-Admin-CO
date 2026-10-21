@@ -5,6 +5,8 @@ import { movePlanDocAction, removePlanDocAction, renamePlanDocAction } from "./a
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 
+import { useTranslations } from "@/i18n/LocaleProvider";
+import { fmt } from "@/i18n/fmt";
 /** أدواتُ مادةٍ واحدة: ترتيبٌ وتسميةٌ وحذف — لمن يملك المركز.
  *
  *  **والحذفُ يُؤكَّد ولا يقع بضغطة:** الوثيقةُ مرفوعةٌ لا مُشارٌ إليها،
@@ -28,6 +30,7 @@ export function PlanDocManager({
   isLast: boolean;
   theme: ReturnType<typeof themeFromColor>;
 }) {
+  const L = useTranslations().rPlansManager;
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -52,7 +55,7 @@ export function PlanDocManager({
       {editing ? (
         <div className="flex flex-col gap-2.5">
           <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium text-black/70">العنوان</span>
+            <span className="font-medium text-black/70">{L.title}</span>
             <input
               value={draftTitle}
               onChange={(e) => setDraftTitle(e.target.value)}
@@ -61,7 +64,7 @@ export function PlanDocManager({
             />
           </label>
           <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium text-black/70">الوصف</span>
+            <span className="font-medium text-black/70">{L.description}</span>
             <input
               value={draftNote}
               onChange={(e) => setDraftNote(e.target.value)}
@@ -75,29 +78,24 @@ export function PlanDocManager({
               disabled={pending || draftTitle.trim().length === 0}
               onClick={() => run(() => renamePlanDocAction(docId, draftTitle, draftNote))}
             >
-              {pending ? "جارٍ الحفظ..." : "احفظ"}
+              {pending ? L.saving : L.save}
             </Button>
-            <Button theme={theme} variant="outline" onClick={() => setEditing(false)}>
-              إلغاء
-            </Button>
+            <Button theme={theme} variant="outline" onClick={() => setEditing(false)}>{L.cancel}</Button>
           </div>
         </div>
       ) : confirming ? (
         <div className="flex flex-col gap-2.5">
           <p className="rounded-lg bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-700">
-            سيُحذف «{title}» من المركز نهائياً — ومعه ملفُّه إن كان مرفوعاً. ولا تُستعاد.
-          </p>
+            {fmt(L.willBePermanentlyRemoved, title)}</p>
           <div className="flex flex-wrap gap-2">
             <Button
               theme={theme}
               disabled={pending}
               onClick={() => run(() => removePlanDocAction(docId))}
             >
-              {pending ? "جارٍ الحذف..." : "احذفها نهائياً"}
+              {pending ? L.deleting : L.deleteItPermanently}
             </Button>
-            <Button theme={theme} variant="outline" onClick={() => setConfirming(false)}>
-              تراجع
-            </Button>
+            <Button theme={theme} variant="outline" onClick={() => setConfirming(false)}>{L.back}</Button>
           </div>
         </div>
       ) : (
@@ -106,8 +104,8 @@ export function PlanDocManager({
             type="button"
             disabled={pending || isFirst}
             onClick={() => run(() => movePlanDocAction(docId, "up"))}
-            aria-label="قدّمها في الترتيب"
-            title="قدّمها"
+            aria-label={L.moveItUpIn}
+            title={L.moveUp}
             className="min-h-9 rounded-lg border border-black/10 px-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-30"
           >
             ↑
@@ -116,18 +114,14 @@ export function PlanDocManager({
             type="button"
             disabled={pending || isLast}
             onClick={() => run(() => movePlanDocAction(docId, "down"))}
-            aria-label="أخّرها في الترتيب"
-            title="أخّرها"
+            aria-label={L.moveItDownIn}
+            title={L.moveDown}
             className="min-h-9 rounded-lg border border-black/10 px-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-30"
           >
             ↓
           </button>
-          <Button theme={theme} variant="outline" onClick={() => setEditing(true)}>
-            عدّل العنوان
-          </Button>
-          <Button theme={theme} variant="ghost" onClick={() => setConfirming(true)}>
-            احذفها
-          </Button>
+          <Button theme={theme} variant="outline" onClick={() => setEditing(true)}>{L.editTheTitle}</Button>
+          <Button theme={theme} variant="ghost" onClick={() => setConfirming(true)}>{L.deleteIt}</Button>
         </div>
       )}
 

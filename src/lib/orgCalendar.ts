@@ -6,6 +6,8 @@ import type { Session } from "next-auth";
 import { canReviewWork } from "@/lib/execution";
 import { startOfRiyadhDay, riyadhDateKey, toRiyadh, fromRiyadhParts } from "@/lib/riyadh";
 
+import { getDictionary, type Locale } from "@/i18n";
+import { fmt } from "@/i18n/fmt";
 /** التقويمُ الموحَّد — وكلُّ مدخلٍ فيه يُفضي إلى سجلّه الأصلي.
  *
  *  **ولا جدولَ أحداثٍ ثانٍ.** الحدثُ هنا **اشتقاقٌ** من الأهداف
@@ -49,12 +51,20 @@ export const KIND_LABEL: Record<CalendarEntry["kind"], string> = {
   period: "أسبوع",
 };
 
+/** اسمُ النوع بلغة الواجهة — والثابتُ أعلاه بالعربية لمن يكتب سجلاً أو رسالة */
+export function kindLabel(kind: CalendarEntry["kind"], locale: Locale = "ar"): string {
+  return getDictionary(locale).libCalendar.kind[kind];
+}
+
 /** يَجمع مداخل التقويم في مدىً زمنيٍّ — بما يَحقّ لصاحب الجلسة */
 export async function calendarEntries(opts: {
   session: Session;
   from: Date;
   to: Date;
+  /** لغةُ نصوص المداخل — العربيةُ ما لم تُمرَّر */
+  locale?: Locale;
 }): Promise<CalendarEntry[]> {
+  const L = getDictionary(opts.locale ?? "ar").libCalendar;
   const { session, from, to } = opts;
   const now = new Date();
   const isMember = session.user.role === "member";
@@ -177,7 +187,7 @@ export async function calendarEntries(opts: {
       date: riyadhDateKey(t.dueAt),
       kind: "task",
       title: t.title,
-      detail: `${t.department?.name ?? "—"} · ${t.ownerUser?.fullName ?? t.ownerMember?.fullName ?? "بلا صاحب"}`,
+      detail: `${t.department?.name ?? "—"} · ${t.ownerUser?.fullName ?? t.ownerMember?.fullName ?? L.noOwner}`,
       href: isMember ? "/member" : "/admin/execution",
       colorHex: t.department?.colorHex ?? KIND_COLOR.task,
       overdue: !closed && t.dueAt < now,
@@ -189,8 +199,8 @@ export async function calendarEntries(opts: {
       id: `meet:${m.id}`,
       date: riyadhDateKey(m.scheduledAt),
       kind: "meeting",
-      title: "اجتماعُ المراجعة الأسبوعي",
-      detail: `${m.durationMinutes} دقيقة · ${m.status === "held" ? "انعقد" : "لم يُعلَن انعقادُه"}`,
+      title: L.weeklyReviewMeeting,
+      detail: fmt(L.meetingDetail, m.durationMinutes, m.status === "held" ? L.held : L.notHeld),
       href: reviewer ? "/admin/execution/review" : "/calendar",
       colorHex: KIND_COLOR.meeting,
       overdue: m.status === "scheduled" && m.scheduledAt < now,
@@ -202,7 +212,7 @@ export async function calendarEntries(opts: {
       id: `ticket:${t.id}`,
       date: riyadhDateKey(t.stageDueAt),
       kind: "ticket",
-      title: `تذكرة #${t.ticketNumber}: ${t.subject}`,
+      title: fmt(L.ticket, t.ticketNumber, t.subject),
       detail: t.targetDepartment?.name ?? null,
       href: `/t/${t.ticketNumber}`,
       colorHex: KIND_COLOR.ticket,
@@ -215,7 +225,7 @@ export async function calendarEntries(opts: {
       id: `period:${p.id}`,
       date: riyadhDateKey(p.weekStart),
       kind: "period",
-      title: "بدايةُ أسبوع التنفيذ",
+      title: L.startOfTheExecution,
       detail: null,
       href: isMember ? "/member" : "/admin/execution",
       colorHex: KIND_COLOR.period,
@@ -264,6 +274,11 @@ export const MONTH_NAMES = [
   "نوفمبر",
   "ديسمبر",
 ];
+
+/** اسمُ الشهر بلغة الواجهة (٠ = يناير) */
+export function monthName(month: number, locale: Locale = "ar"): string {
+  return getDictionary(locale).libCalendar.months[`m${month}` as keyof ReturnType<typeof getDictionary>["libCalendar"]["months"]] ?? "";
+}
 
 export function todayKey() {
   return riyadhDateKey(startOfRiyadhDay());

@@ -101,8 +101,19 @@ export function riyadhDaysBetween(from: Date, to: Date): number {
 }
 
 /** عدُّ الأيام كما يُقرأ: «بقي ١٢ يوماً»، «يستحقّ غداً»، «متأخّرٌ ٣ أيام» */
-export function countdownLabel(due: Date, now: Date = new Date()): string {
+export function countdownLabel(due: Date, now: Date = new Date(), locale: "ar" | "en" = "ar"): string {
   const days = riyadhDaysBetween(now, due);
+  if (locale === "en") {
+    if (days === 0) return "Due today";
+    if (days === 1) return "Due tomorrow";
+    if (days === -1) return "1 day late";
+    if (days > 0) {
+      if (days < 30) return `In ${days} days`;
+      const months = Math.round(days / 30);
+      return months === 1 ? "In 1 month" : `In ${months} months`;
+    }
+    return `${Math.abs(days)} days late`;
+  }
   if (days === 0) return "يستحقّ اليوم";
   if (days === 1) return "يستحقّ غداً";
   if (days === -1) return "متأخّرٌ يوماً";

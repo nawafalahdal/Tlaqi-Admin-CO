@@ -14,6 +14,7 @@ import { appendMemberEvent } from "@/lib/googleSheets";
 import { revalidatePath } from "next/cache";
 import type { AnnouncementAudience, RequestType } from "@prisma/client";
 
+import { getLocale, getDictionary } from "@/i18n/server";
 const AUDIENCES: AnnouncementAudience[] = ["everyone", "leadership", "department"];
 /** ما يصحّ أن ترفعه القيادة كطلب بين الأقسام.
  *  «بانر ترحيبي» ليس منها: تُنشئه المنصة تلقائياً عند الاعتماد، فرفعه
@@ -38,11 +39,12 @@ export async function publishAnnouncementAction(
   _prevState: { error: string | null; success: boolean },
   formData: FormData
 ): Promise<{ error: string | null; success: boolean }> {
+  const L = getDictionary(await getLocale()).rHubActions;
   try {
     const session = await auth();
-    if (!session) return { error: "يجب تسجيل الدخول", success: false };
+    if (!session) return { error: L.youNeedToSign, success: false };
     if (!canPublishAnnouncement(session.user.role)) {
-      return { error: "غير مصرح لك بنشر الإعلانات", success: false };
+      return { error: L.youAreNotAllowed, success: false };
     }
 
     const powers = announcementPowers(session);
@@ -55,34 +57,34 @@ export async function publishAnnouncementAction(
     // البثّ بالبريد قرار صريح في النموذج، لا افتراضاً صامتاً
     const sendEmail = formData.get("sendEmail") === "on";
 
-    if (!title || !body) return { error: "العنوان والنص مطلوبان", success: false };
+    if (!title || !body) return { error: L.titleAndTextAre, success: false };
     if (!AUDIENCES.includes(audienceRaw as AnnouncementAudience)) {
-      return { error: "جمهور غير صالح", success: false };
+      return { error: L.invalidAudience, success: false };
     }
     const audience = audienceRaw as AnnouncementAudience;
     // الجمهور يُفحص بما يملكه صاحب الجلسة لا بما أرسله النموذج: قائد
     // القسم لا يُخاطب الفريق كلّه ولو عُدّل الحقل من المتصفح
     if (!powers.audiences.includes(audience)) {
-      return { error: "لا تملك مخاطبة هذا الجمهور", success: false };
+      return { error: L.youCannotAddressThis, success: false };
     }
 
     // قائد القسم مربوط بقسمه: تُفرض الوجهة من الجلسة لا من النموذج
     const departmentId =
       powers.lockedDepartmentId ?? (String(formData.get("departmentId") ?? "").trim() || null);
     if (audience === "department" && !departmentId) {
-      return { error: "اختر القسم المستهدف", success: false };
+      return { error: L.chooseTheTargetDepartment, success: false };
     }
 
     if (meetingUrl && !powers.canAttachMeeting) {
-      return { error: "رابط الاجتماع للإدارة العليا وحدها", success: false };
+      return { error: L.aMeetingLinkIs, success: false };
     }
     // نصٌّ ليس رابطاً في موضع يُنقر يُربك قارئه، ويفتح باب إدراج ما لا
     // نريده في بريد يحمل اسمنا
     if (meetingUrl && !isSafeHttpUrl(meetingUrl)) {
-      return { error: "رابط الاجتماع غير صالح — يبدأ بـ https://", success: false };
+      return { error: L.invalidMeetingLinkIt, success: false };
     }
     if (linkUrl && !isSafeHttpUrl(linkUrl)) {
-      return { error: "الرابط المرفق غير صالح — يبدأ بـ https://", success: false };
+      return { error: L.invalidAttachedLinkIt, success: false };
     }
 
     await publishAnnouncement({
@@ -109,16 +111,17 @@ export async function publishAnnouncementAction(
 }
 
 export async function deleteAnnouncementAction(id: string): Promise<{ error: string | null }> {
+  const L = getDictionary(await getLocale()).rHubActions;
   try {
     const session = await auth();
-    if (!session) return { error: "يجب تسجيل الدخول" };
+    if (!session) return { error: L.youNeedToSign };
 
     const announcement = await prisma.announcement.findUniqueOrThrow({ where: { id } });
     // المؤسس يحذف أي إعلان؛ غيره يحذف إعلانه هو فقط
     const allowed =
       session.user.role === "super_admin" ||
       (canPublishAnnouncement(session.user.role) && announcement.authorId === session.user.id);
-    if (!allowed) return { error: "غير مصرح لك بحذف هذا الإعلان" };
+    if (!allowed) return { error: L.youAreNotAllowed2 };
 
     await prisma.announcement.delete({ where: { id } });
     revalidatePath("/admin");
@@ -136,12 +139,13 @@ export async function createLeadershipRequestAction(
   _prevState: { error: string | null; success: boolean },
   formData: FormData
 ): Promise<{ error: string | null; success: boolean }> {
+  const L = getDictionary(await getLocale()).rHubActions;
   try {
     const session = await auth();
-    if (!session) return { error: "يجب تسجيل الدخول", success: false };
+    if (!session) return { error: L.youNeedToSign, success: false };
     // رفع الطلبات على الأقسام للقيادة من فوقها، لا لقائد قسمٍ على قسم جاره
     if (!isLeadership(session.user.role)) {
-      return { error: "غير مصرح لك برفع طلب للأقسام", success: false };
+      return { error: L.youAreNotAllowed3, success: false };
     }
 
     const typeRaw = String(formData.get("type") ?? "");
@@ -150,12 +154,12 @@ export async function createLeadershipRequestAction(
     const dueDays = Number(formData.get("dueDays") ?? 3);
 
     if (!LEADERSHIP_REQUEST_TYPES.includes(typeRaw as RequestType)) {
-      return { error: "نوع الطلب غير صالح", success: false };
+      return { error: L.invalidRequestType, success: false };
     }
-    if (!targetDepartmentId) return { error: "اختر القسم المستهدف", success: false };
-    if (!note) return { error: "اكتب تفاصيل الطلب", success: false };
+    if (!targetDepartmentId) return { error: L.chooseTheTargetDepartment, success: false };
+    if (!note) return { error: L.writeTheRequestDetails, success: false };
     if (!Number.isFinite(dueDays) || dueDays < 1 || dueDays > 30) {
-      return { error: "المهلة يجب أن تكون بين يوم و30 يوماً", success: false };
+      return { error: L.theDeadlineMustBe, success: false };
     }
 
     const department = await prisma.department.findUniqueOrThrow({

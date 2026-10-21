@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { InviteTargetRole, TestTrack } from "@prisma/client";
 import type { Session } from "next-auth";
+import { getDictionary, type Locale } from "@/i18n";
 
 /** يحدد بنك الأسئلة الصحيح حسب الدور المستهدف للدعوة:
  *  عضو قسم ← اختبار ذلك القسم (يملكه أدمن القسم)
@@ -74,9 +75,11 @@ export const ACCOUNT_ROLE_LABELS: Record<string, string> = {
   super_admin: "المؤسس",
 };
 
-/** مسمّى صاحب حساب أياً كان دوره — بلا خام يتسرّب إلى الواجهة */
-export function accountRoleLabel(role: string) {
-  return ACCOUNT_ROLE_LABELS[role] ?? role;
+/** مسمّى صاحب حساب أياً كان دوره — بلا خام يتسرّب إلى الواجهة.
+ *  والعربيةُ افتراضاً: الشيتُ والبريدُ والسجلّاتُ تكتبه بها. */
+export function accountRoleLabel(role: string, locale: Locale = "ar") {
+  if (locale === "ar") return ACCOUNT_ROLE_LABELS[role] ?? role;
+  return (getDictionary(locale).libLabels.accountRole as Record<string, string>)[role] ?? role;
 }
 
 /** يحدد من يملك صلاحية تعديل أسئلة بنك اختبار معيّن، تطبيقاً لتسلسل الحوكمة:

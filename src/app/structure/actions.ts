@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { saveAvatar, clearAvatar } from "@/lib/avatars";
 import { safeErrorMessage } from "@/lib/safeError";
 
+import { getLocale, getDictionary } from "@/i18n/server";
 /** رفع الصورة الشخصية — **لنفسه وحده**.
  *
  *  والهويّة تُقرأ من الجلسة لا من الحقل: لو أُخِذ `id` من الواجهة لأمكن
@@ -21,11 +22,12 @@ import { safeErrorMessage } from "@/lib/safeError";
 export async function uploadMyAvatarAction(
   formData: FormData
 ): Promise<{ error: string | null; done?: boolean; bytes?: number; transparent?: boolean | null }> {
+  const L = getDictionary(await getLocale()).rStructureActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
 
   const file = formData.get("avatar");
-  if (!(file instanceof File) || file.size === 0) return { error: "اختر صورة أولاً" };
+  if (!(file instanceof File) || file.size === 0) return { error: L.chooseAnImageFirst };
 
   try {
     const buf = Buffer.from(await file.arrayBuffer());
@@ -48,8 +50,9 @@ export async function uploadMyAvatarAction(
 
 /** حذف صورته — فيعود العنصر الافتراضي في بطاقته */
 export async function clearMyAvatarAction(): Promise<{ error: string | null; done?: boolean }> {
+  const L = getDictionary(await getLocale()).rStructureActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
 
   try {
     await clearAvatar(

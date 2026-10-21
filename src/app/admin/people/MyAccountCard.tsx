@@ -4,6 +4,7 @@ import { Card } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
 
+import { fmt } from "@/i18n/fmt";
 /** حساب المؤسس نفسه — يُعرض ولا يُحذف، وله زرُّ بطاقته.
  *
  *  حسابه كان خارج القائمة كلّها: قائمة الحسابات تستثني `super_admin`
@@ -28,6 +29,7 @@ export function MyAccountCard({
   };
   theme: ReturnType<typeof themeFromColor>;
 }) {
+  const L = useTranslations().rMyAccount;
   const t = useTranslations();
 
   return (
@@ -44,8 +46,7 @@ export function MyAccountCard({
 
       {account.welcomeSentAt && (
         <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-800">
-          ✓ آخر بطاقة انضمام قُبلت عند مزوّد البريد {account.welcomeSentAt}.
-        </p>
+          {fmt(L.theLastWelcomeCard, account.welcomeSentAt)}</p>
       )}
 
       <p className="mt-3 rounded-lg bg-black/[0.03] px-3 py-2 text-xs leading-relaxed text-black/55">

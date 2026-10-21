@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { submissionEvidence } from "@/lib/tasks";
 import { canReviewWork, canPlanDepartment } from "@/lib/execution";
 
+import { getLocale, getDictionary } from "@/i18n/server";
 export const runtime = "nodejs";
 
 /** دليلُ تسليمٍ مرفوع — ولمن يحقّ له وحده.
@@ -13,18 +14,19 @@ export const runtime = "nodejs";
  *  القسم، ولصاحب المهمّة نفسِه — ولا أحدَ سواهم، ولو خمّن المعرّف.
  */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const L = getDictionary(await getLocale()).rApiEvidence;
   const session = await auth();
-  if (!session) return new NextResponse("يجب تسجيل الدخول", { status: 401 });
+  if (!session) return new NextResponse(L.youNeedToSign, { status: 401 });
 
   const { id } = await params;
   const doc = await submissionEvidence(id);
-  if (!doc) return new NextResponse("غير موجود", { status: 404 });
+  if (!doc) return new NextResponse(L.notFound, { status: 404 });
 
   const task = await prisma.planTask.findUnique({
     where: { id: doc.taskId },
     select: { ownerUserId: true, ownerMemberId: true, departmentId: true },
   });
-  if (!task) return new NextResponse("غير موجود", { status: 404 });
+  if (!task) return new NextResponse(L.notFound, { status: 404 });
 
   const mine =
     (task.ownerUserId && task.ownerUserId === session.user.id) ||
@@ -33,7 +35,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     canReviewWork(session.user.role) ||
     Boolean(mine) ||
     (task.departmentId ? canPlanDepartment(session, task.departmentId) : false);
-  if (!allowed) return new NextResponse("لا تملك قراءة هذا الدليل", { status: 403 });
+  if (!allowed) return new NextResponse(L.youCannotReadThis, { status: 403 });
 
   const ascii = doc.fileName.replace(/[^\x20-\x7E]/g, "_") || "evidence";
   return new NextResponse(new Uint8Array(doc.bytes), {

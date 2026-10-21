@@ -28,6 +28,8 @@ import { TaskCard } from "@/components/execution/TaskCard";
 import { PlanDecision } from "./PlanDecision";
 import { countdownLabel } from "@/lib/riyadh";
 
+import { getLocale, getDictionary } from "@/i18n/server";
+import { fmt } from "@/i18n/fmt";
 export const dynamic = "force-dynamic";
 
 /** لوحةُ التنفيذ التنفيذية — ما التزمت به المنظمة، وأين هي منه.
@@ -38,6 +40,8 @@ export const dynamic = "force-dynamic";
  *  في نسبة.
  */
 export default async function ExecutionPage() {
+  const locale = await getLocale();
+  const L = getDictionary(locale).rExecPage;
   const session = await auth();
   if (!session) redirect("/login");
   if (session.user.role === "member") redirect("/member");
@@ -127,19 +131,15 @@ export default async function ExecutionPage() {
             (`createGoal`)، وإضافةُ المحطّة (صفحة الأهداف — `createMilestone`)،
             ومساحةُ المراجعة. والتقويمُ في القائمة الجانبية. */}
         <PageHeader
-          title="التنفيذ والأهداف"
-          description="من الهدف إلى المحطّة إلى خطة الأسبوع إلى التسليم والتحقّق. والأسبوعُ لا يُفتَح بمرور التقويم بل بإذنٍ صريح، وما لم يكتمل لا يَضيع ولا يُعَدّ منجَزاً."
+          title={L.executionGoals}
+          description={L.fromGoalToMilestone}
           actions={
             <>
               {canGovern && (
-                <Link href="/admin/execution/review" className="wizard-btn-2">
-                  مساحةُ مراجعة السبت
-                </Link>
+                <Link href="/admin/execution/review" className="wizard-btn-2">{L.saturdayReviewWorkspace}</Link>
               )}
               {canApprove && goals.length > 0 && (
-                <Link href="/admin/execution/goals" className="wizard-btn-2">
-                  ＋ إضافة محطة
-                </Link>
+                <Link href="/admin/execution/goals" className="wizard-btn-2">{L.addAMilestone}</Link>
               )}
               {canCreateGoal && <GoalWizard canApprove={canApprove} leaders={leaders} />}
             </>
@@ -151,9 +151,8 @@ export default async function ExecutionPage() {
           <Card className="p-4 sm:p-5">
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="text-sm font-bold">
-                الأسبوع الجاري · {formatDate(current.weekStart)}
-              </h2>
-              <span className="text-[11px] text-black/45">{stateLabel(current.state)}</span>
+                {fmt(L.thisWeek, formatDate(current.weekStart))}</h2>
+              <span className="text-[11px] text-black/45">{stateLabel(current.state, locale)}</span>
             </div>
             <ProgressBars b={currentProgress} />
           </Card>
@@ -161,9 +160,8 @@ export default async function ExecutionPage() {
           <Card className="p-4 sm:p-5">
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="text-sm font-bold">
-                الأسبوع القادم · {formatDate(next.weekStart)}
-              </h2>
-              <span className="text-[11px] text-black/45">{periodLabel(next.weekStart)}</span>
+                {fmt(L.nextWeek, formatDate(next.weekStart))}</h2>
+              <span className="text-[11px] text-black/45">{periodLabel(next.weekStart, undefined, locale)}</span>
             </div>
             <PeriodControls
               periodId={next.id}
@@ -174,27 +172,20 @@ export default async function ExecutionPage() {
             />
             {next.emergencyOpen && (
               <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
-                فُتح استثناءً: {next.emergencyReason} — وبقي {next.unresolvedAtOpen} بنداً بلا
-                قرارٍ وهي قائمةٌ لم تُمحَ.
-              </p>
+                {fmt(L.openedAsAnException, next.emergencyReason, next.unresolvedAtOpen)}</p>
             )}
             <div className="mt-3">
-              <ProgressBars b={nextProgress} label="خطةُ الأسبوع القادم" />
+              <ProgressBars b={nextProgress} label={L.nextWeekSPlan} />
             </div>
           </Card>
         </section>
 
         {/* ── خططُ الأقسام للأسبوع القادم: الحِملُ قبل الاعتماد */}
         <section>
-          <h2 className="mb-1 text-base font-bold">خططُ الأقسام للأسبوع القادم</h2>
-          <p className="mb-3 text-xs leading-relaxed text-black/50">
-            الحِملُ يُجمَع — جديدٌ ومُرحَّلٌ معاً — ويُقارَن بطاقة القسم. ولا تُعتمَد خطةٌ فيها
-            مُرحَّلٌ بلا سببٍ وخطةِ تصحيح، ولا خطةٌ متجاوزةٌ للطاقة إلا بإقرارٍ مكتوب.
-          </p>
+          <h2 className="mb-1 text-base font-bold">{L.departmentPlansForNext}</h2>
+          <p className="mb-3 text-xs leading-relaxed text-black/50">{L.loadIsAddedUp}</p>
           {nextAssessments.length === 0 ? (
-            <Card className="p-6 text-center text-sm text-black/45">
-              لا خططَ بعد — تُنشأ من لوحة كل قسم.
-            </Card>
+            <Card className="p-6 text-center text-sm text-black/45">{L.noPlansYetThey}</Card>
           ) : (
             <div className="grid gap-3 lg:grid-cols-2">
               {nextAssessments.map(({ plan, report }) => (
@@ -220,21 +211,20 @@ export default async function ExecutionPage() {
                       }`}
                     >
                       {plan.state === "approved"
-                        ? "معتمَدة"
+                        ? L.approved
                         : plan.state === "submitted"
-                          ? "مرفوعةٌ للاعتماد"
+                          ? L.submittedForApproval
                           : plan.state === "returned"
-                            ? "مردودة"
-                            : "قيد البناء"}
+                            ? L.returned
+                            : L.beingBuilt}
                     </span>
                   </div>
 
                   {report && (
                     <>
                       <p className="mt-2 text-xs text-black/55">
-                        الحِمل {report.totalPoints} من طاقةٍ {report.capacityPoints} — جديدٌ{" "}
-                        {report.newPoints} ومُرحَّلٌ {report.carriedPoints}
-                        {report.overloaded ? " · متجاوِز" : ""}
+                        {fmt(L.load, report.totalPoints, report.capacityPoints, report.newPoints, report.carriedPoints)}
+                        {report.overloaded ? L.overloaded : ""}
                       </p>
                       <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-black/[0.07]">
                         <div
@@ -261,7 +251,7 @@ export default async function ExecutionPage() {
                   )}
 
                   {plan.decisionNote && (
-                    <p className="mt-2 text-[11px] text-black/45">ملاحظةُ القرار: {plan.decisionNote}</p>
+                    <p className="mt-2 text-[11px] text-black/45">{fmt(L.decisionNote, plan.decisionNote)}</p>
                   )}
 
                   {canGovern && plan.state === "submitted" && (
@@ -280,7 +270,7 @@ export default async function ExecutionPage() {
         {/* ── ما يحتاج قراراً الآن */}
         {(pendingVerify.length > 0 || overdueTasks.length > 0 || blockedTasks.length > 0) && (
           <section>
-            <h2 className="mb-3 text-base font-bold">ما يحتاج قراراً الآن</h2>
+            <h2 className="mb-3 text-base font-bold">{L.whatNeedsADecision}</h2>
             <div className="flex flex-col gap-3">
               {pendingVerify.map((t) => (
                 <TaskCard
@@ -314,16 +304,11 @@ export default async function ExecutionPage() {
 
         {/* ── الترحيلُ المتكرّر */}
         <section>
-          <h2 className="mb-1 text-base font-bold">الترحيلُ المتكرّر</h2>
+          <h2 className="mb-1 text-base font-bold">{L.repeatedCarryOver}</h2>
           <p className="mb-3 text-xs leading-relaxed text-black/50">
-            ما بلغ {CARRYOVER_ESCALATION.escalateAfter} ترحيلاتٍ متتالية يحتاج قراراً تنفيذياً لا
-            إقراراً جديداً: تقليلُ نطاق، أو نقلُ مسؤولية، أو موعدٌ جديد، أو إسقاطُ الالتزام.
-            والتكرارُ لا يُقرَأ سوءَ نيّة — قد يكون تبعيّةً أو طاقةً ناقصة.
-          </p>
+            {fmt(L.anythingCarriedOverTimes, CARRYOVER_ESCALATION.escalateAfter)}</p>
           {repeated.length === 0 ? (
-            <Card className="p-6 text-center text-sm text-black/45">
-              لا التزامَ تكرّر ترحيلُه — وهذه حالٌ تُشكَر لا تُفترَض.
-            </Card>
+            <Card className="p-6 text-center text-sm text-black/45">{L.noCommitmentHasBeen}</Card>
           ) : (
             <div className="flex flex-col gap-2">
               {repeated.map((r) => (
@@ -331,19 +316,17 @@ export default async function ExecutionPage() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-sm font-bold">{r.title}</h3>
                     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-900">
-                      {r.consecutiveCarryover} متتالية · {r.carryoverCount} إجمالاً
-                    </span>
+                      {fmt(L.inARowIn, r.consecutiveCarryover, r.carryoverCount)}</span>
                   </div>
                   <p className="mt-1 text-xs text-black/50">
                     {r.department?.name ?? "—"} ·{" "}
-                    {r.ownerUser?.fullName ?? r.ownerMember?.fullName ?? "بلا صاحب"} · الموعد
-                    الأصلي {formatDate(r.originalDueAt)} · {countdownLabel(r.dueAt)}
+                    {r.ownerUser?.fullName ?? r.ownerMember?.fullName ?? L.noOwner}{L.originalDueDate}{formatDate(r.originalDueAt)} · {countdownLabel(r.dueAt, undefined, locale)}
                   </p>
                   {r.blockedReason && (
-                    <p className="mt-1 text-xs text-red-700">المعوّق: {r.blockedReason}</p>
+                    <p className="mt-1 text-xs text-red-700">{fmt(L.blocker, r.blockedReason)}</p>
                   )}
                   {r.correctivePlan && (
-                    <p className="mt-1 text-xs text-black/55">التصحيح المُقَرّ: {r.correctivePlan}</p>
+                    <p className="mt-1 text-xs text-black/55">{fmt(L.agreedCorrection, r.correctivePlan)}</p>
                   )}
                 </Card>
               ))}
@@ -355,25 +338,23 @@ export default async function ExecutionPage() {
         <section>
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <div>
-              <h2 className="text-base font-bold">الأهدافُ المعتمَدة ({goalRows.length})</h2>
-              <p className="text-xs text-black/45">مرتّبةٌ بالأولوية ثم الموعد — والتقدّمُ ما تحقّقت منه المراجعة لا ما أُعلن</p>
+              <h2 className="text-base font-bold">{fmt(L.approvedGoals, goalRows.length)}</h2>
+              <p className="text-xs text-black/45">{L.orderedByPriorityThen}</p>
             </div>
-            <Link href="/admin/execution/goals" className="text-xs font-bold underline">
-              الإدارةُ والمقترَحات
-              {proposals.goals.length + proposals.objectives.length > 0
-                ? ` (${proposals.goals.length + proposals.objectives.length} بانتظارك)`
+            <Link href="/admin/execution/goals" className="text-xs font-bold underline">{L.managementProposals}{proposals.goals.length + proposals.objectives.length > 0
+                ? fmt(L.awaitingYou, proposals.goals.length + proposals.objectives.length)
                 : ""}{" "}
               ←
             </Link>
           </div>
           <DataTable
-            emptyLabel="لا أهدافَ معتمَدةً بعد — ابدأ بزرّ «إنشاء هدف استراتيجي» أعلى الصفحة."
+            emptyLabel={L.noApprovedGoalsYet}
             columns={[
-              { key: "goal", label: "الهدف", primary: true },
-              { key: "owner", label: "المسؤول" },
-              { key: "period", label: "من — إلى" },
-              { key: "progress", label: "التقدّم الموثَّق" },
-              { key: "next", label: "المحطة القادمة" },
+              { key: "goal", label: L.goal, primary: true },
+              { key: "owner", label: L.owner },
+              { key: "period", label: L.fromTo },
+              { key: "progress", label: L.verifiedProgress },
+              { key: "next", label: L.nextMilestone },
               { key: "open", label: "" },
             ]}
             rows={goalRows.map(({ goal, progress }) => {
@@ -384,10 +365,10 @@ export default async function ExecutionPage() {
                 cells: {
                   goal: <span className="font-bold">{goal.title}</span>,
                   owner: goal.accountable?.fullName ?? goal.owner?.fullName ?? "—",
-                  period: `${formatDate(goal.startDate)} — ${formatDate(goal.dueDate)} · ${countdownLabel(goal.dueDate)}`,
+                  period: `${formatDate(goal.startDate)} — ${formatDate(goal.dueDate)} · ${countdownLabel(goal.dueDate, undefined, locale)}`,
                   progress:
                     pct === null ? (
-                      <span className="text-xs text-black/45">لا التزامات مؤهّلة للقياس بعد</span>
+                      <span className="text-xs text-black/45">{L.noCommitmentsEligibleFor}</span>
                     ) : (
                       <span className="flex min-w-32 items-center gap-2">
                         <span className="h-1.5 flex-1 rounded-full bg-black/[0.07]">
@@ -396,14 +377,12 @@ export default async function ExecutionPage() {
                             style={{ width: `${pct}%`, background: "var(--brand-action)" }}
                           />
                         </span>
-                        <b className="text-xs">{pct}٪</b>
+                        <b className="text-xs">{fmt(L.t42, pct)}</b>
                       </span>
                     ),
                   next: nextMs ? `${nextMs.title} · ${formatDate(nextMs.dueDate)}` : "—",
                   open: (
-                    <Link href={`/admin/execution/goals#goal-${goal.id}`} className="text-xs font-bold underline">
-                      التفاصيل
-                    </Link>
+                    <Link href={`/admin/execution/goals#goal-${goal.id}`} className="text-xs font-bold underline">{L.details}</Link>
                   ),
                 },
               };
@@ -413,21 +392,16 @@ export default async function ExecutionPage() {
 
         {/* ── الاجتماعات */}
         <section>
-          <h2 className="mb-3 text-base font-bold">اجتماعاتُ المراجعة</h2>
+          <h2 className="mb-3 text-base font-bold">{L.reviewMeetings}</h2>
           {lateMeetings.length > 0 && (
             <Card className="mb-3 p-4">
               <p className="text-sm font-bold text-amber-900">
-                {lateMeetings.length} اجتماعٌ مستحقٌّ لم يُعلَن انعقادُه
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-black/55">
-                ومرورُ الموعد لا يَعقد اجتماعاً: يبقى مستحقّاً ظاهراً حتى يُعلَن انعقادُه أو
-                يُؤجَّل.
-              </p>
+                {fmt(L.dueMeetingSNot, lateMeetings.length)}</p>
+              <p className="mt-1 text-xs leading-relaxed text-black/55">{L.aMeetingIsNot}</p>
               <ul className="mt-2 flex flex-col gap-1">
                 {lateMeetings.map((m) => (
                   <li key={m.id} className="text-xs text-black/60">
-                    {formatDate(m.scheduledAt)} — أسبوعُ {formatDate(m.period.weekStart)}
-                  </li>
+                    {fmt(L.weekOf, formatDate(m.scheduledAt), formatDate(m.period.weekStart))}</li>
                 ))}
               </ul>
             </Card>
@@ -437,32 +411,24 @@ export default async function ExecutionPage() {
               <Card key={m.id} className="p-4">
                 <p className="text-sm font-bold">{formatDate(m.scheduledAt)}</p>
                 <p className="mt-1 text-xs text-black/50">
-                  {m.durationMinutes} دقيقة · أسبوعُ {formatDate(m.period.weekStart)}
-                </p>
+                  {fmt(L.minWeekOf, m.durationMinutes, formatDate(m.period.weekStart))}</p>
                 {m.locationOrUrl && (
                   <a
                     href={m.locationOrUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-2 inline-block text-xs font-bold underline"
-                  >
-                    رابطُ الاجتماع ←
-                  </a>
+                  >{L.meetingLink}</a>
                 )}
               </Card>
             ))}
             {meetings.length === 0 && (
-              <Card className="p-6 text-center text-sm text-black/45 sm:col-span-3">
-                لا اجتماعاتٍ مجدولة — تُنشأ مع فترة الأسبوع.
-              </Card>
+              <Card className="p-6 text-center text-sm text-black/45 sm:col-span-3">{L.noMeetingsScheduledThey}</Card>
             )}
           </div>
         </section>
 
-        <Card className="p-4 text-xs leading-relaxed text-black/50">
-          الأقسامُ العاملة: {departments.map((d) => d.name).join("، ")} — ولكلِّ قسمٍ خطتُه
-          الأسبوعية في لوحته، يبنيها قائدُه ويعتمدها التنفيذي.
-        </Card>
+        <Card className="p-4 text-xs leading-relaxed text-black/50">{L.workingDepartments}{departments.map((d) => d.name).join(L.t52)}{L.eachDepartmentHasIts}</Card>
       </main>
     </div>
   );

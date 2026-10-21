@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ticketVisibilityWhere, ticketScopeWhere } from "@/lib/tickets";
 import { ThemedLockup } from "@/components/Logo";
 
+import { getLocale, getDictionary } from "@/i18n/server";
 export const dynamic = "force-dynamic";
 
 /** باب التذكرة الواحد — يقود كلَّ دورٍ إلى لوحته.
@@ -28,6 +29,7 @@ export default async function TicketEntryPage({
 }: {
   params: Promise<{ number: string }>;
 }) {
+  const L = getDictionary(await getLocale()).rTicketLink;
   const { number } = await params;
   const ticketNumber = Number(number);
   if (!Number.isInteger(ticketNumber) || ticketNumber <= 0) notFound();
@@ -68,17 +70,12 @@ export default async function TicketEntryPage({
             <ThemedLockup height={34} />
           </div>
           <div className="auth-card rounded-3xl bg-white p-8 shadow-xl">
-            <h1 className="mb-2 text-lg font-bold text-black/90">أُرشفت هذه التذكرة</h1>
-            <p className="text-sm leading-relaxed text-black/55">
-              أُغلقت ومضى عليها أسبوع، فزالت من شاشة العمل ليلة السبت بعد الاجتماع — وسجلُّها
-              كاملاً محفوظٌ في ملفّ الإكسل المرجعي: موضوعها وردُّها ومن أغلقها ومتى.
-            </p>
+            <h1 className="mb-2 text-lg font-bold text-black/90">{L.thisTicketWasArchived}</h1>
+            <p className="text-sm leading-relaxed text-black/55">{L.itWasClosedA}</p>
             <a
               href={session.user.role === "member" ? "/member" : "/admin/tickets"}
               className="btn-brand mt-6 inline-block rounded-xl px-5 py-3 text-sm font-semibold"
-            >
-              افتح لوحتي
-            </a>
+            >{L.openMyBoard}</a>
           </div>
         </div>
       </main>
@@ -96,16 +93,12 @@ export default async function TicketEntryPage({
           <ThemedLockup height={34} />
         </div>
         <div className="auth-card rounded-3xl bg-white p-8 shadow-xl">
-          <h1 className="mb-2 text-lg font-bold text-black/90">هذه التذكرة لا تخصّك</h1>
-          <p className="text-sm leading-relaxed text-black/55">
-            إمّا أنها ليست من تذاكرك، أو أن الرقم غير صحيح. وتذاكرك كلّها في لوحتك.
-          </p>
+          <h1 className="mb-2 text-lg font-bold text-black/90">{L.thisTicketIsNot}</h1>
+          <p className="text-sm leading-relaxed text-black/55">{L.eitherItIsNot}</p>
           <a
             href={session.user.role === "member" ? "/member" : "/admin/tickets"}
             className="btn-brand mt-6 inline-block rounded-xl px-5 py-3 text-sm font-semibold"
-          >
-            افتح لوحتي
-          </a>
+          >{L.openMyBoard}</a>
         </div>
       </div>
     </main>

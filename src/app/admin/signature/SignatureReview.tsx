@@ -5,6 +5,8 @@ import { decideSignatureAction, requestSignatureAction } from "./actions";
 import { Button, Card } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 
+import { useTranslations } from "@/i18n/LocaleProvider";
+import { fmt } from "@/i18n/fmt";
 type Pending = {
   id: string;
   imageData: string | null;
@@ -26,6 +28,7 @@ export function SignatureReview({
   missing: Missing[];
   theme: ReturnType<typeof themeFromColor>;
 }) {
+  const L = useTranslations().rSigReview;
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [busy, start] = useTransition();
@@ -37,7 +40,7 @@ export function SignatureReview({
       setMsg(
         res.error
           ? { kind: "err", text: res.error }
-          : { kind: "ok", text: decision === "approve" ? "اعتُمد التوقيع" : "رُفض التوقيع" }
+          : { kind: "ok", text: decision === "approve" ? L.theSignatureWasApproved : L.theSignatureWasRejected }
       );
     });
   }
@@ -47,7 +50,7 @@ export function SignatureReview({
     start(async () => {
       const res = await requestSignatureAction(userId);
       setMsg(
-        res.error ? { kind: "err", text: res.error } : { kind: "ok", text: "أُرسل طلب التوقيع" }
+        res.error ? { kind: "err", text: res.error } : { kind: "ok", text: L.theSignatureRequestWas }
       );
     });
   }
@@ -65,12 +68,10 @@ export function SignatureReview({
       )}
 
       <section>
-        <h2 className="mb-1 text-base font-bold">توقيعات تنتظر القرار ({pending.length})</h2>
-        <p className="mb-3 text-xs text-black/40">
-          لا يُرسَم توقيعٌ على شهادةٍ قبل اعتماده. والرفض يحتاج سبباً مكتوباً يُقرأ لصاحبه.
-        </p>
+        <h2 className="mb-1 text-base font-bold">{fmt(L.signaturesAwaitingADecision, pending.length)}</h2>
+        <p className="mb-3 text-xs text-black/40">{L.noSignatureIsDrawn}</p>
         {pending.length === 0 ? (
-          <Card className="p-6 text-center text-sm text-black/40">لا توقيعات معلّقة</Card>
+          <Card className="p-6 text-center text-sm text-black/40">{L.noPendingSignatures}</Card>
         ) : (
           <div className="flex flex-col gap-3">
             {pending.map((p) => (
@@ -88,7 +89,7 @@ export function SignatureReview({
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={p.imageData}
-                      alt={`توقيع ${p.ownerName}`}
+                      alt={fmt(L.sSignature, p.ownerName)}
                       style={{ maxHeight: 110, maxWidth: "100%", objectFit: "contain" }}
                     />
                   </div>
@@ -97,26 +98,20 @@ export function SignatureReview({
                   type="text"
                   value={notes[p.id] ?? ""}
                   onChange={(e) => setNotes((n) => ({ ...n, [p.id]: e.target.value }))}
-                  placeholder="سبب الرفض (مطلوب عند الرفض)"
+                  placeholder={L.reasonForRejectionRequired}
                   className="mt-3 min-h-9 w-full rounded-lg border border-black/10 px-2.5 py-1.5 text-xs"
                 />
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button theme={theme} disabled={busy} onClick={() => decide(p.id, "approve")}>
-                    اعتماد
-                  </Button>
+                  <Button theme={theme} disabled={busy} onClick={() => decide(p.id, "approve")}>{L.approve}</Button>
                   <Button
                     theme={theme}
                     variant="outline"
                     disabled={busy}
                     onClick={() => decide(p.id, "reject")}
-                  >
-                    رفض
-                  </Button>
+                  >{L.reject}</Button>
                 </div>
                 {p.isSelf && (
-                  <p className="mt-2 text-xs text-black/40">
-                    هذا توقيعك. ولا مراجع أعلى من المؤسس، فاعتمادُك له يُسجَّل باسمك.
-                  </p>
+                  <p className="mt-2 text-xs text-black/40">{L.thisIsYourSignature}</p>
                 )}
               </Card>
             ))}
@@ -125,13 +120,10 @@ export function SignatureReview({
       </section>
 
       <section>
-        <h2 className="mb-1 text-base font-bold">قادة بلا توقيع معتمَد ({missing.length})</h2>
-        <p className="mb-3 text-xs text-black/40">
-          الشهادات التي يُوقّعونها تصدر بسطرٍ فارغ واسمٍ مطبوع. ولا يُستعار توقيع قائدٍ سابق
-          مكانه — فالشهادة تحمل توقيع من عمل صاحبُها تحته فعلاً أو لا توقيع.
-        </p>
+        <h2 className="mb-1 text-base font-bold">{fmt(L.leadersWithoutAnApproved, missing.length)}</h2>
+        <p className="mb-3 text-xs text-black/40">{L.certificatesTheySignAre}</p>
         {missing.length === 0 ? (
-          <Card className="p-6 text-center text-sm text-black/40">كل القادة لهم توقيع معتمَد</Card>
+          <Card className="p-6 text-center text-sm text-black/40">{L.allLeadersHaveAn}</Card>
         ) : (
           <div className="flex flex-col gap-2">
             {missing.map((m) => (
@@ -143,9 +135,7 @@ export function SignatureReview({
                     {m.departmentName ? ` · ${m.departmentName}` : ""}
                   </span>
                 </span>
-                <Button theme={theme} variant="outline" disabled={busy} onClick={() => ask(m.id)}>
-                  اطلب توقيعه
-                </Button>
+                <Button theme={theme} variant="outline" disabled={busy} onClick={() => ask(m.id)}>{L.requestTheirSignature}</Button>
               </Card>
             ))}
           </div>

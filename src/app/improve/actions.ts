@@ -9,6 +9,7 @@ import {
   confirmImprovementFix,
 } from "@/lib/improvements";
 
+import { getLocale, getDictionary } from "@/i18n/server";
 /** إجراءاتُ مركز التحسين.
  *
  *  **والجلسةُ تُقرأ هنا لا تُمرَّر:** إجراءُ الخادم بابٌ مكشوفٌ لمن يَعرف
@@ -25,11 +26,12 @@ export async function submitImprovementAction(
   _prev: ImproveState,
   formData: FormData
 ): Promise<ImproveState> {
+  const L = getDictionary(await getLocale()).rImproveActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
 
   const kind = String(formData.get("kind") ?? "");
-  if (!KINDS.includes(kind)) return { error: "اختر نوع الملاحظة" };
+  if (!KINDS.includes(kind)) return { error: L.chooseTheTypeOf };
 
   // السياقُ يأتي من المتصفّح نصّاً، فيُحلَّل هنا ويُنظَّف في المكتبة.
   // وما تعذّر تحليلُه لا يُسقِط الملاحظة: الملاحظةُ أهمُّ من سياقها.
@@ -60,8 +62,9 @@ export async function advanceImprovementAction(
   _prev: { error: string | null },
   formData: FormData
 ): Promise<{ error: string | null }> {
+  const L = getDictionary(await getLocale()).rImproveActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
 
   const result = await advanceImprovement({
     ticketId: String(formData.get("ticketId") ?? ""),
@@ -78,8 +81,9 @@ export async function confirmImprovementAction(
   _prev: { error: string | null },
   formData: FormData
 ): Promise<{ error: string | null }> {
+  const L = getDictionary(await getLocale()).rImproveActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
 
   const result = await confirmImprovementFix({
     ticketId: String(formData.get("ticketId") ?? ""),

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { planDocFile } from "@/lib/plans";
 
+import { getLocale, getDictionary } from "@/i18n/server";
 export const runtime = "nodejs";
 
 /** تنزيلُ مادةٍ من مركز الخطط — خلف الجلسة لا خلف تخمينِ معرّف.
@@ -19,12 +20,13 @@ export const runtime = "nodejs";
  *  منها، وما عداها يُنزَّل باسمه.
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const L = getDictionary(await getLocale()).rApiPlanFile;
   const session = await auth();
-  if (!session) return new NextResponse("يجب تسجيل الدخول", { status: 401 });
+  if (!session) return new NextResponse(L.youNeedToSign, { status: 401 });
 
   const { id } = await params;
   const doc = await planDocFile(id);
-  if (!doc) return new NextResponse("غير موجود", { status: 404 });
+  if (!doc) return new NextResponse(L.notFound, { status: 404 });
 
   // الاسمُ العربي لا يمرّ في ترويسةٍ لاتينية: يُرسَل مُرمَّزاً بـ
   // `filename*` (RFC 5987) مع بديلٍ لاتينيٍّ للعملاء القديمة

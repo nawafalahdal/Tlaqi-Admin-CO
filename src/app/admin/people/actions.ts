@@ -13,14 +13,16 @@ import { sendAward } from "@/lib/awards";
 import { safeErrorMessage } from "@/lib/safeError";
 import { revalidatePath } from "next/cache";
 
+import { getLocale, getDictionary } from "@/i18n/server";
 /** إعادة تعيين بيانات دخول حساب إداري (قائد قسم / تنفيذي) — المؤسس يملك هذا
  *  لأي حساب، والتنفيذي يملكه فقط لحسابات قادة الأقسام (لا لحساب تنفيذي آخر ولا لنفسه) */
 export async function resetUserCredentialsAction(
   userId: string,
   newEmail: string
 ): Promise<{ error: string | null; tempPassword?: string; email?: string }> {
+  const L = getDictionary(await getLocale()).rPeopleActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
 
   const target = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
@@ -28,7 +30,7 @@ export async function resetUserCredentialsAction(
   // صلاحيةً تشغيلية بل شبكة أمان أخيرة: تبقى للفاوندر وحده. حصرُها يقلّل
   // عدد من يستطيع انتحال حساب غيره من أربعة أدوار إلى واحد.
   if (session.user.role !== "super_admin") {
-    return { error: "استعادة كلمة المرور صارت ذاتية عبر البريد — وتعيينها يدوياً خاص بالمؤسس" };
+    return { error: L.passwordRecoveryIsNow };
   }
 
   const trimmedEmail = newEmail.trim().toLowerCase();
@@ -52,14 +54,15 @@ export async function removeLeadershipUserAction(
   userId: string,
   reason: string
 ): Promise<{ error: string | null; success: boolean }> {
+  const L = getDictionary(await getLocale()).rPeopleActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول", success: false };
+  if (!session) return { error: L.youNeedToSign, success: false };
   if (session.user.role !== "super_admin") {
-    return { error: "تنحية الحسابات القيادية خاصة بالمؤسس فقط", success: false };
+    return { error: L.removingLeadershipAccountsIs, success: false };
   }
 
   const trimmed = reason.trim();
-  if (!trimmed) return { error: "اكتب سبب التنحية — يُحفظ في السجل", success: false };
+  if (!trimmed) return { error: L.writeTheReasonFor, success: false };
 
   try {
     await removeLeadershipUser({
@@ -85,8 +88,9 @@ export async function reopenCandidateTestAction(
   meetingHeld: boolean,
   note: string
 ): Promise<{ error: string | null; done?: boolean }> {
+  const L = getDictionary(await getLocale()).rPeopleActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
 
   const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
 
@@ -95,7 +99,7 @@ export async function reopenCandidateTestAction(
     session.user.role === "executive" ||
     (session.user.role === "department_admin" &&
       session.user.departmentId === member.departmentId);
-  if (!allowed) return { error: "غير مصرح لك بإعادة فتح هذا الاختبار" };
+  if (!allowed) return { error: L.youAreNotAllowed };
 
   try {
     await reopenCandidateTest({
@@ -120,12 +124,13 @@ export async function purgeCandidateAction(
   confirmEmail: string,
   reason: string
 ): Promise<{ error: string | null; done?: boolean; email?: string }> {
+  const L = getDictionary(await getLocale()).rPeopleActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
   if (session.user.role !== "super_admin") {
-    return { error: "الحذف النهائي خاص بالفاوندر" };
+    return { error: L.permanentDeletionIsFor };
   }
-  if (!reason.trim()) return { error: "اكتب سبب الحذف — يُسجَّل في السجل" };
+  if (!reason.trim()) return { error: L.writeTheReasonFor2 };
 
   try {
     const result = await purgeCandidate({
@@ -163,8 +168,9 @@ export async function permanentlyDeleteUserAction(
   /** ما انتقل إلى خَلَفِه — يُعرَض لا يُخمَّن */
   handover?: string;
 }> {
+  const L = getDictionary(await getLocale()).rPeopleActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
 
   try {
     const res = await permanentlyDeleteAccount({
@@ -197,8 +203,9 @@ export async function permanentlyDeleteUserAction(
 export async function sendWelcomeToUserAction(
   userId: string
 ): Promise<{ error: string | null; to?: string }> {
+  const L = getDictionary(await getLocale()).rPeopleActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
 
   try {
     const res = await sendWelcomeToUser({ userId, session });
@@ -225,8 +232,9 @@ export async function permanentlyDeleteMemberAction(
   reason: string,
   force: boolean
 ): Promise<{ error: string | null; done?: boolean; email?: string }> {
+  const L = getDictionary(await getLocale()).rPeopleActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
 
   try {
     const res = await permanentlyDeleteAccount({
@@ -256,9 +264,10 @@ export async function sendAwardAction(
   award: string,
   note: string
 ): Promise<{ error: string | null; to?: string }> {
+  const L = getDictionary(await getLocale()).rPeopleActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
-  if (kind !== "member" && kind !== "user") return { error: "هدفٌ غير معروف" };
+  if (!session) return { error: L.youNeedToSign };
+  if (kind !== "member" && kind !== "user") return { error: L.unknownTarget };
 
   try {
     const res = await sendAward({

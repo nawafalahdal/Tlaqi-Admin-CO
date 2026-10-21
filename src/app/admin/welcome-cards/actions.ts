@@ -8,6 +8,8 @@ import { safeErrorMessage } from "@/lib/safeError";
 import { appBaseUrl } from "@/lib/emailBrand";
 import { canRequestWelcomeResend, resenderRoleFor, RESENDER_LABEL, WELCOME_MAX_SENDS } from "@/lib/welcomeResend";
 
+import { getLocale, getDictionary } from "@/i18n/server";
+import { fmt } from "@/i18n/fmt";
 /** طلبُ إعادة بطاقة الانضمام — يصل تذكرةً إلى من يعلو صاحبَها في السلسلة.
  *
  *  لا يُرسل شيئاً: يرفع تذكرةً بالمسار القائم (`raiseTicket`) وجهتُها مسؤول
@@ -23,6 +25,8 @@ async function raiseResendRequest(opts: {
   why: (name: string) => string;
   subject: (name: string) => string;
 }): Promise<{ error: string | null; ticketNumber?: number }> {
+  const t = getDictionary(await getLocale());
+  const L = t.rWelcomeActions;
   const target =
     opts.target.kind === "user"
       ? await prisma.user.findUnique({
@@ -33,15 +37,15 @@ async function raiseResendRequest(opts: {
           where: { id: opts.target.id },
           select: { fullName: true, isActive: true, welcomeEmailCount: true, noFurtherEmail: true },
         });
-  if (!target || !target.isActive) return { error: "الحساب غير موجود أو غير نشط" };
+  if (!target || !target.isActive) return { error: L.theAccountDoesNot };
   const targetRole = "role" in target ? target.role : "member";
   // المؤسسُ لا يطلب: يُرسل بطاقته لنفسه مباشرة
-  if (targetRole === "super_admin") return { error: "بطاقةُ المؤسس يُرسلها لنفسه من «بياناتي»" };
+  if (targetRole === "super_admin") return { error: L.theFounderSCard };
   const resenderRole = resenderRoleFor(targetRole);
   const resenderLabel = RESENDER_LABEL[resenderRole];
-  if ("noFurtherEmail" in target && target.noFurtherEmail) return { error: "انتهت تجربة هذا العضو" };
+  if ("noFurtherEmail" in target && target.noFurtherEmail) return { error: L.thisMemberSTrial };
   if (target.welcomeEmailCount >= WELCOME_MAX_SENDS) {
-    return { error: "استُنفدت فرصةُ الإعادة — بطاقةُ الاعتماد وإعادةٌ واحدة، ولا تُعاد بعدها" };
+    return { error: L.theResendChanceIs };
   }
 
   // الطلبُ يصل من يعلو صاحبَ البطاقة في السلسلة — `resenderRoleFor`
@@ -50,7 +54,7 @@ async function raiseResendRequest(opts: {
     orderBy: { createdAt: "asc" },
     select: { id: true },
   });
-  if (!resender) return { error: `لا ${resenderLabel} معيَّنٌ بعد — لا يصل الطلب لأحد` };
+  if (!resender) return { error: fmt(L.noIsAssignedYet, t.shell.roles[resenderRole]) };
 
   const subject = opts.subject(target.fullName);
   const raiserWhere = "memberId" in opts.raiser ? { memberId: opts.raiser.memberId } : { raisedByUserId: opts.raiser.userId };
@@ -58,7 +62,7 @@ async function raiseResendRequest(opts: {
     where: { ...raiserWhere, targetUserId: resender.id, subject, status: { in: ["open", "in_progress"] } },
     select: { ticketNumber: true },
   });
-  if (existing) return { error: `الطلب مرفوعٌ من قبل ولم يُغلق بعد (تذكرة #${existing.ticketNumber})` };
+  if (existing) return { error: fmt(L.theRequestWasAlready, existing.ticketNumber) };
 
   const created = await raiseTicket({
     ...("memberId" in opts.raiser ? { memberId: opts.raiser.memberId } : { raisedByUserId: opts.raiser.userId }),
@@ -80,10 +84,11 @@ export async function requestWelcomeResendAction(
   kind: "user" | "member",
   id: string
 ): Promise<{ error: string | null; ticketNumber?: number }> {
+  const L = getDictionary(await getLocale()).rWelcomeActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
   if (!(await canRequestWelcomeResend(session))) {
-    return { error: "طلبُ إعادة بطاقة الانضمام لقيادة التسويق" };
+    return { error: L.requestingAWelcomeCard };
   }
   try {
     return await raiseResendRequest({
@@ -101,8 +106,9 @@ export async function requestWelcomeResendAction(
  *
  *  لا يأخذ معرّفاً من الواجهة: البلاغُ عن صاحب الجلسة وحده. */
 export async function reportMissingWelcomeAction(): Promise<{ error: string | null; ticketNumber?: number }> {
+  const L = getDictionary(await getLocale()).rWelcomeActions;
   const session = await auth();
-  if (!session) return { error: "يجب تسجيل الدخول" };
+  if (!session) return { error: L.youNeedToSign };
   const isMember = session.user.role === "member";
   try {
     return await raiseResendRequest({

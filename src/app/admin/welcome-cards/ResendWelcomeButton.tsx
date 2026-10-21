@@ -7,6 +7,8 @@ import { sendWelcomeToMemberAction } from "../actions";
 import { sendWelcomeToUserAction } from "../people/actions";
 import { requestWelcomeResendAction } from "./actions";
 
+import { useTranslations } from "@/i18n/LocaleProvider";
+import { fmt } from "@/i18n/fmt";
 /** زرُّ بطاقة الانضمام — إعادةٌ لمسؤول التشغيل، وطلبُ إعادةٍ لقيادة التسويق.
  *
  *  كلاهما يمرّ بنافذة تأكيد ثم بإجرائه الخادمي.
@@ -29,6 +31,7 @@ export function ResendWelcomeButton({
   /** بلغ السقف — لا إعادةَ ولا طلب */
   capped: boolean;
 }) {
+  const L = useTranslations().rWelcomeResend;
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,13 +45,13 @@ export function ResendWelcomeButton({
         const r = await requestWelcomeResendAction(kind, id);
         if (r.error) return setError(r.error);
         setOpen(false);
-        setNote(`✓ رُفع الطلب (تذكرة #${r.ticketNumber})`);
+        setNote(fmt(L.requestRaisedTicket, r.ticketNumber));
         return router.refresh();
       }
       const res = kind === "member" ? await sendWelcomeToMemberAction(id) : await sendWelcomeToUserAction(id);
       if (res.error) return setError(res.error);
       setOpen(false);
-      setNote("✓ قُبلت عند مزوّد البريد");
+      setNote(L.acceptedByTheEmail);
       router.refresh();
     });
   }
@@ -57,26 +60,26 @@ export function ResendWelcomeButton({
     <div className="flex items-center justify-end gap-2">
       {note && <span role="status" className="text-xs font-bold text-green-800">{note}</span>}
       {capped ? (
-        <span className="text-xs font-bold text-black/45">استُنفدت الإعادة</span>
+        <span className="text-xs font-bold text-black/45">{L.resendUsedUp}</span>
       ) : (
         <button
           type="button"
           onClick={() => setOpen(true)}
           className="wizard-btn-2 !min-h-9 !px-3 !text-xs"
-          aria-label={`${mode === "request" ? "طلب إعادة" : "إعادة إرسال"} بطاقة الانضمام إلى ${name}`}
+          aria-label={fmt(L.ariaLabel, mode === "request" ? L.ariaRequest : L.ariaResend, name)}
         >
-          {mode === "request" ? "طلب إعادة" : "إعادة الإرسال"}
+          {mode === "request" ? L.requestAResend : L.resend}
         </button>
       )}
       <ConfirmDialog
         open={open}
-        title={mode === "request" ? "طلب إعادة بطاقة الانضمام" : "إعادة إرسال بطاقة الانضمام"}
+        title={mode === "request" ? L.requestAWelcomeCard : L.resendTheWelcomeCard}
         body={
           mode === "request"
-            ? `يُرفع طلبٌ إلى مسؤول المتابعة والتشغيل بإعادة بطاقة ${name}، ويصله تذكرةً في لوحته. وهو من يُرسلها.`
-            : `تأكّدتَ أنها لم تصله؟ تُرسَل بطاقة الانضمام إلى ${name} الآن — وهي إعادتُه الوحيدة — وتُسجَّل باسمك في سجل الرسائل والسجل الحي.`
+            ? fmt(L.aRequestIsRaised, name)
+            : fmt(L.sureTheyDidNot, name)
         }
-        confirmLabel={mode === "request" ? "رفع الطلب" : "إرسال"}
+        confirmLabel={mode === "request" ? L.raiseTheRequest : L.send}
         tone="brand"
         pending={pending}
         error={error}
