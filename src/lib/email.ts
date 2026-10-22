@@ -17,6 +17,7 @@ import { departmentBrand } from "@/lib/departmentBrand";
 import { forms, gx, positionTitle, roleTitle, type MaybeGender } from "@/lib/gender";
 import { emailAllowed, policyReason, type EmailEvent } from "@/lib/emailPolicy";
 import { resultOf, type SendResult } from "@/lib/emailOutcome";
+import { deploymentEnv, emailRecipientsAllowed } from "@/lib/deploymentEnv";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FROM = process.env.EMAIL_FROM || "تَـــلاقِ <hello@tlaqiteam.site>";
@@ -200,8 +201,18 @@ async function send(
   if (all.length === 0) return resultOf({ state: "no_recipient" });
 
   // رسالة الوداع نفسها تمرّ قبل أن يُرفع العلم، فلا تحجب نفسها
-  const recipients = await withoutClosedRecipients(all);
-  if (recipients.length === 0) return resultOf({ state: "suppressed_closed" });
+  const open = await withoutClosedRecipients(all);
+  if (open.length === 0) return resultOf({ state: "suppressed_closed" });
+
+  // المعاينةُ لا تراسل أحداً إلا من سُمّي لها (`PREVIEW_EMAIL_ALLOWLIST`)، وبعنوانٍ يقول إنها معاينة
+  const preview = deploymentEnv() === "preview";
+  const recipients = emailRecipientsAllowed(open);
+  if (preview) subject = `[معاينة] ${subject}`;
+  if (recipients.length === 0) {
+    console.warn(`[email:preview] حُجب بريدٌ بعنوان "${subject}" — لا مستلمَ في قائمة المعاينة`);
+    await logEmail(open, kind, subject, "لم تُرسل (البريد معطّل)");
+    return resultOf({ state: "provider_disabled" });
+  }
 
   if (!resend) {
     // لا نطبع محتوى الرسالة كاملاً (قد يحمل كلمة مرور مؤقتة أو رابطاً حساساً) — فقط عنوانها ومستلمها

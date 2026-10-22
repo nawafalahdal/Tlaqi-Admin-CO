@@ -39,6 +39,12 @@
 
 ### المرحلة ١ — حارسٌ في الكود يفشل مغلقاً (لا يمسّ أي إعداد)
 
+**منفَّذة** بموافقة المالك (٢٢ أكتوبر):
+- الوحدة: `src/lib/deploymentEnv.ts`.
+- المواضع: `src/lib/prisma.ts`، `src/lib/googleSheets.ts`، `src/lib/email.ts`، `src/app/layout.tsx`.
+- الفحص: `scripts/check-deployment-env.ts`.
+- **فرقٌ عن التصميم أدناه:** المنع في عميل Prisma نفسه لا في حارس المسارات. فحارسُ المسارات لا يغطّي إلا `/admin` و`/member` و`/change-password`، أما عميلُ Prisma فلا يتجاوزه شيء. وتُعرض الحالُ في التخطيط الجذري.
+
 **الوحدة.** وحدةٌ واحدة `src/lib/deploymentEnv.ts`:
 - تقرّر البيئة كما يقرّرها `migrationPolicy`: `production` أو `preview` أو `development`، و`unknown` تُعامَل معاملة المعاينة.
 - لا تعمل بشيءٍ في الإنتاج يختلف عن اليوم.

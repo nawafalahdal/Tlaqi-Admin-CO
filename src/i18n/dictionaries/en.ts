@@ -2747,4 +2747,8 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
     seniorEmpty: "Senior management has no members",
     seatVacant: "«{0}» is a vacant position",
   },
+  previewGuard: {
+    title: "This preview is not isolated from production",
+    body: "The platform is stopped on this deployment because its database has not been declared isolated from production. No member data is read or written here, and no email is sent. Detected environment: {0}.",
+  },
 };

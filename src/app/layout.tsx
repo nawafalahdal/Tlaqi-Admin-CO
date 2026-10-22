@@ -5,6 +5,8 @@ import { getLocale, getDictionary } from "@/i18n/server";
 import { LocaleProvider } from "@/i18n/LocaleProvider";
 import { NavDepth } from "@/components/NavDepth";
 import { ThemeScript } from "@/components/ThemeScript";
+import { databaseBlocked, deploymentEnv } from "@/lib/deploymentEnv";
+import { fmt } from "@/i18n/fmt";
 
 const cairo = Cairo({
   variable: "--font-cairo",
@@ -24,6 +26,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const locale = await getLocale();
+  // معاينةٌ بلا قاعدةٍ معزولة: تُقال الحالُ بدل صفحاتٍ تفشل استعلاماتُها (`deploymentEnv.ts`)
+  const G = databaseBlocked() ? getDictionary(locale).previewGuard : null;
 
   return (
     <html
@@ -41,7 +45,14 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <LocaleProvider initialLocale={locale}>
           {/* يَعدّ خطواتنا وحدها، فيعرف زرُّ الرجوع متى يَرجع ومتى يَصعد */}
           <NavDepth />
-          {children}
+          {G ? (
+            <main className="mx-auto flex max-w-xl flex-1 flex-col justify-center gap-3 px-4 py-16">
+              <h1 className="text-lg font-bold">{G.title}</h1>
+              <p className="text-sm leading-relaxed text-black/60">{fmt(G.body, deploymentEnv())}</p>
+            </main>
+          ) : (
+            children
+          )}
         </LocaleProvider>
       </body>
     </html>

@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { databaseBlocked, BLOCKED_DATABASE_URL } from "@/lib/deploymentEnv";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
@@ -16,8 +17,16 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
  */
 const logQueries = process.env.PRISMA_LOG_QUERIES === "1";
 
+/** معاينةٌ لم تُعزَل قاعدتُها لا تتّصل بقاعدة الإنتاج أبداً: يُعطى العميلُ
+ *  عنواناً لا يُحَلّ، فيفشل كلُّ استعلامٍ قبل أن يبلغ أيَّ قاعدة —
+ *  قراءةً وكتابةً، من صفحةٍ أو إجراءٍ أو مسار API (`deploymentEnv.ts`). */
+const blocked = databaseBlocked();
+
 export const prisma =
   globalForPrisma.prisma ??
-  new PrismaClient(logQueries ? { log: [{ emit: "event", level: "query" }] } : undefined);
+  new PrismaClient({
+    ...(logQueries ? { log: [{ emit: "event" as const, level: "query" as const }] } : {}),
+    ...(blocked ? { datasourceUrl: BLOCKED_DATABASE_URL } : {}),
+  });
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;

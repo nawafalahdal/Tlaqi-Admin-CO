@@ -1,7 +1,9 @@
 import { google } from "googleapis";
 import type { sheets_v4 } from "googleapis";
+import { spreadsheetId } from "@/lib/deploymentEnv";
 
-const SPREADSHEET_ID = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+// في المعاينة: الشيتُ التجريبيُّ وحده، ولا شيتَ إن لم يُضبط (`deploymentEnv.ts`)
+const SPREADSHEET_ID = spreadsheetId();
 const CLIENT_EMAIL = process.env.GOOGLE_SHEETS_CLIENT_EMAIL;
 const PRIVATE_KEY = process.env.GOOGLE_SHEETS_PRIVATE_KEY?.replace(/\\n/g, "\n");
 

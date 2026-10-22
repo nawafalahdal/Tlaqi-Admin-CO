@@ -48,7 +48,8 @@ const check = (c, n, d) => {
 
 const b = await chromium.launch({
   executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
-  args: ["--no-proxy-server"],
+  // `CHECK_IGNORE_TLS=1`: خلف وكيل HTTPS محليّ بشهادةٍ ذاتية — لتُختبَر أسماءُ كعكات الإنتاج
+  args: ["--no-proxy-server", ...(process.env.CHECK_IGNORE_TLS === "1" ? ["--ignore-certificate-errors"] : [])],
 });
 
 async function login(r, viewport = { width: 1440, height: 900 }) {
