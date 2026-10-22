@@ -51,8 +51,9 @@ if (!/@(localhost|127\.0\.0\.1)[:/]/.test(LOCAL)) {
 const envOf: [string, Record<string, string | undefined>, DeploymentEnv][] = [
   ["محلياً بلا Vercel", {}, "development"],
   ["production على Vercel", { VERCEL: "1", VERCEL_ENV: "production" }, "production"],
-  ["production خارج Vercel", { VERCEL_ENV: "production" }, "preview"],
-  ["production و VERCEL≠1", { VERCEL: "true", VERCEL_ENV: "production" }, "preview"],
+  // غيابُ `VERCEL` في التشغيل لا يُوقف الإنتاج — `VERCEL_ENV` وحده يحسم
+  ["production بلا VERCEL", { VERCEL_ENV: "production" }, "production"],
+  ["production و VERCEL≠1", { VERCEL: "true", VERCEL_ENV: "production" }, "production"],
   ["preview", { VERCEL: "1", VERCEL_ENV: "preview" }, "preview"],
   ["development على Vercel", { VERCEL: "1", VERCEL_ENV: "development" }, "development"],
   ["VERCEL بلا VERCEL_ENV", { VERCEL: "1" }, "preview"],

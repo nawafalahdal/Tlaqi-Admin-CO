@@ -5,7 +5,7 @@
  *  كان يكتب في بيانات الأعضاء الحقيقية، ويُلحق سطراً بشيت الإنتاج، ويرسل
  *  بريداً لأشخاصٍ حقيقيين.
  *
- *  **والقاعدة:** الإنتاجُ لا يُعرَف إلا بإثبات (`VERCEL=1` و`VERCEL_ENV=production`)،
+ *  **والقاعدة:** الإنتاجُ لا يُعرَف إلا بإثبات (`VERCEL_ENV=production`)،
  *  والمحليُّ لا يُعرَف إلا بغياب Vercel كلّه. وما سواهما — معاينةٌ أو بيئةٌ
  *  مجهولة — يُعامَل معاملةَ المعاينة: لا قاعدةَ حقيقية إلا إذا أُعلن عزلُها
  *  (`PREVIEW_DATABASE_ISOLATED=1`)، ولا شيتَ إلا الشيتُ التجريبي، ولا بريدَ
@@ -19,7 +19,9 @@ export type DeploymentEnv = "production" | "preview" | "development";
 export function deploymentEnv(env: Env = process.env): DeploymentEnv {
   const vercelEnv = env.VERCEL_ENV;
   const onVercel = env.VERCEL !== undefined || vercelEnv !== undefined;
-  if (vercelEnv === "production" && env.VERCEL === "1") return "production";
+  // في التشغيل يكفي `VERCEL_ENV=production` — لا يضبطه إلا Vercel. واشتراطُ `VERCEL=1`
+  // معه (كما في سياسة الترحيل وقت البناء) كان يجعل غيابَ متغيّرِ نظامٍ واحد إيقافاً للإنتاج
+  if (vercelEnv === "production") return "production";
   if (!onVercel || vercelEnv === "development") return "development";
   // `preview`، أو قيمةٌ مجهولة، أو `VERCEL` بلا `VERCEL_ENV`
   return "preview";
