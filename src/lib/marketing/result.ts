@@ -36,6 +36,12 @@ export const MK_ERRORS = [
   "job_active",
   "job_quota",
   "draft_changed",
+  "founder_excluded",
+  "plan_not_approved",
+  "plan_live",
+  "plan_stale",
+  "plan_locked",
+  "url_platform_mismatch",
   "campaign_closed",
 ] as const;
 

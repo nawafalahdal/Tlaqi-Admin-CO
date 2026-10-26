@@ -1663,6 +1663,7 @@ model MarketingMember {
   approvals       MarketingApproval[]
   qualityChecks   MarketingQualityCheck[]
   publications    MarketingPublication[]
+  planVersions    MarketingPlanVersion[]
   tasksAssigned   MarketingTask[]           @relation("TaskAssignee")
   tasksCreated    MarketingTask[]           @relation("TaskCreator")
   comments        MarketingComment[]
@@ -1696,6 +1697,9 @@ model MarketingCampaign {
   blockedReason     String?
   ownerId           String
   owner             MarketingMember          @relation("CampaignOwner", fields: [ownerId], references: [id])
+  /// الخطةُ المقدَّمة الحاليّة — التنفيذُ لا يبدأ إلا وهي معتمدةٌ في مراحلها الثلاث
+  currentPlanVersionId String?               @unique
+  currentPlanVersion   MarketingPlanVersion? @relation("CurrentPlan", fields: [currentPlanVersionId], references: [id])
   /// عدّادُ التعديل — كلُّ تغييرٍ للحالة مشروطٌ بقيمته (تزامنٌ متفائل)
   revision          Int                      @default(0)
   createdAt         DateTime                 @default(now())
@@ -1707,8 +1711,57 @@ model MarketingCampaign {
   comments     MarketingComment[]
   files        MarketingFile[]
   events       MarketingEvent[]
+  planVersions MarketingPlanVersion[]   @relation("PlanOf")
 
   @@index([status])
+}
+
+/// مراحلُ اعتماد الخطة بترتيبها: قائدُ التسويق (القسم) ← مسؤولُ التشغيل ← الرئيسُ التنفيذي
+enum MarketingPlanStage {
+  department
+  operations
+  executive
+}
+
+/// نسخةُ خطةٍ مقدَّمة — صورةٌ من الموجز والمخرجات لحظةَ التقديم، لا تُعدَّل.
+/// تُبطَل (لا تُحذف) إن تغيّر ما فيها، أو رُدّت للتعديل، أو قُدّمت نسخةٌ بعدها.
+model MarketingPlanVersion {
+  id                String                   @id @default(cuid())
+  campaignId        String
+  campaign          MarketingCampaign        @relation("PlanOf", fields: [campaignId], references: [id], onDelete: Cascade)
+  number            Int
+  snapshot          Json
+  /// بصمةُ ما يُعتمد (الموجز ونطاقُ المخرجات) — تغيّرُها يعني أن الاعتماد لم يعد لهذا
+  fingerprint       String
+  note              String?
+  submittedById     String
+  submittedBy       MarketingMember          @relation(fields: [submittedById], references: [id])
+  invalidatedAt     DateTime?
+  invalidatedReason String?
+  createdAt         DateTime                 @default(now())
+
+  currentOf MarketingCampaign?      @relation("CurrentPlan")
+  decisions MarketingPlanDecision[]
+
+  @@unique([campaignId, number])
+}
+
+/// قرارُ مرحلةٍ على نسخة خطةٍ بعينها — بيد صاحب المرحلة في هيكل المنصة.
+/// صاحبُ القرار نصٌّ لا علاقة (مسؤول التشغيل والرئيس التنفيذي ليسا من فريق
+/// التسويق بالضرورة)، والاسمُ محفوظٌ فيبقى منسوباً ولو زال حسابه.
+model MarketingPlanDecision {
+  id            String               @id @default(cuid())
+  planVersionId String
+  planVersion   MarketingPlanVersion @relation(fields: [planVersionId], references: [id], onDelete: Cascade)
+  stage         MarketingPlanStage
+  decision      MarketingDecision
+  note          String?
+  deciderId     String
+  deciderName   String
+  deciderRole   String
+  createdAt     DateTime             @default(now())
+
+  @@unique([planVersionId, stage])
 }
 
 /// مسؤوليةُ شخصٍ في حملةٍ بعينها. ومن لا صفَّ له هنا لا يرى الحملة.

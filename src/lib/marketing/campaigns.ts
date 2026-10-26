@@ -1,7 +1,8 @@
 import type { MarketingCampaignRole, MarketingCampaignStatus, Prisma, WorkPriority } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { campaignAccess, hasCapability, requireCampaignRole, visibleCampaignsWhere, type MkActor } from "./access";
+import { campaignAccess, ensureMemberId, hasCapability, requireCampaignRole, visibleCampaignsWhere, type MkActor } from "./access";
 import { logEvent } from "./audit";
+import { assertPlanApproved, invalidatePlanIfChanged, planEditable } from "./plan";
 import { abort, fail, guarded, type MkResult } from "./result";
 
 /** الحملة: موجزُها وفريقُها وحالتُها.
@@ -10,7 +11,11 @@ import { abort, fail, guarded, type MkResult } from "./result";
  *    idea → briefing → ready_for_planning → in_progress → published → archived
  *  - `ready_for_planning` تشترط موجزاً مكتملاً (الهدف والجمهور والرسالة
  *    والموعد) ومخرجاً واحداً على الأقل.
- *  - `in_progress` تشترط كاتباً ومصمّماً معيَّنَين.
+ *  - `in_progress` تشترط كاتباً ومصمّماً معيَّنَين، **وخطةً معتمدةً في مراحلها الثلاث**
+ *    (قائدُ التسويق ← مسؤولُ التشغيل ← الرئيسُ التنفيذي — `plan.ts`) تطابق الحملةَ الآن.
+ *    والشرطُ نفسه عند رفع إيقافٍ يعيدها إلى التنفيذ.
+ *  - الموجزُ والنطاقُ لا يُعدَّلان أثناء التنفيذ (تُعاد إلى التخطيط أولاً)، وتعديلُهما قبله
+ *    يُبطل الخطةَ المقدَّمة.
  *  - `published` لا تُطلب يدوياً: تُبلَغ حين يُنشَر آخرُ مخرجٍ (`completeIfAllPublished`).
  *  - `blocked` من أي حالةٍ نشطة بسببٍ مكتوب، ويعود منها إلى ما كان.
  *  - `archived` نهائية. */
@@ -80,10 +85,12 @@ export function teamMissing(roles: MarketingCampaignRole[]): MarketingCampaignRo
 
 export async function createCampaign(actor: MkActor, input: BriefInput): Promise<MkResult<{ campaignId: string }>> {
   return guarded(async () => {
-    if (!actor.member || !hasCapability(actor, "coordinator")) return fail("forbidden", { role: "coordinator" });
+    if (actor.isFounder) return fail("founder_excluded");
+    if (!hasCapability(actor, "coordinator")) return fail("forbidden", { role: "coordinator" });
     const brief = parseBrief(input);
-    const memberId = actor.member.id;
     return prisma.$transaction(async (tx) => {
+      const memberId = await ensureMemberId(actor, tx);
+      if (!memberId) abort("forbidden", { role: "coordinator" });
       const c = await tx.marketingCampaign.create({
         data: { ...brief, ownerId: memberId, members: { create: { memberId, role: "coordinator" } } },
         select: { id: true },
@@ -97,13 +104,16 @@ export async function createCampaign(actor: MkActor, input: BriefInput): Promise
 export async function updateBrief(actor: MkActor, campaignId: string, input: BriefInput): Promise<MkResult> {
   return guarded(async () => {
     await requireCampaignRole(actor, campaignId, "coordinator");
-    const c = await prisma.marketingCampaign.findUnique({ where: { id: campaignId }, select: { status: true } });
+    const c = await prisma.marketingCampaign.findUnique({ where: { id: campaignId }, select: { status: true, statusBeforeBlock: true } });
     if (!c) return fail("not_found");
     if (c.status === "archived" || c.status === "published") return fail("campaign_closed");
+    // الخطةُ المعتمدة لا تتغيّر تحت تنفيذٍ جارٍ — تُعاد الحملةُ إلى التخطيط فتُعتمد من جديد
+    if (!planEditable(c)) return fail("plan_locked");
     const brief = parseBrief(input);
     await prisma.$transaction(async (tx) => {
       await tx.marketingCampaign.update({ where: { id: campaignId }, data: { ...brief, revision: { increment: 1 } } });
       await logEvent(tx, actor, { action: "campaign.brief_updated", campaignId });
+      await invalidatePlanIfChanged(tx, actor, campaignId);
     });
     return { ok: true };
   });
@@ -192,6 +202,8 @@ export async function transitionCampaign(
         data = { status: "blocked", statusBeforeBlock: c.status, blockedReason: reason };
       } else if (c.status === "blocked") {
         if (to !== c.statusBeforeBlock) abort("invalid_state", { from: c.status, to });
+        // رفعُ الإيقاف لا يتجاوز الخطة: العودةُ إلى التنفيذ بشرطه نفسه
+        if (to === "in_progress") await assertPlanApproved(tx, campaignId);
         data = { status: to, statusBeforeBlock: null, blockedReason: null };
       } else if (to === "archived") {
         if (c.status === "archived") abort("invalid_state", { from: c.status, to });
@@ -208,6 +220,7 @@ export async function transitionCampaign(
             .map((m) => m.role);
           const missing = teamMissing(live);
           if (missing.length) abort("team_incomplete", { missing: missing.join(",") });
+          await assertPlanApproved(tx, campaignId);
         }
         data = { status: to };
       }

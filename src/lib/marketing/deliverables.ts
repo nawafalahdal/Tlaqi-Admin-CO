@@ -2,6 +2,7 @@ import type { MarketingDeliverableStatus, MarketingRevisionTarget, MarketingTask
 import { prisma } from "@/lib/prisma";
 import { campaignAccess, requireCampaignRole, type MkActor } from "./access";
 import { logEvent } from "./audit";
+import { invalidatePlanIfChanged, planEditable } from "./plan";
 import { abort, fail, guarded, type MkResult } from "./result";
 
 type Tx = Prisma.TransactionClient;
@@ -197,8 +198,10 @@ export async function createDeliverable(
     const format = await prisma.marketingFormat.findFirst({ where: { key: input.formatKey, active: true } });
     if (!format) return fail("invalid_input", { field: "format" });
     return prisma.$transaction(async (tx) => {
-      const c = await tx.marketingCampaign.findUnique({ where: { id: campaignId }, select: { status: true } });
-      if (!c || !["idea", "briefing", "ready_for_planning", "in_progress"].includes(c.status)) abort("campaign_closed");
+      const c = await tx.marketingCampaign.findUnique({ where: { id: campaignId }, select: { status: true, statusBeforeBlock: true } });
+      if (!c || !["idea", "briefing", "ready_for_planning", "in_progress", "blocked"].includes(c.status)) abort("campaign_closed");
+      // مخرجٌ جديدٌ يغيّر نطاقَ الخطة المعتمدة — لا يُضاف تحت تنفيذٍ جارٍ
+      if (!planEditable(c)) abort("plan_locked");
       const d = await tx.marketingDeliverable.create({
         data: {
           campaignId,
@@ -221,6 +224,7 @@ export async function createDeliverable(
         deliverableId: d.id,
         details: { title, platform, format: format.key, width: format.width, height: format.height },
       });
+      await invalidatePlanIfChanged(tx, actor, campaignId);
       return { ok: true as const, deliverableId: d.id };
     });
   });

@@ -2,6 +2,7 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { marketingActor, type MkActor } from "@/lib/marketing/access";
 import { addTeamMember, setCapabilities } from "@/lib/marketing/team";
+import { submitPlan, decidePlan } from "@/lib/marketing/plan";
 import { createCampaign, updateBrief, addCampaignMember, transitionCampaign } from "@/lib/marketing/campaigns";
 import { createDeliverable, setDeliverableBlocked } from "@/lib/marketing/deliverables";
 import { saveDraft } from "@/lib/marketing/content";
@@ -49,6 +50,7 @@ async function cleanup() {
   for (const c of campaigns) await prisma.marketingCampaign.delete({ where: { id: c.id } });
   await prisma.marketingEvent.deleteMany({ where: { actorName: { startsWith: "e2e-mkj" } } });
   await prisma.marketingMember.deleteMany({ where: { addedByName: { startsWith: "e2e-mkj" } } });
+  await prisma.user.deleteMany({ where: { email: { endsWith: "@mkj.example.test" } } });
 }
 
 (async () => {
@@ -57,19 +59,28 @@ async function cleanup() {
   const execU = await prisma.user.findFirstOrThrow({ where: { email: "exec@fixture.test" } });
   const opsU = await prisma.user.findFirstOrThrow({ where: { email: "ops@fixture.test" } });
   const leadU = await prisma.user.findFirstOrThrow({ where: { email: "lead@fixture.test" } });
-  const outsiderU = await prisma.user.findFirstOrThrow({ where: { isActive: true, role: "department_admin", email: { not: "lead@fixture.test" } } });
+  const outsiderU = await prisma.user.findFirstOrThrow({
+    where: { isActive: true, role: "department_admin", email: { not: "lead@fixture.test" }, department: { slug: { not: "marketing" } } },
+  });
   for (const p of [execU.id, opsU.id, leadU.id, outsiderU.id]) {
     if (await prisma.marketingMember.count({ where: { userId: p } })) throw new Error("حسابُ فحصٍ له عضويةٌ تسويقية سابقة — احذفها قبل الفحص");
   }
   const N = (who: string) => `e2e-mkj ${who}`;
-  const founder = await actorOf(asRole(founderU.id, "super_admin", N("founder")));
-  const addExec = await addTeamMember(founder, { kind: "user", id: execU.id, capabilities: ["coordinator", "manager"] });
+  void founderU;
+  // الفريقُ يبنيه قائدُ التسويق (قائدُ قسم التسويق — حسابٌ مؤقّت)، لا المؤسس
+  const marketingDept = await prisma.department.findFirstOrThrow({ where: { slug: "marketing", parentId: null } });
+  const mkLeadU = await prisma.user.create({
+    data: { fullName: "e2e-mkj قائد التسويق", email: "mklead@mkj.example.test", passwordHash: "x", role: "department_admin", departmentId: marketingDept.id, isActive: true },
+  });
+  const mkLead = await actorOf(asRole(mkLeadU.id, "department_admin", N("mklead")));
+  const addExec = await addTeamMember(mkLead, { kind: "user", id: execU.id, capabilities: ["coordinator"] });
   const exec = await actorOf(asRole(execU.id, "executive", N("exec")));
-  const addOps = await addTeamMember(exec, { kind: "user", id: opsU.id, capabilities: ["writer"] });
-  const addLead = await addTeamMember(exec, { kind: "user", id: leadU.id, capabilities: ["designer"] });
+  const addOps = await addTeamMember(mkLead, { kind: "user", id: opsU.id, capabilities: ["writer"] });
+  const addLead = await addTeamMember(mkLead, { kind: "user", id: leadU.id, capabilities: ["designer"] });
   if (!addExec.ok || !addOps.ok || !addLead.ok) throw new Error("fixture: team");
   const S_ops = asRole(opsU.id, "operations_officer", N("ops"));
   const ops = await actorOf(S_ops);
+  const ops0 = ops;
   const lead = await actorOf(asRole(leadU.id, "department_admin", N("lead")));
   const outsider = await actorOf(asRole(outsiderU.id, "department_admin", N("outsider")));
 
@@ -84,6 +95,13 @@ async function cleanup() {
   await transitionCampaign(exec, A, "ready_for_planning");
   await addCampaignMember(exec, A, { marketingMemberId: addOps.memberId, role: "writer" });
   await addCampaignMember(exec, A, { marketingMemberId: addLead.memberId, role: "designer" });
+  // التنفيذُ بعد اعتماد الخطة بمراحلها الثلاث، كلٌّ بيد صاحبه
+  const plan = await submitPlan(exec, A);
+  if (!plan.ok) throw new Error("fixture: plan " + code(plan));
+  for (const [a, stage] of [[mkLead, "department"], [ops0, "operations"], [exec, "executive"]] as const) {
+    const r = await decidePlan(a, A, { planVersionId: plan.planVersionId, stage, decision: "approved" });
+    if (!r.ok) throw new Error(`fixture: plan ${stage} ${code(r)}`);
+  }
   const go = await transitionCampaign(exec, A, "in_progress");
   if (!go.ok) throw new Error("fixture: in_progress " + code(go));
   await saveDraft(ops, D, "مسودة الكاتب");
@@ -248,10 +266,10 @@ async function cleanup() {
   behaviour = async () => reply("لا يُفترض");
   const r10 = await requestTextSuggestion(ops, D, { requestId: key() }, deps);
   if (!r10.ok) throw new Error("stop r10");
-  await setCapabilities(exec, addOps.memberId, ["coordinator"]);
+  await setCapabilities(mkLead, addOps.memberId, ["coordinator"]);
   const o10 = await processJob(r10.jobId, deps);
   chk("سحبُ الكتابة من الطالب: تُلغى بلا استدعاء", o10 === "cancelled" && (await jobOf(r10.jobId)).error === "requester_revoked" && calls === 0);
-  await setCapabilities(exec, addOps.memberId, ["writer"]);
+  await setCapabilities(mkLead, addOps.memberId, ["writer"]);
   const opsAgain = await actorOf(S_ops);
   const r11 = await requestTextSuggestion(opsAgain, D, { requestId: key() }, deps);
   if (!r11.ok) throw new Error("stop r11 " + code(r11));

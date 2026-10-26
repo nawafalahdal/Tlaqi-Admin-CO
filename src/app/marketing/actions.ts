@@ -14,6 +14,7 @@ import { saveDraft, submitContent, decideContent, keepApprovedContent } from "@/
 import { uploadDesign, submitDesign, decideDesign, returnToWriter } from "@/lib/marketing/design";
 import { sendToQuality, recordQuality, recordPublication, recordResults, QUALITY_ITEMS, METRIC_KEYS } from "@/lib/marketing/review";
 import { createTask, setTaskStatus, deleteTask, addComment, attachToTask } from "@/lib/marketing/tasks";
+import { submitPlan, decidePlan } from "@/lib/marketing/plan";
 import { addTeamMember, setCapabilities, setMemberActive, updateSettings } from "@/lib/marketing/team";
 import { createFormat, updateFormat } from "@/lib/marketing/formats";
 import { requestTextSuggestion, processJob, processDue, cancelJob, retryJob, adoptSuggestion, deliverableJobs } from "@/lib/marketing/ai/jobs";
@@ -45,6 +46,13 @@ const all = (fd: Fd, k: string) => fd.getAll(k).filter((v): v is string => typeo
 /** أوقاتُ النماذج بلا منطقة (`date` و`datetime-local`) تُقرأ بتوقيت الرياض — توقيتِ المنصة */
 const riyadhDate = (v: string, endOfDay = true) => (v ? `${v}T${endOfDay ? "23:59:00" : "12:00:00"}+03:00` : null);
 const riyadhDateTime = (v: string) => (v ? `${v.length === 16 ? v + ":00" : v}+03:00` : "");
+/** «حتى تاريخ» للنتائج: آخرُ ذلك اليوم — واليومُ نفسُه «الآن» (الخادمُ يرفض وقتاً في المستقبل،
+ *  ويرفض ما قبل النشر؛ وكان الظهرُ الثابت يردّ نتائجَ منشورٍ نُشر بعد الظهر في يومه) */
+function resultsAsOf(v: string): string {
+  if (!v) return "";
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  return v === today ? new Date().toISOString() : `${v}T23:59:00+03:00`;
+}
 
 async function fileOf(fd: Fd, k: string) {
   const f = fd.get(k);
@@ -77,6 +85,16 @@ const OPS: Record<string, Handler> = {
   "campaign.member.add": (a, fd) =>
     addCampaignMember(a, s(fd, "campaignId"), { marketingMemberId: s(fd, "memberId"), role: s(fd, "role") as MarketingCampaignRole }),
   "campaign.member.remove": (a, fd) => removeCampaignMember(a, s(fd, "campaignId"), s(fd, "rowId")),
+
+  "plan.submit": (a, fd) => submitPlan(a, s(fd, "campaignId"), { note: s(fd, "note") }),
+  // المرحلةُ تُرسَل لتُطابَق لا لتُمنح: الخدمةُ تقارنها بدور صاحب الطلب في المنصة
+  "plan.decide": (a, fd) =>
+    decidePlan(a, s(fd, "campaignId"), {
+      planVersionId: s(fd, "planVersionId"),
+      stage: s(fd, "stage"),
+      decision: s(fd, "decision") === "approved" ? "approved" : "changes_requested",
+      note: s(fd, "note"),
+    }),
 
   "deliverable.create": (a, fd) => createDeliverable(a, s(fd, "campaignId"), { title: s(fd, "title"), platform: s(fd, "platform"), formatKey: s(fd, "formatKey") }),
   "deliverable.format": (a, fd) => changeFormat(a, s(fd, "deliverableId"), s(fd, "formatKey")),
@@ -115,7 +133,7 @@ const OPS: Record<string, Handler> = {
   "publish.results": (a, fd) =>
     recordResults(a, s(fd, "publicationId"), {
       metrics: Object.fromEntries(METRIC_KEYS.map((k) => [k, s(fd, `metric.${k}`)])),
-      asOf: riyadhDate(s(fd, "asOf"), false) ?? "",
+      asOf: resultsAsOf(s(fd, "asOf")),
       source: s(fd, "source"),
     }),
 

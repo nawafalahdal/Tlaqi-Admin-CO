@@ -8,12 +8,14 @@ import { abort, fail, guarded, type MkResult } from "./result";
 /** فريقُ التسويق: من فيه، وماذا يحمل كلٌّ منهم، وإعداداتُ الاعتماد.
  *
  *  **قواعدُ لا تُتجاوز:**
- *  - لا يُضيف ولا يعدّل إلا مديرُ الفريق (المؤسس ضمناً، ومن منحه المؤسسُ `manager`).
- *  - `manager` نفسُها لا يمنحها إلا المؤسس.
- *  - المديرُ غيرُ المؤسس لا يعدّل مسؤولياته هو — لا يرفع أحدٌ صلاحيته بيده.
- *  - وإضعافُ سياسة فصل الاعتماد قرارُ المؤسس وحده. */
+ *  - لا يُضيف ولا يعدّل إلا قائدُ التسويق — وسلطتُه من هيكل المنصة (قائدُ قسم
+ *    التسويق النشط)، فـ`manager` لا تُمنح لأحد ولا تُقبل في منح.
+ *  - ولا يعدّل أحدٌ مسؤولياتِه هو — لا يرفع أحدٌ صلاحيته بيده.
+ *  - والمؤسسُ لا يُضاف إلى الفريق ولا تُعدَّل عضويةٌ له: لا يشارك في عمليات الحملات.
+ *  - وسياسةُ فصل الاعتماد يملكها قائدُ التسويق (صاحبُ تنفيذ التسويق). */
 
-export const CAPABILITIES: MarketingCapability[] = ["coordinator", "writer", "designer", "reviewer", "publisher", "manager"];
+/** ما يُمنح — «الإدارة» ليست بينها: هي لقائد التسويق من الهيكل */
+export const CAPABILITIES: MarketingCapability[] = ["coordinator", "writer", "designer", "reviewer", "publisher"];
 
 const TEAM_TAKE = 200;
 
@@ -35,7 +37,8 @@ export async function listTeam(actor: MkActor) {
   return rows.map((r) => ({
     id: r.id,
     active: r.active,
-    capabilities: r.capabilities,
+    // «الإدارة» من الهيكل لا من منح — لا تُعرض لصفٍّ قديمٍ حملها
+    capabilities: r.capabilities.filter((c) => c !== "manager") as MarketingCapability[],
     createdAt: r.createdAt,
     kind: (r.user ? "user" : "member") as "user" | "member",
     fullName: r.user?.fullName ?? r.member?.fullName ?? r.nameSnapshot ?? "—",
@@ -49,7 +52,8 @@ export async function eligiblePeople(actor: MkActor) {
   if (!hasCapability(actor, "manager")) return null;
   const [users, members] = await Promise.all([
     prisma.user.findMany({
-      where: { isActive: true, marketingProfile: null },
+      // المؤسسُ لا يشارك في عمليات التسويق — فلا يُعرض للإضافة
+      where: { isActive: true, marketingProfile: null, role: { not: "super_admin" } },
       orderBy: { fullName: "asc" },
       take: TEAM_TAKE,
       select: { id: true, fullName: true, email: true, role: true, department: { select: { name: true } } },
@@ -67,14 +71,17 @@ export async function eligiblePeople(actor: MkActor) {
   ];
 }
 
+/** مسؤولياتٌ معروفة — و«الإدارة» تُرفض صراحةً لا تُسقط بصمت */
 function cleanCaps(input: string[]): MarketingCapability[] {
+  if (input.includes("manager")) abort("invalid_input", { field: "capabilities" });
   return [...new Set(input)].filter((c): c is MarketingCapability => (CAPABILITIES as string[]).includes(c));
 }
 
-function grantAllowed(actor: MkActor, caps: MarketingCapability[], targetIsSelf: boolean) {
+function grantAllowed(actor: MkActor, targetIsSelf: boolean, targetIsFounder: boolean) {
+  if (actor.isFounder) abort("founder_excluded");
   if (!hasCapability(actor, "manager")) abort("forbidden", { role: "manager" });
-  if (caps.includes("manager") && !actor.isFounder) abort("forbidden", { role: "founder" });
-  if (targetIsSelf && !actor.isFounder) abort("self_escalation");
+  if (targetIsSelf) abort("self_escalation");
+  if (targetIsFounder) abort("founder_excluded");
 }
 
 export async function addTeamMember(
@@ -85,7 +92,9 @@ export async function addTeamMember(
     const caps = cleanCaps(input.capabilities);
     if (caps.length === 0) return fail("invalid_input", { field: "capabilities" });
     const isSelf = input.kind === actor.kind && input.id === actor.principalId;
-    grantAllowed(actor, caps, isSelf);
+    const founderTarget =
+      input.kind === "user" && (await prisma.user.count({ where: { id: input.id, role: "super_admin" } })) > 0;
+    grantAllowed(actor, isSelf, founderTarget);
 
     const principal =
       input.kind === "user"
@@ -129,7 +138,7 @@ async function targetOf(marketingMemberId: string) {
       active: true,
       userId: true,
       memberId: true,
-      user: { select: { fullName: true } },
+      user: { select: { fullName: true, role: true } },
       member: { select: { fullName: true } },
     },
   });
@@ -143,11 +152,7 @@ export async function setCapabilities(actor: MkActor, marketingMemberId: string,
     const target = await targetOf(marketingMemberId);
     if (!target) return fail("not_found");
     const caps = cleanCaps(capabilities);
-    grantAllowed(actor, caps, isSelfTarget(actor, target));
-    // سحبُ `manager` من أحدٍ قرارُ المؤسس أيضاً
-    if (target.capabilities.includes("manager") && !caps.includes("manager") && !actor.isFounder) {
-      return fail("forbidden", { role: "founder" });
-    }
+    grantAllowed(actor, isSelfTarget(actor, target), target.user?.role === "super_admin");
     await prisma.$transaction(async (tx) => {
       await tx.marketingMember.update({ where: { id: target.id }, data: { capabilities: caps } });
       await logEvent(tx, actor, {
@@ -168,7 +173,9 @@ export async function setMemberActive(actor: MkActor, marketingMemberId: string,
   return guarded(async () => {
     const target = await targetOf(marketingMemberId);
     if (!target) return fail("not_found");
-    grantAllowed(actor, target.capabilities, isSelfTarget(actor, target));
+    // عضويةٌ قديمةٌ للمؤسس تُوقف ولا تُعاد
+    const founderTarget = target.user?.role === "super_admin";
+    grantAllowed(actor, isSelfTarget(actor, target), founderTarget && active);
     if (target.active === active) return { ok: true };
     await prisma.$transaction(async (tx) => {
       await tx.marketingMember.update({ where: { id: target.id }, data: { active } });
@@ -187,8 +194,8 @@ export async function marketingSettings() {
 }
 
 export async function updateSettings(actor: MkActor, input: { requireSeparateApprover: boolean }): Promise<MkResult> {
-  // إضعافُ فصل الاعتماد يغيّر من يعتمد ماذا — قرارُ المؤسس وحده
-  if (!actor.isFounder) return fail("forbidden", { role: "founder" });
+  // من يعتمد ماذا — قرارُ صاحب تنفيذ التسويق، لا المؤسس
+  if (!actor.isMarketingLead) return fail("forbidden", { role: "manager" });
   const before = await marketingSettings();
   await prisma.$transaction(async (tx) => {
     await tx.marketingSettings.upsert({

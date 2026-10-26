@@ -1,6 +1,6 @@
 import type { MarketingCampaignRole, MarketingDeliverableStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { hasCapability, isCampaignRole, type MkActor } from "./access";
+import { isCampaignRole, visibleCampaignsWhere, type MkActor } from "./access";
 
 /** «ما الذي ينتظرني؟» — من الحقائق لا من التخمين.
  *
@@ -84,11 +84,8 @@ export async function actionItems(actor: MkActor) {
 
 /** أعدادٌ للوحة — من القاعدة، ولا رقمَ يُخترع حين لا بيانات */
 export async function marketingOverview(actor: MkActor) {
-  const where: Prisma.MarketingCampaignWhereInput = hasCapability(actor, "manager")
-    ? {}
-    : actor.member
-      ? { members: { some: { memberId: actor.member.id } } }
-      : { id: "__none__" };
+  // الرؤيةُ نفسُها التي تحكم قائمةَ الحملات — لا عدَّ لما لا يُرى
+  const where: Prisma.MarketingCampaignWhereInput = visibleCampaignsWhere(actor);
   const [byStatus, overdueTasks, published] = await Promise.all([
     prisma.marketingCampaign.groupBy({ by: ["status"], where, _count: { _all: true } }),
     prisma.marketingTask.count({ where: { campaign: where, status: { in: ["todo", "in_progress", "blocked"] }, dueAt: { lt: new Date() } } }),

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { hasCapability } from "@/lib/marketing/access";
 import { actionItems, marketingOverview } from "@/lib/marketing/inbox";
 import { marketingPage } from "@/lib/marketing/page";
+import { plansAwaiting } from "@/lib/marketing/plan";
 import { fmt } from "@/i18n/fmt";
 import { MkHeader } from "./_components/MkHeader";
 import { Pill, Section, deliverableTone, taskTone, when, mkTheme } from "./_components/bits";
@@ -9,10 +10,11 @@ import { Pill, Section, deliverableTone, taskTone, when, mkTheme } from "./_comp
 export const dynamic = "force-dynamic";
 
 /** لوحةُ الوكيل: ما ينتظرك أولاً، ثم مهامّك، ثم الأعداد — كلُّها من الحقائق.
- *  و«ما ينتظرك» من مسؤولياتك في الحملات التي عُيِّنتَ فيها وحدها. */
+ *  و«ما ينتظرك» من مسؤولياتك في الحملات التي عُيِّنتَ فيها وحدها؛ ولأصحاب مراحل
+ *  الخطة (قائد التسويق، مسؤول التشغيل، الرئيس التنفيذي) الخططُ التي تنتظر مرحلتهم. */
 export default async function MarketingDashboard() {
   const { actor, mk, isManager } = await marketingPage("/marketing");
-  const [{ items, tasks }, overview] = await Promise.all([actionItems(actor), marketingOverview(actor)]);
+  const [{ items, tasks }, overview, plans] = await Promise.all([actionItems(actor), marketingOverview(actor), plansAwaiting(actor)]);
   const active = ["idea", "briefing", "ready_for_planning", "in_progress", "blocked"].reduce((n, k) => n + (overview.byStatus[k] ?? 0), 0);
   const canCreate = hasCapability(actor, "coordinator");
 
@@ -33,8 +35,25 @@ export default async function MarketingDashboard() {
         }
       />
 
-      {actor.isFounder && !actor.member && (
-        <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900">{mk.dashboard.founderNoTeam}</p>
+      {actor.planStage && (
+        <Section title={mk.plan.awaitingYou} hint={mk.plan.owner[actor.planStage]}>
+          {plans.length === 0 ? (
+            <p className="text-sm text-black/50">{mk.plan.awaitingEmpty}</p>
+          ) : (
+            <ul className="flex flex-col divide-y divide-black/[0.06]">
+              {plans.map((c) => (
+                <li key={c.id}>
+                  <Link href={`/marketing/campaigns/${c.id}#plan`} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-3 hover:bg-black/[0.02]">
+                    <span className="text-sm font-bold">{c.name}</span>
+                    <Pill tone="review">{fmt(mk.plan.version, c.currentPlanVersion?.number ?? "—")}</Pill>
+                    <span className="text-xs text-black/55">{mk.plan.stage[actor.planStage!]}</span>
+                    {c.deadline && <span className="text-[11px] text-black/45">{fmt(mk.dashboard.due, when(c.deadline, false))}</span>}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
       )}
 
       <div className="grid grid-cols-3 gap-3">

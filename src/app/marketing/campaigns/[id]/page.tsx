@@ -9,6 +9,8 @@ import { ActionForm } from "../../_components/ActionForm";
 import { BriefFields } from "../../_components/BriefFields";
 import { Pill, Section, Tabs, Field, inputCls, campaignTone, nameOf, when } from "../../_components/bits";
 import { DeliverablesTab, TasksTab, TeamTab, CommentsTab, AuditTab } from "./tabs";
+import { PlanSection } from "./plan";
+import { campaignPlan, planEditable } from "@/lib/marketing/plan";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +34,7 @@ export default async function CampaignPage({ params, searchParams }: { params: P
   const ws = await campaignWorkspace(actor, id);
   if (!ws) notFound();
   const { campaign: c, roles } = ws;
+  const plan = await campaignPlan(actor, c.id);
   const tab: Tab = (TABS as readonly string[]).includes(rawTab ?? "") ? (rawTab as Tab) : "overview";
   const isCoordinator = roles.includes("coordinator");
   const sep = locale === "ar" ? "، " : ", ";
@@ -39,6 +42,8 @@ export default async function CampaignPage({ params, searchParams }: { params: P
   const liveRoles = c.members.filter((m) => m.member.active && m.member.capabilities.includes(m.role)).map((m) => m.role);
   const team = teamMissing(liveRoles);
   const closed = c.status === "archived" || c.status === "published";
+  // الموجزُ والنطاقُ لا يُعدَّلان تحت تنفيذٍ جارٍ — كما في الخادم (`planEditable`)
+  const editable = planEditable(c);
 
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-6 sm:px-5 sm:py-8">
@@ -93,7 +98,7 @@ export default async function CampaignPage({ params, searchParams }: { params: P
                 <dd className="mt-0.5" dir="ltr">{c.channels.length ? c.channels.join(", ") : mk.common.none}</dd>
               </div>
             </dl>
-            {isCoordinator && !closed && (
+            {isCoordinator && !closed && editable && (
               <details className="mt-4 border-t border-black/5 pt-3">
                 <summary className="cursor-pointer text-sm font-bold">{mk.campaign.editBrief}</summary>
                 <div className="mt-3">
@@ -106,6 +111,8 @@ export default async function CampaignPage({ params, searchParams }: { params: P
             )}
           </Section>
 
+          {plan && <PlanSection mk={mk} actor={actor} campaignId={c.id} status={c.status} plan={plan} locale={locale} />}
+
           {isCoordinator && (
             <Section title={mk.common.status} hint={c.status === "in_progress" ? mk.campaign.autoPublished : undefined}>
               <div className="flex flex-col gap-3">
@@ -115,15 +122,17 @@ export default async function CampaignPage({ params, searchParams }: { params: P
                 {c.status === "ready_for_planning" && team.length > 0 && (
                   <p className="text-xs text-amber-900">{fmt(mk.campaign.teamMissing, team.map((r) => mk.capability[r]).join(sep))}</p>
                 )}
+                {c.status === "ready_for_planning" && !plan?.approved && <p className="text-xs text-amber-900">{mk.plan.executionAfterApproval}</p>}
                 <div className="flex flex-wrap gap-2">
-                  {(FORWARD[c.status] ?? []).map((to) => (
+                  {/* بدءُ التنفيذ لا يُعرض قبل اعتماد الخطة — والخادمُ يرفضه على كل حال (`assertPlanApproved`) */}
+                  {(FORWARD[c.status] ?? []).filter((to) => to !== "in_progress" || plan?.approved).map((to) => (
                     <ActionForm key={to} op="campaign.transition" submit={fmt(mk.campaign.moveTo, mk.campaignStatus[to])} variant={OPEN.indexOf(to) > OPEN.indexOf(c.status) ? "solid" : "outline"}>
                       <input type="hidden" name="campaignId" value={c.id} />
                       <input type="hidden" name="to" value={to} />
                       <input type="hidden" name="revision" value={c.revision} />
                     </ActionForm>
                   ))}
-                  {c.status === "blocked" && c.statusBeforeBlock && (
+                  {c.status === "blocked" && c.statusBeforeBlock && (c.statusBeforeBlock !== "in_progress" || plan?.approved) && (
                     <ActionForm op="campaign.transition" submit={mk.campaign.unblock}>
                       <input type="hidden" name="campaignId" value={c.id} />
                       <input type="hidden" name="to" value={c.statusBeforeBlock} />
@@ -164,7 +173,7 @@ export default async function CampaignPage({ params, searchParams }: { params: P
         </>
       )}
 
-      {tab === "deliverables" && <DeliverablesTab mk={mk} campaign={c} canEdit={isCoordinator && !closed} locale={locale} />}
+      {tab === "deliverables" && <DeliverablesTab mk={mk} campaign={c} canEdit={isCoordinator && !closed && editable} locale={locale} />}
       {tab === "tasks" && <TasksTab mk={mk} actor={actor} campaign={c} roles={roles} />}
       {tab === "team" && <TeamTab mk={mk} actor={actor} campaign={c} canEdit={isCoordinator && !closed} />}
       {tab === "comments" && <CommentsTab mk={mk} actor={actor} campaignId={c.id} canWrite={roles.length > 0} />}

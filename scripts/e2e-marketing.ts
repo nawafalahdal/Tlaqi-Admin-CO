@@ -11,6 +11,7 @@ import { sendToQuality, recordQuality, recordPublication, recordResults, QUALITY
 import { createTask, updateTask, setTaskStatus } from "@/lib/marketing/tasks";
 import { actionItems } from "@/lib/marketing/inbox";
 import { permanentlyDeleteAccount } from "@/lib/founderActions";
+import { submitPlan, decidePlan } from "@/lib/marketing/plan";
 
 /** وكيلُ التسويق — على القاعدة المحلية وحدها، بحساباتِ الفحص وحملاتٍ تُنشأ وتُحذف.
  *
@@ -41,11 +42,15 @@ async function png(width: number, height: number, color = "#C34900") {
   return new Uint8Array(await sharp(svg).png().toBuffer());
 }
 
+/** قائدُ التسويق: حسابٌ مؤقّت (قائدُ قسم التسويق) — سلطتُه من الهيكل لا من منح */
+const LEAD_DOMAIN = "@mk.example.test";
+
 async function cleanup() {
   const campaigns = await prisma.marketingCampaign.findMany({ where: { name: { startsWith: "e2e-mk-" } }, select: { id: true } });
   for (const c of campaigns) await prisma.marketingCampaign.delete({ where: { id: c.id } });
   await prisma.marketingEvent.deleteMany({ where: { actorName: { startsWith: "e2e-mk" } } });
   await prisma.marketingMember.deleteMany({ where: { addedByName: { startsWith: "e2e-mk" } } });
+  await prisma.user.deleteMany({ where: { email: { endsWith: LEAD_DOMAIN } } });
   await prisma.marketingSettings.upsert({ where: { id: "default" }, update: { requireSeparateApprover: true }, create: { id: "default", requireSeparateApprover: true, updatedByName: "e2e" } });
 }
 
@@ -56,7 +61,13 @@ async function cleanup() {
   const opsU = await prisma.user.findFirstOrThrow({ where: { email: "ops@fixture.test" } });
   const leadU = await prisma.user.findFirstOrThrow({ where: { email: "lead@fixture.test" } });
   const memberM = await prisma.member.findFirstOrThrow({ where: { email: "member@fixture.test" } });
-  const outsiderU = await prisma.user.findFirstOrThrow({ where: { isActive: true, role: "department_admin", email: { not: "lead@fixture.test" } } });
+  const outsiderU = await prisma.user.findFirstOrThrow({
+    where: { isActive: true, role: "department_admin", email: { not: "lead@fixture.test" }, NOT: { email: { endsWith: LEAD_DOMAIN } }, department: { slug: { not: "marketing" } } },
+  });
+  const marketingDept = await prisma.department.findFirstOrThrow({ where: { slug: "marketing", parentId: null } });
+  const mkLeadU = await prisma.user.create({
+    data: { fullName: "e2e-mk قائد التسويق", email: `mklead${LEAD_DOMAIN}`, passwordHash: "x", role: "department_admin", departmentId: marketingDept.id, isActive: true },
+  });
   for (const p of [execU.id, opsU.id, leadU.id, outsiderU.id]) {
     if (await prisma.marketingMember.count({ where: { userId: p } })) throw new Error("حسابُ فحصٍ له عضويةٌ تسويقية سابقة — احذفها قبل الفحص");
   }
@@ -65,6 +76,7 @@ async function cleanup() {
   const N = (who: string) => `e2e-mk ${who}`;
   const S = {
     founder: asRole(founderU.id, "super_admin", N("founder")),
+    mkLead: asRole(mkLeadU.id, "department_admin", N("mklead")),
     exec: asRole(execU.id, "executive", N("exec")),
     ops: asRole(opsU.id, "operations_officer", N("ops")),
     lead: asRole(leadU.id, "department_admin", N("lead")),
@@ -75,29 +87,46 @@ async function cleanup() {
   // ── ١) الوصولُ مغلقٌ افتراضياً
   const outsider0 = await actorOf(S.outsider);
   const exec0 = await actorOf(S.exec);
-  chk("من ليس في الفريق لا يدخل الوكيل — ولو كان تنفيذياً", !canEnterMarketing(exec0) && !canEnterMarketing(outsider0));
-  chk("والعضوُ العاديّ كذلك", !canEnterMarketing(await actorOf(S.member)));
-  chk("والمؤسسُ يدخل ليدير الفريق", canEnterMarketing(await actorOf(S.founder)));
+  // تغيّر التوقّع بقاعدةٍ طُلبت صراحةً: الرئيسُ التنفيذيُّ يعتمد الخطةَ في مرحلته الأخيرة فيدخل
+  // الوكيل لذلك — اطّلاعاً على ما قُدّمت خطتُه، بلا إنشاءٍ ولا عمل؛ والمؤسسُ لا يشارك فلا يدخل
+  chk("من ليس في الفريق لا يدخل الوكيل — قائدُ قسمٍ آخر", !canEnterMarketing(outsider0));
+  chk("والرئيسُ التنفيذيُّ يدخل معتمِداً للخطة لا عاملاً", canEnterMarketing(exec0) && exec0.planStage === "executive" && !exec0.member);
+  chk("والعضوُ العاديّ لا يدخل", !canEnterMarketing(await actorOf(S.member)));
+  chk("والمؤسسُ لا يدخل — لا يشارك في عمليات التسويق", !canEnterMarketing(await actorOf(S.founder)));
   chk("ومن ليس في الفريق لا ينشئ حملةً باستدعاء الخادم مباشرة", code(await createCampaign(exec0, { name: `${MARK} x` })) === "forbidden");
 
-  // ── ٢) المنحُ: للمؤسس، ولا أحدَ يرفع صلاحيته بيده
+  // ── ٢) المنحُ: لقائد التسويق (من الهيكل)، ولا أحدَ يرفع صلاحيته بيده
   const founder = await actorOf(S.founder);
-  chk("غيرُ المدير لا يضيف أحداً", code(await addTeamMember(exec0, { kind: "user", id: opsU.id, capabilities: ["writer"] })) === "forbidden");
-  const addExec = await addTeamMember(founder, { kind: "user", id: execU.id, capabilities: ["coordinator", "reviewer", "manager"] });
-  chk("المؤسسُ يضيف المنسّق والمراجع ويمنحه الإدارة", addExec.ok);
+  const mkLead = await actorOf(S.mkLead);
+  chk("غيرُ القائد لا يضيف أحداً", code(await addTeamMember(exec0, { kind: "user", id: opsU.id, capabilities: ["writer"] })) === "forbidden");
+  chk("والمؤسسُ لا يضيف أحداً", code(await addTeamMember(founder, { kind: "user", id: opsU.id, capabilities: ["writer"] })) === "founder_excluded");
+  const addExec = await addTeamMember(mkLead, { kind: "user", id: execU.id, capabilities: ["coordinator", "reviewer"] });
+  chk("القائدُ يضيف المنسّق والمراجع", addExec.ok);
   const exec = await actorOf(S.exec);
-  chk("المديرُ غيرُ المؤسس لا يمنح الإدارة", code(await addTeamMember(exec, { kind: "user", id: opsU.id, capabilities: ["manager"] })) === "forbidden");
-  chk("ولا يعدّل مسؤولياته هو", code(await setCapabilities(exec, addExec.ok ? addExec.memberId : "", ["coordinator", "reviewer", "writer"])) === "self_escalation");
-  const addOps = await addTeamMember(exec, { kind: "user", id: opsU.id, capabilities: ["writer", "publisher"] });
-  const addLead = await addTeamMember(exec, { kind: "user", id: leadU.id, capabilities: ["writer", "designer"] });
-  const addMember = await addTeamMember(exec, { kind: "member", id: memberM.id, capabilities: ["designer"] });
-  chk("والمديرُ يضيف الكاتب والمصمّم والعضو", addOps.ok && addLead.ok && addMember.ok);
-  chk("ولا يُضاف أحدٌ مرتين", code(await addTeamMember(exec, { kind: "user", id: opsU.id, capabilities: ["writer"] })) === "already_member");
-  chk("وإضعافُ فصل الاعتماد للمؤسس وحده", code(await updateSettings(exec, { requireSeparateApprover: false })) === "forbidden");
+  chk("ولا أحدَ يمنح «قائد التسويق»", code(await addTeamMember(mkLead, { kind: "user", id: opsU.id, capabilities: ["manager"] })) === "invalid_input");
+  chk("ولا يمنح القائدُ نفسه", code(await addTeamMember(mkLead, { kind: "user", id: mkLeadU.id, capabilities: ["writer"] })) === "self_escalation");
+  chk("والمنسّقُ لا يعدّل المسؤوليات", code(await setCapabilities(exec, addExec.ok ? addExec.memberId : "", ["coordinator", "reviewer", "writer"])) === "forbidden");
+  const addOps = await addTeamMember(mkLead, { kind: "user", id: opsU.id, capabilities: ["writer", "publisher"] });
+  const addLead = await addTeamMember(mkLead, { kind: "user", id: leadU.id, capabilities: ["writer", "designer"] });
+  const addMember = await addTeamMember(mkLead, { kind: "member", id: memberM.id, capabilities: ["designer"] });
+  chk("والقائدُ يضيف الكاتب والمصمّم والعضو", addOps.ok && addLead.ok && addMember.ok);
+  chk("ولا يُضاف أحدٌ مرتين", code(await addTeamMember(mkLead, { kind: "user", id: opsU.id, capabilities: ["writer"] })) === "already_member");
+  chk("وسياسةُ فصل الاعتماد لقائد التسويق وحده", code(await updateSettings(exec, { requireSeparateApprover: false })) === "forbidden" && code(await updateSettings(founder, { requireSeparateApprover: false })) === "forbidden");
 
   const ops = await actorOf(S.ops);
   const lead = await actorOf(S.lead);
   const member = await actorOf(S.member);
+  /** تقديمُ الخطة من المنسّق ثم مراحلُها الثلاث بأصحابها — كلُّها بيد صاحب المرحلة */
+  async function approvePlan(campaignId: string) {
+    const p = await submitPlan(exec, campaignId);
+    if (!p.ok) return false;
+    const steps = [[mkLead, "department"], [ops, "operations"], [exec, "executive"]] as const;
+    for (const [a, stage] of steps) {
+      const r = await decidePlan(a, campaignId, { planVersionId: p.planVersionId, stage, decision: "approved" });
+      if (!r.ok) return false;
+    }
+    return true;
+  }
   chk("العضوُ (حسابُ عضو) يدخل بعد منحه", canEnterMarketing(member));
 
   // ── ٣) الحملة: موجزٌ ثم تخطيطٌ ثم تنفيذ — بشروطها
@@ -126,7 +155,9 @@ async function cleanup() {
   ] as const) {
     if (m.ok) await addCampaignMember(exec, A, { marketingMemberId: m.memberId, role });
   }
-  chk("مع الفريق: إلى التنفيذ", (await transitionCampaign(exec, A, "in_progress")).ok);
+  chk("ومع الفريق لا تنفيذَ قبل اعتماد الخطة", code(await transitionCampaign(exec, A, "in_progress")) === "plan_not_approved");
+  chk("الخطةُ تُعتمد بمراحلها الثلاث", await approvePlan(A));
+  chk("مع الفريق والخطة: إلى التنفيذ", (await transitionCampaign(exec, A, "in_progress")).ok);
   chk("وتغييرٌ بمراجعةٍ قديمة يُردّ (تزامن)", code(await transitionCampaign(exec, A, "blocked", { reason: "x", expectedRevision: 0 })) === "stale");
 
   // ── ٤) عزلُ الحملات
@@ -257,6 +288,7 @@ async function cleanup() {
   await transitionCampaign(exec, B, "briefing");
   await transitionCampaign(exec, B, "ready_for_planning");
   for (const [m, role] of [[addOps, "writer"], [addLead, "writer"], [addLead, "designer"], [addMember, "designer"]] as const) if (m.ok) await addCampaignMember(exec, B, { marketingMemberId: m.memberId, role });
+  await approvePlan(B);
   await transitionCampaign(exec, B, "in_progress");
   const bv1 = await submitContent(ops, DB, { body: "منشورٌ مربع" });
   if (!bv1.ok) throw new Error("stop");
@@ -278,18 +310,20 @@ async function cleanup() {
   chk("ولا تعرض على الكاتب اعتمادَ نصّه هو", !(await actionItems(ops)).items.some((i) => i.kind === "approve_content"));
 
   // ── ١٢) الإيقافُ وسحبُ المسؤولية فوريّان
-  const revoked = addOps.ok ? await setCapabilities(exec, addOps.memberId, ["publisher"]) : { ok: false };
-  // في حملة ب لم يكن له إلا الكتابة: بسحبها لا يبقى له فيها دور، فلا يراها أصلاً (أشدّ من «ممنوع»)
+  // السحبُ لقائد التسويق (صاحبُ الفريق). وفي حملة ب لم يكن له إلا الكتابة: بسحبها لا يبقى له
+  // فيها عمل. وهو مسؤولُ التشغيل أيضاً، وخطةُ ب قُدّمت — فيراها اطّلاعاً معتمِداً لخطتها، ولا
+  // يكتب فيها: «ممنوع» لا «غير موجودة» (تغيّر التوقّع بقاعدة مرحلة التشغيل المطلوبة صراحةً)
+  const revoked = addOps.ok ? await setCapabilities(mkLead, addOps.memberId, ["publisher"]) : { ok: false };
   const afterRevoke = await saveDraft(await actorOf(S.ops), DB, "y");
-  chk("سحبُ الكتابة يوقفها في كل حملة فوراً — ولا يبقى يرى حملةً لا دورَ له فيها", revoked.ok && code(afterRevoke) === "not_found", code(afterRevoke));
-  if (addMember.ok) await setMemberActive(exec, addMember.memberId, false);
+  chk("سحبُ الكتابة يوقفها في كل حملة فوراً", revoked.ok && code(afterRevoke) === "forbidden", code(afterRevoke));
+  if (addMember.ok) await setMemberActive(mkLead, addMember.memberId, false);
   const memberOff = await actorOf(S.member);
   chk("والعضوُ الموقوف لا يدخل ولا يرى", !canEnterMarketing(memberOff) && (await deliverableWorkspace(memberOff, DB)) === null);
 
   // ── ١٢ب) حذفُ حسابٍ في الفريق نهائياً: لا يفشل، ولا يمحو ما كتب
   const delEmail = `${MARK}-del@example.test`;
   const delU = await prisma.user.create({ data: { fullName: "كاتب يُحذف", email: delEmail, passwordHash: "x", role: "executive", isActive: true } });
-  const delM = await addTeamMember(founder, { kind: "user", id: delU.id, capabilities: ["writer"] });
+  const delM = await addTeamMember(mkLead, { kind: "user", id: delU.id, capabilities: ["writer"] });
   chk("حسابٌ يُضاف إلى الفريق ويُحفظ اسمه", delM.ok && (await prisma.marketingMember.findUniqueOrThrow({ where: { id: delM.memberId } })).nameSnapshot === "كاتب يُحذف");
   if (!delM.ok) throw new Error("stop");
   // نسخةٌ كتبها — القيدُ `RESTRICT` يمنع محو العضوية ما دامت النسخة

@@ -11,7 +11,7 @@
  *  ٥. حفظُ المسودة من الواجهة يعمل ويقول ذلك.
  *  ٦. الإنجليزية، والجوال بلا تمريرٍ أفقي، والسمتان — ولا أخطاءَ في الصفحة.
  *
- *  يتطلّب `fixtures-roles.ts setup` ثم `fixtures-marketing.ts setup` (ويُمرَّر ناتجُه في IDS) —
+ *  يتطلّب `fixtures-roles.ts setup` ثم `fixtures-marketing.ts setup <totpSecret>` (ويُمرَّر ناتجُه في IDS) —
  *  **قبل كل تشغيل:** الفحصُ يحفظ مسودةً على مخرجٍ فيغيّر ما يفحصه التشغيلُ التالي.
  *    SCRATCH=<مجلد السرّ> IDS='<json>' node scripts/check-marketing.mjs */
 import pw from "/opt/node-tools/node_modules/playwright/index.js";
@@ -34,6 +34,8 @@ const ROLES = {
   ops: { email: "ops@fixture.test", pass: "Fixture#2026aa", kind: "totp" },
   lead: { email: "lead@fixture.test", pass: "Fixture#2026aa", kind: "totp" },
   member: { email: "member@fixture.test", pass: "Fixture#2026aa", kind: "code" },
+  mklead: { email: "mklead@fixture.test", pass: "Fixture#2026aa", kind: "totp" },
+  crew: { email: "crew@fixture.test", pass: "Fixture#2026aa", kind: "totp" },
 };
 
 const fails = [];
@@ -137,6 +139,26 @@ const dpath = (d) => `/marketing/campaigns/${A}/deliverables/${d}`;
   await page.goto(BASE + dpath(IDS.d2), { waitUntil: "networkidle" });
   check((await page.locator('input[name="url"]').count()) === 1 && (await page.locator('input[name="confirmedLive"]').count()) === 1, "ops: نموذجُ النشر للناشر حين يكون جاهزاً");
   check((await text(page)).includes("لا نشر آلياً"), "ops: النشرُ يدويٌّ معلَن");
+  // الدليلُ رابطٌ على منصة المخرج: رابطٌ غريبٌ يُردّ برسالةٍ مفهومة، ورابطُ المنشور يُقبل
+  const pub = page.locator("#publish");
+  await pub.locator('input[name="url"]').fill("https://example.com/not-instagram");
+  await pub.locator('input[name="confirmedLive"]').check();
+  await pub.locator('button:has-text("تسجيل النشر")').click();
+  await page.waitForTimeout(2500);
+  check((await pub.innerText()).includes("ليس على منصة «instagram»"), "ops: رابطٌ ليس على منصة المخرج يُردّ");
+  await pub.locator('input[name="url"]').fill("https://www.instagram.com/p/qa-check");
+  await pub.locator('button:has-text("تسجيل النشر")').click();
+  await page.waitForTimeout(3000);
+  check((await text(page)).includes("instagram.com/p/qa-check") && (await page.locator('main').innerText()).includes("منشور"), "ops: رابطُ المنشور نفسه يُسجَّل");
+  // نتائجُ اليوم نفسه: «حتى تاريخ» اليوم يُقرأ «الآن» فلا يُردّ لأنه قبل وقت النشر
+  await page.locator('summary:has-text("حفظ النتائج")').click();
+  await page.locator('input[name="metric.reach"]').fill("120");
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  await page.locator('input[name="asOf"]').fill(today);
+  await page.locator('input[name="source"]').fill("Instagram Insights");
+  await page.locator('button:has-text("حفظ النتائج")').click();
+  await page.waitForTimeout(3000);
+  check((await page.locator("#publish").innerText()).includes("Instagram Insights"), "ops: نتائجُ يوم النشر نفسه تُحفظ بمصدرها");
 
   // الإنجليزية
   await ctx.addCookies([{ name: "locale", value: "en", url: BASE }]);
@@ -166,44 +188,101 @@ const dpath = (d) => `/marketing/campaigns/${A}/deliverables/${d}`;
   check((await page.locator('#content textarea[name="body"]').count()) === 0, "member: لا محرّرَ نصٍّ للمصمّم");
   check(!(await page.content()).includes('href="/marketing/settings"'), "member: لا «إعدادات» لغير المدير");
   await page.goto(BASE + "/marketing/settings", { waitUntil: "networkidle" });
-  check((await text(page)).includes("الإعدادات لمدير الفريق"), "member: صفحةُ الإعدادات تردّه");
+  check((await text(page)).includes("الإعدادات لقائد التسويق"), "member: صفحةُ الإعدادات تردّه");
   check(errors.length === 0, "member: لا أخطاء في الصفحة", errors.join(" | "));
   await ctx.close();
 }
 
-// ── المؤسس — مصمّمٌ آخر يعتمد، ومديرُ الفريق
+// ── المؤسس — لا يشارك في عمليات التسويق ولا في اعتماد خططه
 {
   console.log("\n── founder");
   const { ctx, page, errors } = await login("founder");
+  check(!(await navHasMarketing(page)), "founder: لا بندَ «وكيل التسويق» في القائمة");
+  check((await status(page, "/marketing")) === 404, "founder: /marketing ← 404");
+  check((await status(page, `/marketing/campaigns/${A}`)) === 404, "founder: رابطُ الحملة المباشر ← 404");
+  check(errors.length === 0, "founder: لا أخطاء في الصفحة", errors.join(" | "));
+  await ctx.close();
+}
+
+// ── كاتبٌ ومصمّمٌ ثانٍ — يعتمد ما لم يصنعه
+{
+  console.log("\n── crew (مصمّمٌ آخر)");
+  const { ctx, page, errors } = await login("crew");
   await page.goto(BASE + dpath(IDS.d1), { waitUntil: "networkidle" });
-  check((await page.locator('button:has-text("اعتماد")').count()) >= 1, "founder: المصمّمُ الآخر يرى قرار التصميم");
-  await page.goto(BASE + "/marketing/settings", { waitUntil: "networkidle" });
-  const s = await text(page);
-  check(s.includes("الفريق") && s.includes("المقاسات") && s.includes("سياسة الاعتماد") && s.includes("التكاملات"), "founder: الإعداداتُ كاملة");
-  check(s.includes("غير متكامل") && s.includes("لا نشر آلياً"), "founder: التكاملاتُ غيرُ المهيّأة معلنة");
-  await page.screenshot({ path: `${SP}/mk-settings-light.png`, fullPage: true });
-  // الداكن
+  check((await page.locator('#design button:has-text("اعتماد")').count()) >= 1, "crew: المصمّمُ الآخر يرى قرار التصميم");
   await page.evaluate(() => localStorage.setItem("tlaqi-theme", "dark"));
   await page.goto(BASE + dpath(IDS.d1), { waitUntil: "networkidle" });
   await page.screenshot({ path: `${SP}/mk-deliverable-dark.png`, fullPage: true });
-  await page.goto(BASE + `/marketing/campaigns/${A}?tab=tasks`, { waitUntil: "networkidle" });
-  await page.screenshot({ path: `${SP}/mk-campaign-tasks-dark.png`, fullPage: true });
   await page.evaluate(() => localStorage.setItem("tlaqi-theme", "light"));
-  check(errors.length === 0, "founder: لا أخطاء في الصفحة", errors.join(" | "));
+  check(!(await page.content()).includes('href="/marketing/settings"'), "crew: لا «إعدادات» لغير قائد التسويق");
+  check(errors.length === 0, "crew: لا أخطاء في الصفحة", errors.join(" | "));
   await ctx.close();
+}
+
+// ── سلسلةُ اعتماد الخطة في الواجهة: مسؤولُ التشغيل ثم الرئيسُ التنفيذي، ثم يبدأ القائد
+{
+  console.log("\n── خطة الحملة «ج»");
+  const C = IDS.C;
+  const plan = (page) => page.locator("#plan");
+  const decideBtn = (page) => plan(page).locator('button:has-text("اعتماد")');
+
+  const ceo1 = await login("exec");
+  await ceo1.page.goto(BASE + `/marketing/campaigns/${C}`, { waitUntil: "networkidle" });
+  check((await decideBtn(ceo1.page).count()) === 0, "exec: لا قرارَ للرئيس التنفيذي قبل مسؤول التشغيل");
+  await ceo1.ctx.close();
+
+  const ops = await login("ops");
+  await ops.page.goto(BASE + "/marketing", { waitUntil: "networkidle" });
+  check((await text(ops.page)).includes("خططٌ تنتظر قرارك") && (await text(ops.page)).includes("حملة المعرض"), "ops: الخطةُ في «خططٌ تنتظر قرارك»");
+  await ops.page.goto(BASE + `/marketing/campaigns/${C}`, { waitUntil: "networkidle" });
+  check((await plan(ops.page).innerText()).includes("اعتُمدت") && (await decideBtn(ops.page).count()) === 1, "ops: مرحلةُ القسم معتمدة، وقرارُ التشغيل له");
+  check((await ops.page.locator('button:has-text("تقديم الخطة")').count()) === 0 && (await ops.page.locator('button:has-text("نقل إلى")').count()) === 0, "ops: لا تقديمَ ولا انتقالَ حالةٍ لمعتمِد الخطة");
+  await decideBtn(ops.page).click();
+  await ops.page.waitForTimeout(2500);
+  check((await plan(ops.page).innerText()).includes("الاعتماد التنفيذي") && (await decideBtn(ops.page).count()) === 0, "ops: بعد قراره لا يتكرّر الزرّ");
+  await ops.page.screenshot({ path: `${SP}/mk-plan-ops.png`, fullPage: true });
+  check(ops.errors.length === 0, "ops: لا أخطاء في الصفحة", ops.errors.join(" | "));
+  await ops.ctx.close();
+
+  const lead1 = await login("mklead");
+  await lead1.page.goto(BASE + `/marketing/campaigns/${C}`, { waitUntil: "networkidle" });
+  check((await lead1.page.locator('button:has-text("إلى «قيد التنفيذ»")').count()) === 0 && (await text(lead1.page)).includes("بعد اعتماد الخطة"), "mklead: لا زرَّ بدء التنفيذ قبل الاعتماد الأخير");
+  await lead1.ctx.close();
+
+  const ceo = await login("exec");
+  await ceo.page.goto(BASE + `/marketing/campaigns/${C}`, { waitUntil: "networkidle" });
+  check((await decideBtn(ceo.page).count()) === 1, "exec: الآن قرارُ الرئيس التنفيذي");
+  await decideBtn(ceo.page).click();
+  await ceo.page.waitForTimeout(2500);
+  check((await plan(ceo.page).innerText()).includes("الخطة معتمدة في مراحلها الثلاث"), "exec: الخطةُ معتمدةٌ في مراحلها الثلاث");
+  check(ceo.errors.length === 0, "exec: لا أخطاء في الصفحة", ceo.errors.join(" | "));
+  await ceo.ctx.close();
+
+  const lead = await login("mklead");
+  await lead.page.goto(BASE + `/marketing/campaigns/${C}`, { waitUntil: "networkidle" });
+  check((await lead.page.locator('button:has-text("إلى «قيد التنفيذ»")').count()) === 1, "mklead: زرُّ بدء التنفيذ بعد الاعتمادات الثلاثة");
+  await lead.page.screenshot({ path: `${SP}/mk-plan-approved.png`, fullPage: true });
+  await lead.page.goto(BASE + "/marketing/settings", { waitUntil: "networkidle" });
+  const st = await text(lead.page);
+  check(st.includes("الفريق") && st.includes("المقاسات") && st.includes("سياسة الاعتماد") && st.includes("التكاملات"), "mklead: الإعداداتُ كاملة لقائد التسويق");
+  check(st.includes("غير متكامل") && st.includes("لا نشر آلياً"), "mklead: التكاملاتُ غيرُ المهيّأة معلنة");
+  check((await lead.page.locator('input[name="capabilities"][value="manager"]').count()) === 0, "mklead: لا خانةَ لمنح «قائد التسويق»");
+  await lead.page.screenshot({ path: `${SP}/mk-settings-light.png`, fullPage: true });
+  check(lead.errors.length === 0, "mklead: لا أخطاء في الصفحة", lead.errors.join(" | "));
+  await lead.ctx.close();
 }
 
 // ── الجوال
 {
   console.log("\n── الجوال (390)");
-  const { ctx, page, errors } = await login("exec", { width: 390, height: 844 });
+  const { ctx, page, errors } = await login("mklead", { width: 390, height: 844 });
   for (const path of ["/marketing", "/marketing/campaigns", `/marketing/campaigns/${A}`, `/marketing/campaigns/${A}?tab=tasks`, dpath(IDS.d1), dpath(IDS.d2), "/marketing/settings"]) {
     await page.goto(BASE + path, { waitUntil: "networkidle" });
-    check(await noHScroll(page), `exec 390: لا تمريرَ أفقي — ${path.replace(A, "A").replace(/deliverables\/\w+/, "deliverables/…")}`);
+    check(await noHScroll(page), `mklead 390: لا تمريرَ أفقي — ${path.replace(A, "A").replace(/deliverables\/\w+/, "deliverables/…")}`);
   }
   await page.goto(BASE + dpath(IDS.d1), { waitUntil: "networkidle" });
   await page.screenshot({ path: `${SP}/mk-deliverable-mobile.png`, fullPage: true });
-  check(errors.length === 0, "exec: لا أخطاء في الصفحة", errors.join(" | "));
+  check(errors.length === 0, "mklead 390: لا أخطاء في الصفحة", errors.join(" | "));
   await ctx.close();
 }
 

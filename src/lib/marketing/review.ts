@@ -127,6 +127,27 @@ function validUrl(raw: string): string | null {
   }
 }
 
+/** نطاقاتُ المنصات المعروفة — الرابطُ دليلُ النشر، فيجب أن يكون على منصة المخرج نفسها.
+ *  ومنصةٌ لا تُعرف هنا يُقبل لها أيُّ رابط https (ويبقى تأكيدُ الناشر شرطاً). */
+const PLATFORM_HOSTS: Record<string, string[]> = {
+  instagram: ["instagram.com"],
+  x: ["x.com", "twitter.com"],
+  twitter: ["x.com", "twitter.com"],
+  linkedin: ["linkedin.com", "lnkd.in"],
+  tiktok: ["tiktok.com"],
+  facebook: ["facebook.com", "fb.com", "fb.watch"],
+  snapchat: ["snapchat.com"],
+  youtube: ["youtube.com", "youtu.be"],
+  threads: ["threads.net", "threads.com"],
+};
+
+export function urlMatchesPlatform(url: string, platform: string): boolean {
+  const hosts = PLATFORM_HOSTS[platform.trim().toLowerCase()];
+  if (!hosts) return true;
+  const host = new URL(url).hostname.toLowerCase();
+  return hosts.some((h) => host === h || host.endsWith(`.${h}`));
+}
+
 /** يُسجّل نشراً تمّ فعلاً — بعد أن يؤكّد الناشرُ أنه رآه حيّاً، وبعد إعادة فحص كل الشروط */
 export async function recordPublication(
   actor: MkActor,
@@ -155,6 +176,7 @@ export async function recordPublication(
         const blockers = publishBlockers(await deliverableFacts(tx, d.id));
         if (blockers.length) abort("quality_not_passed", { missing: blockers.join(",") });
         if (at < d.createdAt) abort("invalid_input", { field: "publishedAt" });
+        if (!urlMatchesPlatform(url, d.platform)) abort("url_platform_mismatch", { platform: d.platform });
 
         const p = await tx.marketingPublication.create({
           data: {

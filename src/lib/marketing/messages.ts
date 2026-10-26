@@ -33,6 +33,9 @@ export function mkMessage(mk: Mk, f: Pick<MkFail, "code" | "params">, locale: "a
     founder: mk.common.founderRole,
     campaign: mk.common.campaignMemberRole,
     assignee: mk.common.assigneeRole,
+    plan_department: mk.plan.owner.department,
+    plan_operations: mk.plan.owner.operations,
+    plan_executive: mk.plan.owner.executive,
   };
   const missingMap: Record<string, string> = { ...mk.briefField, ...mk.capability, ...mk.blockers };
   const template = (mk.errors as Record<string, string>)[f.code] ?? mk.errors.unknown;
@@ -42,6 +45,7 @@ export function mkMessage(mk: Mk, f: Pick<MkFail, "code" | "params">, locale: "a
     missing: list(missingMap, p.missing, sep),
     reason: pick(mk.ai.reasons, p.reason),
     limit: p.limit,
+    platform: p.platform,
     tasks: p.tasks,
   });
 }

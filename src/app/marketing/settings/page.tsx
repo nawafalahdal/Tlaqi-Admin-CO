@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  *  - **الفريق:** المنحُ صريحٌ مسؤوليةً مسؤولية. «إدارة الفريق» لا تُعرض خانتُها
  *    إلا للمؤسس، ولا يعدّل مديرٌ مسؤولياتِ نفسه (الخادمُ يفرض الأمرين).
  *  - **المقاسات:** تعديلُها لا يمسّ المخرجات القائمة — كلٌّ يحفظ مقاسه.
- *  - **السياسة:** للمؤسس وحده.
+ *  - **السياسة:** لقائد التسويق.
  *  - **التكاملات:** حالتُها من الإعدادات الفعلية، لا ادّعاء. */
 export default async function MarketingSettingsPage() {
   const { actor, mk, isManager, locale } = await marketingPage("/marketing/settings");
@@ -28,7 +28,8 @@ export default async function MarketingSettingsPage() {
   const [team, people, formats, settings] = await Promise.all([listTeam(actor), eligiblePeople(actor), listFormats(true), marketingSettings()]);
   const ai = aiStatus();
   const L = mk.settings;
-  const grantable = CAPABILITIES.filter((c) => c !== "manager" || actor.isFounder);
+  // «قائد التسويق» من هيكل المنصة لا يُمنح — فلا خانةَ له
+  const grantable = CAPABILITIES;
   const textReason = ai.text.reason ? (mk.ai.reasons as Record<string, string>)[ai.text.reason] ?? ai.text.reason : null;
 
   return (
@@ -38,9 +39,8 @@ export default async function MarketingSettingsPage() {
       <Section title={L.team} hint={L.teamHint}>
         <ul className="flex flex-col gap-3">
           {(team ?? []).map((m) => {
-            const self = actor.member?.id === m.id;
-            // كما في `grantAllowed`: لا يعدّل غيرُ المؤسس نفسَه، ولا مديراً آخر (منحُ الإدارة وسحبُها للمؤسس)
-            const locked = !actor.isFounder && (self || m.capabilities.includes("manager"));
+            // كما في `grantAllowed`: لا يعدّل أحدٌ مسؤولياته هو
+            const locked = actor.member?.id === m.id;
             return (
               <li key={m.id} className="rounded-xl border border-black/[0.08] p-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -105,7 +105,7 @@ export default async function MarketingSettingsPage() {
                       </span>
                     </label>
                   ))}
-                  {!actor.isFounder && <p className="text-[11px] text-black/50">{L.founderOnlyManager}</p>}
+                  <p className="text-[11px] text-black/50">{L.leadFromOrg}</p>
                 </div>
               </ActionForm>
             )}
@@ -151,8 +151,8 @@ export default async function MarketingSettingsPage() {
         </details>
       </Section>
 
-      <Section title={L.policy} hint={actor.isFounder ? undefined : L.policyFounder}>
-        {actor.isFounder ? (
+      <Section title={L.policy} hint={actor.isMarketingLead ? undefined : L.policyLead}>
+        {actor.isMarketingLead ? (
           <ActionForm op="settings.policy" submit={L.savePolicy} variant="outline">
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" name="requireSeparateApprover" defaultChecked={settings.requireSeparateApprover} />
