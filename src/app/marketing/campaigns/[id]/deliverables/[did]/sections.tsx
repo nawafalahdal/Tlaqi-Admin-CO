@@ -176,6 +176,8 @@ export function DesignSection({ mk, d, facts, me, separate, workable, has }: Ctx
 
         {designer && workable && !facts.contentApproved && <Muted>{L.needsApprovedContent}</Muted>}
 
+        {designer && <BrandAssets mk={mk} />}
+
         {canUpload && (
           <details open={d.designVersions.length === 0}>
             <summary className="cursor-pointer text-sm font-bold">{L.upload}</summary>
@@ -258,6 +260,35 @@ export function DesignSection({ mk, d, facts, me, separate, workable, has }: Ctx
         )}
       </div>
     </Section>
+  );
+}
+
+/** ملفّاتُ الهوية التي تستعملها المنصةُ نفسها — للتحميل كما هي، لا يُعاد رسمُها.
+ *  روابطُ لا غير: المنصةُ لا تفحص أن التصميمَ استعملها؛ ذلك بندُ «الهوية» في فحص الجودة. */
+const BRAND_FILES = [
+  { key: "logoFull", href: "/brand/logo-full.png" },
+  { key: "lockupLight", href: "/brand/lockup-on-light.png" },
+  { key: "lockupDark", href: "/brand/lockup-on-dark.png" },
+  { key: "symbol", href: "/brand/symbol.png" },
+  { key: "guide", href: "/brand/brand-guide.webp" },
+] as const;
+
+function BrandAssets({ mk }: { mk: Mk }) {
+  const L = mk.design.brand;
+  return (
+    <details data-brand-assets>
+      <summary className="cursor-pointer text-sm font-bold">{L.title}</summary>
+      <p className="mt-1 text-[11px] leading-relaxed text-black/55">{L.hint}</p>
+      <ul className="mt-2 flex flex-wrap gap-2">
+        {BRAND_FILES.map((f) => (
+          <li key={f.key}>
+            <a href={f.href} download className="inline-flex rounded-lg border border-black/10 px-2.5 py-1 text-xs hover:bg-black/[0.04]">
+              {L[f.key]}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 

@@ -136,15 +136,19 @@ export async function ensureMemberId(actor: MkActor, db: Db = prisma): Promise<s
 }
 
 export type CampaignAccess = {
-  /** يرى الحملة: مُعيَّنٌ فيها، أو قائدُ التسويق، أو معتمِدُ خطةٍ قُدّمت */
+  /** يرى عملَ الحملة (المخرجات والمسودات والملفات والمهامّ والتعليقات والسجلّ):
+   *  مُعيَّنٌ فيها أو قائدُ التسويق */
   canView: boolean;
+  /** يرى موجزَها وخطتَها وقراراتِها وحدها: من سبق، أو معتمِدُ خطةٍ قُدّمت. موقعُه في
+   *  الهيكل يمنحه مرحلتَه من الخطة — لا مسوداتِ الفريق ولا ملفّاتِه ولا تعليقاتِه. */
+  canViewPlan: boolean;
   /** مسؤولياتُه الفعّالة فيها */
   roles: Set<MarketingCampaignRole>;
 };
 
 export async function campaignAccess(actor: MkActor | null, campaignId: string, db: Db = prisma): Promise<CampaignAccess> {
   const roles = new Set<MarketingCampaignRole>();
-  if (!actor || actor.isFounder) return { canView: false, roles };
+  if (!actor || actor.isFounder) return { canView: false, canViewPlan: false, roles };
   if (actor.member) {
     const rows = await db.marketingCampaignMember.findMany({
       where: { campaignId, memberId: actor.member.id },
@@ -155,15 +159,15 @@ export async function campaignAccess(actor: MkActor | null, campaignId: string, 
   if (actor.isMarketingLead) {
     // القائدُ ينسّق كلَّ حملةٍ قائمة
     if (await db.marketingCampaign.count({ where: { id: campaignId } })) roles.add("coordinator");
-    return { canView: roles.size > 0, roles };
+    return { canView: roles.size > 0, canViewPlan: roles.size > 0, roles };
   }
-  if (roles.size > 0) return { canView: true, roles };
-  // معتمِدُ الخطة يرى ما قُدّمت خطتُه — اطّلاعاً لا عملاً
+  if (roles.size > 0) return { canView: true, canViewPlan: true, roles };
+  // معتمِدُ الخطة يرى خطةَ ما قُدّمت خطتُه — اطّلاعاً لا عملاً، ولا يرى عملَ الفريق
   if (actor.planStage) {
     const c = await db.marketingCampaign.findUnique({ where: { id: campaignId }, select: { currentPlanVersionId: true } });
-    return { canView: !!c?.currentPlanVersionId, roles };
+    return { canView: false, canViewPlan: !!c?.currentPlanVersionId, roles };
   }
-  return { canView: false, roles };
+  return { canView: false, canViewPlan: false, roles };
 }
 
 /** داخل عملية: المنفّذ يملك هذه المسؤولية في هذه الحملة، وإلا أُلغيت العملية */
@@ -176,7 +180,8 @@ export async function requireCampaignRole(
   if (!actor) abort("unauthenticated");
   if (actor.isFounder) abort("founder_excluded");
   const access = await campaignAccess(actor, campaignId, db);
-  if (!access.canView) abort("not_found");
+  // من يرى الخطةَ وحدها يعلم بوجود الحملة — فيُقال له «ممنوع» لا «غير موجودة»
+  if (!access.canView && !access.canViewPlan) abort("not_found");
   if (!access.roles.has(role)) abort("forbidden", { role });
   const memberId = await ensureMemberId(actor, db);
   if (!memberId) abort("forbidden", { role });

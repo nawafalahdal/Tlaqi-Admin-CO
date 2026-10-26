@@ -158,6 +158,29 @@ export async function setTaskStatus(actor: MkActor, taskId: string, status: stri
   });
 }
 
+/** إسنادُ مهمّةٍ قائمةٍ أو رفعُ إسنادها — قرارُ المنسّق وحده.
+ *  الاقتراحُ (`assignmentSuggestions`) لا يُسنِد بنفسه؛ هذه هي الخطوةُ البشرية،
+ *  وتمرّ بفحص الإسناد نفسه: من فريق الحملة، ونشِط. */
+export async function assignTask(actor: MkActor, taskId: string, assigneeId: string | null): Promise<MkResult> {
+  return guarded(async () => {
+    const task = await prisma.marketingTask.findUnique({
+      where: { id: taskId },
+      select: { id: true, campaignId: true, deliverableId: true, title: true, status: true, assigneeId: true, campaign: { select: { status: true } } },
+    });
+    if (!task) return fail("not_found");
+    await requireCampaignRole(actor, task.campaignId, "coordinator");
+    if (task.campaign.status === "archived" || task.campaign.status === "published" || task.status === "done" || task.status === "cancelled") return fail("invalid_state");
+    const to = await assertAssignee(task.campaignId, assigneeId);
+    if (to === task.assigneeId) return { ok: true };
+    await prisma.$transaction(async (tx) => {
+      const res = await tx.marketingTask.updateMany({ where: { id: taskId, assigneeId: task.assigneeId }, data: { assigneeId: to } });
+      if (res.count === 0) abort("stale");
+      await logEvent(tx, actor, { action: "task.assigned", campaignId: task.campaignId, deliverableId: task.deliverableId, details: { taskId, title: task.title } });
+    });
+    return { ok: true };
+  });
+}
+
 export async function deleteTask(actor: MkActor, taskId: string): Promise<MkResult> {
   return guarded(async () => {
     const task = await prisma.marketingTask.findUnique({ where: { id: taskId }, select: { id: true, campaignId: true, title: true } });

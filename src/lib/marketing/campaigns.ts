@@ -275,10 +275,12 @@ export async function listCampaigns(actor: MkActor, filter: { status?: Marketing
   });
 }
 
-/** ما تحتاجه صفحةُ الحملة — أو `null` لمن لا يراها (فيُقال له «غير موجودة» لا «ممنوعة») */
+/** ما تحتاجه صفحةُ الحملة — أو `null` لمن لا يراها (فيُقال له «غير موجودة» لا «ممنوعة»).
+ *  ومعتمِدُ الخطة (`planOnly`) يُعطى الموجزَ والمخرجاتِ المخطَّطة وحدها: لا فريقَ ولا عمل. */
 export async function campaignWorkspace(actor: MkActor, campaignId: string) {
   const access = await campaignAccess(actor, campaignId);
-  if (!access.canView) return null;
+  if (!access.canView && !access.canViewPlan) return null;
+  const planOnly = !access.canView;
   const c = await prisma.marketingCampaign.findUnique({
     where: { id: campaignId },
     include: {
@@ -295,7 +297,8 @@ export async function campaignWorkspace(actor: MkActor, campaignId: string) {
     },
   });
   if (!c) return null;
-  return { campaign: c, roles: [...access.roles] as MarketingCampaignRole[] };
+  if (planOnly) return { campaign: { ...c, members: [] }, roles: [] as MarketingCampaignRole[], planOnly };
+  return { campaign: c, roles: [...access.roles] as MarketingCampaignRole[], planOnly };
 }
 
 export const personName = (m: { user: { fullName: string } | null; member: { fullName: string } | null; nameSnapshot?: string | null } | null) =>

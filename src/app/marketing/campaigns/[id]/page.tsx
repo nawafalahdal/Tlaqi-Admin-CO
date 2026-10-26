@@ -33,9 +33,10 @@ export default async function CampaignPage({ params, searchParams }: { params: P
   const { actor, mk, isManager, locale } = await marketingPage(`/marketing/campaigns/${id}`);
   const ws = await campaignWorkspace(actor, id);
   if (!ws) notFound();
-  const { campaign: c, roles } = ws;
+  const { campaign: c, roles, planOnly } = ws;
   const plan = await campaignPlan(actor, c.id);
-  const tab: Tab = (TABS as readonly string[]).includes(rawTab ?? "") ? (rawTab as Tab) : "overview";
+  // معتمِدُ الخطة يرى الموجزَ والخطةَ وحدهما — لا تبويباتِ عمل الفريق (والخادمُ يردّها على كل حال)
+  const tab: Tab = !planOnly && (TABS as readonly string[]).includes(rawTab ?? "") ? (rawTab as Tab) : "overview";
   const isCoordinator = roles.includes("coordinator");
   const sep = locale === "ar" ? "، " : ", ";
   const missing = briefMissing(c, c._count.deliverables);
@@ -67,21 +68,23 @@ export default async function CampaignPage({ params, searchParams }: { params: P
         back={<Link href="/marketing/campaigns" className="text-xs font-bold text-black/55 hover:underline">{mk.campaigns.title}</Link>}
       />
 
-      {roles.length === 0 && <p className="rounded-2xl bg-black/[0.04] px-4 py-3 text-sm text-black/65">{mk.common.viewOnly}</p>}
+      {roles.length === 0 && <p className="rounded-2xl bg-black/[0.04] px-4 py-3 text-sm text-black/65">{planOnly ? mk.common.planOnly : mk.common.viewOnly}</p>}
       {c.status === "blocked" && c.blockedReason && (
         <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-800">{fmt(mk.campaign.blockedBecause, c.blockedReason)}</p>
       )}
 
-      <Tabs
-        label={c.name}
-        current={tab}
-        items={TABS.map((k) => ({
-          key: k,
-          label: mk.campaign.tabs[k],
-          href: `/marketing/campaigns/${c.id}?tab=${k}`,
-          count: k === "deliverables" ? c._count.deliverables : k === "team" ? c.members.length : undefined,
-        }))}
-      />
+      {!planOnly && (
+        <Tabs
+          label={c.name}
+          current={tab}
+          items={TABS.map((k) => ({
+            key: k,
+            label: mk.campaign.tabs[k],
+            href: `/marketing/campaigns/${c.id}?tab=${k}`,
+            count: k === "deliverables" ? c._count.deliverables : k === "team" ? c.members.length : undefined,
+          }))}
+        />
+      )}
 
       {tab === "overview" && (
         <>

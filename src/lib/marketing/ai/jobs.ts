@@ -75,6 +75,17 @@ export async function requestTextSuggestion(
         const d = await loadDeliverable(tx, deliverableId);
         const { memberId } = await requireCampaignRole(actor, d.campaignId, "writer", tx);
         requireWorkable(d);
+        // الفحصُ ثم الإنشاء ذرّيٌّ بقفلين للمعاملة (يُحرَّران عند انتهائها): الطالبُ ثم المخرج —
+        // بهذا الترتيب دائماً فلا يتشابك قفلان. بدونهما يجتاز طلبان متزامنان الفحصَ معاً
+        // فتُنشأ مهمّتان نشطتان (تكلفةٌ مكرّرة) أو تُتجاوز الحصّة.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`mk-job:member:${memberId}`}))`;
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`mk-job:deliverable:${d.id}`}))`;
+        // طلبٌ بالمفتاح نفسه سبقنا إلى القفل — نعيد مهمّته لا نرفض
+        const raced = await tx.marketingGenerationJob.findUnique({ where: { idempotencyKey: key }, select: { id: true, deliverableId: true } });
+        if (raced) {
+          if (raced.deliverableId !== d.id) abort("invalid_input", { field: "requestId" });
+          return { ok: true as const, jobId: raced.id, duplicate: true };
+        }
         // مهمّةٌ واحدةٌ نشطةٌ لكل مخرج — النقرُ المكرّر لا يضاعف التكلفة
         const active = await tx.marketingGenerationJob.count({ where: { deliverableId: d.id, status: { in: ACTIVE } } });
         if (active > 0) abort("job_active");
@@ -329,6 +340,8 @@ export async function retryJob(actor: MkActor, jobId: string, deps?: JobDeps): P
     return prisma.$transaction(async (tx) => {
       const d = await loadDeliverable(tx, job.deliverableId);
       requireWorkable(d);
+      // قفلُ المخرج نفسه الذي يأخذه الطلبُ الجديد — فلا تجتمع إعادةٌ وطلبٌ متزامنان نشطَين
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`mk-job:deliverable:${d.id}`}))`;
       const active = await tx.marketingGenerationJob.count({ where: { deliverableId: d.id, status: { in: ACTIVE } } });
       if (active > 0) abort("job_active");
       const res = await tx.marketingGenerationJob.updateMany({

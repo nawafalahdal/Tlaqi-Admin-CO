@@ -76,6 +76,11 @@ async function kindOf(p: Promise<unknown>): Promise<string> {
   const preview = aiStatus({ MARKETING_AI_PROVIDER: "anthropic", ANTHROPIC_API_KEY: FAKE_KEY, MARKETING_AI_ENABLED: "1", VERCEL: "1", VERCEL_ENV: "preview" });
   chk("ولا يعمل في نشرة معاينة ولو اكتملت الإعدادات", preview.text.state === "disabled" && preview.text.reason === "preview");
   chk("ولا مزوّدَ يُبنى لما ليس جاهزاً", textProvider({ ...dev, MARKETING_AI_PROVIDER: "anthropic", ANTHROPIC_API_KEY: FAKE_KEY }) === null);
+  // لا تبديلَ صامتاً للمزوّد: Claude غيرُ المكتمل لا يقع إلى المحاكاة ولا إلى غيرها — ولو محلياً
+  const half = { ...dev, MARKETING_AI_PROVIDER: "anthropic", ANTHROPIC_API_KEY: FAKE_KEY };
+  chk("Claude غيرُ مفعَّلٍ لا يقع إلى المحاكاة محلياً", aiStatus(half).text.state === "disabled" && !aiStatus(half).text.simulated && textProvider(half) === null);
+  const custom = aiStatus({ ...half, MARKETING_AI_ENABLED: "1", MARKETING_AI_MODEL: "claude-sonnet-5-5" });
+  chk("والنموذجُ المضبوطُ صراحةً هو المطلوب", custom.text.state === "ready" && custom.text.provider === "anthropic" && custom.text.model === "claude-sonnet-5-5");
   chk("مزوّدٌ مجهول: «غيرُ مهيّأ»", aiStatus({ ...dev, MARKETING_AI_PROVIDER: "openai" }).text.reason === "unknown_provider");
   const simLocal = aiStatus({ ...dev, MARKETING_AI_PROVIDER: "simulated" });
   chk("المحاكاةُ محلياً: جاهزةٌ ومعلَّمة", simLocal.text.state === "ready" && simLocal.text.simulated);
@@ -104,6 +109,13 @@ async function kindOf(p: Promise<unknown>): Promise<string> {
   chk("والطلبُ يحمل الموجز والمسودة والتعليمات", userText.includes("نلتقي ونفكّر ونصنع") && userText.includes("مسودة أولى") && userText.includes("أقصر وأوضح"));
   chk("ولا يحمل بريداً ولا معرّفات", !/@|cuid|memberId|userId/.test(userText));
   chk("وبلا إعادةٍ داخلية: طلبٌ واحد", log.length === 1);
+
+  // البديلُ عند الرفض يخدم بنموذجٍ آخر — فيُحفظ النموذجُ الذي خدم فعلاً، لا المطلوب
+  const served = await anthropicProvider({ apiKey: FAKE_KEY, fetch: fakeFetch(() => json(200, message({ model: "claude-opus-4-8" })), []) }).generate(req);
+  chk("النموذجُ الذي خدم (بعد البديل) هو ما يُسجَّل ويُعرض", served.model === "claude-opus-4-8");
+  const pinned: Sent[] = [];
+  await anthropicProvider({ apiKey: FAKE_KEY, model: "claude-sonnet-5-5", fetch: fakeFetch(() => json(200, message({ model: "claude-sonnet-5-5" })), pinned) }).generate(req);
+  chk("والنموذجُ المضبوطُ يُرسَل كما هو", pinned[0]?.body.model === "claude-sonnet-5-5");
 
   const once = async (reply: () => Response | Promise<Response>) => {
     const l: Sent[] = [];

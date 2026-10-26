@@ -6,6 +6,7 @@ import { assignableMembers, type campaignWorkspace } from "@/lib/marketing/campa
 import { listFormats } from "@/lib/marketing/formats";
 import { campaignTasks, campaignComments, TASK_KINDS } from "@/lib/marketing/tasks";
 import { campaignEvents } from "@/lib/marketing/inbox";
+import { assignmentSuggestions, type Suggestion } from "@/lib/marketing/suggestions";
 import { PRIORITIES } from "@/lib/marketing/campaigns";
 import { fmt } from "@/i18n/fmt";
 import { ActionForm } from "../../_components/ActionForm";
@@ -85,6 +86,8 @@ export async function TasksTab({ mk, actor, campaign: c, roles }: { mk: Mk; acto
   const closed = c.status === "archived" || c.status === "published";
   const me = actor.member?.id;
   const people = [...new Map(c.members.filter((m) => m.member.active).map((m) => [m.member.id, nameOf(m.member)])).entries()];
+  // اقتراحٌ يُعرض للمنسّق — والإسنادُ ضغطتُه هو (`task.assign`)
+  const suggestions = new Map(isCoordinator && !closed ? ((await assignmentSuggestions(actor, c.id)) ?? []).map((x) => [x.taskId, x]) : []);
 
   return (
     <Section title={mk.tasks.title}>
@@ -113,6 +116,7 @@ export async function TasksTab({ mk, actor, campaign: c, roles }: { mk: Mk; acto
                 </p>
                 {t.description && <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-black/70">{t.description}</p>}
                 {waiting.length > 0 && <p className="mt-2 text-xs text-amber-900">{fmt(mk.tasks.waitingOn, waiting.map((d) => d.title).join(" · "))}</p>}
+                {suggestions.has(t.id) && <SuggestionBox mk={mk} taskId={t.id} s={suggestions.get(t.id)!} />}
                 {t.files.length > 0 && (
                   <ul className="mt-2 flex flex-wrap gap-2">
                     {t.files.map((f) => (
@@ -227,6 +231,42 @@ export async function TasksTab({ mk, actor, campaign: c, roles }: { mk: Mk; acto
         </details>
       )}
     </Section>
+  );
+}
+
+function SuggestionBox({ mk, taskId, s }: { mk: Mk; taskId: string; s: Suggestion }) {
+  return (
+    <div data-suggestion={taskId} className="mt-3 rounded-xl border border-dashed border-black/15 bg-black/[0.02] p-3">
+      <p className="text-xs font-bold">{mk.tasks.suggestTitle}</p>
+      <p className="mt-1 text-[11px] leading-relaxed text-black/55">{mk.tasks.suggestHint}</p>
+      <p className="mt-2 flex flex-wrap gap-x-3 text-[11px] text-black/60">
+        <span>{s.role ? fmt(mk.tasks.suggestRole, mk.capability[s.role]) : mk.tasks.suggestAnyRole}</span>
+        {s.why === "assignee_ineligible" && <span className="text-red-700">{mk.tasks.suggestIneligible}</span>}
+        {s.waitingOn > 0 && <span className="text-amber-900">{fmt(mk.tasks.suggestWaiting, s.waitingOn)}</span>}
+      </p>
+      {s.candidates.length === 0 ? (
+        <p className="mt-2 text-xs text-black/60">{mk.tasks.suggestNone}</p>
+      ) : (
+        <ActionForm
+          op="task.assign"
+          variant="outline"
+          className="mt-2"
+          buttons={s.candidates.map((p) => ({ label: fmt(mk.tasks.assignTo, p.name), name: "assigneeId", value: p.memberId, variant: "outline" as const }))}
+        >
+          <input type="hidden" name="taskId" value={taskId} />
+          <ul className="flex flex-col gap-1 text-[11px] text-black/60">
+            {s.candidates.map((p) => (
+              <li key={p.memberId} className="flex flex-wrap gap-x-2">
+                <span className="font-bold text-black/75">{p.name}</span>
+                <span>{fmt(mk.tasks.suggestLoad, p.open)}</span>
+                {p.overdue > 0 && <span className="text-red-700">{fmt(mk.tasks.suggestOverdue, p.overdue)}</span>}
+                {p.authored && <span className="text-amber-900">{mk.tasks.suggestAuthored}</span>}
+              </li>
+            ))}
+          </ul>
+        </ActionForm>
+      )}
+    </div>
   );
 }
 

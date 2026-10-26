@@ -43,6 +43,7 @@ export type MkEventAction =
   | "publication.results_recorded"
   | "task.created"
   | "task.updated"
+  | "task.assigned"
   | "task.status_changed"
   | "task.reopened"
   | "task.deleted"

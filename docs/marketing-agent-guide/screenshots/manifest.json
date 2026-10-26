@@ -1,0 +1,218 @@
+[
+  {
+    "file": "01-lead-dashboard.png",
+    "role": "قائد التسويق",
+    "action": "يفتح لوحة وكيل التسويق",
+    "observe": "الخطط التي تنتظر قراره، وما ينتظره، ومهامّه، وعدّادات الحملات النشطة والمهام المتأخرة والمنشورات المسجّلة",
+    "path": "/marketing",
+    "captured": true
+  },
+  {
+    "file": "02-lead-campaigns-list.png",
+    "role": "قائد التسويق",
+    "action": "قائمة الحملات",
+    "observe": "كل حملة بحالتها وموعدها ومسؤولها",
+    "path": "/marketing/campaigns",
+    "captured": true
+  },
+  {
+    "file": "03-lead-new-campaign.png",
+    "role": "قائد التسويق",
+    "action": "إنشاء حملة جديدة",
+    "observe": "حقول الموجز: الهدف والجمهور والرسالة والقنوات والموعد",
+    "path": "/marketing/campaigns/new",
+    "captured": true
+  },
+  {
+    "file": "04-lead-brief-incomplete.png",
+    "role": "قائد التسويق",
+    "action": "حملة في مرحلة الموجز",
+    "observe": "النواقص تُذكر بأسمائها قبل زر الانتقال إلى التخطيط",
+    "path": "/marketing/campaigns/cmvp85m6w009d7dka80o8bssg",
+    "captured": true
+  },
+  {
+    "file": "05-lead-plan-submit.png",
+    "role": "قائد التسويق",
+    "action": "خطة رُدّت للتعديل",
+    "observe": "قرار مسؤول التشغيل بسببه وتاريخه، والنسخة باطلة، وزر تقديم نسخة جديدة",
+    "path": "/marketing/campaigns/cmvp85m4k008l7dka4ntzzy5q",
+    "captured": true
+  },
+  {
+    "file": "06-lead-campaign-in-progress.png",
+    "role": "قائد التسويق",
+    "action": "حملة قيد التنفيذ",
+    "observe": "الخطة معتمدة بمراحلها الثلاث بأسماء أصحابها، وأزرار الحالة",
+    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46",
+    "captured": true
+  },
+  {
+    "file": "07-lead-tasks-suggestions.png",
+    "role": "قائد التسويق",
+    "action": "تبويب المهام",
+    "observe": "اقتراح الإسناد للمهام بلا مسنَد: الدور المطلوب وعبء كل مرشّح — ولا يُسنَد شيء دون ضغطة",
+    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46?tab=tasks",
+    "captured": true
+  },
+  {
+    "file": "08-lead-assign-confirmed.png",
+    "role": "قائد التسويق",
+    "action": "يضغط «أسنِدها إلى…» على مهمة النشر",
+    "observe": "الإسناد وقع بفعل القائد ويُسجَّل باسمه في السجل",
+    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46?tab=tasks",
+    "captured": true
+  },
+  {
+    "file": "09-lead-team.png",
+    "role": "قائد التسويق",
+    "action": "فريق الحملة",
+    "observe": "كل شخص بمسؤوليته في هذه الحملة",
+    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46?tab=team",
+    "captured": true
+  },
+  {
+    "file": "10-lead-settings.png",
+    "role": "قائد التسويق",
+    "action": "إعدادات الوكيل",
+    "observe": "فريق التسويق ومسؤولياته، وسياسة فصل الاعتماد، وحالة المزوّد «غير مهيّأ»",
+    "path": "/marketing/settings",
+    "captured": true
+  },
+  {
+    "file": "11-lead-audit.png",
+    "role": "قائد التسويق",
+    "action": "سجل الحملة",
+    "observe": "كل حدث بصاحبه ووقته وتفاصيله (الإسناد، والاعتمادات، وفحص الجودة، والنشر، والنتائج)",
+    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46?tab=audit",
+    "captured": true
+  },
+  {
+    "file": "12-ops-dashboard.png",
+    "role": "مسؤول التشغيل",
+    "action": "لوحة الوكيل",
+    "observe": "الخطط التي تنتظر قراره وحده",
+    "path": "/marketing",
+    "captured": true
+  },
+  {
+    "file": "13-ops-plan-decision.png",
+    "role": "مسؤول التشغيل",
+    "action": "يراجع خطة حملة المعرض",
+    "observe": "اطّلاع على الموجز والخطة وحدهما (بلا تبويبات عمل الفريق)، واعتماد مرحلة القسم، ونموذج قراره",
+    "path": "/marketing/campaigns/cmvp85m0h00717dkabouuz19t",
+    "captured": true
+  },
+  {
+    "file": "14-ops-no-team-work.png",
+    "role": "مسؤول التشغيل",
+    "action": "يفتح رابط مخرجٍ مباشرةً",
+    "observe": "«غير موجودة» (404): موقعه في الهيكل لا يفتح مسودات الفريق ولا ملفاته. الصفحة هي صفحة Next.js الافتراضية بالإنجليزية — لا صفحة 404 مخصّصة في المنصة",
+    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kol001f7dkau9l5ehtj",
+    "captured": true
+  },
+  {
+    "file": "15-ceo-final-approval.png",
+    "role": "الرئيس التنفيذي",
+    "action": "الاعتماد النهائي لخطة حملة التطوع",
+    "observe": "مرحلتا القسم والتشغيل معتمدتان بأسماء أصحابهما، ونموذج المرحلة الأخيرة",
+    "path": "/marketing/campaigns/cmvp85m2l007t7dka0nx49ofx",
+    "captured": true
+  },
+  {
+    "file": "16-writer-draft-checks.png",
+    "role": "كاتب المحتوى",
+    "action": "يكتب مسودة التغريدة",
+    "observe": "تنبيهات آلية (رقم بلا مصدر، رابط غير آمن) لا تمنع، ولوحة الاقتراح الآلي «غير مهيّأ» بلا زر طلب — والحفظ لا يقدّم للمراجعة",
+    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kpo001v7dkagq3emned",
+    "captured": true
+  },
+  {
+    "file": "18-writer-own-version.png",
+    "role": "كاتب المحتوى",
+    "action": "نسخته بانتظار المراجعة",
+    "observe": "لا يعتمد ما كتب — يعتمده زميل",
+    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kol001f7dkau9l5ehtj",
+    "captured": true
+  },
+  {
+    "file": "19-copy-approval.png",
+    "role": "كاتب ثانٍ (معتمِد النص)",
+    "action": "يعتمد نسخة النص بعينها أو يطلب تعديلاً بسبب",
+    "observe": "رقم النسخة وكاتبها، ونموذج القرار",
+    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kol001f7dkau9l5ehtj",
+    "captured": true
+  },
+  {
+    "file": "20-reviews-queue.png",
+    "role": "كاتب ثانٍ",
+    "action": "صفحة المراجعات",
+    "observe": "ما ينتظر قراره هو وحده",
+    "path": "/marketing/reviews",
+    "captured": true
+  },
+  {
+    "file": "21-designer-brand-upload.png",
+    "role": "المصمّم",
+    "action": "ملفات الهوية الرسمية ورفع نسخة",
+    "observe": "روابط الملفات التي تستعملها المنصة، وفحص المقاس من الملف نفسه، ونسخه السابقة",
+    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kov001j7dkamobht7xr",
+    "captured": true
+  },
+  {
+    "file": "22-design-review-safe-area.png",
+    "role": "مصمّم ثانٍ (معتمِد التصميم)",
+    "action": "يراجع التصميم في معاينته",
+    "observe": "المعاينة بالمقاس الحقيقي ومنطقة الأمان، ونموذج اعتماد النسخة",
+    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kov001j7dkamobht7xr",
+    "captured": true
+  },
+  {
+    "file": "23-qa-checklist.png",
+    "role": "مراجع الجودة",
+    "action": "يسجّل فحص الجودة",
+    "observe": "تسعة بنود على نسختي النص والتصميم بعينهما — والفشل يتطلب ملاحظة",
+    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kp5001n7dka90horopl",
+    "captured": true
+  },
+  {
+    "file": "24-publisher-form.png",
+    "role": "مسؤول النشر",
+    "action": "نموذج تسجيل النشر اليدوي",
+    "observe": "الرابط والوقت وتأكيد رؤيته حياً — والنشر نفسه يتم على المنصة يدوياً",
+    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kpf001r7dkar8xyvrcg",
+    "captured": true
+  },
+  {
+    "file": "25-publisher-url-mismatch.png",
+    "role": "مسؤول النشر",
+    "action": "يحاول تسجيل رابطٍ ليس على لينكدإن",
+    "observe": "رفض الخادم برسالة واضحة، وما كُتب في النموذج لم يُمحَ",
+    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kpf001r7dkar8xyvrcg",
+    "captured": true
+  },
+  {
+    "file": "26-publisher-evidence-results.png",
+    "role": "مسؤول النشر",
+    "action": "منشور مسجَّل بدليله ونتائجه",
+    "observe": "الرابط والوقت وصاحب التسجيل، والنتائج بمصدرها وتاريخها (بيانات فحص محلية)",
+    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kpw001z7dkak5ci0f0n",
+    "captured": true
+  },
+  {
+    "file": "27-founder-excluded.png",
+    "role": "المؤسس",
+    "action": "يفتح /marketing",
+    "observe": "غير متاح: لا بند في القائمة ولا صفحة",
+    "captured": false,
+    "reason": "يتطلب جلسة المؤسس الحقيقية — لم تُستخدم في الصور؛ المنع مثبتٌ بفحوص الخادم والمتصفح (check-marketing.mjs)"
+  },
+  {
+    "file": "28-mobile-deliverable.png",
+    "role": "كاتب المحتوى (جوال)",
+    "action": "صفحة المخرج على الجوال",
+    "observe": "بلا تمرير أفقي؛ الأقسام بالترتيب نفسه",
+    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kol001f7dkau9l5ehtj",
+    "captured": true
+  }
+]

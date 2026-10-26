@@ -143,12 +143,14 @@ const dpath = (d) => `/marketing/campaigns/${A}/deliverables/${d}`;
   const pub = page.locator("#publish");
   await pub.locator('input[name="url"]').fill("https://example.com/not-instagram");
   await pub.locator('input[name="confirmedLive"]').check();
+  // انتظارُ ردّ الخادم نفسه لا مهلةٍ ثابتة — أولُ إجراءٍ على خادمٍ بارد قد يتجاوزها
+  const until = (needle) => page.waitForFunction((n) => (document.querySelector("main")?.innerText ?? "").includes(n), needle, { timeout: 15000 }).catch(() => {});
   await pub.locator('button:has-text("تسجيل النشر")').click();
-  await page.waitForTimeout(2500);
+  await until("ليس على منصة «instagram»");
   check((await pub.innerText()).includes("ليس على منصة «instagram»"), "ops: رابطٌ ليس على منصة المخرج يُردّ");
   await pub.locator('input[name="url"]').fill("https://www.instagram.com/p/qa-check");
   await pub.locator('button:has-text("تسجيل النشر")').click();
-  await page.waitForTimeout(3000);
+  await until("instagram.com/p/qa-check");
   check((await text(page)).includes("instagram.com/p/qa-check") && (await page.locator('main').innerText()).includes("منشور"), "ops: رابطُ المنشور نفسه يُسجَّل");
   // نتائجُ اليوم نفسه: «حتى تاريخ» اليوم يُقرأ «الآن» فلا يُردّ لأنه قبل وقت النشر
   await page.locator('summary:has-text("حفظ النتائج")').click();

@@ -3,14 +3,16 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/credentials";
 import { marketingActor, canEnterMarketing, hasCapability, type MkActor } from "@/lib/marketing/access";
-import { addTeamMember, setCapabilities, updateSettings } from "@/lib/marketing/team";
+import { addTeamMember, setCapabilities, setMemberActive, updateSettings } from "@/lib/marketing/team";
 import { createCampaign, updateBrief, addCampaignMember, transitionCampaign, listCampaigns, campaignWorkspace } from "@/lib/marketing/campaigns";
-import { createDeliverable } from "@/lib/marketing/deliverables";
+import { createDeliverable, deliverableWorkspace } from "@/lib/marketing/deliverables";
 import { submitContent, decideContent } from "@/lib/marketing/content";
-import { uploadDesign, submitDesign, decideDesign } from "@/lib/marketing/design";
+import { uploadDesign, submitDesign, decideDesign, readCampaignFile } from "@/lib/marketing/design";
 import { sendToQuality, recordQuality, recordPublication, QUALITY_ITEMS } from "@/lib/marketing/review";
 import { submitPlan, decidePlan, campaignPlan, plansAwaiting } from "@/lib/marketing/plan";
-import { requestTextSuggestion, processJob, adoptSuggestion, type JobDeps } from "@/lib/marketing/ai/jobs";
+import { requestTextSuggestion, processJob, adoptSuggestion, deliverableJobs, type JobDeps } from "@/lib/marketing/ai/jobs";
+import { createTask, assignTask, campaignTasks, campaignComments, addComment } from "@/lib/marketing/tasks";
+import { assignmentSuggestions } from "@/lib/marketing/suggestions";
 import type { TextProvider } from "@/lib/marketing/ai/provider";
 
 /** حوكمةُ وكيل التسويق — أصحابُ القرار وسلسلةُ اعتماد الخطة، على القاعدة المحلية وحدها.
@@ -23,7 +25,8 @@ import type { TextProvider } from "@/lib/marketing/ai/provider";
  *  ٢) الخطة: قائد التسويق ← مسؤول التشغيل ← الرئيس التنفيذي، بالترتيب، على نسخةٍ بعينها،
  *     والردُّ بسببٍ يُبطلها، والتعديلُ يُبطلها، والتنفيذُ لا يبدأ قبلها ولا بالرجوع من إيقاف.
  *  ٣) الوكيل: اقتراحُه مسودةٌ لا نسخةٌ ولا اعتماد.
- *  ٤) النشر: لا قبل الاعتمادات، ودليلُه رابطٌ على منصة المخرج نفسها. */
+ *  ٤) النشر: لا قبل الاعتمادات، ودليلُه رابطٌ على منصة المخرج نفسها.
+ *  ٥) اقتراحُ الإسناد: يُحسب ولا يُسنِد؛ والإسنادُ ضغطةُ المنسّق بفحوصها. */
 
 if (!/@(localhost|127\.0\.0\.1)[:/]/.test(process.env.DATABASE_URL ?? "")) {
   console.error("يُشغَّل على القاعدة المحلية وحدها");
@@ -189,7 +192,8 @@ async function cleanup() {
   chk("رئيسٌ تنفيذيٌّ نُحّي يفقد مرحلته فوراً", (await A(S.ceo)).planStage === null);
   await prisma.user.update({ where: { id: ceoU.id }, data: { isActive: true } });
 
-  chk("مسؤولُ التشغيل يرى الحملة اطّلاعاً لأن خطتها قُدّمت", (await campaignWorkspace(ops, C)) !== null && (await listCampaigns(ops)).some((x) => x.id === C));
+  const opsWs = await campaignWorkspace(ops, C);
+  chk("مسؤولُ التشغيل يرى موجزَ الحملة وخطتها لأن خطتها قُدّمت — بلا فريق", !!opsWs?.planOnly && opsWs.campaign.members.length === 0 && opsWs.roles.length === 0 && (await campaignPlan(ops, C)) !== null && (await listCampaigns(ops)).some((x) => x.id === C));
   chk("وتبدأ الحملةُ بعد الاعتمادات الثلاثة", (await transitionCampaign(lead, C, "in_progress")).ok);
   chk("ولا يُعدَّل الموجزُ تحت التنفيذ", code(await updateBrief(lead, C, { ...brief, objective: "هدفٌ آخر" })) === "plan_locked");
   chk("ولا يُضاف مخرجٌ تحت التنفيذ", code(await createDeliverable(lead, C, { title: "متأخّر", platform: "x", formatKey: "landscape" })) === "plan_locked");
@@ -230,6 +234,15 @@ async function cleanup() {
   await submitDesign(d1, D, dv.versionId);
   chk("المصمّمُ لا يعتمد تصميمه", code(await decideDesign(d1, D, { designVersionId: dv.versionId, decision: "approved" })) === "separate_approver_required");
   chk("ومصمّمٌ آخر يعتمده", (await decideDesign(d2, D, { designVersionId: dv.versionId, decision: "approved" })).ok);
+  // موقعُ معتمِدَي الخطة في الهيكل لا يفتح لهما عملَ الفريق: لا مسودةَ ولا ملفَّ ولا مهامَّ ولا تعليقات
+  await addComment(w1, C, { body: "ملاحظةٌ داخلية للفريق", deliverableId: D });
+  const fileId = (await prisma.marketingDesignVersion.findUniqueOrThrow({ where: { id: dv.versionId }, select: { fileId: true } })).fileId;
+  for (const [who, a] of [["مسؤولُ التشغيل", ops], ["والرئيسُ التنفيذي", ceo]] as const) {
+    const hidden = (await deliverableWorkspace(a, D)) === null && (await readCampaignFile(a, fileId)) === null && (await campaignTasks(a, C)) === null && (await campaignComments(a, C)) === null && (await deliverableJobs(a, D)) === null;
+    chk(`${who} لا يفتح المخرجَ ولا ملفَّ التصميم ولا المهامَّ ولا التعليقات`, hidden);
+  }
+  chk("ولا يعلّق ولا يكتب نصاً", code(await addComment(ops, C, { body: "تعليق" })) === "not_found" && code(await submitContent(ops, D, { body: "نص" })) === "forbidden");
+  chk("والفريقُ يرى ذلك كلَّه", (await deliverableWorkspace(w1, D)) !== null && (await readCampaignFile(d1, fileId)) !== null && ((await campaignComments(lead, C)) ?? []).length === 1);
   await sendToQuality(d1, D);
   chk("المراجعُ وحده يسجّل الجودة", code(await recordQuality(w2, D, { contentVersionId: cv.versionId, designVersionId: dv.versionId, items: QUALITY_ITEMS.map((key) => ({ key, passed: true })) })) === "forbidden");
   chk("والمراجعُ يسجّلها على النسختين بعينهما", (await recordQuality(rv, D, { contentVersionId: cv.versionId, designVersionId: dv.versionId, items: QUALITY_ITEMS.map((key) => ({ key, passed: true })) })).ok);
@@ -238,9 +251,56 @@ async function cleanup() {
   const wrong = await recordPublication(w2, D, { url: "https://example.com/not-instagram", publishedAt: new Date(), confirmedLive: true });
   chk("ولا برابطٍ ليس على منصة المخرج", code(wrong) === "url_platform_mismatch" && !wrong.ok && wrong.params?.platform === "instagram");
   chk("ولا بنطاقٍ يتنكّر باسمها", code(await recordPublication(w2, D, { url: "https://instagram.com.evil.example/p/x", publishedAt: new Date(), confirmedLive: true })) === "url_platform_mismatch");
-  chk("وبرابط المنشور نفسه يُسجَّل", (await recordPublication(w2, D, { url: "https://www.instagram.com/p/abc123", publishedAt: new Date(), confirmedLive: true })).ok);
+  const created = (await prisma.marketingDeliverable.findUniqueOrThrow({ where: { id: D }, select: { createdAt: true } })).createdAt;
+  const minuteOf = new Date(Math.floor(created.getTime() / 60_000) * 60_000);
+  chk("ولا بوقتٍ قبل دقيقة إنشاء المخرج", code(await recordPublication(w2, D, { url: "https://www.instagram.com/p/abc123", publishedAt: new Date(minuteOf.getTime() - 60_000), confirmedLive: true })) === "invalid_input");
+  // النموذجُ يُدخل الوقت بالدقيقة: نشرٌ في دقيقة إنشاء المخرج نفسها مقبول
+  chk("وبرابط المنشور نفسه يُسجَّل — ولو في دقيقة إنشاء المخرج نفسها", (await recordPublication(w2, D, { url: "https://www.instagram.com/p/abc123", publishedAt: minuteOf, confirmedLive: true })).ok);
 
-  // ── ٥) السجلّ
+  // ── ٥) اقتراحُ الإسناد — يُحسب ولا يُسنِد
+  const id = { w1: t.w1.memberId, w2: t.w2.memberId, d1: t.d1.memberId, d2: t.d2.memberId, rv: t.rv.memberId };
+  const story = await prisma.marketingDeliverable.findFirstOrThrow({ where: { campaignId: C, title: "ستوري" }, select: { id: true } });
+  const task = async (title: string, kind: string, extra: { deliverableId?: string; assigneeId?: string; dependsOn?: string[] } = {}) => {
+    const r = await createTask(lead, C, { title, kind, ...extra });
+    if (!r.ok) throw new Error("stop task " + code(r));
+    return r.taskId;
+  };
+  // عبءٌ قائم: الكاتبُ الأول له مهمّةٌ مفتوحة، والمراجعُ مهمّتان
+  await task("عبء ك١", "general", { assigneeId: id.w1 });
+  await task("عبء م١", "general", { assigneeId: id.rv });
+  await task("عبء م٢", "general", { assigneeId: id.rv });
+  const tContent = await task("نص الستوري", "content", { deliverableId: story.id });
+  const tDesign = await task("تصميم الستوري", "design", { deliverableId: story.id, dependsOn: [tContent] });
+  // الكاتبُ الأول يحمل المراجعة أيضاً — وهو كاتبُ نسخة المنشور الحالية
+  await setCapabilities(lead, id.w1, ["writer", "reviewer"]);
+  await addCampaignMember(lead, C, { marketingMemberId: id.w1, role: "reviewer" });
+  const tQa = await task("جودة المنشور", "quality", { deliverableId: D });
+  const before = await prisma.marketingTask.findMany({ where: { campaignId: C, id: { in: [tContent, tDesign, tQa] } }, select: { assigneeId: true } });
+  const sug = await assignmentSuggestions(lead, C);
+  const of = (id: string) => sug?.find((x) => x.taskId === id);
+  chk("الاقتراحُ للمنسّق: لكل مهمّةٍ بلا مسنَدٍ اقتراحٌ بدورها", !!of(tContent) && of(tContent)!.role === "writer" && of(tDesign)!.role === "designer" && of(tQa)!.role === "reviewer");
+  chk("ومن يحمل الدورَ في فريق الحملة وحده", of(tContent)!.candidates.every((x) => [id.w1, id.w2].includes(x.memberId)) && of(tDesign)!.candidates.every((x) => [id.d1, id.d2].includes(x.memberId)));
+  chk("والأقلُّ مهامَّ مفتوحةً أولاً", of(tContent)!.candidates[0]?.memberId === id.w2 && of(tContent)!.candidates[1]?.memberId === id.w1 && of(tContent)!.candidates[1]?.open === 1);
+  const qa = of(tQa)!.candidates;
+  chk("ومهمّةُ الجودة تقدّم من لم يكتب النسخة — ولو كان عبؤه أكبر", qa[0]?.memberId === id.rv && qa[0].open === 2 && qa[1]?.memberId === id.w1 && qa[1].authored === true);
+  chk("والاعتمادياتُ تُذكر", of(tDesign)!.waitingOn === 1 && of(tContent)!.waitingOn === 0);
+  const after = await prisma.marketingTask.findMany({ where: { campaignId: C, id: { in: [tContent, tDesign, tQa] } }, select: { assigneeId: true } });
+  chk("والاقتراحُ لا يُسنِد شيئاً ولا يُكتب في السجلّ", before.every((x) => x.assigneeId === null) && after.every((x) => x.assigneeId === null) && (await prisma.marketingEvent.count({ where: { campaignId: C, action: "task.assigned" } })) === 0);
+  chk("ولا يراه غيرُ المنسّق: الكاتب ومسؤول التشغيل والمؤسس", (await assignmentSuggestions(w1, C)) === null && (await assignmentSuggestions(ops, C)) === null && (await assignmentSuggestions(founder, C)) === null);
+  chk("الإسنادُ للمنسّق وحده", code(await assignTask(w1, tContent, id.w2)) === "forbidden" && code(await assignTask(ops, tContent, id.w2)) === "forbidden" && code(await assignTask(founder, tContent, id.w2)) === "founder_excluded");
+  chk("ولمن في فريق الحملة وحده", code(await assignTask(lead, tContent, "not-a-member")) === "invalid_input");
+  chk("والمنسّقُ يُسند المقترَح بضغطته — ويُسجَّل باسمه", (await assignTask(lead, tContent, id.w2)).ok && (await prisma.marketingTask.findUniqueOrThrow({ where: { id: tContent } })).assigneeId === id.w2 && (await prisma.marketingEvent.count({ where: { campaignId: C, action: "task.assigned", actorKind: "user", actorName: N("lead") } })) === 1);
+  chk("والمُسنَدةُ لا تُقترح بعدها", !(await assignmentSuggestions(lead, C))!.some((x) => x.taskId === tContent));
+  await assignTask(lead, tDesign, id.d2);
+  await setMemberActive(lead, id.d2, false);
+  const afterStop = (await assignmentSuggestions(lead, C))!.find((x) => x.taskId === tDesign);
+  chk("ومسنَدٌ أُوقف يُعاد اقتراحُ مهمّته بغيره", afterStop?.why === "assignee_ineligible" && afterStop.candidates.length === 1 && afterStop.candidates[0].memberId === id.d1);
+  chk("ولا يُسنَد إلى موقوف", code(await assignTask(lead, tQa, id.d2)) === "invalid_input");
+  await setMemberActive(lead, id.d2, true);
+  await setCapabilities(lead, id.d2, ["writer"]);
+  chk("ومن سُحب دورُه لا يُقترح له", !(await assignmentSuggestions(lead, C))!.find((x) => x.taskId === tDesign)?.candidates.some((x) => x.memberId === id.d2));
+
+  // ── ٦) السجلّ
   const acts = new Set((await prisma.marketingEvent.findMany({ where: { campaignId: C }, select: { action: true } })).map((e) => e.action));
   chk("كلُّ قرارٍ في السجلّ", ["plan.submitted", "plan.approved", "plan.changes_requested", "plan.invalidated", "content.approved", "design.approved", "quality.passed", "publication.recorded"].every((a) => acts.has(a)), [...acts].filter((a) => a.startsWith("plan.")).join(","));
 

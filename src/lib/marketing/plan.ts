@@ -162,7 +162,7 @@ export async function decidePlan(
 
     return prisma.$transaction(async (tx) => {
       const access = await campaignAccess(actor, campaignId, tx);
-      if (!access.canView) abort("not_found");
+      if (!access.canViewPlan) abort("not_found");
       const c = await tx.marketingCampaign.findUnique({
         where: { id: campaignId },
         select: { status: true, currentPlanVersion: { select: versionSelect } },
@@ -212,7 +212,7 @@ export async function decidePlan(
 /** خطةُ الحملة للعرض: النسخُ وقراراتُها، والحاليّةُ وحالتها — لمن يرى الحملة */
 export async function campaignPlan(actor: MkActor, campaignId: string) {
   const access = await campaignAccess(actor, campaignId);
-  if (!access.canView) return null;
+  if (!access.canViewPlan) return null;
   const [versions, content] = await Promise.all([
     prisma.marketingPlanVersion.findMany({
       where: { campaignId },

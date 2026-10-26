@@ -72,16 +72,23 @@ MARKETING_AI_ENABLED=1               # بعد موافقة المالك على �
 service postgresql start                       # إن توقّف بعد إعادة تشغيل الحاوية
 # تأكّد أن DATABASE_URL في .env محليّ (localhost) قبل أي أمرٍ يكتب
 npx prisma migrate deploy                      # على القاعدة المحلية وحدها
-npx tsx --env-file=.env scripts/e2e-marketing-governance.ts  # الحوكمة: أصحابُ القرار وسلسلةُ الخطة (65)
+npx tsx --env-file=.env scripts/e2e-marketing-governance.ts  # الحوكمة: أصحابُ القرار، سلسلةُ الخطة، نطاقُ معتمِدَي الخطة، اقتراحُ الإسناد (84)
 npx tsx --env-file=.env scripts/e2e-marketing.ts        # الخدمات (96)
 npx tsx --env-file=.env scripts/e2e-marketing-jobs.ts   # الطابور (55)
-npx tsx scripts/check-marketing-ai.ts                   # المزوّد بلا شبكة ولا تكلفة (41)
+npx tsx --env-file=.env scripts/load-marketing-jobs.ts  # الطابور تحت التزامن — محلياً، لا اختبار سعة (18)
+npx tsx --env-file=.env scripts/check-marketing-formats.ts  # المقاساتُ الأربعة وفحصُ ملفّ التصميم (34)
+npx tsx scripts/check-marketing-ai.ts                   # المزوّد بلا شبكة ولا تكلفة (45)
 
 # في المتصفح (يتطلّب fixtures-roles setup وسرَّ TOTP في SCRATCH):
 npx tsx --env-file=.env scripts/fixtures-marketing.ts setup "$(cat <مجلد>/.totp-secret)"   # يطبع المعرّفات — قبل كل تشغيل
 npx next build && AUTH_TRUST_HOST=true npx next start -p 3000
 IDS='<المعرّفات + "file">' SCRATCH=<مجلد> node --env-file=.env scripts/check-marketing.mjs   # (65)
 npx tsx --env-file=.env scripts/fixtures-marketing.ts teardown
+
+# صورُ دليل القيادة (حسابٌ لكل مسؤولية؛ تتطلّب قاعدةً بلا حملاتٍ أخرى):
+npx tsx --env-file=.env scripts/fixtures-marketing-guide.ts setup "$(cat <مجلد>/.totp-secret)"   # يطبع المعرّفات
+IDS='<المعرّفات>' SCRATCH=<مجلد> node scripts/capture-marketing-guide.mjs   # docs/marketing-agent-guide/screenshots/
+npx tsx --env-file=.env scripts/fixtures-marketing-guide.ts teardown
 
 # تجربةُ الاقتراح يدوياً بلا تكلفة:
 MARKETING_AI_PROVIDER=simulated AUTH_TRUST_HOST=true npx next dev -p 3001
@@ -97,6 +104,9 @@ MARKETING_AI_PROVIDER=simulated AUTH_TRUST_HOST=true npx next dev -p 3001
 4. **نشرُ المعاينة** — العزلُ يتطلّب فرعَ Neon للمعاينة و`PREVIEW_DATABASE_ISOLATED=1` (لم يُنشأ؛ ليس لي وصولٌ إلى Neon). بدونه تعرض المعاينةُ إشعار الحماية ولا تصل القاعدة.
 
 ## ٨. حدودٌ معروفة
+
+- **دليلُ القيادة بالعربية** ومصفوفةُ التحقق: `docs/MARKETING_AGENT_LEADERSHIP_GUIDE_AR.md` و`docs/marketing-agent-guide/VERIFICATION_MATRIX.md`.
+- **استقلالُ مراجع الجودة عن كاتب النص ومصمّمه قرارٌ معلّق:** سياسةُ فصل الاعتماد تشمل النص والتصميم وحدهما.
 
 - المعالجةُ في الخلفية تجري بعد ردّ الطلب (`after()`) وعند متابعة الصفحة لطلبٍ نشط؛ ولا كنسَ مجدولاً للطابور (خطةُ Vercel الحالية تسمح بكنسٍ يوميٍّ واحد).
 - الملفاتُ مخزّنةٌ في القاعدة (حتى ٧ م.ب. للملف) — مناسبٌ للحجم الحالي، ويُنقل إلى تخزينٍ خارجيٍّ إن كبر.

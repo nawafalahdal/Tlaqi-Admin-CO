@@ -13,7 +13,7 @@ import { createDeliverable, changeFormat, setDeliverableBlocked } from "@/lib/ma
 import { saveDraft, submitContent, decideContent, keepApprovedContent } from "@/lib/marketing/content";
 import { uploadDesign, submitDesign, decideDesign, returnToWriter } from "@/lib/marketing/design";
 import { sendToQuality, recordQuality, recordPublication, recordResults, QUALITY_ITEMS, METRIC_KEYS } from "@/lib/marketing/review";
-import { createTask, setTaskStatus, deleteTask, addComment, attachToTask } from "@/lib/marketing/tasks";
+import { createTask, setTaskStatus, assignTask, deleteTask, addComment, attachToTask } from "@/lib/marketing/tasks";
 import { submitPlan, decidePlan } from "@/lib/marketing/plan";
 import { addTeamMember, setCapabilities, setMemberActive, updateSettings } from "@/lib/marketing/team";
 import { createFormat, updateFormat } from "@/lib/marketing/formats";
@@ -149,6 +149,7 @@ const OPS: Record<string, Handler> = {
       dependsOn: all(fd, "dependsOn"),
     }),
   "task.status": (a, fd) => setTaskStatus(a, s(fd, "taskId"), s(fd, "status")),
+  "task.assign": (a, fd) => assignTask(a, s(fd, "taskId"), s(fd, "assigneeId") || null),
   "task.delete": (a, fd) => deleteTask(a, s(fd, "taskId")),
   "task.attach": async (a, fd) => attachToTask(a, s(fd, "taskId"), await fileOf(fd, "file")),
   "comment.add": (a, fd) =>

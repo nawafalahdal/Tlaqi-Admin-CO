@@ -175,7 +175,9 @@ export async function recordPublication(
         if (d.status !== "ready_to_publish") abort("invalid_state", { from: d.status });
         const blockers = publishBlockers(await deliverableFacts(tx, d.id));
         if (blockers.length) abort("quality_not_passed", { missing: blockers.join(",") });
-        if (at < d.createdAt) abort("invalid_input", { field: "publishedAt" });
+        // لا نشرَ قبل وجود المخرج — بدقّة الدقيقة كما يُدخل الوقتُ في النموذج، وإلا رُفض
+        // نشرٌ سُجّل في دقيقة إنشاء المخرج نفسها (القيمةُ الافتراضية مقطوعةُ الثواني)
+        if (at.getTime() < Math.floor(d.createdAt.getTime() / 60_000) * 60_000) abort("invalid_input", { field: "publishedAt" });
         if (!urlMatchesPlatform(url, d.platform)) abort("url_platform_mismatch", { platform: d.platform });
 
         const p = await tx.marketingPublication.create({
