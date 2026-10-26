@@ -214,6 +214,47 @@ export async function sendWelcomeToUser(opts: {
   return { ok: true, to: res.to };
 }
 
+/** البريد لا يُكتب في الشاهدة (انظر `permanentlyDeleteAccount`). */
+const REDACTED_EMAIL = "— (حُرِّر البريد لإعادة الدعوة)";
+
+type ErasableMember = NonNullable<Awaited<ReturnType<typeof loadErasableMember>>>;
+const loadErasableMember = (where: { id: string } | { email: string }) =>
+  prisma.member.findUnique({ where, include: { department: true, invite: true } });
+
+/** محوُ سجلّ عضويةٍ نهائياً — الطريقُ الواحد لكلا الحذفين.
+ *
+ *  الشاهدةُ في الشيت أولاً (بعد الحذف لا يبقى صفٌّ يُقرأ)، ثم يُفَكّ ما يخصّ
+ *  أطرافاً أخرى (التذاكر والطلبات) ولا يُحذف، ثم يُحذف ما لا معنى له بلا
+ *  صاحبه، ثم الصفّ ودعوتُه — فيتحرّر البريد ويُدعى صاحبُه عضواً جديداً. */
+async function eraseMember(member: ErasableMember, ctx: { tombstone: string; reason: string; stamp: Date; event: string }) {
+  await syncMemberLifecycleRow(member.id, ctx.tombstone);
+  await appendMemberEvent({
+    fullName: member.fullName,
+    email: REDACTED_EMAIL,
+    event: ctx.event,
+    roleOrDepartment: member.department?.name ?? accountRoleLabel(member.invite.targetRole),
+    details:
+      `${ctx.tombstone} — السبب: ${ctx.reason} — التنبيهات: ${member.warningsCount} — ` +
+      `نتيجة الاختبار: ${member.testScore === null ? "لم يختبر" : `${member.testScore}%`}. ` +
+      `السجل محفوظ هنا، والبريد لم يُقيَّد فيه ليُدعى صاحبه من جديد بنفس بياناته.`,
+    at: ctx.stamp,
+  });
+
+  // التذاكر سجلُّ عملٍ يخصّ أطرافاً أخرى: تُفَكّ ولا تُحذف.
+  // والشهادات أثرُ حوكمةٍ مضت، وهي على الصفّ نفسه فتزول معه — ولهذا
+  // كُتب كل ما فيها في الشيت قبل الحذف.
+  await prisma.ticket.updateMany({ where: { memberId: member.id }, data: { memberId: null } });
+  await prisma.ticket.updateMany({ where: { targetMemberId: member.id }, data: { targetMemberId: null } });
+  await prisma.request.updateMany({ where: { linkedMemberId: member.id }, data: { linkedMemberId: null } });
+  await prisma.testAttempt.deleteMany({ where: { memberId: member.id } });
+  await prisma.memberWarning.deleteMany({ where: { memberId: member.id } });
+  await prisma.terminationRequest.deleteMany({ where: { memberId: member.id } });
+  await prisma.memberDateEdit.deleteMany({ where: { memberId: member.id } });
+  await retireMarketingProfile(prisma, { memberId: member.id }, member.fullName);
+  await prisma.member.delete({ where: { id: member.id } });
+  await prisma.invite.delete({ where: { id: member.inviteId } });
+}
+
 /** الحذف النهائي لحساب — للمؤسس وحده، وهو الملاذ الأخير.
  *
  *  **وهو غير التعطيل وغير التنحية وغير إنهاء التكليف.** تلك ثلاثٌ
@@ -224,6 +265,10 @@ export async function sendWelcomeToUser(opts: {
  *  يُختم في الشيت أولاً بشاهدةٍ تقول إنه حُذف ومتى وبيد من، وتُفَكّ
  *  ارتباطاتُ التذاكر ولا تُحذف (هي سجلُّ عملٍ يخصّ أطرافاً أخرى)، ثم
  *  يُحذف الصفّ. فالتاريخ باقٍ والبريد حرّ.
+ *
+ *  **والحذفُ للشخص لا لأحد سجلَّيه:** القائد له حسابٌ إداري وسجلُّ ترشّح بالبريد
+ *  نفسه، فيُمحيان معاً من أيّهما بدأ المؤسس — فلا يبقى له دخولٌ ولا مكانٌ في
+ *  الهيكل، ومن دُعي بعدها ببريده فهو عضوٌ جديد بإجراءاتٍ جديدة.
  *
  *  والجلسةُ تبطل من تلقائها: `auth` يُراجع الحساب كل خمس دقائق على
  *  الأكثر، فمن حُذف لا يبقى داخلاً أكثر من ذلك.
@@ -252,10 +297,9 @@ export async function permanentlyDeleteAccount(opts: {
       fullName: string;
       /** هل تحرّر البريد فعلاً؟
        *
-       *  القائد له سجلّان: `User` و`Member`. فحذفُ أحدهما لا يُحرّر
-       *  البريد ما بقي الآخر يحمله — ولو قيل «حُذف» لظنّ المؤسس أن
-       *  البريد صار حرّاً فتفشل دعوتُه بعد أسبوع بلا سببٍ ظاهر. فيُقال
-       *  صريحاً: حُرّر أم بقي، وأين بقي. */
+       *  السجلّان يُمحيان معاً، فالأصلُ أنه تحرّر. فإن تعذّر محوُ سجلّ الترشّح
+       *  بعد محو الحساب قيل ذلك صريحاً وأين بقي — لا «تحرّر» وقد لم يتحرّر،
+       *  فتفشل الدعوةُ بعد أسبوع بلا سببٍ ظاهر. */
       emailFreed: boolean;
       heldBy: string | null;
       /** ما انتقل إلى خَلَفِه — يُقال للمؤسس لا يُخمَّن */
@@ -277,7 +321,6 @@ export async function permanentlyDeleteAccount(opts: {
    *  في الشيت، ويُدعى صاحبُه من جديد بنفس بريده وبنفس بياناته كأن
    *  شيئاً لم يكن. وهذا طلبُ المؤسس صريحاً، ولا يُفقِد السجلَّ شيئاً:
    *  الصفّ باقٍ بكل ما فيه إلا خانةَ بريدٍ تحرّرت. */
-  const REDACTED = "— (حُرِّر البريد لإعادة الدعوة)";
 
   if (opts.kind === "user") {
     const user = await prisma.user.findUnique({ where: { id: opts.id } });
@@ -339,7 +382,7 @@ export async function permanentlyDeleteAccount(opts: {
     await syncAdminAccountRow(user.id, tombstone);
     await appendMemberEvent({
       fullName: user.fullName,
-      email: REDACTED,
+      email: REDACTED_EMAIL,
       event: "حذف نهائي لحساب إداري",
       roleOrDepartment: accountRoleLabel(user.role),
       details:
@@ -372,74 +415,55 @@ export async function permanentlyDeleteAccount(opts: {
       };
     }
 
-    // وهل تحرّر البريد؟ سجلُّ ترشّحه قد يبقى يحمله
-    const twinLeft = await prisma.member.findUnique({
-      where: { email: user.email },
-      select: { fullName: true },
-    });
+    // **والحذفُ للشخص لا لأحد سجلَّيه.** القائد له سجلُّ ترشّحٍ (`Member`) بالبريد
+    // نفسه. كان يبقى بعد حذف حسابه: معتمَداً نشطاً، فيظهر في الهيكل عضواً في
+    // قسمه، ويحجز بريدَه فلا يُدعى من جديد. فيُمحى معه — ولا يبقى منه إلا الشيت.
+    const twin = await loadErasableMember({ email: user.email });
+    if (twin) {
+      try {
+        await eraseMember(twin, { tombstone, reason, stamp, event: "حذف نهائي لسجلّ العضوية المرافق لحسابه الإداري" });
+      } catch {
+        return {
+          ok: true,
+          email: user.email,
+          fullName: user.fullName,
+          emailFreed: false,
+          heldBy: `سجلّ عضوية ${twin.fullName} — تعذّر محوه مع الحساب، فاحذفه من «المنحّون والمنتهون»`,
+          handover: handover.summary,
+        };
+      }
+    }
     return {
       ok: true,
       email: user.email,
       fullName: user.fullName,
-      emailFreed: twinLeft === null,
-      heldBy: twinLeft ? `سجلّ عضوية ${twinLeft.fullName}` : null,
+      emailFreed: true,
+      heldBy: null,
       handover: handover.summary,
     };
   }
 
-  const member = await prisma.member.findUnique({
-    where: { id: opts.id },
-    include: { department: true, invite: true },
-  });
+  const member = await loadErasableMember({ id: opts.id });
   if (!member) return { ok: false, reason: "السجل غير موجود" };
   if (opts.confirmEmail.trim().toLowerCase() !== member.email.toLowerCase()) {
     return { ok: false, reason: "البريد المكتوب لا يطابق بريد الحساب — لم يُحذف شيء" };
   }
+  // سجلُّ قائدٍ له حسابٌ إداري بالبريد نفسه: الشخصُ واحد، فيُحذف من حسابه
+  // الإداري — بحمايات ذلك الطريق كلها (المؤسس، والخَلَف، والإقرار) — فيُمحى
+  // السجلّان معاً.
+  const twin = await prisma.user.findUnique({ where: { email: member.email }, select: { id: true } });
+  if (twin) return permanentlyDeleteAccount({ ...opts, kind: "user", id: twin.id });
+
   if (member.isActive && member.approvalStatus === "approved" && !opts.force) {
     return {
       ok: false,
       reason: "هذا عضو معتمد نشط — أنهِ عضويته أولاً، أو أكّد الحذف المباشر",
     };
   }
-  // وحسابٌ إداريٌّ قائمٌ بنفس البريد يُحذف أولاً، وإلا بقي البريد محجوزاً
-  const twin = await prisma.user.findUnique({ where: { email: member.email } });
-  if (twin) {
-    return {
-      ok: false,
-      reason: "لهذا البريد حسابٌ إداريٌّ أيضاً — احذفه أولاً وإلا بقي البريد محجوزاً",
-    };
-  }
 
-  // الشاهدة تُكتب في الصفّ نفسه، فلا يُقرأ الصفّ عضواً قائماً
-  await syncMemberLifecycleRow(member.id, tombstone);
-  await appendMemberEvent({
-    fullName: member.fullName,
-    email: REDACTED,
-    event: "حذف نهائي من قاعدة البيانات",
-    roleOrDepartment: member.department?.name ?? accountRoleLabel(member.invite.targetRole),
-    details:
-      `${tombstone} — السبب: ${reason} — التنبيهات: ${member.warningsCount} — ` +
-      `نتيجة الاختبار: ${member.testScore === null ? "لم يختبر" : `${member.testScore}%`}. ` +
-      `السجل محفوظ هنا، والبريد لم يُقيَّد فيه ليُدعى صاحبه من جديد بنفس بياناته.`,
-    at: stamp,
-  });
+  await eraseMember(member, { tombstone, reason, stamp, event: "حذف نهائي من قاعدة البيانات" });
 
-  // التذاكر سجلُّ عملٍ يخصّ أطرافاً أخرى: تُفَكّ ولا تُحذف.
-  // والشهادات أثرُ حوكمةٍ مضت، وهي على الصفّ نفسه فتزول معه — ولهذا
-  // كُتب كل ما فيها في الشيت قبل الحذف.
-  await prisma.ticket.updateMany({ where: { memberId: member.id }, data: { memberId: null } });
-  await prisma.ticket.updateMany({ where: { targetMemberId: member.id }, data: { targetMemberId: null } });
-  await prisma.request.updateMany({ where: { linkedMemberId: member.id }, data: { linkedMemberId: null } });
-  await prisma.testAttempt.deleteMany({ where: { memberId: member.id } });
-  await prisma.memberWarning.deleteMany({ where: { memberId: member.id } });
-  await prisma.terminationRequest.deleteMany({ where: { memberId: member.id } });
-  await prisma.memberDateEdit.deleteMany({ where: { memberId: member.id } });
-  await retireMarketingProfile(prisma, { memberId: member.id }, member.fullName);
-  await prisma.member.delete({ where: { id: member.id } });
-  await prisma.invite.delete({ where: { id: member.inviteId } });
-
-  // الفرع الآخر يرفض الحذف ما بقي للبريد حسابٌ إداري، فوصولُنا هنا
-  // يعني أنه لم يبقَ له حاملٌ
+  // لا حسابَ إداريَّ بالبريد نفسه (وإلا ذهب الطلبُ إليه)، فالبريدُ حرٌّ الآن
   return { ok: true, email: member.email, fullName: member.fullName, emailFreed: true, heldBy: null };
 }
 

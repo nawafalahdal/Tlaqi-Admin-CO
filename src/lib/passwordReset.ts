@@ -5,6 +5,7 @@ import { sendPasswordResetEmail } from "@/lib/email";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { clearFailedAttempts } from "@/lib/loginAttempts";
 import { accountRoleLabel } from "@/lib/testTracks";
+import { isLeadershipRecord } from "@/lib/roster";
 
 export const RESET_TOKEN_MINUTES = 30;
 
@@ -26,13 +27,15 @@ export async function requestPasswordReset(rawEmail: string) {
 
   const [user, member] = await Promise.all([
     prisma.user.findUnique({ where: { email } }),
-    prisma.member.findUnique({ where: { email } }),
+    prisma.member.findUnique({ where: { email }, include: { invite: { select: { targetRole: true } } } }),
   ]);
 
-  // الحساب المُنحّى، والمرشّح الذي أُسقط أو رُفض، لا يُستعاد لهم شيء
+  // الحساب المُنحّى، والمرشّح الذي أُسقط أو رُفض، لا يُستعاد لهم شيء —
+  // ولا سجلُّ ترشّح القائد المعتمَد: مدخلُه حسابُه الإداري وحده (كما في الدخول)
+  const leadershipRecord = member ? isLeadershipRecord(member) : false;
   const account = user?.isActive
     ? { fullName: user.fullName, scope: accountRoleLabel(user.role) }
-    : member && member.isActive && member.approvalStatus !== "rejected" && member.passwordHash
+    : member && member.isActive && member.approvalStatus !== "rejected" && !leadershipRecord && member.passwordHash
       ? { fullName: member.fullName, scope: "عضو" }
       : null;
   if (!account) return;

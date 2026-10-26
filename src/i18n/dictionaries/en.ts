@@ -833,6 +833,8 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
     governance:
       "Governance: one seat, one person — no two executives, no two operations officers, no two leads for one department.",
     removedTitle: "Removed accounts",
+    orphanTitle: "Records of leaders whose accounts were deleted",
+    orphanHint: "Left over from a deletion made before deleting removed both records. They cannot sign in and are not in the org chart, but they hold the email — delete them permanently so the person can be invited again if you wish. They stay in the sheet.",
   },
   messagesPage: {
     title: "Outgoing message log",

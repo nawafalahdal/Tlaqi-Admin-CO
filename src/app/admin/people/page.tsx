@@ -24,7 +24,7 @@ import {
 import { accountRoleLabel } from "@/lib/testTracks";
 import { loginHealthFor, loginHealthNotes, loginHealthBlocked } from "@/lib/loginHealth";
 import { scheduleDueSweeps } from "@/lib/sweepThrottle";
-import { isRosterMember } from "@/lib/roster";
+import { isLeadershipRecord, isRosterMember } from "@/lib/roster";
 import { affiliationFor } from "@/lib/seniorAffiliation";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { portraitColorFor } from "@/lib/portraitTone";
@@ -188,6 +188,14 @@ export default async function PeoplePage({
     return loginHealthNotes(h, undefined, locale);
   };
 
+
+  // سجلُّ ترشّح قائدٍ معتمَد لا حسابَ إداريَّ بالبريد نفسه: بقيةُ حذفٍ سابق
+  // (كان الحذفُ يمحو الحسابَ ويُبقي السجلّ). لا يظهر في أي قائمةٍ أخرى،
+  // فيُعرض هنا ليُمحى — وإلا بقي يحجز البريد بلا طريقٍ إليه.
+  const userEmails = new Set((await prisma.user.findMany({ select: { email: true } })).map((u) => u.email.toLowerCase()));
+  const orphanLeaders = allMembers.filter(
+    (m) => isLeadershipRecord(m) && !userEmails.has(m.email.toLowerCase())
+  );
 
   const members = allMembers
     .filter(isRosterMember)
@@ -387,7 +395,7 @@ export default async function PeoplePage({
     members: memberRows.length,
     joining: stuck.length + lapsed.length,
     attention: attention.length,
-    removed: removedUsers.length + registerInactive.length,
+    removed: removedUsers.length + registerInactive.length + orphanLeaders.length,
   };
   const shown = (tab === "leaders" ? leaderRows : tab === "members" ? memberRows : tab === "attention" ? attention : everyone).filter(matches);
   const rosterTab = tab === "all" || tab === "leaders" || tab === "members" || tab === "attention";
@@ -558,6 +566,24 @@ export default async function PeoplePage({
         {/* ── المنحّون والمنتهون: سجلٌّ يُقرأ، ولكلّ مُنحّى طريقُ تحريره */}
         {tab === "removed" && (
           <>
+            {orphanLeaders.length > 0 && (
+              <section>
+                <h2 className="mb-1 text-lg font-bold">{t.seats.orphanTitle} ({orphanLeaders.length})</h2>
+                <p className="mb-4 text-sm text-black/50">{t.seats.orphanHint}</p>
+                <div className="flex flex-col gap-3">
+                  {orphanLeaders.map((m) => (
+                    <MemberAccountRow
+                      key={m.id}
+                      theme={theme}
+                      // لا «مشكلة دخول»: هذا السجلّ لا يُدخَل به أصلاً — يُمحى أو يُترك
+                      canReset={false}
+                      canPurge={isSuperAdmin}
+                      member={{ id: m.id, fullName: m.fullName, email: m.email, departmentName: m.department?.name ?? accountRoleLabel(m.invite.targetRole, locale) }}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
             <section>
               <h2 className="mb-3 text-lg font-bold">{t.seats.removedTitle}</h2>
               {removedUsers.length === 0 ? (

@@ -5,6 +5,10 @@ import {
   sendWelcomeToUser,
 } from "@/lib/founderActions";
 import { removeLeadershipUser, seatConflicts } from "@/lib/workflow";
+import { buildOrgChart } from "@/lib/orgChart";
+import { requestPasswordReset } from "@/lib/passwordReset";
+import { hashPassword } from "@/lib/credentials";
+import { isLeadershipRecord } from "@/lib/roster";
 import { memberForSession } from "@/lib/termination";
 import type { Session } from "next-auth";
 
@@ -24,7 +28,7 @@ const OLD = `old-${MARK}@example.test`;
 const NEW = `new-${MARK}@example.test`;
 
 async function cleanup() {
-  for (const e of [OLD, NEW]) {
+  for (const e of [OLD, NEW, "held-twin@example.test", "via-twin@example.test", "via-active@example.test", "orphan-lead@example.test"]) {
     const m = await prisma.member.findUnique({ where: { email: e } });
     if (m) {
       await prisma.terminationRequest.deleteMany({ where: { memberId: m.id } });
@@ -224,17 +228,36 @@ async function cleanup() {
       String(tAfter.targetUserId));
   await prisma.ticket.delete({ where: { id: ticket.id } });
 
-  // ١٠ — سجلّ العضوية: البريد محجوزٌ ما دام له توأم؟ لا — حُذف التوأم
-  const memberDel = await permanentlyDeleteAccount({
-    kind: "member", id: twin.id, confirmEmail: NEW, reason: "اختبار", ...F });
-  chk("سجلّ العضوية المعتمد النشط يُرفض", memberDel.ok === false,
-      memberDel.ok === false ? memberDel.reason : "حُذف!");
+  // ١٠ — الحذفُ للشخص لا لأحد سجلَّيه: سجلُّ ترشّح القائد يُمحى مع حسابه.
+  //
+  //      كان يبقى معتمَداً نشطاً، فيظهر في الهيكل عضواً في قسمه ويحجز بريدَه
+  //      (التوقّعُ القديم هنا كان «يبقى، ويُرفض محوه ما دام نشطاً» — وهو ما طلب
+  //      المؤسس صراحةً تغييره: المحذوف نهائياً لا يبقى منه إلا الشيت).
+  chk("**وسجلُّ ترشّحه مُحي معه**", (await prisma.member.findUnique({ where: { id: twin.id } })) === null);
+  chk("ودعوتُه معه", (await prisma.invite.findUnique({ where: { id: invite.id } })) === null);
+  chk("ويُقال إن البريد تحرّر", del.ok && del.emailFreed === true && del.heldBy === null);
+  chk("والبريد حرٌّ فعلاً لدعوةٍ جديدة",
+      (await prisma.member.findUnique({ where: { email: NEW } })) === null &&
+      (await prisma.user.findUnique({ where: { email: NEW } })) === null);
 
-  await prisma.member.update({ where: { id: twin.id }, data: { isActive: false } });
+  // وعضوٌ عاديٌّ معتمدٌ نشط: لا يُمحى بلا إقرارٍ ثانٍ، ويُمحى به
+  const plainInvite = await prisma.invite.create({
+    data: { fullName: "عضو اختبار", email: OLD, targetRole: "member",
+            departmentId: dept.id, testTrackId: track.id, invitedById: founder.id, status: "used" },
+  });
+  const plain = await prisma.member.create({
+    data: { fullName: "عضو اختبار", email: OLD, departmentId: dept.id, inviteId: plainInvite.id,
+            approvalStatus: "approved", isActive: true, decidedAt: new Date("2026-01-01") },
+  });
+  const memberDel = await permanentlyDeleteAccount({
+    kind: "member", id: plain.id, confirmEmail: OLD, reason: "اختبار", ...F });
+  chk("سجلّ العضوية المعتمد النشط يُرفض بلا إقرار", memberDel.ok === false,
+      memberDel.ok === false ? memberDel.reason : "حُذف!");
   const memberDel2 = await permanentlyDeleteAccount({
-    kind: "member", id: twin.id, confirmEmail: NEW, reason: "اختبار", ...F });
-  chk("وبعد تعطيله يُحذف", memberDel2.ok, memberDel2.ok ? "" : (memberDel2 as {reason:string}).reason);
-  chk("والبريد تحرّر", (await prisma.member.findUnique({ where: { email: NEW } })) === null);
+    kind: "member", id: plain.id, confirmEmail: OLD, reason: "اختبار", force: true, ...F });
+  chk("وبالإقرار يُحذف", memberDel2.ok, memberDel2.ok ? "" : (memberDel2 as {reason:string}).reason);
+  chk("والبريد تحرّر", (await prisma.member.findUnique({ where: { email: OLD } })) === null &&
+      (await prisma.invite.findUnique({ where: { id: plainInvite.id } })) === null);
 
   // ٨ه — الحساب المُنحّى يُمحى بلا إقرارٍ إضافي، ويُقال الحقُّ في البريد.
   //
@@ -274,13 +297,87 @@ async function cleanup() {
   });
   const purgeHeld = await permanentlyDeleteAccount({
     kind: "user", id: heldUser.id, confirmEmail: "held-twin@example.test",
-    reason: "محو الحساب الإداري مع بقاء سجلّ العضوية", ...F });
-  chk("حُذف الحساب الإداري", purgeHeld.ok);
-  chk("**ولا يُقال «تحرّر البريد» وقد لم يتحرّر**",
-      purgeHeld.ok && purgeHeld.emailFreed === false && !!purgeHeld.heldBy,
-      purgeHeld.ok ? (purgeHeld.heldBy ?? "null") : "");
+    reason: "محو قائدٍ مُنحّى له سجلّ ترشّح", ...F });
+  chk("حُذف الحساب الإداري المُنحّى", purgeHeld.ok);
+  // كان التوقّعُ «يبقى سجلُّ العضوية ويُقال إن البريد محجوز» — والحذفُ الآن للسجلّين معاً
+  chk("**ومعه سجلُّ ترشّحه، فالبريد تحرّر ويُقال ذلك**",
+      purgeHeld.ok && purgeHeld.emailFreed === true && purgeHeld.heldBy === null &&
+      (await prisma.member.findUnique({ where: { email: "held-twin@example.test" } })) === null &&
+      (await prisma.invite.findUnique({ where: { id: heldInvite.id } })) === null);
   await prisma.member.deleteMany({ where: { email: "held-twin@example.test" } });
   await prisma.invite.deleteMany({ where: { id: heldInvite.id } });
+
+  // ٨ز — والحذفُ من سجلّ الترشّح يذهب إلى الحساب الإداري فيُمحى الاثنان — بحمايات ذلك الطريق
+  const viaInvite = await prisma.invite.create({
+    data: { fullName: "قائد يُحذف من سجلّه", email: "via-twin@example.test", departmentId: heldDept.id,
+            targetRole: "department_admin", testTrackId: track.id, invitedById: founder.id, status: "used" },
+  });
+  const viaTwin = await prisma.member.create({
+    data: { fullName: "قائد يُحذف من سجلّه", email: "via-twin@example.test", inviteId: viaInvite.id,
+            departmentId: heldDept.id, approvalStatus: "approved", isActive: true },
+  });
+  const viaUser = await prisma.user.create({
+    data: { fullName: "قائد يُحذف من سجلّه", email: "via-twin@example.test", passwordHash: "x",
+            role: "department_admin", departmentId: heldDept.id, isActive: false, removedAt: new Date(), removalReason: "اختبار" },
+  });
+  const viaDel = await permanentlyDeleteAccount({
+    kind: "member", id: viaTwin.id, confirmEmail: "via-twin@example.test", reason: "محوٌ من سجلّ الترشّح", force: true, ...F });
+  chk("**الحذفُ من سجلّ الترشّح يمحو الحساب الإداري معه**",
+      viaDel.ok && (await prisma.user.findUnique({ where: { id: viaUser.id } })) === null &&
+      (await prisma.member.findUnique({ where: { id: viaTwin.id } })) === null,
+      viaDel.ok ? "" : (viaDel as { reason: string }).reason);
+  const activeInvite = await prisma.invite.create({
+    data: { fullName: "قائد نشط", email: "via-active@example.test", departmentId: heldDept.id,
+            targetRole: "department_admin", testTrackId: track.id, invitedById: founder.id, status: "used" },
+  });
+  const activeTwin = await prisma.member.create({
+    data: { fullName: "قائد نشط", email: "via-active@example.test", inviteId: activeInvite.id,
+            departmentId: heldDept.id, approvalStatus: "approved", isActive: true },
+  });
+  const activeUser = await prisma.user.create({
+    data: { fullName: "قائد نشط", email: "via-active@example.test", passwordHash: "x",
+            role: "department_admin", departmentId: heldDept.id, isActive: true },
+  });
+  const activeViaDel = await permanentlyDeleteAccount({
+    kind: "member", id: activeTwin.id, confirmEmail: "via-active@example.test", reason: "محاولة بلا إقرار", ...F });
+  chk("ولا يُمحى قائدٌ نشطٌ من سجلّ ترشّحه بلا إقرار — ويبقى السجلّان",
+      activeViaDel.ok === false &&
+      (await prisma.user.findUnique({ where: { id: activeUser.id } })) !== null &&
+      (await prisma.member.findUnique({ where: { id: activeTwin.id } })) !== null,
+      activeViaDel.ok === false ? activeViaDel.reason : "حُذف!");
+  await prisma.user.delete({ where: { id: activeUser.id } });
+  await prisma.member.delete({ where: { id: activeTwin.id } });
+  await prisma.invite.delete({ where: { id: activeInvite.id } });
+
+  // ٨ح — بقيةُ حذفٍ سابق: سجلُّ ترشّح قائدٍ حُذف حسابه قبل هذا الإصلاح.
+  //      لا يُدخَل به، ولا يُستعاد له، ولا يظهر في الهيكل — ويُمحى من «المنحّون».
+  const orphanInvite = await prisma.invite.create({
+    data: { fullName: "قائدة سابقة", email: "orphan-lead@example.test", departmentId: heldDept.id,
+            targetRole: "department_admin", testTrackId: track.id, invitedById: founder.id, status: "used" },
+  });
+  const orphan = await prisma.member.create({
+    data: { fullName: "قائدة سابقة", email: "orphan-lead@example.test", inviteId: orphanInvite.id,
+            departmentId: heldDept.id, approvalStatus: "approved", isActive: true,
+            // كلمةُ مرورٍ باقية: أسوأ الحالات — سجلٌّ من قبل أن يُفرَّغ عند الترقية
+            passwordHash: await hashPassword("Orphan#2026aa") },
+    include: { invite: true },
+  });
+  chk("سجلُّ ترشّح القائد المعتمَد يُعرَف سجلاً قيادياً", isLeadershipRecord(orphan) &&
+      !isLeadershipRecord({ approvalStatus: "approved", invite: { targetRole: "member" } }) &&
+      !isLeadershipRecord({ approvalStatus: "pending_review", invite: { targetRole: "department_admin" } }));
+  const chart = await buildOrgChart("ar");
+  const inChart = chart.departments.some((d) => d.members.some((m) => m.id === orphan.id) || d.committees.some((c) => c.members.some((m) => m.id === orphan.id))) ||
+    chart.unassigned.some((m) => m.id === orphan.id);
+  chk("**ولا يظهر في الهيكل عضواً**", !inChart);
+  const tokensBefore = await prisma.passwordResetToken.count({ where: { email: "orphan-lead@example.test" } });
+  await requestPasswordReset("orphan-lead@example.test");
+  chk("ولا يُرسَل له رابطُ استعادةٍ لكلمة المرور",
+      (await prisma.passwordResetToken.count({ where: { email: "orphan-lead@example.test" } })) === tokensBefore);
+  const orphanDel = await permanentlyDeleteAccount({
+    kind: "member", id: orphan.id, confirmEmail: "orphan-lead@example.test", reason: "بقيةُ حذفٍ سابق", force: true, ...F });
+  chk("ويُمحى نهائياً فيتحرّر البريد", orphanDel.ok &&
+      (await prisma.member.findUnique({ where: { email: "orphan-lead@example.test" } })) === null &&
+      (await prisma.invite.findUnique({ where: { id: orphanInvite.id } })) === null);
 
   // ٩ — تعارض المقاعد يحمل ما يُفرّق المكرّر عن القائد العامل.
   //

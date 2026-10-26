@@ -21,8 +21,20 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const CALL = /prisma\.member\.(findMany|findFirst|count)\s*\(/g;
+// والقائمةُ المتداخلة في قراءة قسمٍ (`members: { where: … }`) قائمةُ أعضاءٍ أيضاً — منها
+// أفلت الهيكل: كان يسأل «المعتمَد» وحده، فظهر سجلُّ ترشّح القائد السابق عضواً بعد حذف حسابه
+const CALL = /prisma\.member\.(findMany|findFirst|count)\s*\(|\bmembers:\s*\{/g;
 const ESCAPE = /member-roster:\s*all/;
+
+/** نصُّ الكائن من قوسه المفتوح عند `open` حتى قوسه المغلق */
+function braced(source: string, open: number): string {
+  let depth = 0;
+  for (let i = open; i < source.length; i++) {
+    if (source[i] === "{") depth++;
+    else if (source[i] === "}" && --depth === 0) return source.slice(open, i + 1);
+  }
+  return source.slice(open);
+}
 
 let failed = false;
 let scoped = 0;
@@ -33,7 +45,9 @@ for (const file of walk("src")) {
   const source = readFileSync(file, "utf8");
   for (const match of source.matchAll(CALL)) {
     const at = match.index ?? 0;
-    const window = source.slice(at, at + 500);
+    // القائمةُ المتداخلة تُقرأ بحدود قوسها وحده: النافذةُ الثابتة تبلغ الجملةَ التالية
+    // فتجد شرطَها هناك وتَعُدّه لهذه
+    const window = match[0].startsWith("members") ? braced(source, at + match[0].length - 1) : source.slice(at, at + 500);
     const before = source.slice(Math.max(0, at - 240), at);
     const line = source.slice(0, at).split("\n").length;
     // ما لا يسأل عن «المعتمَد» ليس قائمةَ أعضاء: مرشّحون، أو بحثٌ ببريد
