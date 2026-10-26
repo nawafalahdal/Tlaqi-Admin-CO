@@ -5,8 +5,10 @@ export default auth((req) => {
   const session = req.auth;
   const { pathname } = req.nextUrl;
   const isProtected = pathname.startsWith("/admin") || pathname.startsWith("/member");
+  // وكيلُ التسويق للإداري والعضو معاً — فلا تحويلَ بالدور، وحرسُه في صفحاته
+  const needsSession = isProtected || pathname.startsWith("/marketing");
 
-  if (isProtected && !session) {
+  if (needsSession && !session) {
     const url = new URL("/login", req.nextUrl.origin);
     url.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(url);
@@ -29,5 +31,5 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/admin/:path*", "/member/:path*", "/change-password"],
+  matcher: ["/admin/:path*", "/member/:path*", "/marketing/:path*", "/marketing", "/change-password"],
 };

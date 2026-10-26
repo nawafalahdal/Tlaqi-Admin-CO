@@ -169,6 +169,12 @@ const NAV_PATHS: Record<string, ReactNode> = {
       <path d="M3 12h4l2.5-6 5 12 2.5-6h4" />
     </>
   ),
+  marketing: (
+    <>
+      <path d="M3.5 10v4a1 1 0 0 0 1 1H7l5 4V5L7 9H4.5a1 1 0 0 0-1 1Z" />
+      <path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" />
+    </>
+  ),
   chevron: <path d="m14.5 6-6 6 6 6" />,
   lock: (
     <>

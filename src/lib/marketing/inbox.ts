@@ -101,7 +101,7 @@ export async function marketingOverview(actor: MkActor) {
   };
 }
 
-/** سجلُّ التدقيق لحملة — لمن يراها، مقيَّدٌ بعدد */
-export async function campaignEvents(campaignId: string, take = 100) {
-  return prisma.marketingEvent.findMany({ where: { campaignId }, orderBy: { createdAt: "desc" }, take });
+/** سجلُّ التدقيق لحملة — أو لمخرجٍ فيها — مقيَّدٌ بعدد. والرؤيةُ يفحصها من يستدعيه (الصفحة) */
+export async function campaignEvents(campaignId: string, take = 100, deliverableId?: string) {
+  return prisma.marketingEvent.findMany({ where: { campaignId, ...(deliverableId ? { deliverableId } : {}) }, orderBy: { createdAt: "desc" }, take });
 }

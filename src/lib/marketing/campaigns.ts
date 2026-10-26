@@ -285,3 +285,18 @@ export async function campaignWorkspace(actor: MkActor, campaignId: string) {
 
 export const personName = (m: { user: { fullName: string } | null; member: { fullName: string } | null } | null) =>
   m?.user?.fullName ?? m?.member?.fullName ?? "—";
+
+/** من يُعيَّن في حملة: أعضاءُ الفريق النشطون ومسؤولياتُهم — للمنسّق فيها وحده */
+export async function assignableMembers(actor: MkActor, campaignId: string) {
+  const access = await campaignAccess(actor, campaignId);
+  if (!access.roles.has("coordinator")) return null;
+  const rows = await prisma.marketingMember.findMany({
+    where: { active: true, OR: [{ user: { isActive: true } }, { member: { isActive: true, terminatedAt: null } }] },
+    orderBy: { createdAt: "asc" },
+    take: 200,
+    select: { id: true, capabilities: true, user: { select: { fullName: true } }, member: { select: { fullName: true } } },
+  });
+  return rows
+    .map((r) => ({ id: r.id, name: personName(r), roles: r.capabilities.filter((c): c is MarketingCampaignRole => c !== "manager") }))
+    .filter((r) => r.roles.length > 0);
+}

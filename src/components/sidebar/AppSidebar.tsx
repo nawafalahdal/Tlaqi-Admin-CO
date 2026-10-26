@@ -7,6 +7,7 @@ import { isSigningRole } from "@/lib/signatures";
 import { prisma } from "@/lib/prisma";
 import { avatarUrl } from "@/lib/avatarUrl";
 import { openTicketsWhere } from "@/lib/tickets";
+import { canEnterMarketing, marketingActor } from "@/lib/marketing/access";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { NavGlyph } from "../icons";
 import { SidebarProvider } from "./SidebarRail";
@@ -39,18 +40,24 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
   // صورةُ صاحب الحساب في ذيل القائمة: ختمُها وحده (لا الصورة) — والصورةُ
   // نفسُها موردٌ يُخزَّن في المتصفّح سنةً (`/api/avatar`)، فلا تُعاد مع كل
   // صفحة.
-  const [canWelcomeCards, stamp, badges] = await Promise.all([
+  const [canWelcomeCards, stamp, badges, canMarketing] = await Promise.all([
     canResendWelcome(session).then((ok) => ok || canRequestWelcomeResend(session)),
     isMember
       ? prisma.member.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true, gender: true, department: { select: { name: true, colorHex: true } } } })
       : prisma.user.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true, gender: true, department: { select: { name: true, colorHex: true } } } }),
     badgesFor(session, s),
+    // بندٌ لا شرطٌ للصفحة: إن تعذّرت القراءة (جدولٌ لم يُرحَّل بعد مثلاً) سقط البندُ وبقيت القائمة
+    marketingActor(session).then(canEnterMarketing).catch((err) => {
+      console.error("تعذّر حسابُ دخول وكيل التسويق:", err instanceof Error ? err.name : typeof err);
+      return false;
+    }),
   ]);
   const viewer = {
     role: session.user.role,
     departmentSlug: session.user.departmentSlug,
     canSign: isSigningRole(session.user.role),
     canWelcomeCards,
+    canMarketing,
   };
   const avatar = avatarUrl(isMember ? "member" : "user", session.user.id, stamp?.avatarVersion);
   // خلفيةُ الصورة بلون انتمائه كما في الهيكل والسجلّ — لا برتقاليٌّ ثابت

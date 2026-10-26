@@ -252,3 +252,24 @@ export async function campaignTasks(actor: MkActor, campaignId: string) {
     },
   });
 }
+
+const COMMENTS_TAKE = 200;
+
+/** تعليقاتُ الحملة — أو مخرجٍ فيها بعينه — لمن يرى الحملة */
+export async function campaignComments(actor: MkActor, campaignId: string, opts: { deliverableId?: string } = {}) {
+  const access = await campaignAccess(actor, campaignId);
+  if (!access.canView) return null;
+  return prisma.marketingComment.findMany({
+    where: { campaignId, ...(opts.deliverableId ? { deliverableId: opts.deliverableId } : {}) },
+    orderBy: { createdAt: "asc" },
+    take: COMMENTS_TAKE,
+    select: {
+      id: true,
+      body: true,
+      createdAt: true,
+      deliverable: { select: { id: true, title: true } },
+      task: { select: { id: true, title: true } },
+      author: { select: { id: true, user: { select: { fullName: true } }, member: { select: { fullName: true } } } },
+    },
+  });
+}

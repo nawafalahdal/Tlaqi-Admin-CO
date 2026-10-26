@@ -29,7 +29,8 @@ export type NavIcon =
   | "terminations"
   | "sheet"
   | "home"
-  | "operations";
+  | "operations"
+  | "marketing";
 
 export type NavItem = {
   id: string;
@@ -55,7 +56,7 @@ export type NavGroup = (typeof NAV_GROUPS)[number];
 /** أسماءُ البنود — من القاموس (`shell.nav`)، لا مكتوبةً هنا */
 export type NavLabels = Record<
   "home" | "opsHome" | "members" | "myDeptMembers" | "approvals" | "departments" | "execution" | "calendar" |
-  "reports" | "plans" | "tickets" | "structure" | "invites" | "messages" | "terminations" | "signature" | "welcomeCards" | "sheet",
+  "reports" | "plans" | "tickets" | "structure" | "invites" | "messages" | "terminations" | "signature" | "welcomeCards" | "sheet" | "marketing",
   string
 >;
 
@@ -67,6 +68,8 @@ export type NavViewer = {
   canSign?: boolean;
   /** يُحسب على الخادم — مسؤول التشغيل يُعيد البطاقات، وقيادة التسويق تطلبها */
   canWelcomeCards?: boolean;
+  /** يُحسب على الخادم (`canEnterMarketing`) — عضويةٌ صريحةٌ في فريق التسويق، لا الدورُ ولا القسم */
+  canMarketing?: boolean;
 };
 
 /** صفحةُ رفع التذكرة لكل دور — تحت مساره المحروس (`/admin` أو `/member`) */
@@ -120,6 +123,9 @@ export function navFor(v: NavViewer, L: NavLabels): NavItem[] {
 
   // ── ٤) التنفيذ والأهداف — لكل إداري (الصفحة تردّ العضو)
   if (admin) items.push({ id: "execution", label: L.execution, href: "/admin/execution", icon: "execution", match: ["/admin/execution"], group: "execution" });
+
+  // ── وكيلُ التسويق — لمن في فريقه وحده (والمؤسس ليديره)، عضواً كان أو إدارياً
+  if (v.canMarketing) items.push({ id: "marketing", label: L.marketing, href: "/marketing", icon: "marketing", match: ["/marketing"], group: "execution" });
 
   // ── ٥) التقويم والاجتماعات — للجميع
   items.push({ id: "calendar", label: L.calendar, href: "/calendar", icon: "calendar", match: ["/calendar"], group: "meetings" });
