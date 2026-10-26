@@ -24,7 +24,8 @@ import {
 import { accountRoleLabel } from "@/lib/testTracks";
 import { loginHealthFor, loginHealthNotes, loginHealthBlocked } from "@/lib/loginHealth";
 import { scheduleDueSweeps } from "@/lib/sweepThrottle";
-import { isLeadershipRecord, isRosterMember } from "@/lib/roster";
+import { isRosterMember } from "@/lib/roster";
+import { leftoverLeaderIds } from "@/lib/leftoverLeaders";
 import { affiliationFor } from "@/lib/seniorAffiliation";
 import { PersonAvatar } from "@/components/PersonAvatar";
 import { portraitColorFor } from "@/lib/portraitTone";
@@ -189,13 +190,23 @@ export default async function PeoplePage({
   };
 
 
-  // سجلُّ ترشّح قائدٍ معتمَد لا حسابَ إداريَّ بالبريد نفسه: بقيةُ حذفٍ سابق
-  // (كان الحذفُ يمحو الحسابَ ويُبقي السجلّ). لا يظهر في أي قائمةٍ أخرى،
-  // فيُعرض هنا ليُمحى — وإلا بقي يحجز البريد بلا طريقٍ إليه.
-  const userEmails = new Set((await prisma.user.findMany({ select: { email: true } })).map((u) => u.email.toLowerCase()));
-  const orphanLeaders = allMembers.filter(
-    (m) => isLeadershipRecord(m) && !userEmails.has(m.email.toLowerCase())
-  );
+  // بقيةُ حذفٍ سابق: سجلُّ ترشّح قائدٍ حُذف حسابُه الإداري (كان الحذفُ يمحو الحسابَ
+  // ويُبقي السجلّ). لا يظهر في أي قائمةٍ أخرى، فيُعرض هنا ليُمحى — وإلا بقي يحجز
+  // البريد بلا طريقٍ إليه. ومن أُعيدت دعوتُه ليس منها (انظر `leftoverLeaderIds`).
+  const erased = await leftoverLeaderIds();
+  const orphanLeaders = allMembers.filter((m) => erased.has(m.id));
+  // وقد يكون السجلُّ لقائدٍ قائمٍ غُيِّر بريدُ حسابه قبل أن يصير التغييرُ للسجلَّين
+  // (13 أكتوبر) — فبقي سجلُّه على البريد القديم. يُنبَّه المؤسسُ بالاسم قبل أن يمحوه.
+  const namesWithAccount = orphanLeaders.length
+    ? new Set(
+        (
+          await prisma.user.findMany({
+            where: { fullName: { in: orphanLeaders.map((m) => m.fullName) } },
+            select: { fullName: true },
+          })
+        ).map((u) => u.fullName)
+      )
+    : new Set<string>();
 
   const members = allMembers
     .filter(isRosterMember)
@@ -572,14 +583,18 @@ export default async function PeoplePage({
                 <p className="mb-4 text-sm text-black/50">{t.seats.orphanHint}</p>
                 <div className="flex flex-col gap-3">
                   {orphanLeaders.map((m) => (
-                    <MemberAccountRow
-                      key={m.id}
-                      theme={theme}
-                      // لا «مشكلة دخول»: هذا السجلّ لا يُدخَل به أصلاً — يُمحى أو يُترك
-                      canReset={false}
-                      canPurge={isSuperAdmin}
-                      member={{ id: m.id, fullName: m.fullName, email: m.email, departmentName: m.department?.name ?? accountRoleLabel(m.invite.targetRole, locale) }}
-                    />
+                    <div key={m.id}>
+                      <MemberAccountRow
+                        theme={theme}
+                        // لا «مشكلة دخول»: هذا السجلّ لا يُدخَل به أصلاً — يُمحى أو يُترك
+                        canReset={false}
+                        canPurge={isSuperAdmin}
+                        member={{ id: m.id, fullName: m.fullName, email: m.email, departmentName: m.department?.name ?? accountRoleLabel(m.invite.targetRole, locale) }}
+                      />
+                      {namesWithAccount.has(m.fullName) && (
+                        <p className="mt-1 px-1 text-xs font-semibold text-amber-800">{t.seats.orphanSameName}</p>
+                      )}
+                    </div>
                   ))}
                 </div>
               </section>

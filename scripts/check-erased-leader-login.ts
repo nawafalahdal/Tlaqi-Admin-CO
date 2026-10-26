@@ -2,11 +2,12 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/credentials";
 import { issueLoginCode } from "@/lib/loginCodes";
 
-/** دخولُ من حُذف حسابه الإداري وبقي سجلُّ ترشّحه — عبر الخادم المحلي، بطلب الدخول الحقيقي.
+/** الدخولُ بعد الحذف — عبر الخادم المحلي، بطلب الدخول الحقيقي (كلمة المرور ثم رمز البريد).
  *
- *  أسوأ الحالات عمداً: سجلُّ قائدٍ معتمَد بكلمة مرورٍ معروفة (من قبل أن تُفرَّغ عند
- *  الترقية) ورمزِ بريدٍ صحيح — ومع ذلك لا يُفتح له. والضابطُ: مرشّحٌ قياديٌّ لم يُعتمد
- *  بعد يدخل بالطريق نفسه (ليختبر) — فالرفضُ للسجلّ القيادي لا لعطبٍ في الفحص.
+ *  ١) بقيةُ حذفٍ سابق (سجلُّ ترشّح قائدٍ حُذف حسابُه، كلمتُه فُرِّغت عند إنشاء الحساب)
+ *     لا يُفتح لها — ولو برمزِ بريدٍ صحيح.
+ *  ٢) **ومن لم يُحذف لا يُمَسّ:** عضوٌ أُعيدت دعوتُه واعتُمد يدخل، وقائدٌ تعثّر اعتمادُه
+ *     فبقيت كلمتُه يدخل كما كان قبل هذا الإصلاح، والمرشّحُ يدخل ليختبر.
  *
  *    (الخادم يعمل على CHECK_BASE_URL أو localhost:3000)
  *    npx tsx --env-file=.env scripts/check-erased-leader-login.ts */
@@ -20,11 +21,13 @@ const BASE = process.env.CHECK_BASE_URL ?? "http://localhost:3000";
 const PASS = "Erased#2026aa";
 const ORPHAN = "erased-lead@example.test";
 const CANDIDATE = "pending-lead@example.test";
+const HALF = "half-approved-lead@example.test";
+const REINVITED = "reinvited-member@example.test";
 const checks: string[] = [];
 const chk = (n: string, ok: boolean, extra = "") => checks.push(`${ok ? "✓" : "✗ FAIL"} ${n}${extra ? " — " + extra : ""}`);
 
 async function cleanup() {
-  for (const email of [ORPHAN, CANDIDATE]) {
+  for (const email of [ORPHAN, CANDIDATE, HALF, REINVITED]) {
     const m = await prisma.member.findUnique({ where: { email } });
     if (m) {
       await prisma.member.delete({ where: { id: m.id } });
@@ -68,21 +71,26 @@ async function signIn(email: string): Promise<string | null> {
   const dept = await prisma.department.findFirstOrThrow({ where: { slug: "marketing", parentId: null } });
   const track = await prisma.testTrack.findFirstOrThrow({ where: { departmentId: { not: null } } });
   const passwordHash = await hashPassword(PASS);
-  const record = async (email: string, approvalStatus: "approved" | "pending_review") => {
+  const record = async (email: string, targetRole: "member" | "department_admin", approvalStatus: "approved" | "pending_review", hash: string | null) => {
     const invite = await prisma.invite.create({
-      data: { fullName: "فحص دخول", email, targetRole: "department_admin", departmentId: dept.id, testTrackId: track.id, invitedById: founder.id, status: "used" },
+      data: { fullName: "فحص دخول", email, targetRole, departmentId: dept.id, testTrackId: track.id, invitedById: founder.id, status: "used" },
     });
     return prisma.member.create({
-      data: { fullName: "فحص دخول", email, inviteId: invite.id, departmentId: dept.id, approvalStatus, isActive: true, passwordHash, ...(approvalStatus === "approved" ? { decidedAt: new Date() } : {}) },
+      data: { fullName: "فحص دخول", email, inviteId: invite.id, departmentId: dept.id, approvalStatus, isActive: true, passwordHash: hash, ...(approvalStatus === "approved" ? { decidedAt: new Date() } : {}) },
     });
   };
-  await record(ORPHAN, "approved");
-  await record(CANDIDATE, "pending_review");
+  await record(ORPHAN, "department_admin", "approved", null);
+  await record(HALF, "department_admin", "approved", passwordHash);
+  await record(REINVITED, "member", "approved", passwordHash);
+  await record(CANDIDATE, "department_admin", "pending_review", passwordHash);
 
+  chk("**بقيةُ حذفٍ سابق لا تُدخل — ولو برمز بريدٍ صحيح**", (await signIn(ORPHAN)) === null);
+  const back = await signIn(REINVITED);
+  chk("**وعضوٌ أُعيدت دعوتُه واعتُمد يدخل**", back === REINVITED, String(back));
+  const half = await signIn(HALF);
+  chk("وقائدٌ تعثّر اعتمادُه (لم يُحذف) يدخل كما كان", half === HALF, String(half));
   const control = await signIn(CANDIDATE);
-  chk("الضابط: مرشّحٌ قياديٌّ لم يُعتمد يدخل بكلمته ورمز البريد", control === CANDIDATE, String(control));
-  const orphan = await signIn(ORPHAN);
-  chk("**وسجلُّ قائدٍ حُذف حسابُه لا يُدخل — ولو بكلمة مرورٍ صحيحة ورمزٍ صحيح**", orphan === null, String(orphan));
+  chk("والمرشّحُ القياديُّ يدخل ليختبر", control === CANDIDATE, String(control));
 
   await cleanup();
   console.log(checks.join("\n"));

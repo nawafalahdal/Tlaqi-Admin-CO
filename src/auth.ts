@@ -5,7 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { isLockedOut, recordFailedAttempt, clearFailedAttempts } from "@/lib/loginAttempts";
 import { verifyTotpCode } from "@/lib/totp";
 import { consumeLoginCode } from "@/lib/loginCodes";
-import { isLeadershipRecord } from "@/lib/roster";
 import { candidateWindowExpired, markFirstLogin } from "@/lib/workflow";
 import { issueSessionBinding, sessionBindingMatches, clearSessionBinding } from "@/lib/sessionBinding";
 
@@ -116,7 +115,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const member = await prisma.member.findUnique({
           where: { email },
-          include: { department: true, invite: { select: { targetRole: true } } },
+          include: { department: true },
         });
         // المرشّح يدخل منذ لحظة إنشاء حسابه — قبل الاختبار وقبل الاعتماد —
         // لأن هذه هي الخطوة التي يغيّر فيها كلمة المرور المؤقتة ثم يبدأ
@@ -127,16 +126,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // نقطة الفرض الحقيقية؛ الكنس مهمته تنظيف القوائم لا الحماية.
         const windowExpired = member ? candidateWindowExpired(member) : false;
 
-        // والقائدُ المعتمَد مدخلُه حسابُه الإداري وحده: سجلُّ ترشّحه لا يُدخل —
-        // ولو حُذف حسابُه أو نُحّي وبقي السجلّ، فلا يعود من بابٍ خلفي.
-        const leadershipRecord = member ? isLeadershipRecord(member) : false;
-
         const candidateAllowed =
           member &&
           member.isActive &&
           member.approvalStatus !== "rejected" &&
           !member.terminatedAt &&
-          !leadershipRecord &&
           !windowExpired;
 
         if (

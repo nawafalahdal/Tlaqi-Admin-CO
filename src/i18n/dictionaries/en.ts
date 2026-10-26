@@ -835,6 +835,7 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
     removedTitle: "Removed accounts",
     orphanTitle: "Records of leaders whose accounts were deleted",
     orphanHint: "Left over from a deletion made before deleting removed both records. They cannot sign in and are not in the org chart, but they hold the email — delete them permanently so the person can be invited again if you wish. They stay in the sheet.",
+    orphanSameName: "Note: an admin account with this name exists under another email — the email may have been changed rather than the person deleted. Check before deleting permanently.",
   },
   messagesPage: {
     title: "Outgoing message log",

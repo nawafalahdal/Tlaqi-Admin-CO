@@ -4,11 +4,11 @@ import {
   changeLeadershipEmail,
   sendWelcomeToUser,
 } from "@/lib/founderActions";
-import { removeLeadershipUser, seatConflicts } from "@/lib/workflow";
+import { removeLeadershipUser, seatConflicts, createCandidateAccount } from "@/lib/workflow";
 import { buildOrgChart } from "@/lib/orgChart";
 import { requestPasswordReset } from "@/lib/passwordReset";
 import { hashPassword } from "@/lib/credentials";
-import { isLeadershipRecord } from "@/lib/roster";
+import { leftoverLeaderIds } from "@/lib/leftoverLeaders";
 import { memberForSession } from "@/lib/termination";
 import type { Session } from "next-auth";
 
@@ -28,7 +28,7 @@ const OLD = `old-${MARK}@example.test`;
 const NEW = `new-${MARK}@example.test`;
 
 async function cleanup() {
-  for (const e of [OLD, NEW, "held-twin@example.test", "via-twin@example.test", "via-active@example.test", "orphan-lead@example.test"]) {
+  for (const e of [OLD, NEW, "held-twin@example.test", "via-twin@example.test", "via-active@example.test", "orphan-lead@example.test", "half-lead@example.test", "back-lead@example.test", "back-member@example.test"]) {
     const m = await prisma.member.findUnique({ where: { email: e } });
     if (m) {
       await prisma.terminationRequest.deleteMany({ where: { memberId: m.id } });
@@ -349,35 +349,84 @@ async function cleanup() {
   await prisma.member.delete({ where: { id: activeTwin.id } });
   await prisma.invite.delete({ where: { id: activeInvite.id } });
 
-  // ٨ح — بقيةُ حذفٍ سابق: سجلُّ ترشّح قائدٍ حُذف حسابه قبل هذا الإصلاح.
-  //      لا يُدخَل به، ولا يُستعاد له، ولا يظهر في الهيكل — ويُمحى من «المنحّون».
-  const orphanInvite = await prisma.invite.create({
-    data: { fullName: "قائدة سابقة", email: "orphan-lead@example.test", departmentId: heldDept.id,
-            targetRole: "department_admin", testTrackId: track.id, invitedById: founder.id, status: "used" },
-  });
-  const orphan = await prisma.member.create({
-    data: { fullName: "قائدة سابقة", email: "orphan-lead@example.test", inviteId: orphanInvite.id,
-            departmentId: heldDept.id, approvalStatus: "approved", isActive: true,
-            // كلمةُ مرورٍ باقية: أسوأ الحالات — سجلٌّ من قبل أن يُفرَّغ عند الترقية
-            passwordHash: await hashPassword("Orphan#2026aa") },
-    include: { invite: true },
-  });
-  chk("سجلُّ ترشّح القائد المعتمَد يُعرَف سجلاً قيادياً", isLeadershipRecord(orphan) &&
-      !isLeadershipRecord({ approvalStatus: "approved", invite: { targetRole: "member" } }) &&
-      !isLeadershipRecord({ approvalStatus: "pending_review", invite: { targetRole: "department_admin" } }));
-  const chart = await buildOrgChart("ar");
-  const inChart = chart.departments.some((d) => d.members.some((m) => m.id === orphan.id) || d.committees.some((c) => c.members.some((m) => m.id === orphan.id))) ||
-    chart.unassigned.some((m) => m.id === orphan.id);
-  chk("**ولا يظهر في الهيكل عضواً**", !inChart);
+  // ٨ح — بقيةُ حذفٍ سابق: سجلُّ ترشّح قائدٍ حُذف حسابُه قبل هذا الإصلاح — معتمَد،
+  //      وكلمةُ مروره فُرِّغت عند إنشاء حسابه، ولا حسابَ له اليوم.
+  //      لا يظهر في الهيكل، ولا يُدخَل به، ويُعرض للمؤسس فيمحوه.
+  const inChart = async (id: string) => {
+    const chart = await buildOrgChart("ar");
+    const walk = (ds: typeof chart.departments): boolean => ds.some((d) => d.members.some((m) => m.id === id) || walk(d.committees));
+    return walk(chart.departments) || chart.unassigned.some((m) => m.id === id);
+  };
+  const leaderRecord = async (email: string, extra: { passwordHash?: string | null } = {}) => {
+    const inv = await prisma.invite.create({
+      data: { fullName: "قائد سابق", email, departmentId: heldDept.id, targetRole: "department_admin",
+              testTrackId: track.id, invitedById: founder.id, status: "used" },
+    });
+    return prisma.member.create({
+      data: { fullName: "قائد سابق", email, inviteId: inv.id, departmentId: heldDept.id,
+              approvalStatus: "approved", isActive: true, passwordHash: null, ...extra },
+    });
+  };
+  const orphan = await leaderRecord("orphan-lead@example.test");
+  chk("بقيةُ الحذف تُعرَف بقيةً", (await leftoverLeaderIds()).has(orphan.id));
+  chk("**ولا تظهر في الهيكل عضواً**", !(await inChart(orphan.id)));
   const tokensBefore = await prisma.passwordResetToken.count({ where: { email: "orphan-lead@example.test" } });
   await requestPasswordReset("orphan-lead@example.test");
-  chk("ولا يُرسَل له رابطُ استعادةٍ لكلمة المرور",
+  chk("ولا يُرسَل لها رابطُ استعادة (لا كلمة مرور لها أصلاً)",
       (await prisma.passwordResetToken.count({ where: { email: "orphan-lead@example.test" } })) === tokensBefore);
   const orphanDel = await permanentlyDeleteAccount({
     kind: "member", id: orphan.id, confirmEmail: "orphan-lead@example.test", reason: "بقيةُ حذفٍ سابق", force: true, ...F });
-  chk("ويُمحى نهائياً فيتحرّر البريد", orphanDel.ok &&
+  chk("وتُمحى نهائياً فيتحرّر البريد", orphanDel.ok &&
       (await prisma.member.findUnique({ where: { email: "orphan-lead@example.test" } })) === null &&
-      (await prisma.invite.findUnique({ where: { id: orphanInvite.id } })) === null);
+      (await prisma.invite.count({ where: { email: "orphan-lead@example.test" } })) === 0);
+
+  // ٨ط — **من لم يُحذف لا يُمَسّ:** قائدٌ تعثّر اعتمادُه فلم يُنشأ حسابُه (كلمةُ مروره باقية)
+  //      ليس بقيةَ حذف: يبقى في الهيكل كما كان، وتُستعاد كلمتُه كما كانت.
+  const half = await leaderRecord("half-lead@example.test", { passwordHash: await hashPassword("Half#2026aa") });
+  chk("**قائدٌ تعثّر اعتمادُه ليس بقيةَ حذف**", !(await leftoverLeaderIds()).has(half.id));
+  chk("ويبقى في الهيكل كما كان", await inChart(half.id));
+  const halfTokens = await prisma.passwordResetToken.count({ where: { email: "half-lead@example.test" } });
+  await requestPasswordReset("half-lead@example.test");
+  chk("وتُستعاد كلمةُ مروره كما كانت",
+      (await prisma.passwordResetToken.count({ where: { email: "half-lead@example.test" } })) === halfTokens + 1);
+
+  // ٨ي — **ومن حُذف ثم دُعي من جديد عضوٌ جديد لا يُمَسّ:** يُحذف قائدٌ (فيُمحى سجلّاه)،
+  //      ثم يُدعى ببريده نفسه — فالدعوةُ تُقبل، وله سجلٌّ جديد بدعوةٍ جديدة، وليس بقيةً.
+  const backInvite = await prisma.invite.create({
+    data: { fullName: "قائد يعود", email: "back-lead@example.test", departmentId: heldDept.id, targetRole: "department_admin",
+            testTrackId: track.id, invitedById: founder.id, status: "used" },
+  });
+  const backTwin = await prisma.member.create({
+    data: { fullName: "قائد يعود", email: "back-lead@example.test", inviteId: backInvite.id, departmentId: heldDept.id,
+            approvalStatus: "approved", isActive: true },
+  });
+  const backUser = await prisma.user.create({
+    data: { fullName: "قائد يعود", email: "back-lead@example.test", passwordHash: "x", role: "department_admin",
+            departmentId: heldDept.id, isActive: false, removedAt: new Date(), removalReason: "اختبار" },
+  });
+  const backDel = await permanentlyDeleteAccount({
+    kind: "user", id: backUser.id, confirmEmail: "back-lead@example.test", reason: "حذفٌ ثم دعوةٌ جديدة", ...F });
+  chk("حُذف القائد بسجلَّيه", backDel.ok && (await prisma.member.findUnique({ where: { id: backTwin.id } })) === null);
+  const reinvited = await createCandidateAccount({
+    fullName: "قائد يعود", email: "back-lead@example.test", targetRole: "member",
+    departmentId: heldDept.id, testTrackId: track.id, invitedById: founder.id,
+  }).then(() => prisma.member.findUnique({ where: { email: "back-lead@example.test" }, include: { invite: true } }), (e: Error) => e);
+  chk("**والدعوةُ من جديد ببريده تُقبل — عضوٌ جديد بإجراءاتٍ جديدة**",
+      !(reinvited instanceof Error) && !!reinvited && reinvited.id !== backTwin.id && reinvited.invite.id !== backInvite.id &&
+      reinvited.approvalStatus !== "approved" && !!reinvited.passwordHash,
+      reinvited instanceof Error ? reinvited.message : "");
+  if (reinvited && !(reinvited instanceof Error)) {
+    // واعتُمد عضواً فصار نشطاً: لا يُعرَف بقيةً، ويظهر في الهيكل
+    await prisma.member.update({ where: { id: reinvited.id }, data: { approvalStatus: "approved", decidedAt: new Date() } });
+    chk("**ومن أُعيدت دعوتُه واعتُمد نشطاً لا يُغلَق ولا يُخفى**",
+        !(await leftoverLeaderIds()).has(reinvited.id) && (await inChart(reinvited.id)));
+  }
+  // وقائدٌ أُعيدت دعوتُه فاعتُمد قائداً: حسابُه الإداري قائم، فسجلُّ ترشّحه الجديد ليس بقية
+  const relead = await leaderRecord("back-member@example.test");
+  await prisma.user.create({
+    data: { fullName: "قائد سابق", email: "back-member@example.test", passwordHash: "x", role: "department_admin", isActive: true },
+  });
+  chk("وقائدٌ أُعيدت دعوتُه واعتُمد قائداً ليس بقيةً", !(await leftoverLeaderIds()).has(relead.id));
 
   // ٩ — تعارض المقاعد يحمل ما يُفرّق المكرّر عن القائد العامل.
   //

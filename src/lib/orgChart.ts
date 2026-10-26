@@ -6,6 +6,7 @@ import { fmt } from "@/i18n/fmt";
 import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
 import { avatarUrl } from "@/lib/avatarUrl";
 import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
+import { leftoverLeaderIds } from "@/lib/leftoverLeaders";
 
 /** الهيكل التنظيمي — يُستخرَج ولا يُحرَّر.
  *
@@ -240,8 +241,11 @@ export async function buildOrgChart(locale: Locale = "ar"): Promise<OrgChart> {
       })
     ).map((u) => u.email.toLowerCase())
   );
-  const notAlreadyShown = (m: { email: string }) =>
-    !leadershipEmails.has(m.email.toLowerCase());
+  // وقائدٌ حُذف حسابُه وبقي سجلُّ ترشّحه (قبل أن يصير الحذفُ للسجلَّين) لا يُعرَض عضواً:
+  // كان يظهر في قسمه كأنه ما زال في الفريق. ومن أُعيدت دعوتُه لا يدخل في هذا.
+  const erased = await leftoverLeaderIds();
+  const notAlreadyShown = (m: { id: string; email: string }) =>
+    !leadershipEmails.has(m.email.toLowerCase()) && !erased.has(m.id);
 
   const [founder, ceo, opsOfficers, deptRows] = await Promise.all([
     prisma.user.findFirst({
@@ -279,12 +283,9 @@ export async function buildOrgChart(locale: Locale = "ar"): Promise<OrgChart> {
           // الهيكل يَعرض من هو في الفريق الآن: المعتمَد النشط.
           // والمرشّح لم يُعتمد بعد، والخارج خرج — وظهورُ أحدهما يقول
           // عن المنظمة ما ليس فيها.
-          //
-          // وبشرط القائمة نفسه (`ROSTER_MEMBER_WHERE`): سجلُّ ترشّح القائد ليس
-          // عضويةً، فبطاقتُه حسابُه الإداري. كان يكفي طرحُه ما دام حسابُه نشطاً
-          // — فإذا حُذف الحساب أو نُحّي ظهر سجلُّه عضواً في قسمه، كأن القائد
-          // السابق ما زال في الفريق.
-          where: ROSTER_MEMBER_WHERE,
+          // member-roster: all — سجلُّ ترشّح القائد يُطرح في الذاكرة: من له حسابٌ
+          // نشط (`notAlreadyShown`)، ومن حُذف حسابُه (`leftoverLeaderIds`)
+          where: { isActive: true, approvalStatus: "approved" },
           select: MEMBER_SELECT,
           orderBy: { fullName: "asc" },
         },

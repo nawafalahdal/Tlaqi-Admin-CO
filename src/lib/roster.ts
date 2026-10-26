@@ -29,10 +29,3 @@ export function isRosterMember(m: {
 }): boolean {
   return m.isActive && m.approvalStatus === "approved" && m.invite.targetRole === "member";
 }
-
-/** سجلُّ ترشّح قائدٍ معتمَد: صاحبُه يعمل بحسابه الإداري، وهذا السجلّ أثرُ اختباره
- *  واعتماده لا غير. فلا يُدخَل به ولا يُستعاد له، ولا يُعرَض عضواً — ولو حُذف
- *  الحسابُ الإداري أو نُحّي وبقي هو. */
-export function isLeadershipRecord(m: { approvalStatus: string; invite: { targetRole: string } }): boolean {
-  return m.approvalStatus === "approved" && m.invite.targetRole !== "member";
-}
