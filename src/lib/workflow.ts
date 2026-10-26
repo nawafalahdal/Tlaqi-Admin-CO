@@ -21,6 +21,7 @@ import {
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { generateTempPassword, hashPassword } from "@/lib/credentials";
 import { scoreAnswers, ROLE_LABELS, accountRoleLabel } from "@/lib/testTracks";
+import { retireMarketingProfile } from "@/lib/marketing/team";
 
 
 /** تسمية القسم أو الصفة كما تظهر في عمود "القسم / الصفة" بالسجل الحي.
@@ -1199,6 +1200,7 @@ export async function purgeCandidate(opts: {
   });
   await prisma.testAttempt.deleteMany({ where: { memberId: member.id } });
   await prisma.memberWarning.deleteMany({ where: { memberId: member.id } });
+  await retireMarketingProfile(prisma, { memberId: member.id }, member.fullName);
   await prisma.member.delete({ where: { id: member.id } });
   await prisma.invite.delete({ where: { id: member.inviteId } });
 

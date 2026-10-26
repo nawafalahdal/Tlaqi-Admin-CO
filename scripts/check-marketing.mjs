@@ -11,7 +11,8 @@
  *  ٥. حفظُ المسودة من الواجهة يعمل ويقول ذلك.
  *  ٦. الإنجليزية، والجوال بلا تمريرٍ أفقي، والسمتان — ولا أخطاءَ في الصفحة.
  *
- *  يتطلّب `fixtures-roles.ts setup` ثم `fixtures-marketing.ts setup` (ويُمرَّر ناتجُه في IDS).
+ *  يتطلّب `fixtures-roles.ts setup` ثم `fixtures-marketing.ts setup` (ويُمرَّر ناتجُه في IDS) —
+ *  **قبل كل تشغيل:** الفحصُ يحفظ مسودةً على مخرجٍ فيغيّر ما يفحصه التشغيلُ التالي.
  *    SCRATCH=<مجلد السرّ> IDS='<json>' node scripts/check-marketing.mjs */
 import pw from "/opt/node-tools/node_modules/playwright/index.js";
 import fs from "node:fs";

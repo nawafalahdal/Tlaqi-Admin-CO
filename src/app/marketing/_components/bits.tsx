@@ -92,8 +92,8 @@ export function Muted({ children }: { children: ReactNode }) {
 }
 
 /** «عضو الفريق» — اسمٌ من حسابه في المنصة */
-export const nameOf = (m: { user: { fullName: string } | null; member: { fullName: string } | null } | null | undefined) =>
-  m?.user?.fullName ?? m?.member?.fullName ?? "—";
+export const nameOf = (m: { user: { fullName: string } | null; member: { fullName: string } | null; nameSnapshot?: string | null } | null | undefined) =>
+  m?.user?.fullName ?? m?.member?.fullName ?? m?.nameSnapshot ?? "—";
 
 /** تاريخٌ ووقتٌ بتوقيت الرياض وبأرقامٍ لاتينية في اللغتين — كسائر المنصة */
 export function when(d: Date | string | null | undefined, withTime = true): string {

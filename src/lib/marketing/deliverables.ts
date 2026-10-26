@@ -308,7 +308,7 @@ export async function deliverableWorkspace(actor: MkActor, deliverableId: string
   const access = await campaignAccess(actor, head.campaignId);
   if (!access.canView) return null;
 
-  const who = { select: { id: true, user: { select: { fullName: true } }, member: { select: { fullName: true } } } };
+  const who = { select: { id: true, user: { select: { fullName: true } }, member: { select: { fullName: true } }, nameSnapshot: true } };
   const d = await prisma.marketingDeliverable.findUniqueOrThrow({
     where: { id: deliverableId },
     include: {

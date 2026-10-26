@@ -1646,6 +1646,9 @@ model MarketingMember {
   user         User?                 @relation(fields: [userId], references: [id])
   memberId     String?               @unique
   member       Member?               @relation(fields: [memberId], references: [id])
+  /// اسمُ صاحبها لحظةَ إضافته — يبقى في سجلّ ما كتب واعتمد بعد حذف حسابه
+  /// (الحذفُ يُفرغ `userId`/`memberId` ويُبقي العضويةَ سجلاً بلا صاحب)
+  nameSnapshot String?
   capabilities MarketingCapability[]
   /// الإيقافُ لا يحذف: سجلُّ ما كتب واعتمد يبقى منسوباً إليه
   active       Boolean               @default(true)

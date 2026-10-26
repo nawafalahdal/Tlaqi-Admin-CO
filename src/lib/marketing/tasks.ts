@@ -238,7 +238,7 @@ const TASKS_TAKE = 300;
 export async function campaignTasks(actor: MkActor, campaignId: string) {
   const access = await campaignAccess(actor, campaignId);
   if (!access.canView) return null;
-  const who = { select: { id: true, user: { select: { fullName: true } }, member: { select: { fullName: true } } } };
+  const who = { select: { id: true, user: { select: { fullName: true } }, member: { select: { fullName: true } }, nameSnapshot: true } };
   return prisma.marketingTask.findMany({
     where: { campaignId },
     orderBy: [{ status: "asc" }, { dueAt: "asc" }, { createdAt: "asc" }],
@@ -269,7 +269,7 @@ export async function campaignComments(actor: MkActor, campaignId: string, opts:
       createdAt: true,
       deliverable: { select: { id: true, title: true } },
       task: { select: { id: true, title: true } },
-      author: { select: { id: true, user: { select: { fullName: true } }, member: { select: { fullName: true } } } },
+      author: { select: { id: true, user: { select: { fullName: true } }, member: { select: { fullName: true } }, nameSnapshot: true } },
     },
   });
 }

@@ -10,6 +10,7 @@ import { uploadDesign, submitDesign, decideDesign, returnToWriter, readCampaignF
 import { sendToQuality, recordQuality, recordPublication, recordResults, QUALITY_ITEMS } from "@/lib/marketing/review";
 import { createTask, updateTask, setTaskStatus } from "@/lib/marketing/tasks";
 import { actionItems } from "@/lib/marketing/inbox";
+import { permanentlyDeleteAccount } from "@/lib/founderActions";
 
 /** وكيلُ التسويق — على القاعدة المحلية وحدها، بحساباتِ الفحص وحملاتٍ تُنشأ وتُحذف.
  *
@@ -284,6 +285,24 @@ async function cleanup() {
   if (addMember.ok) await setMemberActive(exec, addMember.memberId, false);
   const memberOff = await actorOf(S.member);
   chk("والعضوُ الموقوف لا يدخل ولا يرى", !canEnterMarketing(memberOff) && (await deliverableWorkspace(memberOff, DB)) === null);
+
+  // ── ١٢ب) حذفُ حسابٍ في الفريق نهائياً: لا يفشل، ولا يمحو ما كتب
+  const delEmail = `${MARK}-del@example.test`;
+  const delU = await prisma.user.create({ data: { fullName: "كاتب يُحذف", email: delEmail, passwordHash: "x", role: "executive", isActive: true } });
+  const delM = await addTeamMember(founder, { kind: "user", id: delU.id, capabilities: ["writer"] });
+  chk("حسابٌ يُضاف إلى الفريق ويُحفظ اسمه", delM.ok && (await prisma.marketingMember.findUniqueOrThrow({ where: { id: delM.memberId } })).nameSnapshot === "كاتب يُحذف");
+  if (!delM.ok) throw new Error("stop");
+  // نسخةٌ كتبها — القيدُ `RESTRICT` يمنع محو العضوية ما دامت النسخة
+  const authored = await prisma.marketingContentVersion.create({ data: { deliverableId: D, number: 999, body: "نسخةٌ كتبها", authorId: delM.memberId } });
+  const del = await permanentlyDeleteAccount({
+    kind: "user", id: delU.id, confirmEmail: delEmail, reason: "حذف حساب في فريق التسويق", force: true,
+    actorRole: "super_admin", actorId: founderU.id, actorName: N("founder"),
+  });
+  chk("الحذفُ النهائي لحسابٍ في الفريق ينجح", del.ok, del.ok ? "" : (del as { reason: string }).reason);
+  const after = await prisma.marketingMember.findUnique({ where: { id: delM.memberId } });
+  chk("والعضويةُ باقيةٌ سجلاً موقوفاً بلا صاحب وباسمه", !!after && after.userId === null && !after.active && after.nameSnapshot === "كاتب يُحذف");
+  chk("وما كتبه باقٍ منسوباً إليه", (await prisma.marketingContentVersion.findUniqueOrThrow({ where: { id: authored.id }, select: { authorId: true } })).authorId === delM.memberId);
+  await prisma.marketingContentVersion.delete({ where: { id: authored.id } });
 
   // ── ١٣) سجلُّ التدقيق
   const events = await prisma.marketingEvent.groupBy({ by: ["action"], where: { campaignId: A }, _count: { _all: true } });

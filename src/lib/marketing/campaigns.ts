@@ -118,7 +118,7 @@ export async function addCampaignMember(
     await requireCampaignRole(actor, campaignId, "coordinator");
     const target = await prisma.marketingMember.findUnique({
       where: { id: input.marketingMemberId },
-      select: { id: true, active: true, capabilities: true, user: { select: { fullName: true } }, member: { select: { fullName: true } } },
+      select: { id: true, active: true, capabilities: true, user: { select: { fullName: true } }, member: { select: { fullName: true } }, nameSnapshot: true },
     });
     if (!target || !target.active) return fail("not_found");
     // التعيينُ لا يمنح مسؤولية: من لا يحمل الكتابة لا يُعيَّن كاتباً
@@ -148,7 +148,7 @@ export async function removeCampaignMember(actor: MkActor, campaignId: string, c
     await prisma.$transaction(async (tx) => {
       const row = await tx.marketingCampaignMember.findFirst({
         where: { id: campaignMemberId, campaignId },
-        select: { id: true, role: true, member: { select: { user: { select: { fullName: true } }, member: { select: { fullName: true } } } } },
+        select: { id: true, role: true, member: { select: { user: { select: { fullName: true } }, member: { select: { fullName: true } }, nameSnapshot: true } } },
       });
       if (!row) abort("not_found");
       if (row.role === "coordinator") {
@@ -179,7 +179,7 @@ export async function transitionCampaign(
     return prisma.$transaction(async (tx) => {
       const c = await tx.marketingCampaign.findUnique({
         where: { id: campaignId },
-        include: { _count: { select: { deliverables: true } }, members: { select: { role: true, member: { select: { active: true, capabilities: true } } } } },
+        include: { _count: { select: { deliverables: true } }, members: { select: { role: true, member: { select: { active: true, capabilities: true, userId: true, memberId: true } } } } },
       });
       if (!c) abort("not_found");
       if (opts.expectedRevision !== undefined && opts.expectedRevision !== c.revision) abort("stale");
@@ -203,7 +203,9 @@ export async function transitionCampaign(
           if (missing.length) abort("brief_incomplete", { missing: missing.join(",") });
         }
         if (to === "in_progress") {
-          const live = c.members.filter((m) => m.member.active && m.member.capabilities.includes(m.role)).map((m) => m.role);
+          const live = c.members
+            .filter((m) => m.member.active && (m.member.userId || m.member.memberId) && m.member.capabilities.includes(m.role))
+            .map((m) => m.role);
           const missing = teamMissing(live);
           if (missing.length) abort("team_incomplete", { missing: missing.join(",") });
         }
@@ -253,7 +255,7 @@ export async function listCampaigns(actor: MkActor, filter: { status?: Marketing
       priority: true,
       deadline: true,
       updatedAt: true,
-      owner: { select: { user: { select: { fullName: true } }, member: { select: { fullName: true } } } },
+      owner: { select: { user: { select: { fullName: true } }, member: { select: { fullName: true } }, nameSnapshot: true } },
       _count: { select: { deliverables: true, tasks: true } },
       deliverables: { select: { status: true } },
     },
@@ -267,10 +269,10 @@ export async function campaignWorkspace(actor: MkActor, campaignId: string) {
   const c = await prisma.marketingCampaign.findUnique({
     where: { id: campaignId },
     include: {
-      owner: { select: { id: true, user: { select: { fullName: true } }, member: { select: { fullName: true } } } },
+      owner: { select: { id: true, user: { select: { fullName: true } }, member: { select: { fullName: true } }, nameSnapshot: true } },
       members: {
         orderBy: { addedAt: "asc" },
-        select: { id: true, role: true, member: { select: { id: true, active: true, capabilities: true, user: { select: { fullName: true } }, member: { select: { fullName: true } } } } },
+        select: { id: true, role: true, member: { select: { id: true, active: true, capabilities: true, user: { select: { fullName: true } }, member: { select: { fullName: true } }, nameSnapshot: true } } },
       },
       deliverables: {
         orderBy: { createdAt: "asc" },
@@ -283,8 +285,8 @@ export async function campaignWorkspace(actor: MkActor, campaignId: string) {
   return { campaign: c, roles: [...access.roles] as MarketingCampaignRole[] };
 }
 
-export const personName = (m: { user: { fullName: string } | null; member: { fullName: string } | null } | null) =>
-  m?.user?.fullName ?? m?.member?.fullName ?? "—";
+export const personName = (m: { user: { fullName: string } | null; member: { fullName: string } | null; nameSnapshot?: string | null } | null) =>
+  m?.user?.fullName ?? m?.member?.fullName ?? m?.nameSnapshot ?? "—";
 
 /** من يُعيَّن في حملة: أعضاءُ الفريق النشطون ومسؤولياتُهم — للمنسّق فيها وحده */
 export async function assignableMembers(actor: MkActor, campaignId: string) {
@@ -294,7 +296,7 @@ export async function assignableMembers(actor: MkActor, campaignId: string) {
     where: { active: true, OR: [{ user: { isActive: true } }, { member: { isActive: true, terminatedAt: null } }] },
     orderBy: { createdAt: "asc" },
     take: 200,
-    select: { id: true, capabilities: true, user: { select: { fullName: true } }, member: { select: { fullName: true } } },
+    select: { id: true, capabilities: true, user: { select: { fullName: true } }, member: { select: { fullName: true } }, nameSnapshot: true },
   });
   return rows
     .map((r) => ({ id: r.id, name: personName(r), roles: r.capabilities.filter((c): c is MarketingCampaignRole => c !== "manager") }))

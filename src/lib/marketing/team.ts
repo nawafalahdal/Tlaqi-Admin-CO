@@ -1,4 +1,4 @@
-import type { MarketingCapability } from "@prisma/client";
+import type { MarketingCapability, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 import { hasCapability, type MkActor } from "./access";
@@ -29,6 +29,7 @@ export async function listTeam(actor: MkActor) {
       createdAt: true,
       user: { select: { id: true, fullName: true, email: true, role: true, isActive: true } },
       member: { select: { id: true, fullName: true, email: true, isActive: true, terminatedAt: true } },
+      nameSnapshot: true,
     },
   });
   return rows.map((r) => ({
@@ -37,7 +38,7 @@ export async function listTeam(actor: MkActor) {
     capabilities: r.capabilities,
     createdAt: r.createdAt,
     kind: (r.user ? "user" : "member") as "user" | "member",
-    fullName: r.user?.fullName ?? r.member?.fullName ?? "—",
+    fullName: r.user?.fullName ?? r.member?.fullName ?? r.nameSnapshot ?? "—",
     email: r.user?.email ?? r.member?.email ?? "",
     accountLive: r.user ? r.user.isActive : !!r.member && r.member.isActive && !r.member.terminatedAt,
   }));
@@ -105,6 +106,7 @@ export async function addTeamMember(
         data: {
           ...(input.kind === "user" ? { userId: input.id } : { memberId: input.id }),
           capabilities: caps,
+          nameSnapshot: principal.fullName,
           addedByName: actor.name,
         },
         select: { id: true },
@@ -197,4 +199,17 @@ export async function updateSettings(actor: MkActor, input: { requireSeparateApp
     await logEvent(tx, actor, { action: "settings.changed", details: { from: before, to: input } });
   });
   return { ok: true };
+}
+
+/** قبل حذف حسابٍ نهائياً: عضويتُه في فريق التسويق تُوقف ويُحفظ اسمه.
+ *
+ *  الحذفُ نفسه يُفرغ الربط (`ON DELETE SET NULL`) ويُبقي العضويةَ — فما كتبه
+ *  واعتمده سجلٌّ لا يُمحى. وهذه تجعلها موقوفةً صراحةً وباسمٍ يُقرأ؛ ولو نُسيت في
+ *  مسار حذفٍ ما لم يفشل الحذف (القيدُ يسمح بعضويةٍ بلا صاحب). */
+export async function retireMarketingProfile(
+  db: Prisma.TransactionClient | typeof prisma,
+  who: { userId: string } | { memberId: string },
+  fullName: string
+) {
+  await db.marketingMember.updateMany({ where: who, data: { active: false, nameSnapshot: fullName } });
 }

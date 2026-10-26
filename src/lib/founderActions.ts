@@ -6,6 +6,7 @@ import { syncMemberLifecycleRow, syncAdminAccountRow } from "@/lib/workflow";
 import { accountRoleLabel } from "@/lib/testTracks";
 import type { Session } from "next-auth";
 import { mayResendTo, resenderRoleFor, RESENDER_LABEL } from "@/lib/welcomeResend";
+import { retireMarketingProfile } from "@/lib/marketing/team";
 
 /** تصرّفات المؤسس وحده — وتُحرَس في الخادم لا بإخفاء زرّ.
  *
@@ -353,6 +354,8 @@ export async function permanentlyDeleteAccount(opts: {
     await prisma.leaderSignature.deleteMany({ where: { userId: user.id } });
     await prisma.ticket.updateMany({ where: { raisedByUserId: user.id }, data: { raisedByUserId: null } });
     await prisma.ticket.updateMany({ where: { targetUserId: user.id }, data: { targetUserId: null } });
+    // عضويةُ فريق التسويق تبقى سجلاً موقوفاً باسمه — وما كتبه واعتمده لا يُمحى
+    await retireMarketingProfile(prisma, { userId: user.id }, user.fullName);
     try {
       await prisma.user.delete({ where: { id: user.id } });
     } catch (err) {
@@ -431,6 +434,7 @@ export async function permanentlyDeleteAccount(opts: {
   await prisma.memberWarning.deleteMany({ where: { memberId: member.id } });
   await prisma.terminationRequest.deleteMany({ where: { memberId: member.id } });
   await prisma.memberDateEdit.deleteMany({ where: { memberId: member.id } });
+  await retireMarketingProfile(prisma, { memberId: member.id }, member.fullName);
   await prisma.member.delete({ where: { id: member.id } });
   await prisma.invite.delete({ where: { id: member.inviteId } });
 
