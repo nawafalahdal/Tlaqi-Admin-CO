@@ -69,3 +69,22 @@ export async function logEvent(
     },
   });
 }
+
+/** حدثٌ بلا فاعلٍ بشري — نتيجةُ مهمّةٍ في الخلفية (نجاحُ توليدٍ أو فشلُه).
+ *  `actorKind = "system"` والواجهةُ تسمّيه بلغتها؛ والاسمُ المخزَّن عربيٌّ كسائر السجلّ. */
+export async function logSystemEvent(
+  db: Db,
+  e: { action: MkEventAction; campaignId?: string | null; deliverableId?: string | null; details?: Prisma.InputJsonValue }
+) {
+  await db.marketingEvent.create({
+    data: {
+      action: e.action,
+      campaignId: e.campaignId ?? null,
+      deliverableId: e.deliverableId ?? null,
+      actorKind: "system",
+      actorId: "marketing-jobs",
+      actorName: "النظام",
+      details: e.details ?? undefined,
+    },
+  });
+}

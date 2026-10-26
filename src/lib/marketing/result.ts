@@ -33,6 +33,9 @@ export const MK_ERRORS = [
   "not_verified",
   "integration_not_configured",
   "job_not_retryable",
+  "job_active",
+  "job_quota",
+  "draft_changed",
   "campaign_closed",
 ] as const;
 
