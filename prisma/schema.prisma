@@ -322,6 +322,9 @@ model User {
   milestonesOwned  Milestone[]           @relation("MilestoneOwner")
   objectivesLed    DepartmentObjective[] @relation("ObjectiveLead")
   tasksOwned       PlanTask[]            @relation("TaskOwnerUser")
+
+  /// عضويتُه في فريق التسويق — لا تُمنح بالدور ولا بالقسم، بل صراحةً
+  marketingProfile MarketingMember?
 }
 
 /// دعوة مقفلة بالاسم والإيميل — لا تسجيل عام. targetRole يحدد المسار:
@@ -479,6 +482,8 @@ model Member {
   dateEdits       MemberDateEdit[]
   terminationRequests TerminationRequest[]
   tasksOwned      PlanTask[]      @relation("TaskOwnerMember")
+  /// عضويتُه في فريق التسويق — انظر `MarketingMember`
+  marketingProfile MarketingMember?
 
   // الكنس اليومي يسأل: من لم تصله شهادة تقديره؟ فيُجاب رخيصاً
   @@index([appreciationSentAt])
@@ -1609,4 +1614,519 @@ model MeetingDecision {
 model SweepRun {
   key       String   @id
   lastRunAt DateTime
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  وكيلُ التسويق الداخلي: حملةٌ ← مخرجاتٌ لكل منصةٍ ومقاس ← نصٌّ بإصدارات
+//  يعتمده كاتب ← تصميمٌ مبنيٌّ على نسخة نصٍّ بعينها يعتمده مصمّم ← فحصُ جودة
+//  ← نشرٌ يدويٌّ موثَّق. والوصولُ صريحٌ لا يُستنتَج من الدور ولا من القسم.
+//
+//  **وأهمُّ قاعدةٍ فيه:** الاعتمادُ يقع على إصدارٍ بعينه لا على المخرج.
+//  فالإصدارُ لا يُعدَّل بعد حفظه (صفٌّ جديدٌ لكل تقديم)، وكلُّ اعتمادٍ يحمل
+//  معرّفَ الإصدار الذي اعتُمد. فإن جاء إصدارٌ أحدث سقط الاعتمادُ القديم
+//  بنفسه — ولا يُعاد استعمالُه لتجاوز اعتماد الأحدث.
+// ═══════════════════════════════════════════════════════════════════
+
+/// ما يحمله عضوُ فريق التسويق من مسؤوليات. والإدارةُ (`manager`) هي إدارةُ
+/// الفريق والمقاسات والإعدادات — ولا تمنح اعتماداً ولا نشراً.
+enum MarketingCapability {
+  manager
+  coordinator
+  writer
+  designer
+  reviewer
+  publisher
+}
+
+/// عضوٌ في فريق التسويق — حسابٌ قائمٌ في المنصة (إداريٌّ أو عضو)، لا دورُ
+/// دخولٍ جديد. واحدٌ فقط من `userId` و`memberId` (قيدٌ في الترحيل).
+model MarketingMember {
+  id           String                @id @default(cuid())
+  userId       String?               @unique
+  user         User?                 @relation(fields: [userId], references: [id])
+  memberId     String?               @unique
+  member       Member?               @relation(fields: [memberId], references: [id])
+  capabilities MarketingCapability[]
+  /// الإيقافُ لا يحذف: سجلُّ ما كتب واعتمد يبقى منسوباً إليه
+  active       Boolean               @default(true)
+  addedByName  String
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  campaignsOwned  MarketingCampaign[]       @relation("CampaignOwner")
+  campaignRoles   MarketingCampaignMember[]
+  contentVersions MarketingContentVersion[]
+  designVersions  MarketingDesignVersion[]
+  approvals       MarketingApproval[]
+  qualityChecks   MarketingQualityCheck[]
+  publications    MarketingPublication[]
+  tasksAssigned   MarketingTask[]           @relation("TaskAssignee")
+  tasksCreated    MarketingTask[]           @relation("TaskCreator")
+  comments        MarketingComment[]
+  files           MarketingFile[]
+  generationJobs  MarketingGenerationJob[]
+}
+
+enum MarketingCampaignStatus {
+  idea
+  briefing
+  ready_for_planning
+  in_progress
+  blocked
+  published
+  archived
+}
+
+model MarketingCampaign {
+  id                String                   @id @default(cuid())
+  name              String
+  description       String?
+  objective         String?
+  audience          String?
+  keyMessage        String?
+  channels          String[]
+  deadline          DateTime?
+  priority          WorkPriority             @default(normal)
+  status            MarketingCampaignStatus  @default(idea)
+  /// الحالةُ قبل الإيقاف — يُعاد إليها عند رفعه
+  statusBeforeBlock MarketingCampaignStatus?
+  blockedReason     String?
+  ownerId           String
+  owner             MarketingMember          @relation("CampaignOwner", fields: [ownerId], references: [id])
+  /// عدّادُ التعديل — كلُّ تغييرٍ للحالة مشروطٌ بقيمته (تزامنٌ متفائل)
+  revision          Int                      @default(0)
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  members      MarketingCampaignMember[]
+  deliverables MarketingDeliverable[]
+  tasks        MarketingTask[]
+  comments     MarketingComment[]
+  files        MarketingFile[]
+  events       MarketingEvent[]
+
+  @@index([status])
+}
+
+/// مسؤوليةُ شخصٍ في حملةٍ بعينها. ومن لا صفَّ له هنا لا يرى الحملة.
+enum MarketingCampaignRole {
+  coordinator
+  writer
+  designer
+  reviewer
+  publisher
+}
+
+model MarketingCampaignMember {
+  id         String                @id @default(cuid())
+  campaignId String
+  campaign   MarketingCampaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  memberId   String
+  member     MarketingMember       @relation(fields: [memberId], references: [id])
+  role       MarketingCampaignRole
+  addedAt    DateTime              @default(now())
+
+  @@unique([campaignId, memberId, role])
+  @@index([memberId])
+}
+
+/// مقاسٌ قابلٌ للإدارة. والمخرجُ ينسخ أبعادَه ومنطقةَ أمانه عند إنشائه، فلا
+/// يتغيّر مخرجٌ قائمٌ بتعديلٍ لاحقٍ على المقاس.
+model MarketingFormat {
+  id            String   @id @default(cuid())
+  key           String   @unique
+  nameAr        String
+  nameEn        String
+  width         Int
+  height        Int
+  /// منطقةُ الأمان بالبكسل من كل حافة
+  safeTop       Int      @default(0)
+  safeRight     Int      @default(0)
+  safeBottom    Int      @default(0)
+  safeLeft      Int      @default(0)
+  /// منصّاتٌ يُقترح لها (للعرض والتصفية) — لا ادّعاءَ أنه يناسب كلَّها
+  platforms     String[]
+  active        Boolean  @default(true)
+  /// يزيد مع كل تعديلٍ للأبعاد أو منطقة الأمان
+  revision      Int      @default(1)
+  updatedByName String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+enum MarketingDeliverableStatus {
+  draft
+  content_review
+  content_approved
+  design_review
+  design_approved
+  quality_review
+  ready_to_publish
+  published
+  revision_required
+  blocked
+}
+
+/// ما يعود إليه العمل عند طلب التعديل: النصُّ أم التصميم
+enum MarketingRevisionTarget {
+  content
+  design
+}
+
+/// مخرجٌ واحد: منصةٌ ومقاسٌ بعينهما، بنصّه وتصميمه واعتماداتهما ونشره
+model MarketingDeliverable {
+  id                      String                      @id @default(cuid())
+  campaignId              String
+  campaign                MarketingCampaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  title                   String
+  platform                String
+  formatKey               String
+  formatRevision          Int
+  width                   Int
+  height                  Int
+  safeTop                 Int
+  safeRight               Int
+  safeBottom              Int
+  safeLeft                Int
+  status                  MarketingDeliverableStatus  @default(draft)
+  statusBeforeBlock       MarketingDeliverableStatus?
+  revisionTarget          MarketingRevisionTarget?
+  revisionNote            String?
+  /// مسودةُ الكاتب — تُحفَظ وتُعدَّل، ولا تصير إصداراً إلا بالتقديم
+  contentDraft            String                      @default("") @db.Text
+  draftUpdatedAt          DateTime?
+  currentContentVersionId String?                     @unique
+  currentContentVersion   MarketingContentVersion?    @relation("CurrentContent", fields: [currentContentVersionId], references: [id])
+  currentDesignVersionId  String?                     @unique
+  currentDesignVersion    MarketingDesignVersion?     @relation("CurrentDesign", fields: [currentDesignVersionId], references: [id])
+  revision                Int                         @default(0)
+  createdAt               DateTime                    @default(now())
+  updatedAt               DateTime                    @updatedAt
+
+  contentVersions MarketingContentVersion[] @relation("ContentOf")
+  designVersions  MarketingDesignVersion[]  @relation("DesignOf")
+  approvals       MarketingApproval[]
+  qualityChecks   MarketingQualityCheck[]
+  publications    MarketingPublication[]
+  tasks           MarketingTask[]
+  comments        MarketingComment[]
+  files           MarketingFile[]
+  generationJobs  MarketingGenerationJob[]
+  events          MarketingEvent[]
+
+  @@index([campaignId])
+  @@index([status])
+}
+
+/// نسخةُ نصٍّ مقدَّمة — لا تُعدَّل بعد إنشائها
+model MarketingContentVersion {
+  id             String               @id @default(cuid())
+  deliverableId  String
+  deliverable    MarketingDeliverable @relation("ContentOf", fields: [deliverableId], references: [id], onDelete: Cascade)
+  number         Int
+  body           String               @db.Text
+  /// ما تغيّر ولماذا — من الكاتب
+  changeNote     String?
+  /// مصادرُ المعلومات والادّعاءات — سطرٌ لكل مصدر
+  sources        String?              @db.Text
+  authorId       String
+  author         MarketingMember      @relation(fields: [authorId], references: [id])
+  /// يمنع تكرارَ التقديم عند إعادة المحاولة
+  idempotencyKey String?              @unique
+  createdAt      DateTime             @default(now())
+
+  currentOf     MarketingDeliverable?    @relation("CurrentContent")
+  designs       MarketingDesignVersion[]
+  approvals     MarketingApproval[]
+  qualityChecks MarketingQualityCheck[]
+  publications  MarketingPublication[]
+
+  @@unique([deliverableId, number])
+}
+
+/// نسخةُ تصميمٍ — مبنيّةٌ على نسخة نصٍّ بعينها، ولا تُعدَّل بعد رفعها
+model MarketingDesignVersion {
+  id                      String                  @id @default(cuid())
+  deliverableId           String
+  deliverable             MarketingDeliverable    @relation("DesignOf", fields: [deliverableId], references: [id], onDelete: Cascade)
+  number                  Int
+  basedOnContentVersionId String
+  basedOnContentVersion   MarketingContentVersion @relation(fields: [basedOnContentVersionId], references: [id])
+  fileId                  String                  @unique
+  file                    MarketingFile           @relation(fields: [fileId], references: [id])
+  width                   Int
+  height                  Int
+  /// نتائجُ الفحوص الآلية لحظةَ الرفع — انظر `designChecks`
+  checks                  Json
+  changeNote              String?
+  authorId                String
+  author                  MarketingMember         @relation(fields: [authorId], references: [id])
+  /// يُضبط عند التقديم للمراجعة — والرفعُ وحده مسودة
+  submittedAt             DateTime?
+  idempotencyKey          String?                 @unique
+  createdAt               DateTime                @default(now())
+
+  currentOf     MarketingDeliverable?   @relation("CurrentDesign")
+  approvals     MarketingApproval[]
+  qualityChecks MarketingQualityCheck[]
+  publications  MarketingPublication[]
+
+  @@unique([deliverableId, number])
+}
+
+enum MarketingApprovalKind {
+  content
+  design
+}
+
+enum MarketingDecision {
+  approved
+  changes_requested
+}
+
+/// قرارٌ على إصدارٍ بعينه. و`invalidatedAt` يُضبط حين يُبطله إصدارٌ أحدث
+/// أو تغييرُ مقاس — ولا يُحذف القرار، فسجلُّه يبقى.
+model MarketingApproval {
+  id                String                   @id @default(cuid())
+  deliverableId     String
+  deliverable       MarketingDeliverable     @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  kind              MarketingApprovalKind
+  contentVersionId  String?
+  contentVersion    MarketingContentVersion? @relation(fields: [contentVersionId], references: [id])
+  designVersionId   String?
+  designVersion     MarketingDesignVersion?  @relation(fields: [designVersionId], references: [id])
+  decision          MarketingDecision
+  note              String?
+  deciderId         String
+  decider           MarketingMember          @relation(fields: [deciderId], references: [id])
+  invalidatedAt     DateTime?
+  invalidatedReason String?
+  createdAt         DateTime                 @default(now())
+
+  @@index([deliverableId, kind])
+}
+
+/// فحصُ جودةٍ على زوجٍ بعينه: نسخةُ نصٍّ ونسخةُ تصميم
+model MarketingQualityCheck {
+  id                String                  @id @default(cuid())
+  deliverableId     String
+  deliverable       MarketingDeliverable    @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  contentVersionId  String
+  contentVersion    MarketingContentVersion @relation(fields: [contentVersionId], references: [id])
+  designVersionId   String
+  designVersion     MarketingDesignVersion  @relation(fields: [designVersionId], references: [id])
+  /// بنودُ الفحص: { key, passed, note }[]
+  items             Json
+  passed            Boolean
+  /// مانعٌ جوهري: يوقف المخرج حتى يُرفع
+  blocking          Boolean                 @default(false)
+  note              String?
+  reviewerId        String
+  reviewer          MarketingMember         @relation(fields: [reviewerId], references: [id])
+  invalidatedAt     DateTime?
+  invalidatedReason String?
+  createdAt         DateTime                @default(now())
+
+  @@index([deliverableId])
+}
+
+/// نشرٌ يدويٌّ موثَّق — لا يُسجَّل إلا بعد أن يؤكّد الناشرُ أنه رآه منشوراً
+model MarketingPublication {
+  id               String                  @id @default(cuid())
+  deliverableId    String
+  deliverable      MarketingDeliverable    @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  contentVersionId String
+  contentVersion   MarketingContentVersion @relation(fields: [contentVersionId], references: [id])
+  designVersionId  String
+  designVersion    MarketingDesignVersion  @relation(fields: [designVersionId], references: [id])
+  platform         String
+  url              String
+  publishedAt      DateTime
+  verifiedAt       DateTime
+  publisherId      String
+  publisher        MarketingMember         @relation(fields: [publisherId], references: [id])
+  /// نتائجُ فعلية يُدخلها الناشر بمصدرها وتاريخها — لا أرقامَ مولَّدة
+  metrics          Json?
+  metricsAsOf      DateTime?
+  metricsSource    String?
+  idempotencyKey   String?                 @unique
+  createdAt        DateTime                @default(now())
+
+  @@index([deliverableId])
+}
+
+enum MarketingTaskKind {
+  general
+  content
+  design
+  quality
+  publishing
+}
+
+enum MarketingTaskStatus {
+  todo
+  in_progress
+  blocked
+  done
+  cancelled
+}
+
+model MarketingTask {
+  id            String                @id @default(cuid())
+  campaignId    String
+  campaign      MarketingCampaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  deliverableId String?
+  deliverable   MarketingDeliverable? @relation(fields: [deliverableId], references: [id], onDelete: SetNull)
+  kind          MarketingTaskKind     @default(general)
+  title         String
+  description   String?
+  assigneeId    String?
+  assignee      MarketingMember?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  dueAt         DateTime?
+  priority      WorkPriority          @default(normal)
+  status        MarketingTaskStatus   @default(todo)
+  /// كم مرةً أُعيد فتحُها بعد رفض — يُرى ولا يُخفى
+  reopenCount   Int                   @default(0)
+  createdById   String
+  createdBy     MarketingMember       @relation("TaskCreator", fields: [createdById], references: [id])
+  completedAt   DateTime?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  dependsOn  MarketingTaskDependency[] @relation("TaskDependsOn")
+  dependents MarketingTaskDependency[] @relation("TaskDependents")
+  comments   MarketingComment[]
+  files      MarketingFile[]
+
+  @@index([campaignId])
+  @@index([assigneeId, status])
+}
+
+model MarketingTaskDependency {
+  taskId      String
+  task        MarketingTask @relation("TaskDependsOn", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOnId String
+  dependsOn   MarketingTask @relation("TaskDependents", fields: [dependsOnId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, dependsOnId])
+}
+
+model MarketingComment {
+  id            String                @id @default(cuid())
+  campaignId    String
+  campaign      MarketingCampaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  deliverableId String?
+  deliverable   MarketingDeliverable? @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  taskId        String?
+  task          MarketingTask?        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  body          String                @db.Text
+  authorId      String
+  author        MarketingMember       @relation(fields: [authorId], references: [id])
+  createdAt     DateTime              @default(now())
+
+  @@index([campaignId, createdAt])
+}
+
+enum MarketingFileKind {
+  design
+  attachment
+}
+
+/// ملفٌّ في الحملة — بايتاته في القاعدة كمركز الخطط، ولا يُستبدل في مكانه:
+/// التعديلُ ملفٌّ جديدٌ وإصدارٌ جديد
+model MarketingFile {
+  id            String                @id @default(cuid())
+  campaignId    String
+  campaign      MarketingCampaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  deliverableId String?
+  deliverable   MarketingDeliverable? @relation(fields: [deliverableId], references: [id], onDelete: SetNull)
+  taskId        String?
+  task          MarketingTask?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  kind          MarketingFileKind
+  fileName      String
+  mimeType      String
+  byteSize      Int
+  sha256        String
+  data          Bytes
+  width         Int?
+  height        Int?
+  uploadedById  String
+  uploadedBy    MarketingMember       @relation(fields: [uploadedById], references: [id])
+  createdAt     DateTime              @default(now())
+
+  designVersion MarketingDesignVersion?
+
+  @@index([campaignId])
+}
+
+/// سجلُّ التدقيق — يُكتب ولا يُعدَّل. والفاعلُ نصٌّ مثبَّت لا مفتاحٌ أجنبي:
+/// المؤسسُ يدير الفريق ولا يلزم أن يكون عضواً فيه
+model MarketingEvent {
+  id            String                @id @default(cuid())
+  campaignId    String?
+  campaign      MarketingCampaign?    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  deliverableId String?
+  deliverable   MarketingDeliverable? @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  action        String
+  actorKind     String
+  actorId       String
+  actorName     String
+  details       Json?
+  createdAt     DateTime              @default(now())
+
+  @@index([campaignId, createdAt])
+  @@index([createdAt])
+}
+
+enum MarketingJobKind {
+  text
+  image
+}
+
+enum MarketingJobStatus {
+  queued
+  running
+  succeeded
+  failed
+  cancelled
+}
+
+/// طلبُ توليدٍ محفوظٌ قبل بدئه — يُعاد ويُستأنف، ولا يُنشئ إصداراً بنفسه:
+/// ناتجُه اقتراحٌ يتبنّاه الكاتب في مسودته ثم يقدّمه كأي نص
+model MarketingGenerationJob {
+  id             String               @id @default(cuid())
+  deliverableId  String
+  deliverable    MarketingDeliverable @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  kind           MarketingJobKind
+  provider       String
+  model          String?
+  status         MarketingJobStatus   @default(queued)
+  input          Json
+  result         Json?
+  error          String?
+  attempts       Int                  @default(0)
+  maxAttempts    Int                  @default(3)
+  /// مهلةُ الحجز: عاملٌ يحجز المهمّة حتى هذا الوقت، فلا يعالجها اثنان
+  leaseUntil     DateTime?
+  nextAttemptAt  DateTime?
+  idempotencyKey String               @unique
+  requestedById  String
+  requestedBy    MarketingMember      @relation(fields: [requestedById], references: [id])
+  adoptedAt      DateTime?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([deliverableId])
+}
+
+/// إعداداتُ الفريق — صفٌّ واحد (`id = "default"`)
+model MarketingSettings {
+  id                      String   @id @default("default")
+  /// من أنشأ نسخةً لا يعتمدها بنفسه
+  requireSeparateApprover Boolean  @default(true)
+  updatedByName           String
+  updatedAt               DateTime @updatedAt
 }
