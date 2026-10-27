@@ -9,6 +9,7 @@ import { saveDraft } from "@/lib/marketing/content";
 import { ProviderError, type TextProvider, type TextResult } from "@/lib/marketing/ai/provider";
 import { aiStatus, type AiStatus } from "@/lib/marketing/ai/registry";
 import { simulatedProvider, SIMULATED_MARK } from "@/lib/marketing/ai/simulated";
+import { completePlanForTest } from "./marketing-plan-fixture";
 import {
   requestTextSuggestion, processJob, processDue, cancelJob, retryJob, adoptSuggestion, deliverableJobs, DAILY_QUOTA, type JobDeps,
 } from "@/lib/marketing/ai/jobs";
@@ -96,6 +97,8 @@ async function cleanup() {
   await addCampaignMember(exec, A, { marketingMemberId: addOps.memberId, role: "writer" });
   await addCampaignMember(exec, A, { marketingMemberId: addLead.memberId, role: "designer" });
   // التنفيذُ بعد اعتماد الخطة بمراحلها الثلاث، كلٌّ بيد صاحبه
+  // الخطةُ تُقدَّم مكتملةً وإلا رُدّت (`plan_incomplete`) — يُكمل الفحصُ ناقصَها بقيمٍ للفحص
+  await completePlanForTest(exec, A);
   const plan = await submitPlan(exec, A);
   if (!plan.ok) throw new Error("fixture: plan " + code(plan));
   for (const [a, stage] of [[mkLead, "department"], [ops0, "operations"], [exec, "executive"]] as const) {

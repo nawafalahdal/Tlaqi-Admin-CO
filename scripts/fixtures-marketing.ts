@@ -11,6 +11,7 @@ import { uploadDesign, submitDesign, decideDesign } from "@/lib/marketing/design
 import { sendToQuality, recordQuality, QUALITY_ITEMS } from "@/lib/marketing/review";
 import { createTask } from "@/lib/marketing/tasks";
 import { submitPlan, decidePlan } from "@/lib/marketing/plan";
+import { completePlanForTest, finalCheckForTest } from "./marketing-plan-fixture";
 
 const FIXTURE_PASSWORD = "Fixture#2026aa";
 
@@ -96,6 +97,8 @@ async function setup(totpSecret: string) {
 
   /** تقديمٌ ثم مراحلُ بأصحابها حتى `upTo` */
   async function approve(campaignId: string, upTo: "department" | "operations" | "executive") {
+    // الخطةُ تُقدَّم مكتملةً وإلا رُدّت (`plan_incomplete`) — يُكمل الفحصُ ناقصَها بقيمٍ للفحص
+    await completePlanForTest(lead, campaignId);
     const p = must(await submitPlan(lead, campaignId, { note: "خطة الإطلاق" }), "plan");
     for (const [a, stage] of [[lead, "department"], [ops, "operations"], [exec, "executive"]] as const) {
       must(await decidePlan(a, campaignId, { planVersionId: p.planVersionId, stage, decision: "approved" }), `plan ${stage}`);
@@ -141,6 +144,8 @@ async function setup(totpSecret: string) {
   must(await decideDesign(crew, d2, { designVersionId: dd2.versionId, decision: "approved" }), "d2 design approve");
   must(await sendToQuality(member, d2), "d2 quality");
   must(await recordQuality(exec, d2, { contentVersionId: v2.versionId, designVersionId: dd2.versionId, items: QUALITY_ITEMS.map((key) => ({ key, passed: true })) }), "d2 quality pass");
+  // «مرّ بكل شيء» صار يشمل فحصَ الناشر الأخير — شرطَ النشر (`final_check_missing`)
+  await finalCheckForTest(ops, d2);
 
   // d3: مسودةٌ يكتبها مسؤول التشغيل (فيها رقمٌ بلا مصدر — تنبيهٌ آلي)
   await saveDraft(ops, d3, "انضم ٣٠٠ طالب في أسبوع — كن التالي http://example.com");
@@ -160,6 +165,9 @@ async function setup(totpSecret: string) {
   await updateBrief(lead, C, { name: `${PREFIX} حملة المعرض`, objective: "دعوة الطلاب إلى المعرض", audience: "طلاب السنة الأولى", keyMessage: "تعال واصنع", deadline: new Date(Date.now() + 30 * 86400_000), channels: ["instagram"] });
   must(await createDeliverable(lead, C, { title: "منشور الدعوة", platform: "instagram", formatKey: "square" }), "c1");
   must(await transitionCampaign(lead, C, "ready_for_planning"), "C planning");
+  // الخطةُ تسمّي كاتبَ كل قطعةٍ ومصمّمَها من فريق الحملة (`plan_incomplete` بدونهما)
+  must(await addCampaignMember(lead, C, { marketingMemberId: cm.memberId, role: "writer" }), "C writer");
+  must(await addCampaignMember(lead, C, { marketingMemberId: mm.memberId, role: "designer" }), "C designer");
   await approve(C, "department");
 
   console.log(JSON.stringify({ A, B, C, d1, d2, d3, d4, design: dv2.versionId }));

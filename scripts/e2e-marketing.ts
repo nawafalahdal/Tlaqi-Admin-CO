@@ -12,6 +12,7 @@ import { createTask, updateTask, setTaskStatus } from "@/lib/marketing/tasks";
 import { actionItems } from "@/lib/marketing/inbox";
 import { permanentlyDeleteAccount } from "@/lib/founderActions";
 import { submitPlan, decidePlan } from "@/lib/marketing/plan";
+import { completePlanForTest, finalCheckForTest } from "./marketing-plan-fixture";
 
 /** وكيلُ التسويق — على القاعدة المحلية وحدها، بحساباتِ الفحص وحملاتٍ تُنشأ وتُحذف.
  *
@@ -118,6 +119,8 @@ async function cleanup() {
   const member = await actorOf(S.member);
   /** تقديمُ الخطة من المنسّق ثم مراحلُها الثلاث بأصحابها — كلُّها بيد صاحب المرحلة */
   async function approvePlan(campaignId: string) {
+    // الخطةُ تُقدَّم مكتملةً وإلا رُدّت (`plan_incomplete`) — يُكمل الفحصُ ناقصَها بقيمٍ للفحص
+    await completePlanForTest(exec, campaignId);
     const p = await submitPlan(exec, campaignId);
     if (!p.ok) return false;
     const steps = [[mkLead, "department"], [ops, "operations"], [exec, "executive"]] as const;
@@ -256,6 +259,8 @@ async function cleanup() {
   chk("فحصٌ قديمٌ لا يُسجَّل على زوجٍ جديد", code(await recordQuality(exec, D, { contentVersionId: cur.currentContentVersionId!, designVersionId: cur.currentDesignVersionId!, items: allPass })) === "version_not_current");
   const qPass = await recordQuality(exec, D, { contentVersionId: cur2.currentContentVersionId!, designVersionId: cur2.currentDesignVersionId!, items: allPass });
   chk("فحصٌ ناجح: جاهزٌ للنشر", qPass.ok && qPass.passed && (await prisma.marketingDeliverable.findUniqueOrThrow({ where: { id: D } })).status === "ready_to_publish");
+  // النشرُ لا يُسجَّل قبل فحص الناشر الأخير للنص والتصميم معاً (`final_check_missing`)
+  await finalCheckForTest(ops, D);
 
   // ── ٩) النشر
   chk("لا نشرَ بلا تأكيدٍ أنه حيّ", code(await recordPublication(ops, D, { url: "https://instagram.com/p/abc", publishedAt: new Date(), confirmedLive: false })) === "not_verified");

@@ -11,9 +11,10 @@ import { uploadDesign, submitDesign, decideDesign, readCampaignFile } from "@/li
 import { sendToQuality, recordQuality, recordPublication, QUALITY_ITEMS } from "@/lib/marketing/review";
 import { submitPlan, decidePlan, campaignPlan, plansAwaiting } from "@/lib/marketing/plan";
 import { requestTextSuggestion, processJob, adoptSuggestion, deliverableJobs, type JobDeps } from "@/lib/marketing/ai/jobs";
-import { createTask, assignTask, campaignTasks, campaignComments, addComment } from "@/lib/marketing/tasks";
+import { createTask, setTaskStatus, assignTask, campaignTasks, campaignComments, addComment } from "@/lib/marketing/tasks";
 import { assignmentSuggestions } from "@/lib/marketing/suggestions";
 import type { TextProvider } from "@/lib/marketing/ai/provider";
+import { completePlanForTest, finalCheckForTest } from "./marketing-plan-fixture";
 
 /** حوكمةُ وكيل التسويق — أصحابُ القرار وسلسلةُ اعتماد الخطة، على القاعدة المحلية وحدها.
  *
@@ -127,7 +128,13 @@ async function cleanup() {
   if (!c.ok) throw new Error("stop c");
   const C = c.campaignId;
   await transitionCampaign(lead, C, "briefing");
-  const brief = { name: `${MARK} حملة`, objective: "تعريف", audience: "طلاب", keyMessage: "نلتقي", deadline: new Date(Date.now() + 9 * 86400_000), channels: ["instagram"] };
+  // حقولُ الخطة الكاملة من البداية: تقديمُها يُردّ إن نقصت (`plan_incomplete`)، وما يفحصه هذا الفحصُ
+  // (الترتيبُ والإبطالُ وأصحابُ المراحل) لا يتغيّر بها
+  const brief = {
+    name: `${MARK} حملة`, objective: "تعريف", audience: "طلاب", keyMessage: "نلتقي", deadline: new Date(Date.now() + 9 * 86400_000), channels: ["instagram"],
+    description: "حملة فحص", outcomes: "تسجيلات", startDate: new Date(Date.now() - 3600_000), measurement: "أرقام المنصة", risks: "لا شيء",
+    kpis: [{ name: "الوصول", target: "1000", source: "Instagram Insights" }],
+  };
   await updateBrief(lead, C, brief);
   const del = await createDeliverable(lead, C, { title: "منشور", platform: "instagram", formatKey: "square" });
   if (!del.ok) throw new Error("stop d");
@@ -141,6 +148,7 @@ async function cleanup() {
 
   chk("الكاتبُ لا يقدّم الخطة", code(await submitPlan(w1, C)) === "forbidden");
   chk("ولا المؤسس", code(await submitPlan(founder, C)) === "founder_excluded");
+  await completePlanForTest(lead, C);
   const p1 = await submitPlan(lead, C, { note: "النسخة الأولى" });
   chk("القائدُ يقدّم الخطة — نسخةٌ برقم", p1.ok && p1.number === 1);
   if (!p1.ok) throw new Error("stop p1");
@@ -183,6 +191,7 @@ async function cleanup() {
   // مخرجٌ جديدٌ قبل الاعتماد الأخير يُبطل النسخة — والرئيسُ يرى «تغيّرت»
   await createDeliverable(lead, C, { title: "ستوري", platform: "instagram", formatKey: "story" });
   chk("إضافةُ مخرجٍ تُبطل نسخةً قيد الاعتماد", code(await dec(ceo, p3.planVersionId, "executive")) === "plan_stale");
+  await completePlanForTest(lead, C); // المخرجُ الجديد يحتاج مواعيدَه ومسؤوليه
   const p4 = await submitPlan(lead, C);
   if (!p4.ok) throw new Error("stop p4");
   for (const [a, s] of [[lead, "department"], [ops, "operations"], [ceo, "executive"]] as const) await dec(a, p4.planVersionId, s);
@@ -246,6 +255,8 @@ async function cleanup() {
   await sendToQuality(d1, D);
   chk("المراجعُ وحده يسجّل الجودة", code(await recordQuality(w2, D, { contentVersionId: cv.versionId, designVersionId: dv.versionId, items: QUALITY_ITEMS.map((key) => ({ key, passed: true })) })) === "forbidden");
   chk("والمراجعُ يسجّلها على النسختين بعينهما", (await recordQuality(rv, D, { contentVersionId: cv.versionId, designVersionId: dv.versionId, items: QUALITY_ITEMS.map((key) => ({ key, passed: true })) })).ok);
+  // النشرُ لا يُسجَّل قبل فحص الناشر الأخير للنص والتصميم معاً (`final_check_missing`)
+  await finalCheckForTest(w2, D);
   chk("غيرُ الناشر لا يسجّل النشر", code(await recordPublication(w1, D, { url: "https://www.instagram.com/p/x", publishedAt: new Date(), confirmedLive: true })) === "forbidden");
   chk("ولا نشرَ بلا تأكيد رؤيته حيّاً", code(await recordPublication(w2, D, { url: "https://www.instagram.com/p/x", publishedAt: new Date(), confirmedLive: false })) === "not_verified");
   const wrong = await recordPublication(w2, D, { url: "https://example.com/not-instagram", publishedAt: new Date(), confirmedLive: true });
@@ -265,6 +276,12 @@ async function cleanup() {
     if (!r.ok) throw new Error("stop task " + code(r));
     return r.taskId;
   };
+  // مهامُّ التنفيذ المولَّدة من الخطة المعتمدة (أربعٌ للستوري) تُضاف إلى عبء كلِّ مسؤول؛ وهذا
+  // القسمُ يبني العبءَ بيده ليفحص الترتيب، فتُلغى هنا بالخدمة نفسها (والإلغاءُ مسارٌ مسموح)
+  for (const g of await prisma.marketingTask.findMany({ where: { campaignId: C, planVersionId: { not: null }, status: { in: ["todo", "in_progress", "blocked"] } }, select: { id: true } })) {
+    const r = await setTaskStatus(lead, g.id, "cancelled");
+    if (!r.ok) throw new Error("stop cancel generated " + code(r));
+  }
   // عبءٌ قائم: الكاتبُ الأول له مهمّةٌ مفتوحة، والمراجعُ مهمّتان
   await task("عبء ك١", "general", { assigneeId: id.w1 });
   await task("عبء م١", "general", { assigneeId: id.rv });

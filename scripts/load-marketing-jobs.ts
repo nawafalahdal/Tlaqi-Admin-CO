@@ -8,6 +8,7 @@ import { createDeliverable } from "@/lib/marketing/deliverables";
 import { ProviderError, type TextProvider, type TextResult } from "@/lib/marketing/ai/provider";
 import type { AiStatus } from "@/lib/marketing/ai/registry";
 import { requestTextSuggestion, processJob, processDue, cancelJob, retryJob, DAILY_QUOTA, type JobDeps } from "@/lib/marketing/ai/jobs";
+import { completePlanForTest } from "./marketing-plan-fixture";
 
 /** طابورُ التوليد تحت التزامن — على القاعدة المحلية وحدها، بمزوّدٍ مُحقَنٍ لا يتصل بأحد.
  *
@@ -108,6 +109,8 @@ async function cleanup() {
   const dz = await addTeamMember(lead, { kind: "user", id: (await mk("dz", tech.id)).id, capabilities: ["designer"] });
   if (!dz.ok) throw new Error("designer");
   await addCampaignMember(lead, C, { marketingMemberId: dz.memberId, role: "designer" });
+  // الخطةُ تُقدَّم مكتملةً وإلا رُدّت (`plan_incomplete`) — يُكمل الفحصُ ناقصَها بقيمٍ للفحص
+  await completePlanForTest(lead, C);
   const p = await submitPlan(lead, C);
   if (!p.ok) throw new Error("plan");
   for (const [a, stage] of [[lead, "department"], [ops, "operations"], [ceo, "executive"]] as const) {

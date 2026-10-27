@@ -11,6 +11,7 @@ import { uploadDesign, submitDesign, decideDesign } from "@/lib/marketing/design
 import { sendToQuality, recordQuality, recordPublication, recordResults, QUALITY_ITEMS } from "@/lib/marketing/review";
 import { createTask, addComment } from "@/lib/marketing/tasks";
 import { submitPlan, decidePlan } from "@/lib/marketing/plan";
+import { completePlanForTest, finalCheckForTest } from "./marketing-plan-fixture";
 
 /** بياناتُ صور دليل القيادة — على القاعدة المحلية وحدها، بحساباتٍ تجريبيةٍ مؤقّتة.
  *
@@ -135,6 +136,8 @@ async function setup(totpSecret: string) {
   }
   const stages = [[lead, "department"], [ops, "operations"], [ceo, "executive"]] as const;
   async function plan(id: string, upTo: number, note = "خطة الحملة") {
+    // الخطةُ تُقدَّم مكتملةً وإلا رُدّت (`plan_incomplete`) — يُكمل الفحصُ ناقصَها بقيمٍ للفحص
+    await completePlanForTest(lead, id);
     const p = must(await submitPlan(lead, id, { note }), "plan");
     for (const [a, stage] of stages.slice(0, upTo)) must(await decidePlan(a, id, { planVersionId: p.planVersionId, stage, decision: "approved" }), `plan ${stage}`);
     return p.planVersionId;
@@ -197,6 +200,8 @@ async function setup(totpSecret: string) {
   const wd = await design(d.week, 1080, 1080, "week");
   must(await sendToQuality(designer, d.week), "week quality");
   must(await recordQuality(reviewer, d.week, { contentVersionId: wv, designVersionId: wd, items: allPass }), "week pass");
+  // النشرُ لا يُسجَّل قبل فحص الناشر الأخير للنص والتصميم معاً (`final_check_missing`)
+  await finalCheckForTest(publisher, d.week);
   const pub = must(
     await recordPublication(publisher, d.week, { url: "https://www.instagram.com/p/TLAQI-guide-test/", publishedAt: new Date(), confirmedLive: true, requestId: "guide-week" }),
     "publish"
