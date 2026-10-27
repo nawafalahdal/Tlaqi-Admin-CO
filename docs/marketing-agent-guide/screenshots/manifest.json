@@ -28,7 +28,23 @@
     "role": "قائد التسويق",
     "action": "حملة في مرحلة الموجز",
     "observe": "النواقص تُذكر بأسمائها قبل زر الانتقال إلى التخطيط",
-    "path": "/marketing/campaigns/cmvp85m6w009d7dka80o8bssg",
+    "path": "/marketing/campaigns/cmvq8vbk900g47daopyosb12a",
+    "captured": true
+  },
+  {
+    "file": "29-lead-plan-gaps.png",
+    "role": "قائد التسويق",
+    "action": "خطة حملة رمضان قبل التقديم",
+    "observe": "«الخطة ناقصة» بقائمة ما ينقص بالاسم (المؤشرات، طريقة القياس، المخاطر، ولكل قطعةٍ كاتبُها ومصمّمُها ومواعيدُها) — وزرُّ التقديم لا يظهر حتى تكتمل",
+    "path": "/marketing/campaigns/cmvq8vbks00gc7dao37cp4ils?tab=plan",
+    "captured": true
+  },
+  {
+    "file": "30-lead-planning-closed.png",
+    "role": "قائد التسويق",
+    "action": "يفتح حملةً في التخطيط بعد اعتماد حملةٍ أخرى",
+    "observe": "«التخطيط مغلق حتى…» بموعد الفتح (قبل نهاية الحملة المعتمدة بسبعة أيام)، وخيار الفتح المبكر بسببٍ مكتوب لقائد التسويق وحده",
+    "path": "/marketing/campaigns/cmvq8vbks00gc7dao37cp4ils",
     "captured": true
   },
   {
@@ -36,23 +52,47 @@
     "role": "قائد التسويق",
     "action": "خطة رُدّت للتعديل",
     "observe": "قرار مسؤول التشغيل بسببه وتاريخه، والنسخة باطلة، وزر تقديم نسخة جديدة",
-    "path": "/marketing/campaigns/cmvp85m4k008l7dka4ntzzy5q",
+    "path": "/marketing/campaigns/cmvq8vbfo00ew7daoew1fapdk",
     "captured": true
   },
   {
     "file": "06-lead-campaign-in-progress.png",
     "role": "قائد التسويق",
     "action": "حملة قيد التنفيذ",
-    "observe": "الخطة معتمدة بمراحلها الثلاث بأسماء أصحابها، وأزرار الحالة",
-    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46",
+    "observe": "الخطة معتمدة بمراحلها الثلاث بأسماء أصحابها، والموجز الكامل بمؤشراته",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh",
+    "captured": true
+  },
+  {
+    "file": "31-lead-calendar.png",
+    "role": "قائد التسويق",
+    "action": "تقويم النشر",
+    "observe": "لكل قطعة مواعيدها الأربعة بالدقيقة وبتوقيت الرياض (النص، التصميم، المراجعة، النشر)، وكاتبها ومصمّمها، وأساس وقت النشر",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh?tab=calendar",
+    "captured": true
+  },
+  {
+    "file": "32-lead-calendar-amend.png",
+    "role": "قائد التسويق",
+    "action": "يفتح «تعديل بسبب» على قطعةٍ تحت التنفيذ",
+    "observe": "المواعيد والمسؤولون فقط قابلةٌ للتعديل، والسبب إلزامي — والنطاق مقفل",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh?tab=calendar",
+    "captured": true
+  },
+  {
+    "file": "33-lead-schedule-log.png",
+    "role": "قائد التسويق",
+    "action": "سجلّ تغيير المواعيد",
+    "observe": "كل تغييرٍ بعد الاعتماد: الحقل، والقيمة القديمة والجديدة، والسبب، ومن غيّر ومن اعتمد، والوقت",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh?tab=calendar",
     "captured": true
   },
   {
     "file": "07-lead-tasks-suggestions.png",
     "role": "قائد التسويق",
     "action": "تبويب المهام",
-    "observe": "اقتراح الإسناد للمهام بلا مسنَد: الدور المطلوب وعبء كل مرشّح — ولا يُسنَد شيء دون ضغطة",
-    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46?tab=tasks",
+    "observe": "المهامّ أُنشئت من الخطة المعتمدة وتتبع مرحلة كل قطعة، واقتراح الإسناد للمهام بلا مسنَد — ولا يُسنَد شيء دون ضغطة",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh?tab=tasks",
     "captured": true
   },
   {
@@ -60,7 +100,7 @@
     "role": "قائد التسويق",
     "action": "يضغط «أسنِدها إلى…» على مهمة النشر",
     "observe": "الإسناد وقع بفعل القائد ويُسجَّل باسمه في السجل",
-    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46?tab=tasks",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh?tab=tasks",
     "captured": true
   },
   {
@@ -68,14 +108,14 @@
     "role": "قائد التسويق",
     "action": "فريق الحملة",
     "observe": "كل شخص بمسؤوليته في هذه الحملة",
-    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46?tab=team",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh?tab=team",
     "captured": true
   },
   {
     "file": "10-lead-settings.png",
     "role": "قائد التسويق",
     "action": "إعدادات الوكيل",
-    "observe": "فريق التسويق ومسؤولياته، وسياسة فصل الاعتماد، وحالة المزوّد «غير مهيّأ»",
+    "observe": "فريق التسويق ومسؤولياته، وسياسة فصل الاعتماد، وإيقاف المساعد المركزي، وحالة مزوّد النصوص (هنا «جاهز · محاكاة» لأنها بيئةٌ محلية)",
     "path": "/marketing/settings",
     "captured": true
   },
@@ -83,8 +123,40 @@
     "file": "11-lead-audit.png",
     "role": "قائد التسويق",
     "action": "سجل الحملة",
-    "observe": "كل حدث بصاحبه ووقته وتفاصيله (الإسناد، والاعتمادات، وفحص الجودة، والنشر، والنتائج)",
-    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46?tab=audit",
+    "observe": "كل حدث بصاحبه ووقته وتفاصيله (الإسناد، والاعتمادات، وفحص الجودة، والفحص النهائي، والنشر، والنتائج)",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh?tab=audit",
+    "captured": true
+  },
+  {
+    "file": "34-lead-archive-section.png",
+    "role": "قائد التسويق",
+    "action": "قسم الأرشفة في حملةٍ منشورة",
+    "observe": "ما يمنع الأرشفة الآن بالاسم («لم تنتهِ مدة الحملة»)؛ وهنا «ملفُّ الأرشيف غير مهيّأ في هذه البيئة» لأن البيئة التجريبية بلا ربطٍ بـ Google Sheets — في المنصة يظهر زر «أرشفة الحملة» حين تزول الموانع",
+    "path": "/marketing/campaigns/cmvq8vbno00h67daoctija75z",
+    "captured": true
+  },
+  {
+    "file": "35-lead-archive-search.png",
+    "role": "قائد التسويق",
+    "action": "صفحة الأرشيف",
+    "observe": "البحث في الحملات المؤرشفة بالنص والفترة والمنصة ونوع المحتوى — يُقرأ من الملف عند البحث وحده",
+    "path": "/marketing/archive",
+    "captured": true
+  },
+  {
+    "file": "36-lead-early-reopen.png",
+    "role": "قائد التسويق",
+    "action": "يفتح التخطيط مبكراً بسببٍ مكتوب",
+    "observe": "فُتح التخطيط وسُجّل السبب والوقت («آخر دورة…»)، وظهر شات التخطيط للمنسّق",
+    "path": "/marketing/campaigns/cmvq8vbks00gc7dao37cp4ils",
+    "captured": true
+  },
+  {
+    "file": "37-lead-planning-chat.png",
+    "role": "قائد التسويق",
+    "action": "يسأل في شات التخطيط",
+    "observe": "السؤال وردّ المساعد محفوظان في محادثة الحملة (الرد هنا «محاكاة» محلية؛ في الإنتاج يكتبه Claude)",
+    "path": "/marketing/campaigns/cmvq8vbks00gc7dao37cp4ils",
     "captured": true
   },
   {
@@ -99,16 +171,16 @@
     "file": "13-ops-plan-decision.png",
     "role": "مسؤول التشغيل",
     "action": "يراجع خطة حملة المعرض",
-    "observe": "اطّلاع على الموجز والخطة وحدهما (بلا تبويبات عمل الفريق)، واعتماد مرحلة القسم، ونموذج قراره",
-    "path": "/marketing/campaigns/cmvp85m0h00717dkabouuz19t",
+    "observe": "اطّلاع على الموجز والخطة والتقويم وحدها (بلا تبويبات عمل الفريق)، واعتماد مرحلة القسم، ونموذج قراره",
+    "path": "/marketing/campaigns/cmvq8vb4o00ca7daox9ul0i58",
     "captured": true
   },
   {
     "file": "14-ops-no-team-work.png",
     "role": "مسؤول التشغيل",
     "action": "يفتح رابط مخرجٍ مباشرةً",
-    "observe": "«غير موجودة» (404): موقعه في الهيكل لا يفتح مسودات الفريق ولا ملفاته. الصفحة هي صفحة Next.js الافتراضية بالإنجليزية — لا صفحة 404 مخصّصة في المنصة",
-    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kol001f7dkau9l5ehtj",
+    "observe": "«غير موجودة» (404): موقعه في الهيكل لا يفتح مسودات الفريق ولا ملفاته",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh/deliverables/cmvq8v92p001f7daoschltyif",
     "captured": true
   },
   {
@@ -116,15 +188,23 @@
     "role": "الرئيس التنفيذي",
     "action": "الاعتماد النهائي لخطة حملة التطوع",
     "observe": "مرحلتا القسم والتشغيل معتمدتان بأسماء أصحابهما، ونموذج المرحلة الأخيرة",
-    "path": "/marketing/campaigns/cmvp85m2l007t7dka0nx49ofx",
+    "path": "/marketing/campaigns/cmvq8vbam00do7daopfdb0sjk",
     "captured": true
   },
   {
     "file": "16-writer-draft-checks.png",
     "role": "كاتب المحتوى",
     "action": "يكتب مسودة التغريدة",
-    "observe": "تنبيهات آلية (رقم بلا مصدر، رابط غير آمن) لا تمنع، ولوحة الاقتراح الآلي «غير مهيّأ» بلا زر طلب — والحفظ لا يقدّم للمراجعة",
-    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kpo001v7dkagq3emned",
+    "observe": "تنبيهات آلية (رقم بلا مصدر، رابط غير آمن) لا تمنع — والحفظ لا يقدّم للمراجعة",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh/deliverables/cmvq8v94d001v7daoehdk2l8d",
+    "captured": true
+  },
+  {
+    "file": "38-writer-chat.png",
+    "role": "كاتب المحتوى",
+    "action": "يسأل في شات الكتابة عن قطعته",
+    "observe": "المساعد يعرف القطعة وموجزها ومرحلتها؛ والرد اقتراحٌ لا يغيّر المسودة ولا يعتمد شيئاً (الرد هنا «محاكاة» محلية)",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh/deliverables/cmvq8v94d001v7daoehdk2l8d",
     "captured": true
   },
   {
@@ -132,7 +212,7 @@
     "role": "كاتب المحتوى",
     "action": "نسخته بانتظار المراجعة",
     "observe": "لا يعتمد ما كتب — يعتمده زميل",
-    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kol001f7dkau9l5ehtj",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh/deliverables/cmvq8v92p001f7daoschltyif",
     "captured": true
   },
   {
@@ -140,7 +220,7 @@
     "role": "كاتب ثانٍ (معتمِد النص)",
     "action": "يعتمد نسخة النص بعينها أو يطلب تعديلاً بسبب",
     "observe": "رقم النسخة وكاتبها، ونموذج القرار",
-    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kol001f7dkau9l5ehtj",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh/deliverables/cmvq8v92p001f7daoschltyif",
     "captured": true
   },
   {
@@ -152,11 +232,35 @@
     "captured": true
   },
   {
+    "file": "39-designer-brief.png",
+    "role": "المصمّم",
+    "action": "موجز التصميم",
+    "observe": "الموجز إلزاميٌّ قبل رفع التصميم: المكان ونوع المخرج والعنوان، وموضع الشعار وحجمه وهامشه، والخطوط والألوان والخلفية والتباين",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh/deliverables/cmvq8v939001j7daod8x2nkqj",
+    "captured": true
+  },
+  {
     "file": "21-designer-brand-upload.png",
     "role": "المصمّم",
     "action": "ملفات الهوية الرسمية ورفع نسخة",
     "observe": "روابط الملفات التي تستعملها المنصة، وفحص المقاس من الملف نفسه، ونسخه السابقة",
-    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kov001j7dkamobht7xr",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh/deliverables/cmvq8v939001j7daod8x2nkqj",
+    "captured": true
+  },
+  {
+    "file": "40-designer-returned.png",
+    "role": "المصمّم",
+    "action": "قطعةٌ أعادها فحص الناشر الأخير",
+    "observe": "البند الذي لم يجتز وملاحظته، و«أُعيد إلى المصمّم» — والقطعة عادت إلى مرحلة التصميم",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh/deliverables/cmvq8v94y00237dao7rcjr1vq",
+    "captured": true
+  },
+  {
+    "file": "41-designer-chat.png",
+    "role": "المصمّم",
+    "action": "يسأل في شات التصميم بعد الإرجاع",
+    "observe": "الشات مفتوح لأن مهمة التصميم أُعيد فتحها؛ وموجز التصميم شرطٌ له (الرد هنا «محاكاة» محلية)",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh/deliverables/cmvq8v94y00237dao7rcjr1vq",
     "captured": true
   },
   {
@@ -164,7 +268,7 @@
     "role": "مصمّم ثانٍ (معتمِد التصميم)",
     "action": "يراجع التصميم في معاينته",
     "observe": "المعاينة بالمقاس الحقيقي ومنطقة الأمان، ونموذج اعتماد النسخة",
-    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kov001j7dkamobht7xr",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh/deliverables/cmvq8v939001j7daod8x2nkqj",
     "captured": true
   },
   {
@@ -172,15 +276,31 @@
     "role": "مراجع الجودة",
     "action": "يسجّل فحص الجودة",
     "observe": "تسعة بنود على نسختي النص والتصميم بعينهما — والفشل يتطلب ملاحظة",
-    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kp5001n7dka90horopl",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh/deliverables/cmvq8v93m001n7dao4aigacxn",
+    "captured": true
+  },
+  {
+    "file": "44-publisher-final-check.png",
+    "role": "مسؤول النشر",
+    "action": "فحص الناشر الأخير قبل النشر",
+    "observe": "سبعة بنود على النص والتصميم الحاليين؛ وما لا يجتاز يعود إلى صاحبه (النص إلى الكاتب، التصميم إلى المصمّم، الجدولة إلى القائد) — ولا نموذج نشرٍ قبل اجتيازه",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh/deliverables/cmvq8v940001r7dao27erv6fz",
+    "captured": true
+  },
+  {
+    "file": "42-publisher-chat.png",
+    "role": "مسؤول النشر",
+    "action": "يسأل في شات النشر",
+    "observe": "المساعد يعرف المنصة وموعد النشر المعتمد (الرد هنا «محاكاة» محلية)",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh/deliverables/cmvq8v940001r7dao27erv6fz",
     "captured": true
   },
   {
     "file": "24-publisher-form.png",
     "role": "مسؤول النشر",
-    "action": "نموذج تسجيل النشر اليدوي",
-    "observe": "الرابط والوقت وتأكيد رؤيته حياً — والنشر نفسه يتم على المنصة يدوياً",
-    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kpf001r7dkar8xyvrcg",
+    "action": "يجتاز الفحص الأخير فيظهر نموذج تسجيل النشر",
+    "observe": "الرابط والوقت والمنطقة الزمنية والملاحظات وتأكيد رؤيته حياً — والنشر نفسه يتم على المنصة يدوياً",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh/deliverables/cmvq8v940001r7dao27erv6fz",
     "captured": true
   },
   {
@@ -188,7 +308,7 @@
     "role": "مسؤول النشر",
     "action": "يحاول تسجيل رابطٍ ليس على لينكدإن",
     "observe": "رفض الخادم برسالة واضحة، وما كُتب في النموذج لم يُمحَ",
-    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kpf001r7dkar8xyvrcg",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh/deliverables/cmvq8v940001r7dao27erv6fz",
     "captured": true
   },
   {
@@ -196,7 +316,7 @@
     "role": "مسؤول النشر",
     "action": "منشور مسجَّل بدليله ونتائجه",
     "observe": "الرابط والوقت وصاحب التسجيل، والنتائج بمصدرها وتاريخها (بيانات فحص محلية)",
-    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kpw001z7dkak5ci0f0n",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh/deliverables/cmvq8v94n001z7daohxqr45aw",
     "captured": true
   },
   {
@@ -205,14 +325,14 @@
     "action": "يفتح /marketing",
     "observe": "غير متاح: لا بند في القائمة ولا صفحة",
     "captured": false,
-    "reason": "يتطلب جلسة المؤسس الحقيقية — لم تُستخدم في الصور؛ المنع مثبتٌ بفحوص الخادم والمتصفح (check-marketing.mjs)"
+    "reason": "يتطلب جلسة المؤسس — لم تُستخدم في الصور؛ المنع مثبتٌ بفحوص الخادم والمتصفح (check-marketing.mjs)"
   },
   {
     "file": "28-mobile-deliverable.png",
     "role": "كاتب المحتوى (جوال)",
     "action": "صفحة المخرج على الجوال",
     "observe": "بلا تمرير أفقي؛ الأقسام بالترتيب نفسه",
-    "path": "/marketing/campaigns/cmvp85knj00157dka7i03bv46/deliverables/cmvp85kol001f7dkau9l5ehtj",
+    "path": "/marketing/campaigns/cmvq8v91d00157daowi6nd1qh/deliverables/cmvq8v92p001f7daoschltyif",
     "captured": true
   }
 ]

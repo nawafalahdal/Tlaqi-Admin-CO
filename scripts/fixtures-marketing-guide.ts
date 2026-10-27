@@ -11,6 +11,8 @@ import { uploadDesign, submitDesign, decideDesign } from "@/lib/marketing/design
 import { sendToQuality, recordQuality, recordPublication, recordResults, QUALITY_ITEMS } from "@/lib/marketing/review";
 import { createTask, addComment } from "@/lib/marketing/tasks";
 import { submitPlan, decidePlan } from "@/lib/marketing/plan";
+import { updatePieceSchedule } from "@/lib/marketing/schedule";
+import { recordFinalCheck, FINAL_ITEMS } from "@/lib/marketing/review";
 import { completePlanForTest, finalCheckForTest } from "./marketing-plan-fixture";
 
 /** بياناتُ صور دليل القيادة — على القاعدة المحلية وحدها، بحساباتٍ تجريبيةٍ مؤقّتة.
@@ -23,6 +25,10 @@ import { completePlanForTest, finalCheckForTest } from "./marketing-plan-fixture
  *  - «حملة الإطلاق»: قيد التنفيذ، بستة مخرجاتٍ في مراحل مختلفة ومهامَّ بعضُها بلا مسنَد.
  *  - «حملة المعرض»: خطتُها تنتظر مسؤولَ التشغيل. «حملة التطوع»: تنتظر الرئيسَ التنفيذي.
  *  - «حملة الأسبوع الأول»: ردّها مسؤولُ التشغيل بسبب. «حملة داخلية»: موجزٌ ناقص.
+ *  - «حملة رمضان»: جاهزةٌ للتخطيط وخطتُها ناقصة (تُعرض نواقصُها ولا تُقدَّم).
+ *  - «حملة اليوم الوطني»: نُشرت قطعتُها فصارت «منشورة» — قسمُ الأرشفة بما يمنعها بعد.
+ *  وفي «حملة الإطلاق» بعد الاعتماد: تعديلُ موعدٍ بسببٍ مكتوب (سجلُّ التقويم)، وقطعةٌ ردّها فحصُ
+ *  الناشر الأخير إلى المصمّم. وقيمُ الخطة هنا واقعيةٌ للصور لا قيمُ `completePlanForTest`.
  *  والنشرُ المسجَّل والنتائجُ بياناتُ فحصٍ محلية — لا منشورَ حقيقيّ ولا أرقامَ حقيقية.
  *
  *    npx tsx --env-file=.env scripts/fixtures-marketing-guide.ts setup <totpSecret> | teardown */
@@ -128,13 +134,28 @@ async function setup(totpSecret: string) {
         audience: "طلاب الجامعات في الرياض",
         keyMessage: "نلتقي · نفكّر · نصنع",
         deadline: new Date(Date.now() + 14 * DAY),
+        startDate: new Date(Date.now() - 2 * DAY),
         channels: ["instagram"],
+        description: "حملةٌ قصيرةٌ للتعريف بالمنصة وأنشطتها.",
+        outcomes: "تسجيلاتُ اهتمامٍ جديدة، وزيارةُ صفحة الانضمام",
+        audienceSegments: "طلابُ السنة الأولى، وأعضاءُ الأندية الطلابية",
+        kpis: [
+          { name: "الوصول", target: "5000", unit: "حساب", source: "Instagram Insights" },
+          { name: "تسجيلات الاهتمام", target: "150", unit: "تسجيل", source: "نموذج الانضمام" },
+        ],
+        measurement: "أرقامُ المنصات بعد أسبوعٍ من آخر منشور، ونموذجُ الانضمام",
+        risks: "تزامنُ الحملة مع الاختبارات — تُخفَّف بمنشوراتٍ قصيرة",
+        budgetNote: "بلا ميزانيةٍ مدفوعة — نشرٌ عضوي",
         ...extra,
       }),
       `brief ${name}`
     );
   }
   const stages = [[lead, "department"], [ops, "operations"], [ceo, "executive"]] as const;
+  /** فريقُ الحملة: لا تُقدَّم خطةٌ بلا كاتبٍ ومصمّمٍ لكل قطعة (`plan_incomplete`) */
+  async function team(id: string, keys: (keyof typeof caps)[] = ["writer", "writer2", "designer", "designer2", "reviewer", "publisher"]) {
+    for (const k of keys) must(await addCampaignMember(lead, id, { marketingMemberId: M[k], role: caps[k][0] }), `team ${id} ${k}`);
+  }
   async function plan(id: string, upTo: number, note = "خطة الحملة") {
     // الخطةُ تُقدَّم مكتملةً وإلا رُدّت (`plan_incomplete`) — يُكمل الفحصُ ناقصَها بقيمٍ للفحص
     await completePlanForTest(lead, id);
@@ -155,11 +176,20 @@ async function setup(totpSecret: string) {
     linkedin: await del("إعلان لينكدإن", "linkedin", "landscape"),
     tweet: await del("تغريدة الإعلان", "x", "landscape"),
     week: await del("منشور الأسبوع الأول", "instagram", "square"),
+    faq: await del("منشور الأسئلة الشائعة", "instagram", "portrait"),
   };
   must(await transitionCampaign(lead, c1, "ready_for_planning"), "c1 planning");
-  for (const [k, role] of [["writer", "writer"], ["writer2", "writer"], ["designer", "designer"], ["designer2", "designer"], ["reviewer", "reviewer"], ["publisher", "publisher"]] as const) {
-    must(await addCampaignMember(lead, c1, { marketingMemberId: M[k], role }), `c1 ${k}`);
-  }
+  await team(c1);
+  const topics: [string, string, string, string][] = [
+    [d.story, "story", "تعريفٌ بالمنصة في ١٥ ثانية", "اسحب للأعلى"],
+    [d.square, "post", "ما هي تَـــلاقِ؟", "تابع الحساب"],
+    [d.portrait, "post", "فكرةٌ واحدة تكفي لتبدأ", "سجّل اهتمامك"],
+    [d.linkedin, "announcement", "فتحُ باب التطوع", "سجّل من الرابط"],
+    [d.tweet, "announcement", "إعلانُ الانضمام", "الرابط في الحساب"],
+    [d.week, "post", "حصادُ الأسبوع الأول", "شاركنا رأيك"],
+    [d.faq, "carousel", "أسئلةُ المنضمّين الجدد", "اسأل في التعليقات"],
+  ];
+  for (const [id, contentType, topic, cta] of topics) must(await updatePieceSchedule(lead, id, { contentType, topic, cta }), `topic ${topic}`);
   await plan(c1, 3, "الخطة الأولى للإطلاق");
   must(await transitionCampaign(lead, c1, "in_progress"), "c1 go");
 
@@ -208,6 +238,28 @@ async function setup(totpSecret: string) {
   );
   must(await recordResults(publisher, pub.publicationId, { metrics: { reach: 1200, impressions: 1850, engagements: 140, saves: 22 }, asOf: new Date(Date.now() + 1_000), source: "لوحة إحصاءات الحساب — بيانات فحص محلية" }), "results");
 
+  // منشور الأسئلة: اجتاز الجودة، وردّه فحصُ الناشر الأخير إلى المصمّم (التصميمُ لا يطابق النص)
+  const fv = await copy(d.faq, "أسئلتكم عن الانضمام إلى تَـــلاقِ — في خمس بطاقات.");
+  const fd = await design(d.faq, 1080, 1350, "faq");
+  must(await sendToQuality(designer, d.faq), "faq quality");
+  must(await recordQuality(reviewer, d.faq, { contentVersionId: fv, designVersionId: fd, items: allPass }), "faq pass");
+  const fail = must(
+    await recordFinalCheck(publisher, d.faq, {
+      contentVersionId: fv, designVersionId: fd,
+      items: FINAL_ITEMS.map((key) => (key === "design_matches_text" ? { key, passed: false, note: "عنوانُ البطاقة الأولى في التصميم غيرُ عنوان النص المعتمد" } : { key, passed: true })),
+      note: "يُعاد إلى المصمّم لتوحيد العنوان",
+    }),
+    "faq final"
+  );
+  if (fail.passed || fail.returnedTo !== "design") throw new Error(`faq final: ${JSON.stringify(fail)}`);
+
+  // تعديلُ موعدٍ تحت التنفيذ: لقائد التسويق وحده، بسببٍ مكتوبٍ يُسجَّل بأصله وجديده
+  const li = await prisma.marketingDeliverable.findUniqueOrThrow({ where: { id: d.linkedin }, select: { publishAt: true } });
+  must(
+    await updatePieceSchedule(lead, d.linkedin, { publishAt: new Date((li.publishAt ?? new Date()).getTime() + DAY), reason: "تأجيلُ يومٍ ليتزامن الإعلانُ مع افتتاح التسجيل" }),
+    "li reschedule"
+  );
+
   // مهامّ: بعضُها مسنَد، وبعضُها بلا مسنَد (يظهر لها اقتراح)، وواحدةٌ متأخرة، وأخرى تنتظر غيرها
   const t1 = must(await createTask(lead, c1, { title: "نص ستوري الإطلاق", kind: "content", deliverableId: d.story, assigneeId: M.writer, dueAt: new Date(Date.now() + 2 * DAY), priority: "high" }), "t1").taskId;
   must(await createTask(lead, c1, { title: "تصميم ستوري الإطلاق", kind: "design", deliverableId: d.story, dependsOn: [t1], dueAt: new Date(Date.now() + 4 * DAY) }), "t2");
@@ -224,6 +276,7 @@ async function setup(totpSecret: string) {
   must(await createDeliverable(lead, c2, { title: "منشور الدعوة", platform: "instagram", formatKey: "square" }), "c2 d");
   must(await createDeliverable(lead, c2, { title: "ستوري العدّ التنازلي", platform: "instagram", formatKey: "story" }), "c2 d2");
   must(await transitionCampaign(lead, c2, "ready_for_planning"), "c2 planning");
+  await team(c2, ["writer", "designer"]);
   await plan(c2, 1, "منشوران قبل المعرض بأسبوع");
 
   // «حملة التطوع»: تنتظر الرئيسَ التنفيذي
@@ -232,6 +285,7 @@ async function setup(totpSecret: string) {
   await brief(c3, V, { objective: "استقطاب متطوعين لفريق التنظيم", audience: "طلاب السنتين الثانية والثالثة", keyMessage: "نصنع الحدث معاً", channels: ["instagram", "linkedin"] });
   must(await createDeliverable(lead, c3, { title: "إعلان التطوع", platform: "linkedin", formatKey: "landscape" }), "c3 d");
   must(await transitionCampaign(lead, c3, "ready_for_planning"), "c3 planning");
+  await team(c3, ["writer", "designer"]);
   await plan(c3, 2, "إعلانٌ واحدٌ على لينكدإن");
 
   // «حملة الأسبوع الأول»: ردّها مسؤولُ التشغيل بسبب
@@ -240,6 +294,7 @@ async function setup(totpSecret: string) {
   await brief(c4, W, { objective: "تعريف المنضمّين الجدد بالأنشطة", deadline: new Date(Date.now() + 5 * DAY) });
   must(await createDeliverable(lead, c4, { title: "منشور الترحيب", platform: "instagram", formatKey: "portrait" }), "c4 d");
   must(await transitionCampaign(lead, c4, "ready_for_planning"), "c4 planning");
+  await team(c4, ["writer", "designer"]);
   const pv = await plan(c4, 1, "منشور ترحيبٍ واحد");
   must(await decidePlan(ops, c4, { planVersionId: pv, stage: "operations", decision: "changes_requested", note: "الموعد قريبٌ جداً — أضيفوا أسبوعاً للتصميم والمراجعة." }), "c4 return");
 
@@ -248,7 +303,35 @@ async function setup(totpSecret: string) {
   const c5 = must(await createCampaign(lead, { name: I }), "c5").campaignId;
   await transitionCampaign(lead, c5, "briefing");
 
-  console.log(JSON.stringify({ c1, c2, c3, c4, c5, ...d }));
+  // «حملة رمضان»: جاهزةٌ للتخطيط وخطتُها ناقصة — لا كاتبَ ولا مواعيد لقطعتها الثانية
+  const R = `حملة رمضان${SUFFIX}`;
+  const c6 = must(await createCampaign(lead, { name: R }), "c6").campaignId;
+  await brief(c6, R, { objective: "محتوى يوميٌّ قصيرٌ في رمضان", keyMessage: "نلتقي على الخير", deadline: new Date(Date.now() + 40 * DAY), kpis: [], risks: undefined, measurement: undefined });
+  const r1 = must(await createDeliverable(lead, c6, { title: "بطاقة اليوم", platform: "instagram", formatKey: "square" }), "c6 d1").deliverableId;
+  must(await createDeliverable(lead, c6, { title: "ستوري السحور", platform: "instagram", formatKey: "story" }), "c6 d2");
+  must(await transitionCampaign(lead, c6, "ready_for_planning"), "c6 planning");
+  await team(c6, ["writer", "designer"]);
+  must(await updatePieceSchedule(lead, r1, { contentType: "post", topic: "رسالة اليوم", message: "نلتقي على الخير", writerId: M.writer, designerId: M.designer }), "c6 piece");
+
+  // «حملة اليوم الوطني»: قطعةٌ واحدة مرّت بالدورة كلها فنُشرت — فصارت الحملةُ «منشورة».
+  // وهي آخرُ ما يُعتمد، فتحكم دورةَ التخطيط: موعدُها بعد أكثر من سبعة أيام يُبقي التخطيطَ مغلقاً
+  // (موعدُ الفتح = النهاية − ٧ أيام)، فتُصوَّر رسالةُ الإغلاق ثم الفتحُ المبكر.
+  const N = `حملة اليوم الوطني${SUFFIX}`;
+  const c7 = must(await createCampaign(lead, { name: N }), "c7").campaignId;
+  await brief(c7, N, { objective: "تهنئةُ اليوم الوطني", keyMessage: "نعتزّ ونصنع", deadline: new Date(Date.now() + 12 * DAY) });
+  const n1 = must(await createDeliverable(lead, c7, { title: "تهنئة اليوم الوطني", platform: "instagram", formatKey: "square" }), "c7 d").deliverableId;
+  must(await transitionCampaign(lead, c7, "ready_for_planning"), "c7 planning");
+  await team(c7);
+  await plan(c7, 3, "تهنئةٌ واحدة");
+  must(await transitionCampaign(lead, c7, "in_progress"), "c7 go");
+  const nv = await copy(n1, "كل عامٍ والوطنُ بخير — نعتزّ ونصنع.");
+  const nd = await design(n1, 1080, 1080, "national");
+  must(await sendToQuality(designer, n1), "c7 quality");
+  must(await recordQuality(reviewer, n1, { contentVersionId: nv, designVersionId: nd, items: allPass }), "c7 pass");
+  await finalCheckForTest(publisher, n1);
+  must(await recordPublication(publisher, n1, { url: "https://www.instagram.com/p/TLAQI-national-test/", publishedAt: new Date(), confirmedLive: true, requestId: "guide-national" }), "c7 publish");
+
+  console.log(JSON.stringify({ c1, c2, c3, c4, c5, c6, c7, ...d, national: n1 }));
 }
 
 const cmd = process.argv[2];
