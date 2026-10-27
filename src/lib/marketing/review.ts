@@ -3,8 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { campaignAccess, requireCampaignRole, type MkActor } from "./access";
 import { logEvent } from "./audit";
 import { completeIfAllPublished } from "./campaigns";
-import { deliverableFacts, loadDeliverable, publishBlockers, reopenTasks, requireWorkable, writeDeliverable } from "./deliverables";
+import { checksPass, deliverableFacts, loadDeliverable, publicationBlockers, publishBlockers, reopenTasks, requireWorkable, writeDeliverable } from "./deliverables";
 import { abort, fail, guarded, isUniqueViolation, type MkResult } from "./result";
+import { assertNotArchiving } from "./archiveGuard";
 
 /** فحصُ الجودة والنشر.
  *
@@ -118,6 +119,83 @@ export async function recordQuality(
   });
 }
 
+/** بنودُ فحص الناشر الأخير — ما يُرى بالعين على الزوج النهائي. وما يُحسب لا يُسأل عنه: اكتمالُ
+ *  الاعتمادات وأنه لا نسخةَ أحدث أبطلتها يعيد الخادمُ فحصهما ويحفظهما مع البنود (`auto`)، ونتيجةُ
+ *  فحص المقاس الآلي تُحفظ كما هي — والبندُ «الأبعاد» تأكيدُ الناشر بالنظر، لا ادّعاءُ فحصٍ لم يقع. */
+export const FINAL_ITEMS = ["text_fit", "wording_links", "claims_documented", "design_matches_text", "official_identity", "dimensions", "platform_schedule"] as const;
+export type FinalItemKey = (typeof FINAL_ITEMS)[number];
+const FINAL_CONTENT: FinalItemKey[] = ["text_fit", "wording_links", "claims_documented"];
+const FINAL_DESIGN: FinalItemKey[] = ["design_matches_text", "official_identity", "dimensions"];
+
+/** فحصُ الناشر الأخير: النصُّ والتصميمُ النهائيّان معاً قبل النشر، على الزوج الحاليّ بعينه.
+ *
+ *  - ينجح ← يُسمح بالنشر (ولا نشرَ بدونه: `publicationBlockers`).
+ *  - يفشل في النص ← يعود إلى الكاتب؛ في التصميم وحده ← إلى المصمّم؛ وفيهما معاً ← إلى الكاتب أولاً
+ *    (والتصميمُ المبنيُّ على نصٍّ سابق يسقط حين تُقدَّم النسخةُ الجديدة، فيعود إلى المصمّم بعده).
+ *  - يفشل في المنصة أو الموعد وحدهما ← لا يعود إلى أحدٍ منهما: تعديلُ الموعد لقائد التسويق، ثم يُعاد الفحص.
+ *  وبعد الإصلاح يُعاد ما يلزم: مراجعةُ النسخة الجديدة، ثم الجودة، ثم هذا الفحص. */
+export async function recordFinalCheck(
+  actor: MkActor,
+  deliverableId: string,
+  input: { contentVersionId: string; designVersionId: string; items: { key: string; passed: boolean; note?: string }[]; note?: string }
+): Promise<MkResult<{ passed: boolean; returnedTo: string | null }>> {
+  return guarded(async () => {
+    const byKey = new Map(input.items.map((i) => [i.key, i]));
+    const items = FINAL_ITEMS.map((key) => {
+      const i = byKey.get(key);
+      if (!i) abort("invalid_input", { field: key });
+      return { key, passed: !!i.passed, note: i.note?.trim().slice(0, 500) || null };
+    });
+    const passed = items.every((i) => i.passed);
+    const note = input.note?.trim().slice(0, 1000) || null;
+    if (!passed && !note) return fail("invalid_input", { field: "note" });
+    const failed = (keys: FinalItemKey[]) => items.some((i) => !i.passed && keys.includes(i.key));
+    const returnedTo = passed ? null : failed(FINAL_CONTENT) ? "content" : failed(FINAL_DESIGN) ? "design" : "schedule";
+
+    return prisma.$transaction(async (tx) => {
+      const d = await loadDeliverable(tx, deliverableId);
+      const { memberId } = await requireCampaignRole(actor, d.campaignId, "publisher", tx);
+      requireWorkable(d);
+      if (d.status !== "ready_to_publish") abort("invalid_state", { from: d.status });
+      if (d.currentContentVersion?.id !== input.contentVersionId || d.currentDesignVersion?.id !== input.designVersionId) abort("version_not_current");
+      const blockers = publishBlockers(await deliverableFacts(tx, d.id));
+      if (blockers.length) abort("quality_not_passed", { missing: blockers.join(",") });
+      const auto = [
+        { key: "approvals_current", passed: true, auto: true },
+        { key: "design_auto_checks", passed: checksPass(d.currentDesignVersion?.checks), auto: true },
+      ];
+      await tx.marketingFinalCheck.create({
+        data: {
+          deliverableId: d.id,
+          contentVersionId: input.contentVersionId,
+          designVersionId: input.designVersionId,
+          items: [...items, ...auto] as Prisma.InputJsonValue,
+          passed,
+          returnedTo,
+          note,
+          publisherId: memberId,
+        },
+      });
+      if (returnedTo === "content" || returnedTo === "design") {
+        await writeDeliverable(tx, d, { status: "revision_required", revisionTarget: returnedTo, revisionNote: note });
+        await reopenTasks(tx, actor, d, returnedTo);
+      }
+      await logEvent(tx, actor, {
+        action: passed ? "final_check.passed" : "final_check.failed",
+        campaignId: d.campaignId,
+        deliverableId: d.id,
+        details: {
+          content: d.currentContentVersion?.number ?? 0,
+          design: d.currentDesignVersion?.number ?? 0,
+          failed: items.filter((i) => !i.passed).map((i) => i.key),
+          ...(returnedTo ? { returnedTo } : {}),
+        },
+      });
+      return { ok: true as const, passed, returnedTo };
+    });
+  });
+}
+
 function validUrl(raw: string): string | null {
   try {
     const u = new URL(raw.trim());
@@ -152,7 +230,7 @@ export function urlMatchesPlatform(url: string, platform: string): boolean {
 export async function recordPublication(
   actor: MkActor,
   deliverableId: string,
-  input: { url: string; publishedAt: string | Date; confirmedLive: boolean; requestId?: string }
+  input: { url: string; publishedAt: string | Date; confirmedLive: boolean; requestId?: string; timezone?: string; notes?: string }
 ): Promise<MkResult<{ publicationId: string; duplicate?: boolean }>> {
   return guarded(async () => {
     const key = input.requestId?.slice(0, 80) || null;
@@ -173,7 +251,8 @@ export async function recordPublication(
         const { memberId } = await requireCampaignRole(actor, d.campaignId, "publisher", tx);
         requireWorkable(d);
         if (d.status !== "ready_to_publish") abort("invalid_state", { from: d.status });
-        const blockers = publishBlockers(await deliverableFacts(tx, d.id));
+        // الجاهزيةُ وفحصُ الناشر الأخير على الزوج الحاليّ — يُعاد فحصُهما هنا لا يُفترض
+        const blockers = publicationBlockers(await deliverableFacts(tx, d.id));
         if (blockers.length) abort("quality_not_passed", { missing: blockers.join(",") });
         // لا نشرَ قبل وجود المخرج — بدقّة الدقيقة كما يُدخل الوقتُ في النموذج، وإلا رُفض
         // نشرٌ سُجّل في دقيقة إنشاء المخرج نفسها (القيمةُ الافتراضية مقطوعةُ الثواني)
@@ -191,6 +270,9 @@ export async function recordPublication(
             verifiedAt: new Date(),
             publisherId: memberId,
             idempotencyKey: key,
+            // الوقتُ يُدخل بتوقيت المنصة — يُحفظ ذلك صراحةً مع الوقت نفسه (UTC)
+            timezone: input.timezone?.trim().slice(0, 60) || "Asia/Riyadh",
+            notes: input.notes?.trim().slice(0, 1000) || null,
           },
           select: { id: true },
         });
@@ -240,6 +322,8 @@ export async function recordResults(
     const source = input.source?.trim().slice(0, 200);
     if (!source) return fail("invalid_input", { field: "source" });
     await prisma.$transaction(async (tx) => {
+      // ما يُؤرشف الآن لا يتغيّر تحته — وإلا اختلف الشيتُ عن مصدره
+      await assertNotArchiving(tx, pub.deliverable.campaignId);
       await tx.marketingPublication.update({ where: { id: pub.id }, data: { metrics, metricsAsOf: asOf, metricsSource: source } });
       await logEvent(tx, actor, {
         action: "publication.results_recorded",

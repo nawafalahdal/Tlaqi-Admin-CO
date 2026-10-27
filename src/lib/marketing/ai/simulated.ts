@@ -24,5 +24,13 @@ export function simulatedProvider(): TextProvider {
         })),
       };
     },
+    async chat(req) {
+      // يُعيد ما يعرفه من السياق بطوله وحده — فيُختبر الحدُّ والمسارُ بلا مزوّدٍ ولا تكلفة
+      const turns = req.history.length;
+      return {
+        model: "simulated",
+        text: `${SIMULATED_MARK} استلمتُ رسالتك (${req.message.length} حرفاً) في سياقٍ من ${req.context.length} حرفاً بعد ${turns} رسالةٍ سابقة. هذا ردٌّ آليٌّ للاختبار المحلي — لا يُعتمد عليه.`,
+      };
+    },
   };
 }

@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { campaignAccess, requireCampaignRole, type MkActor } from "./access";
 import { logEvent } from "./audit";
 import { abort, fail, guarded, isUniqueViolation, type MkResult } from "./result";
+import { campaignPlanGaps, gapKeys } from "./schedule";
+import { closePlanningForApproval } from "./planningCycle";
 
 /** خطةُ الحملة وسلسلةُ اعتمادها — يفرضها الخادم، والواجهةُ تعرضها فقط.
  *
@@ -28,34 +30,72 @@ export function planEditable(c: { status: MarketingCampaignStatus; statusBeforeB
   return EDITABLE.includes(c.status) || (c.status === "blocked" && !!c.statusBeforeBlock && EDITABLE.includes(c.statusBeforeBlock));
 }
 
-/** ما يُعتمد: الموجز ونطاقُ المخرجات (عنوانُ كلٍّ ومنصته). والمقاسُ تفصيلُ تنفيذٍ لا نطاق */
+/** ما يُعتمد — بصمتان:
+ *  - **النطاق** (`fingerprint`): الموجزُ والخطةُ التنفيذية (الهدفُ والنتائجُ والجمهورُ والمؤشراتُ
+ *    والقياسُ والمخاطرُ والتاريخان…) وقطعُ المحتوى بنوعها وموضوعها ورسالتها. تغيّرُها في أي
+ *    وقتٍ يعني أن الاعتمادَ لم يعد لهذا.
+ *  - **التقويم** (`scheduleFingerprint`): مواعيدُ كلِّ قطعةٍ ومسؤولاها. يُبطل النسخةَ قبل التنفيذ؛
+ *    وتحته يُعدَّل بسجلٍّ وسببٍ (`schedule.ts`) ولا يُوقف التنفيذ.
+ *  والمقاسُ تفصيلُ تنفيذٍ لا نطاق. والصورةُ المحفوظةُ في النسخة تحمل الاثنين معاً — فهي الخطةُ
+ *  الرسمية وتقويمُها كما اعتُمدا. */
 async function planContent(db: Tx | typeof prisma, campaignId: string) {
   const c = await db.marketingCampaign.findUniqueOrThrow({
     where: { id: campaignId },
     select: {
-      name: true, description: true, objective: true, audience: true, keyMessage: true, channels: true, deadline: true, priority: true,
-      deliverables: { orderBy: { createdAt: "asc" }, select: { id: true, title: true, platform: true } },
+      name: true, description: true, objective: true, outcomes: true, audience: true, audienceSegments: true, keyMessage: true,
+      channels: true, startDate: true, deadline: true, priority: true, budgetAmount: true, budgetNote: true, kpis: true,
+      measurement: true, references: true, risks: true, timezone: true,
+      deliverables: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true, title: true, platform: true, contentType: true, topic: true, message: true, cta: true, kpi: true,
+          writerId: true, designerId: true, contentDueAt: true, designDueAt: true, reviewDueAt: true, publishAt: true, publishBasis: true,
+        },
+      },
     },
   });
-  const snapshot = {
+  const iso = (d: Date | null) => d?.toISOString() ?? null;
+  const scope = {
     name: c.name,
     description: c.description,
     objective: c.objective,
+    outcomes: c.outcomes,
     audience: c.audience,
+    audienceSegments: c.audienceSegments,
     keyMessage: c.keyMessage,
     channels: [...c.channels].sort(),
-    deadline: c.deadline?.toISOString() ?? null,
+    startDate: iso(c.startDate),
+    deadline: iso(c.deadline),
     priority: c.priority,
-    deliverables: c.deliverables.map((d) => ({ id: d.id, title: d.title, platform: d.platform })),
+    budgetAmount: c.budgetAmount,
+    budgetNote: c.budgetNote,
+    kpis: c.kpis ?? null,
+    measurement: c.measurement,
+    references: c.references,
+    risks: c.risks,
+    timezone: c.timezone,
+    deliverables: c.deliverables.map((d) => ({ id: d.id, title: d.title, platform: d.platform, contentType: d.contentType, topic: d.topic, message: d.message, cta: d.cta, kpi: d.kpi })),
   };
-  const fingerprint = createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
-  return { snapshot, fingerprint };
+  const schedule = c.deliverables.map((d) => ({
+    id: d.id, writerId: d.writerId, designerId: d.designerId, contentDueAt: iso(d.contentDueAt), designDueAt: iso(d.designDueAt),
+    reviewDueAt: iso(d.reviewDueAt), publishAt: iso(d.publishAt), publishBasis: d.publishBasis,
+  }));
+  const hash = (v: unknown) => createHash("sha256").update(JSON.stringify(v)).digest("hex");
+  return { snapshot: { ...scope, schedule }, fingerprint: hash(scope), scheduleFingerprint: hash(schedule) };
+}
+
+/** النسخةُ تطابق الحملةَ الآن؟ — النطاقُ دائماً، والتقويمُ ما لم يُطلب تجاهلُه (تحت التنفيذ).
+ *  ونسخةٌ قديمةٌ بلا بصمة تقويمٍ لا يُحكم عليها بها. */
+function matches(v: { fingerprint: string; scheduleFingerprint: string | null }, now: { fingerprint: string; scheduleFingerprint: string }, withSchedule: boolean) {
+  if (v.fingerprint !== now.fingerprint) return false;
+  return !withSchedule || v.scheduleFingerprint === null || v.scheduleFingerprint === now.scheduleFingerprint;
 }
 
 const versionSelect = {
   id: true,
   number: true,
   fingerprint: true,
+  scheduleFingerprint: true,
   invalidatedAt: true,
   decisions: { select: { stage: true, decision: true } },
 } as const;
@@ -82,8 +122,7 @@ export async function invalidatePlanIfChanged(tx: Tx, actor: MkActor, campaignId
   const c = await tx.marketingCampaign.findUniqueOrThrow({ where: { id: campaignId }, select: { currentPlanVersion: { select: versionSelect } } });
   const v = c.currentPlanVersion;
   if (!v || v.invalidatedAt) return false;
-  const { fingerprint } = await planContent(tx, campaignId);
-  if (fingerprint === v.fingerprint) return false;
+  if (matches(v, await planContent(tx, campaignId), true)) return false;
   await tx.marketingPlanVersion.update({ where: { id: v.id }, data: { invalidatedAt: new Date(), invalidatedReason: "plan_changed" } });
   await logEvent(tx, actor, { action: "plan.invalidated", campaignId, details: { version: v.number, reason: "plan_changed" } });
   return true;
@@ -94,8 +133,8 @@ export async function assertPlanApproved(tx: Tx, campaignId: string) {
   const c = await tx.marketingCampaign.findUniqueOrThrow({ where: { id: campaignId }, select: { currentPlanVersion: { select: versionSelect } } });
   const v = c.currentPlanVersion;
   if (!fullyApproved(v)) abort("plan_not_approved");
-  const { fingerprint } = await planContent(tx, campaignId);
-  if (fingerprint !== v!.fingerprint) abort("plan_stale");
+  // تحت التنفيذ تتغيّر المواعيدُ بسجلّها (`schedule.ts`) — والنطاقُ وحده شرطُ الاعتماد
+  if (!matches(v!, await planContent(tx, campaignId), false)) abort("plan_stale");
 }
 
 export async function submitPlan(actor: MkActor, campaignId: string, input: { note?: string } = {}): Promise<MkResult<{ planVersionId: string; number: number }>> {
@@ -108,11 +147,15 @@ export async function submitPlan(actor: MkActor, campaignId: string, input: { no
       });
       // تُقدَّم الخطةُ بعد اكتمال الموجز (`ready_for_planning` يشترطه) وقبل التنفيذ
       if (c.status !== "ready_for_planning") abort("invalid_state", { from: c.status });
-      const { snapshot, fingerprint } = await planContent(tx, campaignId);
+      // لا تُقدَّم خطةٌ ناقصة — المسودةُ تُحفظ ناقصة، والتقديمُ يُرفض بما نقص
+      const gaps = await campaignPlanGaps(tx, campaignId);
+      if (gaps.length) abort("plan_incomplete", { missing: gapKeys(gaps), count: gaps.length });
+      const content = await planContent(tx, campaignId);
+      const { snapshot, fingerprint, scheduleFingerprint } = content;
       const current = c.currentPlanVersion;
       if (current && !current.invalidatedAt) {
         // نسخةٌ قائمةٌ تطابق الحملة: لا تقديمَ ثانٍ يمحو مراحلها
-        if (current.fingerprint === fingerprint) abort("plan_live");
+        if (matches(current, content, true)) abort("plan_live");
         await tx.marketingPlanVersion.update({ where: { id: current.id }, data: { invalidatedAt: new Date(), invalidatedReason: "plan_changed" } });
       }
       const number = (current?.number ?? 0) + 1;
@@ -122,6 +165,7 @@ export async function submitPlan(actor: MkActor, campaignId: string, input: { no
           number,
           snapshot: snapshot as Prisma.InputJsonValue,
           fingerprint,
+          scheduleFingerprint,
           note: input.note?.trim().slice(0, 1000) || null,
           submittedById: memberId,
         },
@@ -172,8 +216,7 @@ export async function decidePlan(
       const v = c.currentPlanVersion;
       if (!v || v.id !== input.planVersionId) abort("version_not_current");
       if (v.invalidatedAt) abort("plan_stale");
-      const { fingerprint } = await planContent(tx, campaignId);
-      if (fingerprint !== v.fingerprint) abort("plan_stale");
+      if (!matches(v, await planContent(tx, campaignId), true)) abort("plan_stale");
       // الترتيب: هذه المرحلةُ هي التالية بعينها — لا قبلها ولا بعدها، ولا تُقرَّر مرتين
       if (nextStage(v) !== stage) abort("invalid_state", { from: `plan_${nextStage(v) ?? "done"}` });
 
@@ -197,6 +240,8 @@ export async function decidePlan(
       if (input.decision === "changes_requested") {
         await tx.marketingPlanVersion.update({ where: { id: v.id }, data: { invalidatedAt: new Date(), invalidatedReason: "returned_for_revision" } });
       }
+      // الاعتمادُ الأخير يُغلق شاتَ التخطيط حتى قبل نهاية الحملة بسبعة أيام (`planningCycle.ts`)
+      if (input.decision === "approved" && stage === "executive") await closePlanningForApproval(tx, actor, campaignId);
       await logEvent(tx, actor, {
         action: input.decision === "approved" ? "plan.approved" : "plan.changes_requested",
         campaignId,
@@ -225,9 +270,10 @@ export async function campaignPlan(actor: MkActor, campaignId: string) {
     }),
     planContent(prisma, campaignId),
   ]);
-  const c = await prisma.marketingCampaign.findUniqueOrThrow({ where: { id: campaignId }, select: { currentPlanVersionId: true } });
+  const c = await prisma.marketingCampaign.findUniqueOrThrow({ where: { id: campaignId }, select: { currentPlanVersionId: true, status: true, statusBeforeBlock: true } });
   const current = versions.find((v) => v.id === c.currentPlanVersionId) ?? null;
-  const stale = !!current && !current.invalidatedAt && current.fingerprint !== content.fingerprint;
+  const stale = !!current && !current.invalidatedAt && !matches(current, content, planEditable(c));
+  const gaps = planEditable(c) ? await campaignPlanGaps(prisma, campaignId) : [];
   return {
     versions,
     current,
@@ -235,6 +281,7 @@ export async function campaignPlan(actor: MkActor, campaignId: string) {
     approved: !stale && fullyApproved(current),
     next: stale ? null : nextStage(current),
     canSubmit: access.roles.has("coordinator"),
+    gaps,
   };
 }
 

@@ -40,6 +40,8 @@ export type MkEventAction =
   | "quality.passed"
   | "quality.failed"
   | "publication.recorded"
+  | "final_check.passed"
+  | "final_check.failed"
   | "publication.results_recorded"
   | "task.created"
   | "task.updated"
@@ -54,7 +56,26 @@ export type MkEventAction =
   | "job.failed"
   | "job.cancelled"
   | "job.retried"
-  | "job.adopted";
+  | "job.adopted"
+  | "schedule.updated"
+  | "schedule.changed"
+  | "tasks.generated"
+  | "tasks.synced"
+  | "planning.closed"
+  | "planning.reopened"
+  | "brief.updated"
+  | "chat.sent"
+  | "chat.replied"
+  | "chat.failed"
+  | "chat.stale"
+  | "chat.cancelled"
+  | "ai.paused"
+  | "ai.resumed"
+  | "deliverable.unpublished_documented"
+  | "archive.requested"
+  | "archive.verified"
+  | "archive.failed"
+  | "archive.completed";
 
 /** يُكتب في المعاملة نفسها التي تُغيّر الحالة — فلا تقع عمليةٌ بلا سجلّ ولا سجلٌّ بلا عملية */
 export async function logEvent(

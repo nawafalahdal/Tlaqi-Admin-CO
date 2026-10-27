@@ -14,6 +14,7 @@ import { currentAndNextPeriod } from "@/lib/execution";
 import { sweepCarryover } from "@/lib/carryover";
 import { ensureMeeting } from "@/lib/reviewMeeting";
 import { cronAuthorization } from "@/lib/cronAuth";
+import { sweepMarketing } from "@/lib/marketing/sweep";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +67,11 @@ export async function GET(request: Request) {
   await ensureMeeting(current.id);
   await ensureMeeting(next.id);
 
+  // ── وكيلُ التسويق: فتحُ التخطيط في موعده، والردودُ والأرشفةُ المعلّقة — معزولٌ بكامله
+  const marketing = await sweepMarketing();
+
   return NextResponse.json({
+    marketing,
     ok: true,
     carried: carry?.carried ?? 0,
     carrySkipped: carry?.skipped ?? 0,

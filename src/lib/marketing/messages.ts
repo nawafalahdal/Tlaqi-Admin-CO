@@ -37,13 +37,13 @@ export function mkMessage(mk: Mk, f: Pick<MkFail, "code" | "params">, locale: "a
     plan_operations: mk.plan.owner.operations,
     plan_executive: mk.plan.owner.executive,
   };
-  const missingMap: Record<string, string> = { ...mk.briefField, ...mk.capability, ...mk.blockers };
+  const missingMap: Record<string, string> = { ...mk.briefField, ...mk.capability, ...mk.blockers, ...mk.gaps, ...mk.designBrief.fields, ...mk.archive.blockers };
   const template = (mk.errors as Record<string, string>)[f.code] ?? mk.errors.unknown;
   return fill(template, {
     role: pick(roleNames, p.role),
     field: pick(mk.fields, p.field),
     missing: list(missingMap, p.missing, sep),
-    reason: pick(mk.ai.reasons, p.reason),
+    reason: pick({ ...mk.ai.reasons, ...mk.chat.reasons }, p.reason),
     limit: p.limit,
     platform: p.platform,
     tasks: p.tasks,

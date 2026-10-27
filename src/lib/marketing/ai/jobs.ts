@@ -43,7 +43,7 @@ export type JobDeps = {
 
 const nowOf = (deps?: JobDeps) => deps?.now?.() ?? new Date();
 
-function backoffMs(attempt: number): number {
+export function backoffMs(attempt: number): number {
   const base = Math.min(BACKOFF_BASE_MS * 2 ** Math.max(attempt - 1, 0), BACKOFF_CAP_MS);
   // تذبذبٌ صغير حتى لا تعود المهامُّ المتعثّرة كلُّها في اللحظة نفسها
   return Math.round(base * (0.8 + Math.random() * 0.4));
@@ -69,6 +69,9 @@ export async function requestTextSuggestion(
     }
     const status = deps?.status?.() ?? aiStatus().text;
     if (status.state !== "ready" || !status.provider) return fail("integration_not_configured", { reason: status.reason ?? "not_ready" });
+    // الإيقافُ المركزيُّ يشمل الاقتراحاتِ والشاتَ معاً
+    const { aiPaused } = await import("./chat");
+    if (await aiPaused()) return fail("ai_paused");
 
     try {
       return await prisma.$transaction(async (tx) => {
@@ -185,6 +188,8 @@ export async function processJob(jobId: string, deps?: JobDeps): Promise<Process
   if (stopReason) {
     return finish(ours, d, { status: "cancelled", error: stopReason }, "job.cancelled", now);
   }
+  const { aiPaused } = await import("./chat");
+  if (await aiPaused()) return finish(ours, d, { status: "cancelled", error: "paused" }, "job.cancelled", now);
 
   const provider = deps?.providerFor ? deps.providerFor(job.provider) : registryProvider(job.provider);
   if (!provider) return finish(ours, d, { status: "failed", error: "not_configured" }, "job.failed", now);
@@ -258,7 +263,7 @@ async function failExhausted(jobId: string, now: Date) {
 }
 
 /** حدٌّ صلب: يُلغي الطلب عند انقضائه، ولا ينتظر مزوّداً يتجاهل الإلغاء */
-async function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
+export async function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: number): Promise<T> {
   const ctrl = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const expired = new Promise<never>((_, reject) => {

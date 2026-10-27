@@ -4,13 +4,13 @@ import type { Dictionary } from "@/i18n";
 import type { MkActor } from "@/lib/marketing/access";
 import { assignableMembers, type campaignWorkspace } from "@/lib/marketing/campaigns";
 import { listFormats } from "@/lib/marketing/formats";
-import { campaignTasks, campaignComments, TASK_KINDS } from "@/lib/marketing/tasks";
+import { campaignTasks, campaignTaskIndex, campaignComments, TASK_KINDS } from "@/lib/marketing/tasks";
 import { campaignEvents } from "@/lib/marketing/inbox";
 import { assignmentSuggestions, type Suggestion } from "@/lib/marketing/suggestions";
 import { PRIORITIES } from "@/lib/marketing/campaigns";
 import { fmt } from "@/i18n/fmt";
 import { ActionForm } from "../../_components/ActionForm";
-import { Pill, Section, Field, inputCls, areaCls, deliverableTone, taskTone, nameOf, when, Muted } from "../../_components/bits";
+import { Pill, Section, Field, inputCls, areaCls, deliverableTone, taskTone, nameOf, when, Muted, Pager } from "../../_components/bits";
 import { FileField } from "@/components/FileField";
 
 type Mk = Dictionary["mk"];
@@ -80,8 +80,14 @@ export async function DeliverablesTab({ mk, campaign: c, canEdit, locale }: { mk
 const STATUS_ALL = ["todo", "in_progress", "blocked", "done", "cancelled"] as const;
 const STATUS_ASSIGNEE = ["todo", "in_progress", "blocked", "done"] as const;
 
-export async function TasksTab({ mk, actor, campaign: c, roles }: { mk: Mk; actor: MkActor; campaign: Campaign; roles: MarketingCampaignRole[] }) {
-  const tasks = (await campaignTasks(actor, c.id)) ?? [];
+const TASKS_PAGE = 50;
+
+export async function TasksTab({ mk, actor, campaign: c, roles, page: rawPage = 1 }: { mk: Mk; actor: MkActor; campaign: Campaign; roles: MarketingCampaignRole[]; page?: number }) {
+  // بصفحات: مهامُّ التنفيذ تُولَّد أربعاً لكل قطعة، فلا تُرسم كلُّها في صفحةٍ واحدة
+  const index = (await campaignTaskIndex(actor, c.id)) ?? { total: 0, options: [] };
+  const pages = Math.max(1, Math.ceil(index.total / TASKS_PAGE));
+  const page = Math.min(pages, Math.max(1, rawPage));
+  const tasks = (await campaignTasks(actor, c.id, { page, size: TASKS_PAGE })) ?? [];
   const isCoordinator = roles.includes("coordinator");
   const closed = c.status === "archived" || c.status === "published";
   const me = actor.member?.id;
@@ -169,6 +175,9 @@ export async function TasksTab({ mk, actor, campaign: c, roles }: { mk: Mk; acto
           })}
         </ul>
       )}
+      <div className="mt-3">
+        <Pager page={page} pages={pages} href={(n) => `/marketing/campaigns/${c.id}?tab=tasks&tp=${n}`} labels={mk.common} />
+      </div>
 
       {isCoordinator && !closed && (
         <details className="mt-4 border-t border-black/5 pt-3">
@@ -216,10 +225,10 @@ export async function TasksTab({ mk, actor, campaign: c, roles }: { mk: Mk; acto
                     ))}
                   </select>
                 </Field>
-                {tasks.length > 0 && (
+                {index.options.length > 0 && (
                   <Field label={mk.tasks.dependsOn} hint={mk.tasks.dependsHint}>
-                    <select name="dependsOn" multiple size={Math.min(5, tasks.length)} className={`${inputCls} py-2`}>
-                      {tasks.map((t) => (
+                    <select name="dependsOn" multiple size={Math.min(5, index.options.length)} className={`${inputCls} py-2`}>
+                      {index.options.map((t) => (
                         <option key={t.id} value={t.id}>{t.title}</option>
                       ))}
                     </select>

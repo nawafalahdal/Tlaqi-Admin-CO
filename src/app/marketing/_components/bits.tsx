@@ -113,3 +113,28 @@ export function dateInput(d: Date | null | undefined): string {
   if (!d) return "";
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
 }
+
+/** قيمةُ حقل `datetime-local` بتوقيت الرياض — بالدقيقة */
+export function dateTimeInput(d: Date | string | null | undefined): string {
+  if (!d) return "";
+  const date = typeof d === "string" ? new Date(d) : d;
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
+      .formatToParts(date)
+      .map((x) => [x.type, x.value])
+  );
+  return `${p.year}-${p.month}-${p.day}T${p.hour === "24" ? "00" : p.hour}:${p.minute}`;
+}
+
+/** تنقّلٌ بين الصفحات بروابط — يعمل بلا شيفرة متصفّح، ولا يُرسم لصفحةٍ واحدة */
+export function Pager({ page, pages, href, labels }: { page: number; pages: number; href: (p: number) => string; labels: { pageOf: string; prevPage: string; nextPage: string } }) {
+  if (pages <= 1) return null;
+  const cls = "inline-flex min-h-9 items-center rounded-xl border border-black/10 px-3 text-xs font-bold hover:bg-black/[0.04]";
+  return (
+    <nav className="flex flex-wrap items-center justify-center gap-3 text-xs" aria-label={labels.pageOf.replace("{0}", String(page)).replace("{1}", String(pages))}>
+      {page > 1 && <Link href={href(page - 1)} className={cls} prefetch={false}>{labels.prevPage}</Link>}
+      <span className="text-black/55">{labels.pageOf.replace("{0}", String(page)).replace("{1}", String(pages))}</span>
+      {page < pages && <Link href={href(page + 1)} className={cls} prefetch={false}>{labels.nextPage}</Link>}
+    </nav>
+  );
+}

@@ -11,10 +11,15 @@ import { Pill, Section, Tabs, Field, inputCls, campaignTone, nameOf, when } from
 import { DeliverablesTab, TasksTab, TeamTab, CommentsTab, AuditTab } from "./tabs";
 import { PlanSection } from "./plan";
 import { campaignPlan, planEditable } from "@/lib/marketing/plan";
+import { completeKpis } from "@/lib/marketing/schedule";
+import { CalendarTab } from "./calendar";
+import { PlanningPanel, ArchiveSection } from "./lifecycle";
 
 export const dynamic = "force-dynamic";
 
-const TABS = ["overview", "deliverables", "tasks", "team", "comments", "audit"] as const;
+const TABS = ["overview", "deliverables", "calendar", "tasks", "team", "comments", "audit"] as const;
+/** معتمِدُ الخطة يرى الموجزَ والخطةَ وتقويمَها — لا عملَ الفريق (كما في `campaignCalendar`) */
+const PLAN_TABS: readonly string[] = ["overview", "calendar"];
 type Tab = (typeof TABS)[number];
 
 /** انتقالاتُ الحملة التي تُعرض — هي ما يقبله `transitionCampaign` من هذه الحالة.
@@ -27,16 +32,17 @@ const FORWARD: Partial<Record<MarketingCampaignStatus, MarketingCampaignStatus[]
 };
 const OPEN: MarketingCampaignStatus[] = ["idea", "briefing", "ready_for_planning", "in_progress"];
 
-export default async function CampaignPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
+export default async function CampaignPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; tp?: string }> }) {
   const { id } = await params;
-  const { tab: rawTab } = await searchParams;
+  const { tab: rawTab, tp } = await searchParams;
   const { actor, mk, isManager, locale } = await marketingPage(`/marketing/campaigns/${id}`);
   const ws = await campaignWorkspace(actor, id);
   if (!ws) notFound();
   const { campaign: c, roles, planOnly } = ws;
   const plan = await campaignPlan(actor, c.id);
   // معتمِدُ الخطة يرى الموجزَ والخطةَ وحدهما — لا تبويباتِ عمل الفريق (والخادمُ يردّها على كل حال)
-  const tab: Tab = !planOnly && (TABS as readonly string[]).includes(rawTab ?? "") ? (rawTab as Tab) : "overview";
+  const allowed = planOnly ? PLAN_TABS : (TABS as readonly string[]);
+  const tab: Tab = allowed.includes(rawTab ?? "") ? (rawTab as Tab) : "overview";
   const isCoordinator = roles.includes("coordinator");
   const sep = locale === "ar" ? "، " : ", ";
   const missing = briefMissing(c, c._count.deliverables);
@@ -73,11 +79,11 @@ export default async function CampaignPage({ params, searchParams }: { params: P
         <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-800">{fmt(mk.campaign.blockedBecause, c.blockedReason)}</p>
       )}
 
-      {!planOnly && (
+      {(
         <Tabs
           label={c.name}
           current={tab}
-          items={TABS.map((k) => ({
+          items={TABS.filter((k) => allowed.includes(k)).map((k) => ({
             key: k,
             label: mk.campaign.tabs[k],
             href: `/marketing/campaigns/${c.id}?tab=${k}`,
@@ -100,6 +106,34 @@ export default async function CampaignPage({ params, searchParams }: { params: P
                 <dt className="text-xs font-bold text-black/55">{mk.briefField.channels}</dt>
                 <dd className="mt-0.5" dir="ltr">{c.channels.length ? c.channels.join(", ") : mk.common.none}</dd>
               </div>
+              <div>
+                <dt className="text-xs font-bold text-black/55">{mk.calendar.campaignDates}</dt>
+                <dd className="mt-0.5">{when(c.startDate, false)} — {when(c.deadline, false)} <span className="text-black/45" dir="ltr">({c.timezone})</span></dd>
+              </div>
+              {(["outcomes", "audienceSegments", "measurement", "references", "risks"] as const).map((k) => (
+                <div key={k}>
+                  <dt className="text-xs font-bold text-black/55">{mk.briefField[k]}</dt>
+                  <dd className="mt-0.5 whitespace-pre-wrap leading-relaxed" dir="auto">{c[k] || mk.common.none}</dd>
+                </div>
+              ))}
+              <div className="sm:col-span-2">
+                <dt className="text-xs font-bold text-black/55">{mk.briefField.kpis}</dt>
+                <dd className="mt-0.5">
+                  {completeKpis(c.kpis).length === 0 ? (
+                    mk.common.none
+                  ) : (
+                    <ul className="flex flex-col gap-0.5">
+                      {completeKpis(c.kpis).map((k, i) => (
+                        <li key={i} dir="auto">{k.name}: {k.target}{k.unit ? ` ${k.unit}` : ""} — {k.source}</li>
+                      ))}
+                    </ul>
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-bold text-black/55">{mk.briefField.budget}</dt>
+                <dd className="mt-0.5" dir="auto">{c.budgetAmount !== null ? c.budgetAmount.toLocaleString("en-US") : mk.common.none}{c.budgetNote ? ` — ${c.budgetNote}` : ""}</dd>
+              </div>
             </dl>
             {isCoordinator && !closed && editable && (
               <details className="mt-4 border-t border-black/5 pt-3">
@@ -115,6 +149,9 @@ export default async function CampaignPage({ params, searchParams }: { params: P
           </Section>
 
           {plan && <PlanSection mk={mk} actor={actor} campaignId={c.id} status={c.status} plan={plan} locale={locale} />}
+
+          {isCoordinator && !closed && <PlanningPanel mk={mk} actor={actor} campaignId={c.id} status={c.status} />}
+          {(isCoordinator || actor.isMarketingLead) && closed && <ArchiveSection mk={mk} actor={actor} campaignId={c.id} />}
 
           {isCoordinator && (
             <Section title={mk.common.status} hint={c.status === "in_progress" ? mk.campaign.autoPublished : undefined}>
@@ -176,8 +213,9 @@ export default async function CampaignPage({ params, searchParams }: { params: P
         </>
       )}
 
+      {tab === "calendar" && <CalendarTab mk={mk} actor={actor} campaignId={c.id} />}
       {tab === "deliverables" && <DeliverablesTab mk={mk} campaign={c} canEdit={isCoordinator && !closed && editable} locale={locale} />}
-      {tab === "tasks" && <TasksTab mk={mk} actor={actor} campaign={c} roles={roles} />}
+      {tab === "tasks" && <TasksTab mk={mk} actor={actor} campaign={c} roles={roles} page={Number.parseInt(tp ?? "1", 10) || 1} />}
       {tab === "team" && <TeamTab mk={mk} actor={actor} campaign={c} canEdit={isCoordinator && !closed} />}
       {tab === "comments" && <CommentsTab mk={mk} actor={actor} campaignId={c.id} canWrite={roles.length > 0} />}
       {tab === "audit" && <AuditTab mk={mk} campaignId={c.id} locale={locale} />}

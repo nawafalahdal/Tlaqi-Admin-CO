@@ -15,7 +15,7 @@ import { Pill, Section, Field, inputCls, areaCls, nameOf, when, Muted } from "..
 
 type Mk = Dictionary["mk"];
 type D = NonNullable<Awaited<ReturnType<typeof deliverableWorkspace>>>["deliverable"];
-type Ctx = {
+export type Ctx = {
   mk: Mk;
   locale: "ar" | "en";
   d: D;
@@ -273,7 +273,7 @@ const BRAND_FILES = [
   { key: "guide", href: "/brand/brand-guide.webp" },
 ] as const;
 
-function BrandAssets({ mk }: { mk: Mk }) {
+export function BrandAssets({ mk }: { mk: Mk }) {
   const L = mk.design.brand;
   return (
     <details data-brand-assets>
@@ -375,10 +375,11 @@ function riyadhNowInput(): string {
   return `${p.year}-${p.month}-${p.day}T${p.hour === "24" ? "00" : p.hour}:${p.minute}`;
 }
 
-export function PublishSection({ mk, d, workable, has }: Ctx) {
+export function PublishSection({ mk, d, facts, workable, has }: Ctx) {
   const L = mk.publish;
   const publisher = has("publisher");
-  const canRecord = publisher && workable && d.status === "ready_to_publish";
+  // كما في الخادم (`publicationBlockers`): لا نموذجَ نشرٍ قبل فحص الناشر الأخير على الزوج الحالي
+  const canRecord = publisher && workable && d.status === "ready_to_publish" && facts.finalPassed;
 
   return (
     <Section id="publish" title={mk.deliverable.sections.publish} hint={L.manualOnly}>
@@ -393,6 +394,10 @@ export function PublishSection({ mk, d, workable, has }: Ctx) {
               <input name="publishedAt" type="datetime-local" required defaultValue={riyadhNowInput()} className={inputCls} />
             </Field>
           </div>
+          <p className="text-[11px] text-black/50">{`${L.timezone}: Asia/Riyadh — ${L.timezoneHint}`}</p>
+          <Field label={L.notes} hint={L.notesHint}>
+            <textarea name="notes" rows={2} maxLength={1000} className={areaCls} />
+          </Field>
           <label className="flex items-start gap-2 text-sm">
             <input type="checkbox" name="confirmedLive" required className="mt-1" />
             {L.confirmedLive}
@@ -414,7 +419,9 @@ export function PublishSection({ mk, d, workable, has }: Ctx) {
                   <span>{when(p.publishedAt)}</span>
                   <span>{fmt(L.pair, p.contentVersion.number, p.designVersion.number)}</span>
                   <span>{fmt(mk.common.by, nameOf(p.publisher))}</span>
+                  <span dir="ltr">{p.timezone}</span>
                 </p>
+                {p.notes && <p className="mt-1 text-xs text-black/65" dir="auto">{p.notes}</p>}
                 <div className="mt-2">
                   <p className="text-xs font-bold">{L.results}</p>
                   {metrics && Object.keys(metrics).length > 0 ? (

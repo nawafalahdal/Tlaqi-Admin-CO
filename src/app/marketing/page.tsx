@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  *  و«ما ينتظرك» من مسؤولياتك في الحملات التي عُيِّنتَ فيها وحدها؛ ولأصحاب مراحل
  *  الخطة (قائد التسويق، مسؤول التشغيل، الرئيس التنفيذي) الخططُ التي تنتظر مرحلتهم. */
 export default async function MarketingDashboard() {
-  const { actor, mk, isManager } = await marketingPage("/marketing");
+  const { actor, mk, isManager, canArchive } = await marketingPage("/marketing");
   const [{ items, tasks }, overview, plans] = await Promise.all([actionItems(actor), marketingOverview(actor), plansAwaiting(actor)]);
   const active = ["idea", "briefing", "ready_for_planning", "in_progress", "blocked"].reduce((n, k) => n + (overview.byStatus[k] ?? 0), 0);
   const canCreate = hasCapability(actor, "coordinator");
@@ -23,7 +23,7 @@ export default async function MarketingDashboard() {
       <MkHeader
         mk={mk}
         current="dashboard"
-        isManager={isManager}
+        isManager={isManager} canArchive={canArchive}
         title={mk.title}
         description={mk.tagline}
         actions={

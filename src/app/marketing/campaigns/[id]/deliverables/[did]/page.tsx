@@ -13,6 +13,12 @@ import { ActionForm } from "../../../../_components/ActionForm";
 import { Pill, Section, Field, inputCls, deliverableTone } from "../../../../_components/bits";
 import { CommentsTab, AuditTab } from "../../tabs";
 import { ContentSection, DesignSection, QualitySection, PublishSection, DecisionsList } from "./sections";
+import { DesignBriefSection, FinalCheckSection } from "./extras";
+import { briefGaps } from "@/lib/marketing/designBrief";
+import { chatView } from "@/lib/marketing/ai/chat";
+import { serializeChat } from "@/lib/marketing/ai/chatView";
+import { prisma } from "@/lib/prisma";
+import { ChatPanel } from "../../../../_components/ChatPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +42,19 @@ export default async function DeliverablePage({ params }: { params: Promise<{ id
   ]);
   const ai = aiStatus();
   const ctx = { mk, locale, d, facts, me: actor.member?.id ?? null, separate: settings.requireSeparateApprover, workable, has };
+  // الشات لكل من يحمل مسؤوليةَ مرحلته — والكتابةُ فيه بشرط الخادم (`chatGate`)
+  const scopeOf = (kind: "content" | "design" | "publishing") => ({ kind, campaignId: id, deliverableId: d.id });
+  const viewFor = async (kind: "content" | "design" | "publishing", show: boolean) => {
+    if (!show) return null;
+    const v = await chatView(actor, scopeOf(kind));
+    return v ? serializeChat(v) : null;
+  };
+  const [gaps, contentChat, designChat, publishChat] = await Promise.all([
+    briefGaps(prisma, d.id),
+    viewFor("content", has("writer")),
+    viewFor("design", has("designer")),
+    viewFor("publishing", has("publisher") || has("reviewer")),
+  ]);
 
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-6 sm:px-5 sm:py-8">
@@ -128,8 +147,13 @@ export default async function DeliverablePage({ params }: { params: Promise<{ id
         {...ctx}
         ai={has("writer") && jobsView ? { initial: { status: ai.text, ...serializeJobs(jobsView) }, image: ai.image } : null}
       />
+      {contentChat && <ChatPanel scope={scopeOf("content")} initial={contentChat} />}
+      <DesignBriefSection {...ctx} gaps={gaps} />
       <DesignSection {...ctx} />
+      {designChat && <ChatPanel scope={scopeOf("design")} initial={designChat} />}
       <QualitySection {...ctx} />
+      <FinalCheckSection {...ctx} />
+      {publishChat && <ChatPanel scope={scopeOf("publishing")} initial={publishChat} />}
       <PublishSection {...ctx} />
       <DecisionsList mk={mk} approvals={d.approvals} />
       <CommentsTab mk={mk} actor={actor} campaignId={id} canWrite={roles.length > 0} deliverableId={d.id} />

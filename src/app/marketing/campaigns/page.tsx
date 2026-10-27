@@ -1,21 +1,27 @@
 import Link from "next/link";
 import { hasCapability } from "@/lib/marketing/access";
-import { listCampaigns } from "@/lib/marketing/campaigns";
+import { listCampaigns, countCampaigns } from "@/lib/marketing/campaigns";
 import { marketingPage } from "@/lib/marketing/page";
 import { fmt } from "@/i18n/fmt";
 import { MkHeader } from "../_components/MkHeader";
-import { Pill, Tabs, campaignTone, nameOf, when, mkTheme } from "../_components/bits";
+import { Pill, Tabs, Pager, campaignTone, nameOf, when, mkTheme } from "../_components/bits";
 
 export const dynamic = "force-dynamic";
 
 const FILTERS = ["active", "all", "archived"] as const;
+const PAGE_SIZE = 24;
 
 /** الحملاتُ التي تراها: ما عُيِّنتَ فيه — أو كلُّها لمدير الفريق (اطّلاعاً) */
-export default async function CampaignsPage({ searchParams }: { searchParams: Promise<{ f?: string }> }) {
-  const { actor, mk, isManager } = await marketingPage("/marketing/campaigns");
-  const { f } = await searchParams;
+export default async function CampaignsPage({ searchParams }: { searchParams: Promise<{ f?: string; p?: string }> }) {
+  const { actor, mk, isManager, canArchive } = await marketingPage("/marketing/campaigns");
+  const { f, p } = await searchParams;
   const filter = (FILTERS as readonly string[]).includes(f ?? "") ? (f as (typeof FILTERS)[number]) : "active";
-  const rows = await listCampaigns(actor, filter === "all" ? {} : filter === "archived" ? { status: "archived" } : { status: "active" });
+  const where = filter === "all" ? {} : filter === "archived" ? { status: "archived" as const } : { status: "active" as const };
+  // بصفحات: لا تُرسم مئاتُ البطاقات في صفحةٍ واحدة
+  const total = await countCampaigns(actor, where);
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = Math.min(pages, Math.max(1, Number.parseInt(p ?? "1", 10) || 1));
+  const rows = await listCampaigns(actor, where, { page, size: PAGE_SIZE });
   const canCreate = hasCapability(actor, "coordinator");
   const label = { active: mk.campaigns.filterActive, all: mk.campaigns.filterAll, archived: mk.campaigns.filterArchived };
 
@@ -24,7 +30,7 @@ export default async function CampaignsPage({ searchParams }: { searchParams: Pr
       <MkHeader
         mk={mk}
         current="campaigns"
-        isManager={isManager}
+        isManager={isManager} canArchive={canArchive}
         title={mk.campaigns.title}
         actions={
           canCreate ? (
@@ -64,6 +70,7 @@ export default async function CampaignsPage({ searchParams }: { searchParams: Pr
           })}
         </ul>
       )}
+      <Pager page={page} pages={pages} href={(n) => `/marketing/campaigns?f=${filter}&p=${n}`} labels={mk.common} />
     </main>
   );
 }

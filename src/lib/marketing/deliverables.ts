@@ -1,7 +1,7 @@
 import type { MarketingDeliverableStatus, MarketingRevisionTarget, MarketingTaskKind, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { campaignAccess, requireCampaignRole, type MkActor } from "./access";
-import { logEvent } from "./audit";
+import { logEvent, logSystemEvent } from "./audit";
 import { invalidatePlanIfChanged, planEditable } from "./plan";
 import { abort, fail, guarded, type MkResult } from "./result";
 
@@ -50,6 +50,46 @@ export async function writeDeliverable(tx: Tx, d: { id: string; revision: number
     data: { ...data, revision: { increment: 1 } },
   });
   if (res.count === 0) abort("stale");
+  if (typeof data.status === "string") await syncStageTasks(tx, d.id);
+}
+
+const STAGES = ["content", "design", "quality", "publishing"] as const;
+
+/** المرحلةُ المفتوحة من حالة القطعة — وما قبلها منجز، وما بعدها لم يبدأ. `null` = لا يُمسّ (موقوفة) */
+function openStage(status: MarketingDeliverableStatus, target: MarketingRevisionTarget | null): number | null {
+  if (status === "blocked") return null;
+  if (status === "draft" || status === "content_review") return 0;
+  if (status === "revision_required") return target === "design" ? 1 : 0;
+  if (status === "content_approved" || status === "design_review") return 1;
+  if (status === "design_approved" || status === "quality_review") return 2;
+  if (status === "ready_to_publish") return 3;
+  return STAGES.length; // published
+}
+
+/** مهامُّ القطعة المولَّدة من الخطة المعتمدة تتبع مرحلتها: ما اكتمل يُنجَز، وما عاد إليه العملُ
+ *  (ردٌّ للتعديل) يُعاد فتحه. المهامُّ اليدويةُ والملغاةُ لا تُمسّ. فيبقى «مهمّةٌ نشطة» — شرطُ شات
+ *  الكاتب والمصمّم والناشر، وشرطُ الأرشفة — مطابقاً لما يجري فعلاً. */
+export async function syncStageTasks(tx: Tx, deliverableId: string) {
+  const d = await tx.marketingDeliverable.findUniqueOrThrow({ where: { id: deliverableId }, select: { campaignId: true, status: true, revisionTarget: true } });
+  const open = openStage(d.status, d.revisionTarget);
+  if (open === null) return;
+  const tasks = await tx.marketingTask.findMany({
+    where: { deliverableId, planVersionId: { not: null }, kind: { in: [...STAGES] }, status: { not: "cancelled" } },
+    select: { id: true, kind: true, status: true },
+  });
+  let changed = 0;
+  for (const t of tasks) {
+    const i = STAGES.indexOf(t.kind as (typeof STAGES)[number]);
+    const done = t.status === "done";
+    if (i < open && !done) {
+      await tx.marketingTask.update({ where: { id: t.id }, data: { status: "done", completedAt: new Date() } });
+      changed++;
+    } else if (i >= open && done) {
+      await tx.marketingTask.update({ where: { id: t.id }, data: { status: "todo", completedAt: null, reopenCount: { increment: 1 } } });
+      changed++;
+    }
+  }
+  if (changed) await logSystemEvent(tx, { action: "tasks.synced", campaignId: d.campaignId, deliverableId, details: { changed, stage: STAGES[open] ?? "published" } });
 }
 
 /** يُسقط كلَّ اعتمادٍ أو فحصٍ لم يعد يطابق الإصدارين الحاليين — بعد أي تغييرٍ لهما.
@@ -87,13 +127,22 @@ export async function invalidateStale(tx: Tx, actor: MkActor, deliverableId: str
       data: { invalidatedAt: now, invalidatedReason: reason },
     }),
   ]);
-  const total = a1.count + a2.count + q.count;
+  // وفحصُ الناشر الأخير على زوجٍ لم يعد حالياً يسقط معه — لا نشرَ بفحصٍ قديم
+  const fc = await tx.marketingFinalCheck.updateMany({
+    where: {
+      deliverableId,
+      invalidatedAt: null,
+      ...(designOnCurrent && design && content ? { NOT: { AND: [{ contentVersionId: content }, { designVersionId: design }] } } : {}),
+    },
+    data: { invalidatedAt: now, invalidatedReason: reason },
+  });
+  const total = a1.count + a2.count + q.count + fc.count;
   if (total > 0) {
     await logEvent(tx, actor, {
       action: "approvals.invalidated",
       campaignId: d.campaignId,
       deliverableId,
-      details: { reason, content: a1.count, design: a2.count, quality: q.count },
+      details: { reason, content: a1.count, design: a2.count, quality: q.count, final: fc.count },
     });
   }
   return total;
@@ -124,7 +173,7 @@ export async function deliverableFacts(db: Tx | typeof prisma, deliverableId: st
   });
   const content = d.currentContentVersionId;
   const design = d.currentDesignVersionId;
-  const [contentApproval, designApproval, quality] = await Promise.all([
+  const [contentApproval, designApproval, quality, final] = await Promise.all([
     content
       ? db.marketingApproval.findFirst({ where: { deliverableId, kind: "content", contentVersionId: content, decision: "approved", invalidatedAt: null }, select: { id: true } })
       : null,
@@ -138,6 +187,13 @@ export async function deliverableFacts(db: Tx | typeof prisma, deliverableId: st
           select: { passed: true, blocking: true },
         })
       : null,
+    content && design
+      ? db.marketingFinalCheck.findFirst({
+          where: { deliverableId, contentVersionId: content, designVersionId: design, invalidatedAt: null },
+          orderBy: { createdAt: "desc" },
+          select: { passed: true },
+        })
+      : null,
   ]);
   return {
     contentVersionId: content,
@@ -149,6 +205,7 @@ export async function deliverableFacts(db: Tx | typeof prisma, deliverableId: st
     designApproved: !!designApproval,
     qualityPassed: !!quality?.passed,
     qualityBlocking: !!quality && !quality.passed && quality.blocking,
+    finalPassed: !!final?.passed,
   };
 }
 export type DeliverableFacts = Awaited<ReturnType<typeof deliverableFacts>>;
@@ -167,6 +224,13 @@ export function publishBlockers(f: DeliverableFacts): string[] {
   }
   if (f.qualityBlocking) out.push("quality_blocking");
   else if (!f.qualityPassed) out.push("quality_missing");
+  return out;
+}
+
+/** ما يمنع النشر نفسه: شروطُ الجاهزية، ثم فحصُ الناشر الأخير على الزوج الحالي */
+export function publicationBlockers(f: DeliverableFacts): string[] {
+  const out = publishBlockers(f);
+  if (out.length === 0 && !f.finalPassed) out.push("final_check_missing");
   return out;
 }
 
@@ -326,8 +390,12 @@ export async function deliverableWorkspace(actor: MkActor, deliverableId: string
       approvals: { orderBy: { createdAt: "desc" }, take: VERSIONS_TAKE, include: { decider: who, contentVersion: { select: { number: true } }, designVersion: { select: { number: true } } } },
       qualityChecks: { orderBy: { createdAt: "desc" }, take: VERSIONS_TAKE, include: { reviewer: who, contentVersion: { select: { number: true } }, designVersion: { select: { number: true } } } },
       publications: { orderBy: { createdAt: "desc" }, include: { publisher: who, contentVersion: { select: { number: true } }, designVersion: { select: { number: true } } } },
+      finalChecks: { orderBy: { createdAt: "desc" }, take: VERSIONS_TAKE, include: { publisher: who, contentVersion: { select: { number: true } }, designVersion: { select: { number: true } } } },
+      designBrief: true,
+      writer: who,
+      designer: who,
     },
   });
   const facts = await deliverableFacts(prisma, deliverableId);
-  return { deliverable: d, roles: [...access.roles], facts, blockers: publishBlockers(facts) };
+  return { deliverable: d, roles: [...access.roles], facts, blockers: publicationBlockers(facts) };
 }

@@ -19,7 +19,14 @@ export function PlanSection({ mk, actor, campaignId, status, plan, locale }: { m
   const L = mk.plan;
   const current = plan.current;
   const live = !!current && !current.invalidatedAt && !plan.stale;
-  const canSubmit = plan.canSubmit && status === "ready_for_planning" && !live;
+  // الخطةُ الناقصة لا تُقدَّم — كما في الخادم (`plan_incomplete`): تُسمّى نواقصُها بدل الزرّ
+  const gaps = plan.gaps ?? [];
+  const canSubmit = plan.canSubmit && status === "ready_for_planning" && !live && gaps.length === 0;
+  const sep = locale === "ar" ? "، " : ", ";
+  const gapLabel = (g: { scope: string; piece?: string; field: string }) =>
+    g.scope === "piece"
+      ? `${g.piece}: ${(mk.gaps as Record<string, string>)[`piece.${g.field}`] ?? g.field}`
+      : (mk.briefField as Record<string, string>)[g.field] ?? (mk.gaps as Record<string, string>)[g.field] ?? g.field;
   const myTurn = live && status === "ready_for_planning" && !!actor.planStage && plan.next === actor.planStage;
 
   return (
@@ -48,6 +55,20 @@ export function PlanSection({ mk, actor, campaignId, status, plan, locale }: { m
           </div>
         )}
 
+        {plan.canSubmit && status === "ready_for_planning" && !live && gaps.length > 0 && (
+          <div className="rounded-xl border border-amber-200 p-3" data-plan-gaps>
+            <p className="text-sm font-bold text-amber-900">{L.incompleteTitle}</p>
+            <ul className="mt-2 flex flex-wrap gap-1.5">
+              {gaps.slice(0, 30).map((g, i) => (
+                <li key={i}>
+                  <Pill tone="review">{gapLabel(g)}</Pill>
+                </li>
+              ))}
+            </ul>
+            {gaps.length > 30 && <p className="mt-1 text-xs text-black/55">{`+${gaps.length - 30}`}</p>}
+            <span className="sr-only">{gaps.map(gapLabel).join(sep)}</span>
+          </div>
+        )}
         {canSubmit && (
           <ActionForm op="plan.submit" submit={current ? L.resubmit : L.submit}>
             <input type="hidden" name="campaignId" value={campaignId} />

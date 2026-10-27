@@ -43,6 +43,17 @@ export const MK_ERRORS = [
   "plan_locked",
   "url_platform_mismatch",
   "campaign_closed",
+  "plan_incomplete",
+  "chat_closed",
+  "chat_not_ready",
+  "chat_busy",
+  "chat_quota",
+  "ai_paused",
+  "brief_required",
+  "archive_not_ready",
+  "archive_unavailable",
+  "archive_active",
+  "archive_failed",
 ] as const;
 
 export type MkErrorCode = (typeof MK_ERRORS)[number];

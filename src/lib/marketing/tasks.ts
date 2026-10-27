@@ -6,6 +6,7 @@ import { campaignAccess, requireCampaignRole, type MkActor } from "./access";
 import { logEvent } from "./audit";
 import { PRIORITIES } from "./campaigns";
 import { abort, fail, guarded, type MkResult } from "./result";
+import { assertNotArchiving } from "./archiveGuard";
 
 /** مهامُّ الحملة: من يفعل ماذا ومتى، وما ينتظر ماذا.
  *
@@ -147,6 +148,8 @@ export async function setTaskStatus(actor: MkActor, taskId: string, status: stri
     }
     if (to === task.status) return { ok: true };
     await prisma.$transaction(async (tx) => {
+      // ما يُؤرشف الآن لا يتغيّر تحته — وإلا اختلف الشيتُ عن مصدره
+      await assertNotArchiving(tx, task.campaignId);
       const res = await tx.marketingTask.updateMany({
         where: { id: taskId, status: task.status },
         data: { status: to, completedAt: to === "done" ? new Date() : null, ...(task.status === "done" && to !== "done" ? { reopenCount: { increment: 1 } } : {}) },
@@ -210,6 +213,8 @@ export async function addComment(
     if (input.taskId && !(await prisma.marketingTask.count({ where: { id: input.taskId, campaignId } }))) return fail("not_found");
     const memberId = actor.member.id;
     await prisma.$transaction(async (tx) => {
+      // ما يُؤرشف الآن لا يتغيّر تحته — وإلا اختلف الشيتُ عن مصدره
+      await assertNotArchiving(tx, campaignId);
       await tx.marketingComment.create({ data: { campaignId, deliverableId: input.deliverableId || null, taskId: input.taskId || null, body, authorId: memberId } });
       await logEvent(tx, actor, { action: "comment.added", campaignId, deliverableId: input.deliverableId || null });
     });
@@ -236,6 +241,8 @@ export async function attachToTask(
     if (!ALLOWED_PLAN_TYPES[file.type]) return fail("file_type");
     const memberId = actor.member.id;
     await prisma.$transaction(async (tx) => {
+      // ما يُؤرشف الآن لا يتغيّر تحته — وإلا اختلف الشيتُ عن مصدره
+      await assertNotArchiving(tx, task.campaignId);
       await tx.marketingFile.create({
         data: {
           campaignId: task.campaignId,
@@ -258,14 +265,15 @@ export async function attachToTask(
 
 const TASKS_TAKE = 300;
 
-export async function campaignTasks(actor: MkActor, campaignId: string) {
+export async function campaignTasks(actor: MkActor, campaignId: string, paging?: { page: number; size: number }) {
   const access = await campaignAccess(actor, campaignId);
   if (!access.canView) return null;
   const who = { select: { id: true, user: { select: { fullName: true } }, member: { select: { fullName: true } }, nameSnapshot: true } };
   return prisma.marketingTask.findMany({
     where: { campaignId },
-    orderBy: [{ status: "asc" }, { dueAt: "asc" }, { createdAt: "asc" }],
-    take: TASKS_TAKE,
+    orderBy: [{ status: "asc" }, { dueAt: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+    skip: paging ? (Math.max(1, paging.page) - 1) * paging.size : undefined,
+    take: paging ? paging.size : TASKS_TAKE,
     include: {
       assignee: who,
       deliverable: { select: { id: true, title: true } },
@@ -274,6 +282,17 @@ export async function campaignTasks(actor: MkActor, campaignId: string) {
       _count: { select: { comments: true } },
     },
   });
+}
+
+/** عددُ المهامّ، وقائمةٌ خفيفةٌ (معرّفٌ وعنوان) لاختيار الاعتماديات — لا تفاصيلَ ولا مرفقات */
+export async function campaignTaskIndex(actor: MkActor, campaignId: string) {
+  const access = await campaignAccess(actor, campaignId);
+  if (!access.canView) return null;
+  const [total, options] = await Promise.all([
+    prisma.marketingTask.count({ where: { campaignId } }),
+    prisma.marketingTask.findMany({ where: { campaignId, status: { not: "cancelled" } }, orderBy: { createdAt: "asc" }, take: TASKS_TAKE, select: { id: true, title: true } }),
+  ]);
+  return { total, options };
 }
 
 const COMMENTS_TAKE = 200;

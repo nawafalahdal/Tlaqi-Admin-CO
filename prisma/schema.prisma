@@ -1662,6 +1662,7 @@ model MarketingMember {
   designVersions  MarketingDesignVersion[]
   approvals       MarketingApproval[]
   qualityChecks   MarketingQualityCheck[]
+  finalChecks     MarketingFinalCheck[]
   publications    MarketingPublication[]
   planVersions    MarketingPlanVersion[]
   tasksAssigned   MarketingTask[]           @relation("TaskAssignee")
@@ -1669,6 +1670,9 @@ model MarketingMember {
   comments        MarketingComment[]
   files           MarketingFile[]
   generationJobs  MarketingGenerationJob[]
+  writerOf       MarketingDeliverable[]   @relation("DeliverableWriter")
+  designerOf     MarketingDeliverable[]   @relation("DeliverableDesigner")
+  chatMessages   MarketingChatMessage[]
 }
 
 enum MarketingCampaignStatus {
@@ -1713,6 +1717,27 @@ model MarketingCampaign {
   events       MarketingEvent[]
   planVersions MarketingPlanVersion[]   @relation("PlanOf")
 
+  /// ═══ الخطةُ التنفيذية — اختياريةٌ في المسودة، وإلزاميُّها يُفحص في الخادم عند التقديم
+  /// (`planMissing`). و`deadline` هو تاريخُ نهاية الحملة.
+  outcomes         String?
+  audienceSegments String?
+  startDate        DateTime?
+  /// بالريال — يُترك فارغاً إن لم تحتج الحملةُ ميزانية، ولا يُخمَّن
+  budgetAmount     Int?
+  budgetNote       String?
+  /// مؤشراتُ الأداء المستهدفة: [{ name, target, unit, source }]
+  kpis             Json?
+  /// طريقةُ القياس ومصدرُ البيانات
+  measurement      String?
+  /// المراجعُ والموادّ المعتمدة
+  references       String?
+  /// المخاطرُ والقيود
+  risks            String?
+  /// المنطقةُ الزمنية المعتمدة — الأوقاتُ تُخزَّن UTC وتُعرض بها
+  timezone         String                   @default("Asia/Riyadh")
+  chatThreads      MarketingChatThread[]
+  scheduleChanges  MarketingScheduleChange[]
+
   @@index([status])
 }
 
@@ -1742,6 +1767,10 @@ model MarketingPlanVersion {
 
   currentOf MarketingCampaign?      @relation("CurrentPlan")
   decisions MarketingPlanDecision[]
+  /// بصمةُ تقويم النشر المعتمد (المواعيد والمسؤولون): تُبطل النسخةَ قبل التنفيذ، وبعده
+  /// يُسجَّل كلُّ تعديلٍ في `MarketingScheduleChange` ولا يُبطلها
+  scheduleFingerprint String?
+  tasks               MarketingTask[]
 
   @@unique([campaignId, number])
 }
@@ -1863,12 +1892,37 @@ model MarketingDeliverable {
   designVersions  MarketingDesignVersion[]  @relation("DesignOf")
   approvals       MarketingApproval[]
   qualityChecks   MarketingQualityCheck[]
+  finalChecks     MarketingFinalCheck[]
   publications    MarketingPublication[]
   tasks           MarketingTask[]
   comments        MarketingComment[]
   files           MarketingFile[]
   generationJobs  MarketingGenerationJob[]
   events          MarketingEvent[]
+
+  /// ═══ تقويمُ النشر لهذه القطعة — تاريخٌ ووقتٌ بعينهما (UTC)، يُعرضان بمنطقة الحملة
+  contentType       String?
+  topic             String?
+  message           String?
+  cta               String?
+  /// مؤشرُ الأداء ذو الصلة بهذه القطعة
+  kpi               String?
+  writerId          String?
+  writer            MarketingMember?         @relation("DeliverableWriter", fields: [writerId], references: [id])
+  designerId        String?
+  designer          MarketingMember?         @relation("DeliverableDesigner", fields: [designerId], references: [id])
+  contentDueAt      DateTime?
+  designDueAt       DateTime?
+  reviewDueAt       DateTime?
+  publishAt         DateTime?
+  /// أساسُ وقت النشر: `history` (نتائجُ منشوراتٍ سابقة) أو `estimate` (تقديري) أو `manual`
+  publishBasis      String?
+  publishBasisNote  String?
+  /// سببُ عدم النشر — يُوثَّق قبل أرشفة حملةٍ لم تُنشر كلُّ قطعها
+  unpublishedReason String?
+  designBrief       MarketingDesignBrief?
+  chatThreads       MarketingChatThread[]
+  scheduleChanges   MarketingScheduleChange[]
 
   @@index([campaignId])
   @@index([status])
@@ -1895,6 +1949,7 @@ model MarketingContentVersion {
   designs       MarketingDesignVersion[]
   approvals     MarketingApproval[]
   qualityChecks MarketingQualityCheck[]
+  finalChecks   MarketingFinalCheck[]
   publications  MarketingPublication[]
 
   @@unique([deliverableId, number])
@@ -1925,6 +1980,7 @@ model MarketingDesignVersion {
   currentOf     MarketingDeliverable?   @relation("CurrentDesign")
   approvals     MarketingApproval[]
   qualityChecks MarketingQualityCheck[]
+  finalChecks   MarketingFinalCheck[]
   publications  MarketingPublication[]
 
   @@unique([deliverableId, number])
@@ -1986,6 +2042,30 @@ model MarketingQualityCheck {
   @@index([deliverableId])
 }
 
+/// فحصُ الناشر الأخير: النصُّ والتصميمُ الحاليّان معاً قبل النشر — على الزوج بعينه. ما فشل فيه
+/// يُعاد إلى صاحبه (`returnedTo`: content | design | schedule)، ولا نشرَ بلا فحصٍ ناجحٍ قائم
+model MarketingFinalCheck {
+  id                String                  @id @default(cuid())
+  deliverableId     String
+  deliverable       MarketingDeliverable    @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  contentVersionId  String
+  contentVersion    MarketingContentVersion @relation(fields: [contentVersionId], references: [id])
+  designVersionId   String
+  designVersion     MarketingDesignVersion  @relation(fields: [designVersionId], references: [id])
+  /// بنودُ الفحص: { key, passed, note, auto? }[]
+  items             Json
+  passed            Boolean
+  returnedTo        String?
+  note              String?
+  publisherId       String
+  publisher         MarketingMember         @relation(fields: [publisherId], references: [id])
+  invalidatedAt     DateTime?
+  invalidatedReason String?
+  createdAt         DateTime                @default(now())
+
+  @@index([deliverableId])
+}
+
 /// نشرٌ يدويٌّ موثَّق — لا يُسجَّل إلا بعد أن يؤكّد الناشرُ أنه رآه منشوراً
 model MarketingPublication {
   id               String                  @id @default(cuid())
@@ -2007,6 +2087,9 @@ model MarketingPublication {
   metricsSource    String?
   idempotencyKey   String?                 @unique
   createdAt        DateTime                @default(now())
+  /// المنطقةُ الزمنية التي أُدخل بها وقتُ النشر، وملاحظاتُ الناشر
+  timezone      String?
+  notes         String?
 
   @@index([deliverableId])
 }
@@ -2053,6 +2136,9 @@ model MarketingTask {
   dependents MarketingTaskDependency[] @relation("TaskDependents")
   comments   MarketingComment[]
   files      MarketingFile[]
+  /// النسخةُ المعتمدة التي أُنشئت منها المهمّة عند بدء التنفيذ
+  planVersionId String?
+  planVersion   MarketingPlanVersion? @relation(fields: [planVersionId], references: [id], onDelete: SetNull)
 
   @@index([campaignId])
   @@index([assigneeId, status])
@@ -2185,4 +2271,186 @@ model MarketingSettings {
   requireSeparateApprover Boolean  @default(true)
   updatedByName           String
   updatedAt               DateTime @updatedAt
+  /// إيقافٌ مركزيٌّ للمساعد (الشات والاقتراحات) بيد قائد التسويق — فوريٌّ بلا نشرٍ جديد
+  aiPaused       Boolean  @default(false)
+  aiPausedByName String?
+}
+
+/// ═══ موجزُ التصميم — إلزاميٌّ قبل رفع التصميم وقبل شات المصمّم (`briefMissing` في `designBrief.ts`).
+/// المقاسُ من المخرج نفسه، والنصُّ المعتمد من نسخته الحاليّة — لا يُكتبان هنا مرّتين.
+model MarketingDesignBrief {
+  id               String               @id @default(cuid())
+  deliverableId    String               @unique
+  deliverable      MarketingDeliverable @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  placement        String?
+  outputType       String?
+  headline         String?
+  secondaryText    String?
+  cta              String?
+  logoPosition     String?
+  logoSize         String?
+  logoSafeMargin   String?
+  fonts            String?
+  colors           String?
+  background       String?
+  imagery          String?
+  layout           String?
+  contrastNotes    String?
+  direction        String?
+  visualReferences String?
+  deliveryMethod   String?
+  /// رابطُ Canva أو ملفٍّ خارجي — يُحفظ رابطاً ولا يُدّعى فحصُه
+  externalLink     String?
+  revision         Int                  @default(0)
+  updatedByName    String
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+}
+
+/// سجلُّ تعديل تقويم النشر بعد الاعتماد: القيمةُ الأصلية والجديدة، والسبب، ومن عدّل ومن وافق.
+/// لا يُحذف ولا يُعدَّل.
+model MarketingScheduleChange {
+  id             String                @id @default(cuid())
+  campaignId     String
+  campaign       MarketingCampaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  deliverableId  String?
+  deliverable    MarketingDeliverable? @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  field          String
+  fromValue      String?
+  toValue        String?
+  reason         String
+  changedById    String
+  changedByName  String
+  approvedByName String
+  createdAt      DateTime              @default(now())
+
+  @@index([campaignId, createdAt])
+}
+
+/// نوعُ المحادثة — لكلٍّ سياقُه وشروطُه (`chatRules.ts`)
+enum MarketingChatKind {
+  planning
+  content
+  design
+  publishing
+}
+
+enum MarketingChatRole {
+  user
+  assistant
+}
+
+/// حالةُ رسالة المساعد: تُحفظ قبل أن تُعالَج، وتُعالَج خارج الطلب
+enum MarketingChatStatus {
+  queued
+  running
+  done
+  failed
+  cancelled
+  /// تغيّرت المهمّةُ أو نسختُها في أثناء المعالجة — الردُّ لا يُعرض كأنه حالي
+  stale
+}
+
+/// محادثةٌ واحدةٌ لكل نطاق: تخطيطُ حملة، أو محتوى/تصميم/نشرُ قطعةٍ بعينها
+model MarketingChatThread {
+  id            String                 @id @default(cuid())
+  kind          MarketingChatKind
+  campaignId    String
+  campaign      MarketingCampaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  deliverableId String?
+  deliverable   MarketingDeliverable?  @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  /// `kind:campaignId:deliverableId` — يمنع محادثتين للنطاق نفسه
+  scopeKey      String                 @unique
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  messages      MarketingChatMessage[]
+
+  @@index([campaignId])
+}
+
+model MarketingChatMessage {
+  id                 String              @id @default(cuid())
+  threadId           String
+  thread             MarketingChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  role               MarketingChatRole
+  body               String              @db.Text
+  authorId           String?
+  author             MarketingMember?    @relation(fields: [authorId], references: [id])
+  /// ردُّ المساعد على رسالةٍ بعينها
+  replyToId          String?
+  status             MarketingChatStatus @default(done)
+  /// بصمةُ السياق لحظةَ الطلب — إن تغيّرت قبل اكتمال الرد صار «قديماً»
+  contextFingerprint String?
+  provider           String?
+  model              String?
+  error              String?
+  attempts           Int                 @default(0)
+  maxAttempts        Int                 @default(3)
+  leaseUntil         DateTime?
+  nextAttemptAt      DateTime?
+  inputTokens        Int?
+  outputTokens       Int?
+  idempotencyKey     String?             @unique
+  createdAt          DateTime            @default(now())
+  finishedAt         DateTime?
+
+  @@index([threadId, createdAt])
+  @@index([status, nextAttemptAt])
+}
+
+/// دورةُ التخطيط: اعتمادُ حملةٍ يُغلق شات التخطيط، ويُعاد فتحُه قبل نهايتها بسبعة أيام
+/// (منتصفَ ليل ذلك اليوم بمنطقة الحملة). تبقى سجلاً بعد أرشفة الحملة.
+model MarketingPlanningCycle {
+  id           String    @id @default(cuid())
+  /// معرّفُ الحملة الأصلي بلا قيدٍ مرجعي — يبقى بعد أرشفتها وحذفها
+  campaignId   String    @unique
+  campaignName String
+  startDate    DateTime?
+  endDate      DateTime
+  timezone     String
+  approvedAt   DateTime
+  reopenAt     DateTime
+  reopenedAt   DateTime?
+  /// `system` للجدولة، أو اسمُ من فتحه مبكراً
+  reopenedBy   String?
+  reopenReason String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([reopenedAt, reopenAt])
+}
+
+enum MarketingArchiveStatus {
+  pending
+  writing
+  verified
+  deleting
+  completed
+  failed
+}
+
+/// سجلُّ أرشفة حملةٍ في Google Sheets — يبقى بعد حذفها من النظام النشط ليُعرف ما جرى.
+/// لا يُحذف شيءٌ قبل `verified`، وإعادةُ المحاولة تستأنف ولا تُكرّر الصفوف (`rowKey`).
+model MarketingArchiveRun {
+  id              String                 @id @default(cuid())
+  campaignId      String
+  campaignName    String
+  status          MarketingArchiveStatus @default(pending)
+  sheetName       String
+  expectedRows    Int                    @default(0)
+  verifiedRows    Int                    @default(0)
+  /// أعدادُ ما أُرشف والنواقصُ الموثّقة — لا بياناتُ الحملة نفسها
+  summary         Json?
+  attempts        Int                    @default(0)
+  lastError       String?
+  leaseUntil      DateTime?
+  nextAttemptAt   DateTime?
+  requestedByName String
+  verifiedAt      DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  @@index([campaignId])
+  @@index([status, nextAttemptAt])
 }

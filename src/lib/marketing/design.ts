@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { campaignAccess, requireCampaignRole, type MkActor } from "./access";
 import { logEvent } from "./audit";
 import { checksPass, deliverableFacts, invalidateStale, loadDeliverable, reopenTasks, requireWorkable, settingsFor, writeDeliverable } from "./deliverables";
+import { requireBriefComplete } from "./designBrief";
 import { abort, fail, guarded, isUniqueViolation, type MkResult } from "./result";
 
 /** التصميم: ملفٌّ يرفعه المصمّم لمقاسٍ بعينه، مبنيٌّ على نسخة نصٍّ معتمدةٍ بعينها.
@@ -113,6 +114,8 @@ export async function uploadDesign(
         requireDesignPhase(d);
         const facts = await deliverableFacts(tx, d.id);
         if (!facts.contentApproved || !d.currentContentVersion) abort("content_not_approved");
+        // لا تصميمَ قبل موجزٍ مكتمل — يُفرض هنا لا في إخفاء النموذج
+        await requireBriefComplete(tx, d.id);
         // المقاسُ تغيّر منذ قُرئ: يُعاد الفحصُ على المقاس الحالي
         if (d.width !== head.width || d.height !== head.height) abort("stale");
 

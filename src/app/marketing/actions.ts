@@ -12,7 +12,7 @@ import { createCampaign, updateBrief, transitionCampaign, addCampaignMember, rem
 import { createDeliverable, changeFormat, setDeliverableBlocked } from "@/lib/marketing/deliverables";
 import { saveDraft, submitContent, decideContent, keepApprovedContent } from "@/lib/marketing/content";
 import { uploadDesign, submitDesign, decideDesign, returnToWriter } from "@/lib/marketing/design";
-import { sendToQuality, recordQuality, recordPublication, recordResults, QUALITY_ITEMS, METRIC_KEYS } from "@/lib/marketing/review";
+import { sendToQuality, recordQuality, recordFinalCheck, recordPublication, recordResults, QUALITY_ITEMS, FINAL_ITEMS, METRIC_KEYS } from "@/lib/marketing/review";
 import { createTask, setTaskStatus, assignTask, deleteTask, addComment, attachToTask } from "@/lib/marketing/tasks";
 import { submitPlan, decidePlan } from "@/lib/marketing/plan";
 import { addTeamMember, setCapabilities, setMemberActive, updateSettings } from "@/lib/marketing/team";
@@ -20,7 +20,15 @@ import { createFormat, updateFormat } from "@/lib/marketing/formats";
 import { requestTextSuggestion, processJob, processDue, cancelJob, retryJob, adoptSuggestion, deliverableJobs } from "@/lib/marketing/ai/jobs";
 import { aiStatus } from "@/lib/marketing/ai/registry";
 import { serializeJobs } from "@/lib/marketing/ai/view";
-import type { MarketingCampaignRole, MarketingCampaignStatus } from "@prisma/client";
+import { updatePieceSchedule, amendCampaignDates } from "@/lib/marketing/schedule";
+import { saveDesignBrief, BRIEF_REQUIRED, BRIEF_OPTIONAL } from "@/lib/marketing/designBrief";
+import { setAiPaused } from "@/lib/marketing/team";
+import { reopenPlanningEarly } from "@/lib/marketing/planningCycle";
+import { sendChatMessage, processChatReply, processDueChats, retryChatReply, cancelChatReply, chatView } from "@/lib/marketing/ai/chat";
+import { serializeChat } from "@/lib/marketing/ai/chatView";
+import type { ChatScope } from "@/lib/marketing/chatRules";
+import { requestArchive, retryArchive, documentUnpublished, processArchiveRun } from "@/lib/marketing/archive";
+import type { MarketingCampaignRole, MarketingCampaignStatus, MarketingChatKind } from "@prisma/client";
 
 /** إجراءاتُ وكيل التسويق — بابٌ واحدٌ تُسمّى فيه العمليةُ (`op`).
  *
@@ -46,6 +54,18 @@ const all = (fd: Fd, k: string) => fd.getAll(k).filter((v): v is string => typeo
 /** أوقاتُ النماذج بلا منطقة (`date` و`datetime-local`) تُقرأ بتوقيت الرياض — توقيتِ المنصة */
 const riyadhDate = (v: string, endOfDay = true) => (v ? `${v}T${endOfDay ? "23:59:00" : "12:00:00"}+03:00` : null);
 const riyadhDateTime = (v: string) => (v ? `${v.length === 16 ? v + ":00" : v}+03:00` : "");
+/** بدايةُ يومٍ بتوقيت الرياض — لتاريخ بداية الحملة */
+const riyadhStart = (v: string) => (v ? `${v}T00:00:00+03:00` : null);
+/** حقلٌ أُرسل فارغاً يُمحى، وحقلٌ لم يُرسَل لا يُمسّ */
+const sent = (fd: Fd, k: string) => (fd.has(k) ? s(fd, k) : undefined);
+const sentAt = (fd: Fd, k: string) => (fd.has(k) ? riyadhDateTime(s(fd, k)) || null : undefined);
+const sentId = (fd: Fd, k: string) => (fd.has(k) ? s(fd, k) || null : undefined);
+const KINDS: MarketingChatKind[] = ["planning", "content", "design", "publishing"];
+const scopeOf = (fd: Fd): ChatScope => ({
+  kind: (KINDS as string[]).includes(s(fd, "kind")) ? (s(fd, "kind") as MarketingChatKind) : "content",
+  campaignId: s(fd, "campaignId"),
+  deliverableId: s(fd, "deliverableId") || null,
+});
 /** «حتى تاريخ» للنتائج: آخرُ ذلك اليوم — واليومُ نفسُه «الآن» (الخادمُ يرفض وقتاً في المستقبل،
  *  ويرفض ما قبل النشر؛ وكان الظهرُ الثابت يردّ نتائجَ منشورٍ نُشر بعد الظهر في يومه) */
 function resultsAsOf(v: string): string {
@@ -69,6 +89,15 @@ const brief = (fd: Fd) => ({
   channels: s(fd, "channels").split(/[,،\s]+/),
   deadline: riyadhDate(s(fd, "deadline")),
   priority: s(fd, "priority"),
+  outcomes: s(fd, "outcomes"),
+  audienceSegments: s(fd, "audienceSegments"),
+  startDate: riyadhStart(s(fd, "startDate")),
+  budgetAmount: s(fd, "budgetAmount"),
+  budgetNote: s(fd, "budgetNote"),
+  kpis: [0, 1, 2, 3].map((i) => ({ name: s(fd, `kpi.name.${i}`), target: s(fd, `kpi.target.${i}`), unit: s(fd, `kpi.unit.${i}`), source: s(fd, `kpi.source.${i}`) })),
+  measurement: s(fd, "measurement"),
+  references: s(fd, "references"),
+  risks: s(fd, "risks"),
 });
 
 const OPS: Record<string, Handler> = {
@@ -123,12 +152,22 @@ const OPS: Record<string, Handler> = {
       blocking: on(fd, "blocking"),
       note: s(fd, "note"),
     }),
+  "final.record": (a, fd) =>
+    recordFinalCheck(a, s(fd, "deliverableId"), {
+      contentVersionId: s(fd, "contentVersionId"),
+      designVersionId: s(fd, "designVersionId"),
+      items: FINAL_ITEMS.map((key) => ({ key, passed: on(fd, `item.${key}`), note: s(fd, `note.${key}`) })),
+      note: s(fd, "note"),
+    }),
   "publish.record": (a, fd) =>
     recordPublication(a, s(fd, "deliverableId"), {
       url: s(fd, "url"),
       publishedAt: riyadhDateTime(s(fd, "publishedAt")),
       confirmedLive: on(fd, "confirmedLive"),
       requestId: s(fd, "requestId"),
+      // الوقتُ يُدخل بتوقيت الرياض — والمنطقةُ تُحفظ معه كما هي
+      timezone: "Asia/Riyadh",
+      notes: s(fd, "notes"),
     }),
   "publish.results": (a, fd) =>
     recordResults(a, s(fd, "publicationId"), {
@@ -176,6 +215,56 @@ const OPS: Record<string, Handler> = {
     if (r.ok) after(() => processJob(r.jobId).then(() => undefined));
     return r;
   },
+  "piece.schedule": (a, fd) =>
+    updatePieceSchedule(a, s(fd, "deliverableId"), {
+      contentType: sent(fd, "contentType"),
+      topic: sent(fd, "topic"),
+      message: sent(fd, "message"),
+      cta: sent(fd, "cta"),
+      kpi: sent(fd, "kpi"),
+      writerId: sentId(fd, "writerId"),
+      designerId: sentId(fd, "designerId"),
+      contentDueAt: sentAt(fd, "contentDueAt"),
+      designDueAt: sentAt(fd, "designDueAt"),
+      reviewDueAt: sentAt(fd, "reviewDueAt"),
+      publishAt: sentAt(fd, "publishAt"),
+      publishBasis: sent(fd, "publishBasis"),
+      publishBasisNote: sent(fd, "publishBasisNote"),
+      reason: s(fd, "reason"),
+    }),
+  "campaign.dates": (a, fd) =>
+    amendCampaignDates(a, s(fd, "campaignId"), { startDate: riyadhStart(s(fd, "startDate")), deadline: riyadhDate(s(fd, "deadline")), reason: s(fd, "reason") }),
+  "brief.design": (a, fd) =>
+    saveDesignBrief(a, s(fd, "deliverableId"), Object.fromEntries([...BRIEF_REQUIRED, ...BRIEF_OPTIONAL].map((k) => [k, s(fd, k)]))),
+  "ai.pause": (a, fd) => setAiPaused(a, s(fd, "paused") === "1"),
+  "planning.reopen": (a, fd) => reopenPlanningEarly(a, { reason: s(fd, "reason") }),
+
+  // الشات: الرسالةُ تُحفظ في الطلب، والردُّ يُعالَج بعد خروج الرد — فلا ينتظره أحد ولا يضيع
+  "chat.send": async (a, fd) => {
+    const r = await sendChatMessage(a, scopeOf(fd), { body: s(fd, "body"), requestId: s(fd, "requestId") });
+    if (r.ok && !r.duplicate) after(() => processChatReply(r.replyId).then(() => undefined));
+    return r;
+  },
+  "chat.retry": async (a, fd) => {
+    const r = await retryChatReply(a, s(fd, "replyId"));
+    if (r.ok) after(() => processChatReply(s(fd, "replyId")).then(() => undefined));
+    return r;
+  },
+  "chat.cancel": (a, fd) => cancelChatReply(a, s(fd, "replyId")),
+
+  // الأرشفة: تُطلب هنا وتُعالَج بعد الرد — ويكملها الكنسُ اليومي إن انقطعت
+  "archive.request": async (a, fd) => {
+    const r = await requestArchive(a, s(fd, "campaignId"));
+    if (r.ok) after(() => processArchiveRun(r.runId).then(() => undefined));
+    return r;
+  },
+  "archive.retry": async (a, fd) => {
+    const r = await retryArchive(a, s(fd, "runId"));
+    if (r.ok) after(() => processArchiveRun(s(fd, "runId")).then(() => undefined));
+    return r;
+  },
+  "archive.document": (a, fd) => documentUnpublished(a, s(fd, "deliverableId"), s(fd, "reason")),
+
   "ai.cancel": (a, fd) => cancelJob(a, s(fd, "jobId")),
   "ai.retry": async (a, fd) => {
     const r = await retryJob(a, s(fd, "jobId"));
@@ -241,4 +330,23 @@ export async function pollAiJobs(deliverableId: string) {
   );
   if (due) after(() => processDue({ deliverableId, limit: 2 }).then(() => undefined));
   return { status: aiStatus().text, ...serializeJobs(view) };
+}
+
+/** متابعةُ محادثة — تقرأ الحالة، وتُشغّل ما حان من ردودها (إعادةً مجدولة أو مهلةً انقضت) بعد الرد */
+export async function pollChat(scope: ChatScope) {
+  const session = await auth();
+  if (!session) return null;
+  const actor = await marketingActor(session);
+  if (!actor) return null;
+  const view = await chatView(actor, scope);
+  if (!view) return null;
+  const now = Date.now();
+  const due = view.messages.some(
+    (m) => m.role === "assistant" && ((m.status === "queued" && (!m.nextAttemptAt || m.nextAttemptAt.getTime() <= now)) || m.status === "running")
+  );
+  if (due && view.threadId) {
+    const threadId = view.threadId;
+    after(() => processDueChats({ threadId, limit: 1 }).then(() => undefined));
+  }
+  return serializeChat(view);
 }

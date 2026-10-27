@@ -11,13 +11,13 @@ const REVIEW_KINDS = ["approve_content", "approve_design", "quality"];
 /** ما ينتظر قرارك — من «ما ينتظرني» نفسه، مقصوراً على القرارات.
  *  ومن كتب نسخةً لا تُعرض عليه لاعتمادها ما دامت سياسةُ الفصل قائمة (`actionItems`). */
 export default async function ReviewsPage() {
-  const { actor, mk, isManager } = await marketingPage("/marketing/reviews");
+  const { actor, mk, isManager, canArchive } = await marketingPage("/marketing/reviews");
   const { items } = await actionItems(actor);
   const reviews = items.filter((i) => REVIEW_KINDS.includes(i.kind));
 
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
-      <MkHeader mk={mk} current="reviews" isManager={isManager} title={mk.reviews.title} description={mk.reviews.hint} />
+      <MkHeader mk={mk} current="reviews" isManager={isManager} canArchive={canArchive} title={mk.reviews.title} description={mk.reviews.hint} />
       <Section title={mk.reviews.title}>
         {reviews.length === 0 ? (
           <p className="text-sm text-black/50">{mk.reviews.empty}</p>

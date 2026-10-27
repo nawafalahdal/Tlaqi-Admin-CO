@@ -301,6 +301,14 @@ export async function upsertAdminAccountRow(row: {
   ]);
 }
 
+/** ورقةُ أرشيف حملات التسويق — داخل الملف المرتبط بالمنصة نفسه، لا ملفٌّ ثانٍ */
+export const MARKETING_ARCHIVE_TAB = "Marketing Campaign Archive";
+/** صفٌّ لكل عنصرٍ من الحملة، يحمل معرّفَها الأصلي — فيُبحث ويُصفّى بالأعمدة لا بنصٍّ طويلٍ في خلية */
+export const MARKETING_ARCHIVE_HEADERS = [
+  "مفتاح الصف", "معرّف الحملة", "النوع", "الحملة", "بداية الحملة", "نهاية الحملة", "المنصة", "نوع المحتوى",
+  "العنصر", "الحالة", "الموعد المخطط", "الموعد الفعلي", "المسؤول", "القرار / النتيجة", "الرابط", "التفاصيل", "وقت الأرشفة",
+] as const;
+
 const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: number[] }> = {
   "السجل الحي": {
     title: "تَـــلاقِ — السجل الحي: كل حدث بتسلسله الزمني (مرجع تدقيق)",
@@ -393,6 +401,11 @@ const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: numb
       "ختام التجربة",
     ],
     widths: [160, 220, 150, 140, 190, 130, 150, 160, 170, 180, 170, 180, 160, 110, 110, 160, 140, 160, 150, 200, 110, 160, 220, 100, 180, 160, 160, 160, 170, 200],
+  },
+  [MARKETING_ARCHIVE_TAB]: {
+    title: "تَـــلاقِ — أرشيف حملات التسويق المكتملة (صفٌّ لكل عنصر، مربوطٌ بمعرّف الحملة)",
+    headers: [...MARKETING_ARCHIVE_HEADERS],
+    widths: [230, 200, 120, 200, 110, 110, 100, 110, 220, 120, 150, 150, 160, 150, 240, 420, 150],
   },
 };
 
@@ -789,4 +802,57 @@ export async function prepareAllTabs() {
     prepared.push(tabName);
   }
   return prepared;
+}
+
+// ─── أرشيفُ حملات التسويق ────────────────────────────────────────────
+
+/** ما يحتاجه الأرشيف من الملف: تبويبٌ يُضمن، وصفوفٌ تُقرأ، وصفوفٌ تُلحق.
+ *
+ *  **وخلافاً لبقية هذا الملف لا يبتلع الأخطاء:** الكتابةُ هنا شرطُ حذفٍ من النظام النشط، فكلُّ
+ *  فشلٍ يُرمى ليُسجَّل في سجلّ الأرشفة، ولا يُقال «كُتب» وقد لم يُكتب. والقيمُ تُكتب `RAW` فتُقرأ
+ *  كما كُتبت (لا يحوّل الملفُّ نصّاً إلى تاريخٍ أو رقمٍ فيفسد المطابقة). */
+export interface ArchiveStore {
+  readonly sheet: string;
+  ensure(): Promise<void>;
+  /** صفوفُ البيانات (من الصف الثالث) — بأعمدةٍ أولى بعينها أو كلِّها، وفي نافذةٍ من الصفوف إن حُدّدت
+   *  (`from`/`to` ترتيبُ الصف بين صفوف البيانات، من الصفر، شاملان) — فلا يُحمَّل الأرشيفُ كلُّه لحملةٍ واحدة */
+  readRows(columns?: number, window?: { from: number; to: number }): Promise<string[][]>;
+  appendRows(rows: string[][]): Promise<void>;
+}
+
+const ARCHIVE_TIMEOUT_MS = 20_000;
+
+/** المخزنُ الحقيقيّ — أو `null` إن لم يُضبط الملفُّ وبياناتُ اعتماده (ومنه المعاينة: لا شيتَ لها) */
+export function marketingArchiveStore(): ArchiveStore | null {
+  const sheets = getClient();
+  if (!sheets) return null;
+  const tab = MARKETING_ARCHIVE_TAB;
+  const last = columnLetter(MARKETING_ARCHIVE_HEADERS.length);
+  return {
+    sheet: tab,
+    async ensure() {
+      await ensureTab(sheets, tab);
+    },
+    async readRows(columns = MARKETING_ARCHIVE_HEADERS.length, window) {
+      const range = window ? `'${tab}'!A${window.from + 3}:${columnLetter(columns)}${window.to + 3}` : `'${tab}'!A3:${columnLetter(columns)}`;
+      const res = await sheets.spreadsheets.values.get(
+        { spreadsheetId: SPREADSHEET_ID!, range, valueRenderOption: "FORMATTED_VALUE" },
+        { timeout: ARCHIVE_TIMEOUT_MS }
+      );
+      return ((res.data.values ?? []) as unknown[][]).map((r) => r.map((v) => (v === null || v === undefined ? "" : String(v))));
+    },
+    async appendRows(rows) {
+      if (rows.length === 0) return;
+      await sheets.spreadsheets.values.append(
+        {
+          spreadsheetId: SPREADSHEET_ID!,
+          range: `'${tab}'!A:${last}`,
+          valueInputOption: "RAW",
+          insertDataOption: "INSERT_ROWS",
+          requestBody: { values: rows },
+        },
+        { timeout: ARCHIVE_TIMEOUT_MS }
+      );
+    },
+  };
 }

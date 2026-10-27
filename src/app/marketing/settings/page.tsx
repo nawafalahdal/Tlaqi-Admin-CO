@@ -2,6 +2,7 @@ import { CAPABILITIES, eligiblePeople, listTeam, marketingSettings } from "@/lib
 import { listFormats } from "@/lib/marketing/formats";
 import { aiStatus } from "@/lib/marketing/ai/registry";
 import { marketingPage } from "@/lib/marketing/page";
+import { fmt } from "@/i18n/fmt";
 import { MkHeader } from "../_components/MkHeader";
 import { ActionForm } from "../_components/ActionForm";
 import { Pill, Section, Field, inputCls, Muted } from "../_components/bits";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
  *  - **السياسة:** لقائد التسويق.
  *  - **التكاملات:** حالتُها من الإعدادات الفعلية، لا ادّعاء. */
 export default async function MarketingSettingsPage() {
-  const { actor, mk, isManager, locale } = await marketingPage("/marketing/settings");
+  const { actor, mk, isManager, locale, canArchive } = await marketingPage("/marketing/settings");
   if (!isManager) {
     return (
       <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
@@ -34,7 +35,7 @@ export default async function MarketingSettingsPage() {
 
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
-      <MkHeader mk={mk} current="settings" isManager title={L.title} />
+      <MkHeader mk={mk} current="settings" isManager canArchive={canArchive} title={L.title} />
 
       <Section title={L.team} hint={L.teamHint}>
         <ul className="flex flex-col gap-3">
@@ -165,6 +166,17 @@ export default async function MarketingSettingsPage() {
             {L.separateApprover}
           </p>
         )}
+      </Section>
+
+      <Section title={L.aiControl} hint={L.aiControlHint}>
+        <div className="flex flex-wrap items-center gap-3" data-ai-control>
+          <Pill tone={settings.aiPaused ? "bad" : "good"}>{settings.aiPaused ? fmt(L.aiPausedState, settings.aiPausedByName ?? "—") : L.aiActiveState}</Pill>
+          {actor.isMarketingLead && (
+            <ActionForm op="ai.pause" submit={settings.aiPaused ? L.resume : L.pause} variant={settings.aiPaused ? "solid" : "danger"} inline>
+              <input type="hidden" name="paused" value={settings.aiPaused ? "0" : "1"} />
+            </ActionForm>
+          )}
+        </div>
       </Section>
 
       <Section title={L.integrations} hint={L.integrationsHint}>

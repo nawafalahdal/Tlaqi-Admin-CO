@@ -190,7 +190,7 @@ export async function setMemberActive(actor: MkActor, marketingMemberId: string,
 
 export async function marketingSettings() {
   const row = await prisma.marketingSettings.findUnique({ where: { id: "default" } });
-  return { requireSeparateApprover: row?.requireSeparateApprover ?? true };
+  return { requireSeparateApprover: row?.requireSeparateApprover ?? true, aiPaused: row?.aiPaused ?? false, aiPausedByName: row?.aiPausedByName ?? null };
 }
 
 export async function updateSettings(actor: MkActor, input: { requireSeparateApprover: boolean }): Promise<MkResult> {
@@ -219,4 +219,22 @@ export async function retireMarketingProfile(
   fullName: string
 ) {
   await db.marketingMember.updateMany({ where: who, data: { active: false, nameSnapshot: fullName } });
+}
+
+/** إيقافُ المساعد مركزياً (الشات والاقتراحات) أو استئنافُه — قائدُ التسويق وحده، فوريٌّ بلا نشرٍ
+ *  جديد. الردودُ المنتظرة تُلغى عند معالجتها بسببٍ مسمّى («أُوقف المساعد»)، ولا تُكلَّف. */
+export async function setAiPaused(actor: MkActor, paused: boolean): Promise<MkResult> {
+  return guarded(async () => {
+    if (actor.isFounder) return fail("founder_excluded");
+    if (!actor.isMarketingLead) return fail("forbidden", { role: "manager" });
+    await prisma.$transaction(async (tx) => {
+      await tx.marketingSettings.upsert({
+        where: { id: "default" },
+        update: { aiPaused: paused, aiPausedByName: paused ? actor.name : null, updatedByName: actor.name },
+        create: { id: "default", requireSeparateApprover: true, aiPaused: paused, aiPausedByName: paused ? actor.name : null, updatedByName: actor.name },
+      });
+      await logEvent(tx, actor, { action: paused ? "ai.paused" : "ai.resumed" });
+    });
+    return { ok: true };
+  });
 }

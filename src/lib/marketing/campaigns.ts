@@ -1,9 +1,11 @@
-import type { MarketingCampaignRole, MarketingCampaignStatus, Prisma, WorkPriority } from "@prisma/client";
+import { Prisma, type MarketingCampaignRole, type MarketingCampaignStatus, type WorkPriority } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { campaignAccess, ensureMemberId, hasCapability, requireCampaignRole, visibleCampaignsWhere, type MkActor } from "./access";
 import { logEvent } from "./audit";
 import { assertPlanApproved, invalidatePlanIfChanged, planEditable } from "./plan";
+import { createExecutionTasks } from "./schedule";
 import { abort, fail, guarded, type MkResult } from "./result";
+import { assertNotArchiving } from "./archiveGuard";
 
 /** الحملة: موجزُها وفريقُها وحالتُها.
  *
@@ -42,7 +44,18 @@ export type BriefInput = {
   channels?: string[];
   deadline?: string | Date | null;
   priority?: string;
+  outcomes?: string;
+  audienceSegments?: string;
+  startDate?: string | Date | null;
+  budgetAmount?: string | number | null;
+  budgetNote?: string;
+  kpis?: { name?: string; target?: string; unit?: string; source?: string }[];
+  measurement?: string;
+  references?: string;
+  risks?: string;
 };
+
+const MAX_KPIS = 8;
 
 function parseBrief(input: BriefInput) {
   const name = clip(input.name, 160);
@@ -55,7 +68,33 @@ function parseBrief(input: BriefInput) {
   }
   const priority = (PRIORITIES as string[]).includes(String(input.priority)) ? (input.priority as WorkPriority) : "normal";
   const channels = [...new Set((input.channels ?? []).map((c) => clip(c, 40)).filter(Boolean))].slice(0, 12);
+  let startDate: Date | null = null;
+  if (input.startDate) {
+    const d = input.startDate instanceof Date ? input.startDate : new Date(String(input.startDate));
+    if (Number.isNaN(d.getTime())) abort("invalid_input", { field: "startDate" });
+    startDate = d;
+  }
+  // الميزانيةُ رقمٌ صحيحٌ موجبٌ أو لا شيء — لا تُقدَّر نيابةً عن أحد
+  let budgetAmount: number | null = null;
+  if (input.budgetAmount !== undefined && input.budgetAmount !== null && String(input.budgetAmount).trim() !== "") {
+    const n = Number(String(input.budgetAmount).replace(/[,،\s]/g, ""));
+    if (!Number.isInteger(n) || n < 0 || n > 100_000_000) abort("invalid_input", { field: "budget" });
+    budgetAmount = n;
+  }
+  const kpis = (input.kpis ?? [])
+    .map((k) => ({ name: clip(k.name, 120), target: clip(k.target, 60), unit: opt(k.unit, 30), source: clip(k.source, 200) }))
+    .filter((k) => k.name || k.target || k.source)
+    .slice(0, MAX_KPIS);
   return {
+    outcomes: opt(input.outcomes, 1500),
+    audienceSegments: opt(input.audienceSegments, 1500),
+    startDate,
+    budgetAmount,
+    budgetNote: opt(input.budgetNote, 500),
+    kpis: kpis.length ? kpis : Prisma.DbNull,
+    measurement: opt(input.measurement, 1500),
+    references: opt(input.references, 2000),
+    risks: opt(input.risks, 2000),
     name,
     description: opt(input.description, 2000),
     objective: opt(input.objective, 1000),
@@ -156,6 +195,8 @@ export async function removeCampaignMember(actor: MkActor, campaignId: string, c
   return guarded(async () => {
     await requireCampaignRole(actor, campaignId, "coordinator");
     await prisma.$transaction(async (tx) => {
+      // ما يُؤرشف الآن لا يتغيّر تحته — وإلا اختلف الشيتُ عن مصدره
+      await assertNotArchiving(tx, campaignId);
       const row = await tx.marketingCampaignMember.findFirst({
         where: { id: campaignMemberId, campaignId },
         select: { id: true, role: true, member: { select: { user: { select: { fullName: true } }, member: { select: { fullName: true } }, nameSnapshot: true } } },
@@ -185,7 +226,7 @@ export async function transitionCampaign(
   opts: { reason?: string; expectedRevision?: number } = {}
 ): Promise<MkResult> {
   return guarded(async () => {
-    await requireCampaignRole(actor, campaignId, "coordinator");
+    const { memberId } = await requireCampaignRole(actor, campaignId, "coordinator");
     return prisma.$transaction(async (tx) => {
       const c = await tx.marketingCampaign.findUnique({
         where: { id: campaignId },
@@ -193,6 +234,8 @@ export async function transitionCampaign(
       });
       if (!c) abort("not_found");
       if (opts.expectedRevision !== undefined && opts.expectedRevision !== c.revision) abort("stale");
+      // ما يُؤرشف الآن لا يتغيّر تحته — وإلا اختلف الشيتُ عن مصدره
+      await assertNotArchiving(tx, campaignId);
       const reason = clip(opts.reason, 500);
       let data: Prisma.MarketingCampaignUpdateInput;
 
@@ -221,6 +264,8 @@ export async function transitionCampaign(
           const missing = teamMissing(live);
           if (missing.length) abort("team_incomplete", { missing: missing.join(",") });
           await assertPlanApproved(tx, campaignId);
+          // المهامُّ من التقويم المعتمد — مربوطةً بنسخته، ولا تتكرّر إن عادت الحملةُ إلى التنفيذ
+          await createExecutionTasks(tx, actor, campaignId, c.currentPlanVersionId!, memberId);
         }
         data = { status: to };
       }
@@ -254,13 +299,17 @@ export async function completeIfAllPublished(tx: Prisma.TransactionClient, actor
 
 const LIST_TAKE = 100;
 
-export async function listCampaigns(actor: MkActor, filter: { status?: MarketingCampaignStatus | "active" } = {}) {
-  const statusWhere: Prisma.MarketingCampaignWhereInput =
-    filter.status === "active" ? { status: { notIn: ["archived"] } } : filter.status ? { status: filter.status } : {};
+const listWhere = (actor: MkActor, filter: { status?: MarketingCampaignStatus | "active" }): Prisma.MarketingCampaignWhereInput => ({
+  AND: [visibleCampaignsWhere(actor), filter.status === "active" ? { status: { notIn: ["archived"] } } : filter.status ? { status: filter.status } : {}],
+});
+
+/** الحملاتُ التي يراها — بصفحاتٍ إن طُلبت (`page` من ١)، وإلا أحدثُ ${LIST_TAKE} */
+export async function listCampaigns(actor: MkActor, filter: { status?: MarketingCampaignStatus | "active" } = {}, paging?: { page: number; size: number }) {
   return prisma.marketingCampaign.findMany({
-    where: { AND: [visibleCampaignsWhere(actor), statusWhere] },
-    orderBy: [{ updatedAt: "desc" }],
-    take: LIST_TAKE,
+    where: listWhere(actor, filter),
+    orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+    skip: paging ? (Math.max(1, paging.page) - 1) * paging.size : undefined,
+    take: paging ? paging.size : LIST_TAKE,
     select: {
       id: true,
       name: true,
@@ -273,6 +322,10 @@ export async function listCampaigns(actor: MkActor, filter: { status?: Marketing
       deliverables: { select: { status: true } },
     },
   });
+}
+
+export async function countCampaigns(actor: MkActor, filter: { status?: MarketingCampaignStatus | "active" } = {}) {
+  return prisma.marketingCampaign.count({ where: listWhere(actor, filter) });
 }
 
 /** ما تحتاجه صفحةُ الحملة — أو `null` لمن لا يراها (فيُقال له «غير موجودة» لا «ممنوعة»).
