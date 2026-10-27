@@ -1673,6 +1673,8 @@ model MarketingMember {
   writerOf       MarketingDeliverable[]   @relation("DeliverableWriter")
   designerOf     MarketingDeliverable[]   @relation("DeliverableDesigner")
   chatMessages   MarketingChatMessage[]
+  notices        MarketingNotice[]
+  assistantThreads MarketingChatThread[] @relation("AssistantThreads")
 }
 
 enum MarketingCampaignStatus {
@@ -1924,8 +1926,20 @@ model MarketingDeliverable {
   chatThreads       MarketingChatThread[]
   scheduleChanges   MarketingScheduleChange[]
 
+  /// رقمُ المنشور في حملته (١، ٢، …) — ثابتٌ منذ إنشائه، ولا يُعاد ترقيمُه إن حُذف غيرُه
+  seq               Int?
+  /// وصفُ التصميم الحاليّ للمنشور — يكتبه المنسّق أو المصمّم (أو يُنقل من المساعد)، ويُحفظ
+  /// مع كل نسخة تصميمٍ برابطها
+  designDescription String?                  @db.Text
+  /// أُرشف المنشورُ في Google Sheets بعد نشره وتحقّقٍ من الكتابة: يخرج من قوائم العمل النشطة،
+  /// وتبقى بياناتُه حتى أرشفة الحملة كلِّها (التي تحذفها بعد تحقّقها)
+  archivedAt        DateTime?
+  postArchive       MarketingPostArchive?
+
+  @@unique([campaignId, seq])
   @@index([campaignId])
   @@index([status])
+  @@index([archivedAt, status])
 }
 
 /// نسخةُ نصٍّ مقدَّمة — لا تُعدَّل بعد إنشائها
@@ -1963,10 +1977,16 @@ model MarketingDesignVersion {
   number                  Int
   basedOnContentVersionId String
   basedOnContentVersion   MarketingContentVersion @relation(fields: [basedOnContentVersionId], references: [id])
-  fileId                  String                  @unique
-  file                    MarketingFile           @relation(fields: [fileId], references: [id])
-  width                   Int
-  height                  Int
+  /// ملفٌّ مرفوع (يُفحص مقاسُه آلياً) — أو رابطُ تصميمٍ خارجي (`linkUrl`)؛ واحدٌ منهما على الأقل
+  fileId                  String?                 @unique
+  file                    MarketingFile?          @relation(fields: [fileId], references: [id], onDelete: Restrict)
+  /// أبعادُ الملف المرفوع — لا تُعرف للرابط فتبقى فارغة، ويُفحص المقاسُ يدوياً في الجودة والفحص الأخير
+  width                   Int?
+  height                  Int?
+  /// رابطُ التصميم (Canva أو Drive أو Figma…) — يُحدَّث بنسخةٍ جديدة لا في مكانه
+  linkUrl                 String?
+  /// وصفُ التصميم لحظةَ هذه النسخة
+  description             String?                 @db.Text
   /// نتائجُ الفحوص الآلية لحظةَ الرفع — انظر `designChecks`
   checks                  Json
   changeNote              String?
@@ -2333,6 +2353,8 @@ enum MarketingChatKind {
   content
   design
   publishing
+  /// مساعدُ القسم: لكل عضوٍ محادثتُه، بسياق حملةٍ أو منشورٍ يختاره مما يراه
+  assistant
 }
 
 enum MarketingChatRole {
@@ -2355,8 +2377,12 @@ enum MarketingChatStatus {
 model MarketingChatThread {
   id            String                 @id @default(cuid())
   kind          MarketingChatKind
-  campaignId    String
-  campaign      MarketingCampaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  /// فارغٌ لمحادثة المساعد بلا حملة
+  campaignId    String?
+  campaign      MarketingCampaign?     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  /// صاحبُ محادثة المساعد — لا يراها غيرُه
+  ownerId       String?
+  owner         MarketingMember?       @relation("AssistantThreads", fields: [ownerId], references: [id], onDelete: Cascade)
   deliverableId String?
   deliverable   MarketingDeliverable?  @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
   /// `kind:campaignId:deliverableId` — يمنع محادثتين للنطاق نفسه
@@ -2454,3 +2480,48 @@ model MarketingArchiveRun {
   @@index([campaignId])
   @@index([status, nextAttemptAt])
 }
+
+/// أرشفةُ منشورٍ واحدٍ في Google Sheets بعد نشره الفعلي — عمليةٌ معزولة بمعرّفٍ ثابت:
+/// تُكتب صفوفُه ثم تُقرأ وتُطابَق، وبعدها وحدها يخرج من قوائم العمل (`archivedAt`). الفشلُ لا
+/// يحذف شيئاً ويُعاد بتأخيرٍ متزايد، والإعادةُ لا تكرّر صفّاً (مفاتيحُ الصفوف ثابتة).
+model MarketingPostArchive {
+  id            String                 @id @default(cuid())
+  deliverableId String                 @unique
+  deliverable   MarketingDeliverable   @relation(fields: [deliverableId], references: [id], onDelete: Cascade)
+  campaignId    String
+  status        MarketingArchiveStatus @default(pending)
+  attempts      Int                    @default(0)
+  maxAttempts   Int                    @default(8)
+  nextAttemptAt DateTime?
+  leaseUntil    DateTime?
+  /// رمزُ الخطأ الأخير — لا نصَّ ولا بيانات
+  lastError     String?
+  expectedRows  Int                    @default(0)
+  verifiedRows  Int                    @default(0)
+  /// الصفوفُ كما كُتبت وطابقت — تُعيدها أرشفةُ الحملة كما هي، فلا يختلف الملفُّ عن مصدره
+  rows          Json?
+  completedAt   DateTime?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([campaignId])
+}
+
+/// إشعارٌ لعضوٍ في الفريق يُعرض مرّةً واحدة (`seenAt`) — مثل «تم نشر المنشور الأول في الحملة».
+/// نصُّه في `params` فيبقى مفهوماً بعد حذف الحملة؛ ولا علاقةَ بالحملة لذلك.
+model MarketingNotice {
+  id            String          @id @default(cuid())
+  memberId      String
+  member        MarketingMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  kind          String
+  campaignId    String?
+  deliverableId String?
+  params        Json
+  seenAt        DateTime?
+  createdAt     DateTime        @default(now())
+
+  @@unique([memberId, kind, deliverableId])
+  @@index([memberId, seenAt])
+}
+

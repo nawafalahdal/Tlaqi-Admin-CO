@@ -1,9 +1,11 @@
 import { reopenDuePlanning } from "./planningCycle";
 import { processDueChats } from "./ai/chat";
 import { processDueArchives, ensureArchiveFile } from "./archive";
+import { enqueueMissingPostArchives, processDuePostArchives } from "./postArchive";
 
 /** كنسُ وكيل التسويق في الجدولة اليومية — ما يجب أن يقع ولو لم يفتح أحدٌ الصفحة:
- *  إعادةُ فتح شات التخطيط في موعده، وردودٌ معلّقةٌ حان إعادتها، وأرشفةٌ معلّقة، وفحصُ ملف الأرشيف
+ *  إعادةُ فتح شات التخطيط في موعده، وردودٌ معلّقةٌ حان إعادتها، وأرشفةُ المنشورات المنشورة (وما نُشر
+ *  قبل هذه الآلية بلا طلب)، وأرشفةُ الحملات المعلّقة، وفحصُ ملف الأرشيف
  *  (تبويباتُه وعناوينُه — بلا كتابة صفوف) فيظهر في السجلّ يومياً إن انقطع وصولُ المنصة إليه.
  *
  *  كلُّ خطوةٍ معزولة: فشلُ واحدةٍ لا يوقف غيرها ولا يُسقط بقيّةَ الكنس العام، ويُسجَّل رمزُ
@@ -21,6 +23,8 @@ export async function sweepMarketing(now = new Date()) {
   };
   await step("planningReopened", () => reopenDuePlanning(now));
   await step("chats", async () => (await processDueChats({ limit: 5, budgetMs: 20_000 })).length);
+  await step("postArchivesQueued", () => enqueueMissingPostArchives(20));
+  await step("postArchives", () => processDuePostArchives({ limit: 5, budgetMs: 20_000 }));
   await step("archives", () => processDueArchives({ limit: 2, budgetMs: 25_000 }));
   await step("archiveFile", async () => {
     const r = await ensureArchiveFile();

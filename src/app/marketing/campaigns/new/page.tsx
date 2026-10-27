@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 /** حملةٌ جديدة — للمنسّق. الاسمُ وحده يكفي للبدء؛ والموجزُ يُستكمل قبل التخطيط
  *  (والخادمُ يفرض ذلك عند الانتقال، لا هذا النموذج). */
 export default async function NewCampaignPage() {
-  const { actor, mk, isManager } = await marketingPage("/marketing/campaigns/new");
+  const { actor, mk, isManager, work, notices } = await marketingPage("/marketing/campaigns/new");
   const allowed = hasCapability(actor, "coordinator");
 
   return (
@@ -20,6 +20,8 @@ export default async function NewCampaignPage() {
         mk={mk}
         current={null}
         isManager={isManager}
+        work={work}
+        notices={notices}
         title={mk.campaigns.newTitle}
         description={mk.campaigns.newHint}
         back={<Link href="/marketing/campaigns" className="text-xs font-bold text-black/55 hover:underline">{mk.campaigns.title}</Link>}

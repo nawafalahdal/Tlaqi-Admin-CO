@@ -88,10 +88,11 @@ async function cleanup() {
   // ── ١) الوصولُ مغلقٌ افتراضياً
   const outsider0 = await actorOf(S.outsider);
   const exec0 = await actorOf(S.exec);
-  // تغيّر التوقّع بقاعدةٍ طُلبت صراحةً: الرئيسُ التنفيذيُّ يعتمد الخطةَ في مرحلته الأخيرة فيدخل
-  // الوكيل لذلك — اطّلاعاً على ما قُدّمت خطتُه، بلا إنشاءٍ ولا عمل؛ والمؤسسُ لا يشارك فلا يدخل
+  // تغيّر التوقّع بقاعدةٍ طلبها المالكُ صراحةً (٢٠٢٦-١٠): اعتمادُ الحملة لقائدة القسم ومسؤول التشغيل
+  // وحدهما، والرئيسُ التنفيذيُّ **يطّلع ولا يعتمد** — يدخل الوكيلَ مطّلعاً (`isOverseer`) بلا مرحلةٍ في
+  // السلسلة، بلا إنشاءٍ ولا عمل؛ والمؤسسُ لا يشارك فلا يدخل
   chk("من ليس في الفريق لا يدخل الوكيل — قائدُ قسمٍ آخر", !canEnterMarketing(outsider0));
-  chk("والرئيسُ التنفيذيُّ يدخل معتمِداً للخطة لا عاملاً", canEnterMarketing(exec0) && exec0.planStage === "executive" && !exec0.member);
+  chk("والرئيسُ التنفيذيُّ يدخل مطّلعاً — لا معتمِداً ولا عاملاً", canEnterMarketing(exec0) && exec0.isOverseer && exec0.planStage === null && !exec0.member);
   chk("والعضوُ العاديّ لا يدخل", !canEnterMarketing(await actorOf(S.member)));
   chk("والمؤسسُ لا يدخل — لا يشارك في عمليات التسويق", !canEnterMarketing(await actorOf(S.founder)));
   chk("ومن ليس في الفريق لا ينشئ حملةً باستدعاء الخادم مباشرة", code(await createCampaign(exec0, { name: `${MARK} x` })) === "forbidden");
@@ -117,13 +118,13 @@ async function cleanup() {
   const ops = await actorOf(S.ops);
   const lead = await actorOf(S.lead);
   const member = await actorOf(S.member);
-  /** تقديمُ الخطة من المنسّق ثم مراحلُها الثلاث بأصحابها — كلُّها بيد صاحب المرحلة */
+  /** تقديمُ الخطة من المنسّق ثم مرحلتاها (القسم ثم التشغيل) بصاحبيهما — كلُّها بيد صاحب المرحلة */
   async function approvePlan(campaignId: string) {
     // الخطةُ تُقدَّم مكتملةً وإلا رُدّت (`plan_incomplete`) — يُكمل الفحصُ ناقصَها بقيمٍ للفحص
     await completePlanForTest(exec, campaignId);
     const p = await submitPlan(exec, campaignId);
     if (!p.ok) return false;
-    const steps = [[mkLead, "department"], [ops, "operations"], [exec, "executive"]] as const;
+    const steps = [[mkLead, "department"], [ops, "operations"]] as const;
     for (const [a, stage] of steps) {
       const r = await decidePlan(a, campaignId, { planVersionId: p.planVersionId, stage, decision: "approved" });
       if (!r.ok) return false;
@@ -159,7 +160,7 @@ async function cleanup() {
     if (m.ok) await addCampaignMember(exec, A, { marketingMemberId: m.memberId, role });
   }
   chk("ومع الفريق لا تنفيذَ قبل اعتماد الخطة", code(await transitionCampaign(exec, A, "in_progress")) === "plan_not_approved");
-  chk("الخطةُ تُعتمد بمراحلها الثلاث", await approvePlan(A));
+  chk("الخطةُ تُعتمد بمرحلتيها (القسم ثم التشغيل)", await approvePlan(A));
   chk("مع الفريق والخطة: إلى التنفيذ", (await transitionCampaign(exec, A, "in_progress")).ok);
   chk("وتغييرٌ بمراجعةٍ قديمة يُردّ (تزامن)", code(await transitionCampaign(exec, A, "blocked", { reason: "x", expectedRevision: 0 })) === "stale");
 
@@ -284,6 +285,7 @@ async function cleanup() {
 
   // ── ١٠) الملفات وتغييرُ المقاس والإيقاف
   const designFileId = (await prisma.marketingDesignVersion.findUniqueOrThrow({ where: { id: d3.versionId } })).fileId;
+  if (!designFileId) throw new Error("stop designFileId");
   chk("الغريبُ لا يقرأ ملفَّ حملةٍ ليست له", (await readCampaignFile(outsider0, designFileId)) === null && (await readCampaignFile(ops, designFileId)) !== null);
 
   // حملةُ ب: تغييرُ المقاس يُسقط التصميم واعتمادَه

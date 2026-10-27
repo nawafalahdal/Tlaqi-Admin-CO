@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { MarketingTaskKind, MarketingTaskStatus, WorkPriority } from "@prisma/client";
+import type { MarketingTaskKind, MarketingTaskStatus, Prisma, WorkPriority } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ALLOWED_PLAN_TYPES } from "@/lib/planFormats";
 import { campaignAccess, requireCampaignRole, type MkActor } from "./access";
@@ -265,12 +265,15 @@ export async function attachToTask(
 
 const TASKS_TAKE = 300;
 
+/** مهامُّ منشورٍ أُرشف بعد نشره خرجت من العمل الجاري مع منشورها — وتبقى في القاعدة حتى أرشفة الحملة */
+const ACTIVE_WORK = { OR: [{ deliverableId: null }, { deliverable: { archivedAt: null } }] } satisfies Prisma.MarketingTaskWhereInput;
+
 export async function campaignTasks(actor: MkActor, campaignId: string, paging?: { page: number; size: number }) {
   const access = await campaignAccess(actor, campaignId);
   if (!access.canView) return null;
   const who = { select: { id: true, user: { select: { fullName: true } }, member: { select: { fullName: true } }, nameSnapshot: true } };
   return prisma.marketingTask.findMany({
-    where: { campaignId },
+    where: { campaignId, ...ACTIVE_WORK },
     orderBy: [{ status: "asc" }, { dueAt: "asc" }, { createdAt: "asc" }, { id: "asc" }],
     skip: paging ? (Math.max(1, paging.page) - 1) * paging.size : undefined,
     take: paging ? paging.size : TASKS_TAKE,
@@ -289,8 +292,8 @@ export async function campaignTaskIndex(actor: MkActor, campaignId: string) {
   const access = await campaignAccess(actor, campaignId);
   if (!access.canView) return null;
   const [total, options] = await Promise.all([
-    prisma.marketingTask.count({ where: { campaignId } }),
-    prisma.marketingTask.findMany({ where: { campaignId, status: { not: "cancelled" } }, orderBy: { createdAt: "asc" }, take: TASKS_TAKE, select: { id: true, title: true } }),
+    prisma.marketingTask.count({ where: { campaignId, ...ACTIVE_WORK } }),
+    prisma.marketingTask.findMany({ where: { campaignId, status: { not: "cancelled" }, ...ACTIVE_WORK }, orderBy: { createdAt: "asc" }, take: TASKS_TAKE, select: { id: true, title: true } }),
   ]);
   return { total, options };
 }

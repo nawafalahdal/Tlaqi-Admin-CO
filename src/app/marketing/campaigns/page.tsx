@@ -13,7 +13,7 @@ const PAGE_SIZE = 24;
 
 /** الحملاتُ التي تراها: ما عُيِّنتَ فيه — أو كلُّها لمدير الفريق (اطّلاعاً) */
 export default async function CampaignsPage({ searchParams }: { searchParams: Promise<{ f?: string; p?: string }> }) {
-  const { actor, mk, isManager, canArchive } = await marketingPage("/marketing/campaigns");
+  const { actor, mk, isManager, canArchive, work, notices } = await marketingPage("/marketing/campaigns");
   const { f, p } = await searchParams;
   const filter = (FILTERS as readonly string[]).includes(f ?? "") ? (f as (typeof FILTERS)[number]) : "active";
   const where = filter === "all" ? {} : filter === "archived" ? { status: "archived" as const } : { status: "active" as const };
@@ -30,7 +30,7 @@ export default async function CampaignsPage({ searchParams }: { searchParams: Pr
       <MkHeader
         mk={mk}
         current="campaigns"
-        isManager={isManager} canArchive={canArchive}
+        isManager={isManager} canArchive={canArchive} work={work} notices={notices}
         title={mk.campaigns.title}
         actions={
           canCreate ? (

@@ -266,9 +266,14 @@ export async function createDeliverable(
       if (!c || !["idea", "briefing", "ready_for_planning", "in_progress", "blocked"].includes(c.status)) abort("campaign_closed");
       // مخرجٌ جديدٌ يغيّر نطاقَ الخطة المعتمدة — لا يُضاف تحت تنفيذٍ جارٍ
       if (!planEditable(c)) abort("plan_locked");
+      // رقمُ المنشور في حملته: التالي بعد أكبرها — بقفلٍ على الحملة فلا يأخذ منشوران الرقمَ نفسه
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`mk-seq:${campaignId}`}))`;
+      const top = await tx.marketingDeliverable.aggregate({ where: { campaignId }, _max: { seq: true } });
+      const seq = (top._max.seq ?? 0) + 1;
       const d = await tx.marketingDeliverable.create({
         data: {
           campaignId,
+          seq,
           title,
           platform,
           formatKey: format.key,
@@ -286,7 +291,7 @@ export async function createDeliverable(
         action: "deliverable.created",
         campaignId,
         deliverableId: d.id,
-        details: { title, platform, format: format.key, width: format.width, height: format.height },
+        details: { title, seq, platform, format: format.key, width: format.width, height: format.height },
       });
       await invalidatePlanIfChanged(tx, actor, campaignId);
       return { ok: true as const, deliverableId: d.id };
@@ -385,13 +390,14 @@ export async function deliverableWorkspace(actor: MkActor, deliverableId: string
       designVersions: {
         orderBy: { number: "desc" },
         take: VERSIONS_TAKE,
-        select: { id: true, number: true, width: true, height: true, checks: true, changeNote: true, submittedAt: true, createdAt: true, basedOnContentVersionId: true, fileId: true, author: who, basedOnContentVersion: { select: { number: true } } },
+        select: { id: true, number: true, width: true, height: true, checks: true, changeNote: true, submittedAt: true, createdAt: true, basedOnContentVersionId: true, fileId: true, linkUrl: true, description: true, author: who, basedOnContentVersion: { select: { number: true } } },
       },
       approvals: { orderBy: { createdAt: "desc" }, take: VERSIONS_TAKE, include: { decider: who, contentVersion: { select: { number: true } }, designVersion: { select: { number: true } } } },
       qualityChecks: { orderBy: { createdAt: "desc" }, take: VERSIONS_TAKE, include: { reviewer: who, contentVersion: { select: { number: true } }, designVersion: { select: { number: true } } } },
       publications: { orderBy: { createdAt: "desc" }, include: { publisher: who, contentVersion: { select: { number: true } }, designVersion: { select: { number: true } } } },
       finalChecks: { orderBy: { createdAt: "desc" }, take: VERSIONS_TAKE, include: { publisher: who, contentVersion: { select: { number: true } }, designVersion: { select: { number: true } } } },
       designBrief: true,
+      postArchive: { select: { id: true, status: true, attempts: true, maxAttempts: true, lastError: true, nextAttemptAt: true, completedAt: true } },
       writer: who,
       designer: who,
     },

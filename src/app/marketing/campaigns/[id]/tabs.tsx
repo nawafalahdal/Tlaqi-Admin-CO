@@ -20,15 +20,19 @@ type Campaign = NonNullable<Awaited<ReturnType<typeof campaignWorkspace>>>["camp
 
 export async function DeliverablesTab({ mk, campaign: c, canEdit, locale }: { mk: Mk; campaign: Campaign; canEdit: boolean; locale: "ar" | "en" }) {
   const formats = canEdit ? await listFormats() : [];
+  // ما أُرشف بعد نشره خرج من العمل الجاري: سطرٌ مختصرٌ لكلٍّ منه، وتفاصيلُه في ملف الأرشيف
+  const active = c.deliverables.filter((d) => !d.archivedAt);
+  const archived = c.deliverables.filter((d) => d.archivedAt);
   return (
     <Section title={mk.campaign.deliverables}>
-      {c.deliverables.length === 0 ? (
-        <Muted>{mk.campaign.noDeliverables}</Muted>
+      {active.length === 0 ? (
+        <Muted>{archived.length ? mk.campaign.allArchived : mk.campaign.noDeliverables}</Muted>
       ) : (
         <ul className="flex flex-col divide-y divide-black/[0.06]">
-          {c.deliverables.map((d) => (
+          {active.map((d) => (
             <li key={d.id}>
               <Link href={`/marketing/campaigns/${c.id}/deliverables/${d.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-3 hover:bg-black/[0.02]">
+                {d.seq != null && <span className="rounded-md bg-[#1a0e1c] px-2 py-0.5 text-[11px] font-bold text-[#EEF6DF]">{fmt(mk.work.seq, d.seq)}</span>}
                 <span className="text-sm font-bold">{d.title}</span>
                 <span className="text-xs text-black/55" dir="ltr">{d.platform} · {d.width}×{d.height}</span>
                 <Pill tone={deliverableTone(d.status)}>{mk.deliverableStatus[d.status]}</Pill>
@@ -37,6 +41,20 @@ export async function DeliverablesTab({ mk, campaign: c, canEdit, locale }: { mk
             </li>
           ))}
         </ul>
+      )}
+      {archived.length > 0 && (
+        <details className="mt-3 rounded-xl bg-[#EEF6DF]/60 p-3" data-archived-posts>
+          <summary className="cursor-pointer text-xs font-bold text-[#1a0e1c]">{fmt(mk.campaign.archivedPosts, archived.length)}</summary>
+          <ul className="mt-2 flex flex-col gap-1 text-xs">
+            {archived.map((d) => (
+              <li key={d.id}>
+                <Link href={`/marketing/campaigns/${c.id}/deliverables/${d.id}`} className="hover:underline">
+                  {d.seq != null ? `${fmt(mk.work.seq, d.seq)} — ` : ""}{d.title} · {when(d.archivedAt)}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
       {canEdit && (
         <details className="mt-4 border-t border-black/5 pt-3">

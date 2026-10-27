@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  *  - **السياسة:** لقائد التسويق.
  *  - **التكاملات:** حالتُها من الإعدادات الفعلية، لا ادّعاء. */
 export default async function MarketingSettingsPage() {
-  const { actor, mk, isManager, locale, canArchive } = await marketingPage("/marketing/settings");
+  const { actor, mk, isManager, locale, canArchive, work, notices } = await marketingPage("/marketing/settings");
   if (!isManager) {
     return (
       <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
@@ -35,7 +35,7 @@ export default async function MarketingSettingsPage() {
 
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
-      <MkHeader mk={mk} current="settings" isManager canArchive={canArchive} title={L.title} />
+      <MkHeader mk={mk} current="settings" isManager canArchive={canArchive} work={work} notices={notices} title={L.title} />
 
       <Section title={L.team} hint={L.teamHint}>
         <ul className="flex flex-col gap-3">

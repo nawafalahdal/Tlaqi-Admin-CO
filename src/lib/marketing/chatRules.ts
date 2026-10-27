@@ -22,8 +22,11 @@ import type { MkFail } from "./result";
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
-export type ChatScope = { kind: MarketingChatKind; campaignId: string; deliverableId?: string | null };
-export const scopeKeyOf = (s: ChatScope) => `${s.kind}:${s.campaignId}:${s.deliverableId ?? "-"}`;
+/** نطاقُ المحادثة. ومساعدُ القسم (`assistant`) محادثةٌ خاصةٌ بصاحبها (`ownerId` — يضبطه الخادمُ من
+ *  الجلسة، لا من النموذج)، بحملةٍ أو منشورٍ يختاره سياقاً — أو بلا حملة. */
+export type ChatScope = { kind: MarketingChatKind; campaignId: string | null; deliverableId?: string | null; ownerId?: string | null };
+export const scopeKeyOf = (s: ChatScope) =>
+  `${s.kind}:${s.campaignId ?? "-"}:${s.deliverableId ?? "-"}${s.kind === "assistant" ? `:${s.ownerId ?? "-"}` : ""}`;
 
 export type ChatRule = {
   /** المسؤولياتُ التي تستعمله في الحملة (واحدةٌ منها تكفي) */
@@ -57,6 +60,13 @@ export const CHAT_RULES: Record<MarketingChatKind, ChatRule> = {
       "تساعد المصمّمَ في تنفيذ موجز التصميم لقطعةٍ واحدة: التسلسلُ البصري، وتوزيعُ النص المعتمد، ومواضعُ الشعار وهوامشُ الأمان، والتباينُ والاتجاه، بالمقاس المحدّد. لا ترى ملفَّ التصميم ولا رابطه.",
     context: ["موجزُ التصميم", "النصُّ المعتمد", "المقاسُ ومنطقةُ الأمان", "قيمُ الهوية الرسمية وملفّاتُ الشعار الأصلية", "موعدُ التسليم"],
     mayNot: ["ادّعاءُ فحص ملفّ التصميم أو رابط Canva", "إعادةُ رسم الشعار أو اختراعُ ألوانٍ وخطوطٍ غير الرسمية", "اعتمادُ التصميم"],
+  },
+  assistant: {
+    roles: ["coordinator", "writer", "designer", "reviewer", "publisher"],
+    purpose:
+      "تساعد فريقَ التسويق في عمله اليومي: إعدادُ الخطط التسويقية والحملات وتنظيمُ أفكارها، وكتابةُ المحتوى وصياغةُ المنشورات، وإعدادُ وصف التصاميم وتوجيهاتِ المصمّمين، ومراجعةُ المحتوى واقتراحُ التحسينات قبل إرساله للاعتماد. إن كتبتَ نصَّ منشورٍ جاهزاً فضعه وحده بين سطرين: «---نص---» و«---/نص---»؛ وإن كتبتَ وصفَ تصميمٍ فبين «---وصف التصميم---» و«---/وصف التصميم---» — فينقله صاحبُه إلى صفحته بضغطة.",
+    context: ["الحملةُ المختارة (إن اختيرت): هدفُها وجمهورُها ورسالتُها ومنصّاتُها ومدتُها ومؤشراتُها ومنشوراتُها", "المنشورُ المختار (إن اختير): منصتُه ونوعُه وموضوعُه ونصُّه ووصفُ تصميمه وموجزُه"],
+    mayNot: ["اعتمادُ حملةٍ أو منشورٍ أو نشرُه", "ادّعاءُ تنفيذ أي إجراءٍ في المنصة", "اختراعُ أرقامٍ أو نتائجَ أو مصادر", "الحديثُ عن أشخاصٍ أو بياناتٍ شخصية"],
   },
   publishing: {
     roles: ["publisher", "reviewer"],
@@ -95,6 +105,8 @@ const no = (code: MkFail["code"], params?: Record<string, string | number>): MkF
 /** هل يكتب هذا المستخدمُ في هذه المحادثة الآن؟ — يُستدعى عند الإرسال وقبل المزوّد */
 export async function chatGate(db: Db, actor: MkActor, scope: ChatScope): Promise<Gate> {
   if (actor.isFounder) return no("founder_excluded");
+  if (scope.kind === "assistant") return assistantGate(db, actor, scope);
+  if (!scope.campaignId) return no("invalid_input", { field: "campaign" });
   const rule = CHAT_RULES[scope.kind];
   const access = await campaignAccess(actor, scope.campaignId, db);
   if (!access.canView) return no("not_found");
@@ -147,6 +159,24 @@ export async function chatGate(db: Db, actor: MkActor, scope: ChatScope): Promis
   return { ok: true, memberId };
 }
 
+/** مساعدُ القسم: لكل عضوٍ في الفريق محادثتُه وحده — والسياقُ حملةٌ أو منشورٌ مما يرى عملَه فقط */
+async function assistantGate(db: Db, actor: MkActor, scope: ChatScope): Promise<Gate> {
+  const memberId = await ensureMemberId(actor, db);
+  if (!memberId || (!actor.isMarketingLead && !(actor.member?.capabilities.length))) return no("forbidden", { role: "writer" });
+  // المحادثةُ لصاحبها: من يطلب غيرَها يُقال له «غير موجودة»
+  if (scope.ownerId !== memberId) return no("not_found");
+  if (scope.deliverableId && !scope.campaignId) return no("invalid_input", { field: "campaign" });
+  if (scope.campaignId) {
+    const access = await campaignAccess(actor, scope.campaignId, db);
+    if (!access.canView) return no("not_found");
+  }
+  if (scope.deliverableId) {
+    const d = await db.marketingDeliverable.findUnique({ where: { id: scope.deliverableId }, select: { campaignId: true } });
+    if (!d || d.campaignId !== scope.campaignId) return no("not_found");
+  }
+  return { ok: true, memberId };
+}
+
 // ─── السياق ───────────────────────────────────────────────────────────
 
 const line = (label: string, v: unknown) => `${label}: ${v === null || v === undefined || v === "" ? "—" : String(v)}`;
@@ -157,6 +187,9 @@ const when = (d: Date | null | undefined) =>
  *  الخطة أو اعتُمدت، أو قُدّمت نسخةُ نصٍّ أو تصميمٍ جديدة، أو تغيّر الموجز أو المرحلة) صار الردُّ
  *  «قديماً» ولا يُعرض كأنه حالي. وتعديلُ مسودةٍ في أثناء الانتظار ليس تغيّراً في النسخة. */
 export async function versionFingerprint(db: Db, scope: ChatScope): Promise<string> {
+  // المساعدُ لا مهمّةَ له تتقادم: ردُّه جوابٌ على سؤالٍ لا على نسخة
+  if (scope.kind === "assistant") return createHash("sha256").update(JSON.stringify([scope.kind, scope.campaignId, scope.deliverableId ?? null])).digest("hex");
+  if (!scope.campaignId) return createHash("sha256").update(scope.kind).digest("hex");
   const c = await db.marketingCampaign.findUnique({
     where: { id: scope.campaignId },
     select: { status: true, currentPlanVersion: { select: { id: true, invalidatedAt: true, _count: { select: { decisions: true } } } } },
@@ -178,6 +211,8 @@ export async function versionFingerprint(db: Db, scope: ChatScope): Promise<stri
 /** سياقُ المهمّة: حقولٌ مسمّاةٌ من هذه الحملة وحدها، بالحدّ الأدنى اللازم لنوعها. لا بريدَ ولا
  *  أسماءَ أعضاءٍ ولا بياناتِ حملاتٍ أخرى. */
 export async function buildContext(db: Db, scope: ChatScope): Promise<{ text: string }> {
+  if (scope.kind === "assistant") return assistantContext(db, scope);
+  if (!scope.campaignId) throw new Error("chat context: campaign required");
   const c = await db.marketingCampaign.findUniqueOrThrow({
     where: { id: scope.campaignId },
     select: {
@@ -263,4 +298,65 @@ export async function buildContext(db: Db, scope: ChatScope): Promise<{ text: st
     }
   }
   return { text: parts.join("\n").slice(0, CHAT_LIMITS.context) };
+}
+
+/** سياقُ مساعد القسم — الحدُّ الأدنى المفيد مما يرى صاحبُه عملَه: الحملةُ ومنشوراتُها، والمنشورُ المختار.
+ *  لا أسماءَ أعضاءٍ ولا بريدَ ولا ميزانية، ولا حملاتٍ أخرى. وبلا حملةٍ مختارة: لا بياناتَ أصلاً. */
+async function assistantContext(db: Db, scope: ChatScope): Promise<{ text: string }> {
+  const parts: string[] = ["نوعُ المحادثة: مساعدُ قسم التسويق"];
+  if (!scope.campaignId) {
+    parts.push("لا حملةَ مختارة — أجب بما يكتبه المستخدم وحده، ولا تفترض بياناتِ حملة.");
+    return { text: parts.join("\n") };
+  }
+  const c = await db.marketingCampaign.findUnique({
+    where: { id: scope.campaignId },
+    select: {
+      name: true, description: true, objective: true, outcomes: true, audience: true, keyMessage: true, channels: true, startDate: true, deadline: true, kpis: true, status: true,
+      deliverables: { orderBy: [{ seq: "asc" }, { createdAt: "asc" }], take: 40, select: { seq: true, title: true, platform: true, contentType: true, topic: true, status: true, publishAt: true } },
+    },
+  });
+  if (!c) return { text: parts.join("\n") };
+  parts.push(
+    line("الحملة", c.name), line("حالة الحملة", c.status), line("الوصف", c.description), line("الهدف", c.objective), line("النتائج المطلوبة", c.outcomes),
+    line("الجمهور", c.audience), line("الرسالة الرئيسية", c.keyMessage), line("القنوات", c.channels.join("، ")),
+    line("البداية", when(c.startDate)), line("النهاية", when(c.deadline)),
+    line("مؤشرات الأداء", completeKpis(c.kpis).map((k) => `${k.name}: ${k.target}${k.unit ? " " + k.unit : ""}`).join("؛ ")),
+    `منشورات الحملة (${c.deliverables.length}):`,
+    ...c.deliverables.map((p) => `  ${p.seq ?? "—"}. ${p.title} — ${p.platform} — ${p.contentType ?? "نوعٌ غير محدّد"} — ${p.topic ?? "موضوعٌ غير محدّد"} — ${p.status} — نشر ${when(p.publishAt)}`)
+  );
+  if (scope.deliverableId) {
+    const d = await db.marketingDeliverable.findUnique({
+      where: { id: scope.deliverableId },
+      select: {
+        seq: true, title: true, platform: true, contentType: true, topic: true, message: true, cta: true, width: true, height: true, status: true, publishAt: true,
+        contentDraft: true, designDescription: true, revisionNote: true,
+        currentContentVersion: { select: { number: true, body: true } },
+        designBrief: { select: { headline: true, secondaryText: true, cta: true, colors: true, layout: true, imagery: true, placement: true } },
+      },
+    });
+    if (d) {
+      const b = d.designBrief;
+      parts.push(
+        `المنشور المختار: ${d.seq ?? "—"}. ${d.title}`, line("المنصة", d.platform), line("نوع المحتوى", d.contentType), line("المقاس", `${d.width}×${d.height}`),
+        line("الموضوع", d.topic), line("رسالة المنشور", d.message), line("الدعوة إلى الإجراء", d.cta), line("الحالة", d.status), line("موعد النشر", when(d.publishAt)),
+        line("ملاحظة التعديل المطلوب", d.revisionNote),
+        `النص المعتمد (نسخة ${d.currentContentVersion?.number ?? "—"}):\n${d.currentContentVersion?.body.slice(0, 3000) ?? "(لا نسخة معتمدة)"}`,
+        `المسودة الحالية:\n${d.contentDraft.slice(0, 3000) || "(فارغة)"}`,
+        line("وصف التصميم", d.designDescription),
+        line("موجز التصميم", b ? [b.placement, b.headline, b.secondaryText, b.cta, b.colors, b.layout, b.imagery].filter(Boolean).join(" · ") : null),
+        line("الهوية الرسمية", `${BRAND_DEFAULTS.colors}؛ ${BRAND_DEFAULTS.fonts}`)
+      );
+    }
+  }
+  return { text: parts.join("\n").slice(0, CHAT_LIMITS.context) };
+}
+
+/** النصُّ الذي ينقله صاحبُه من ردّ المساعد: ما بين العلامتين إن وُجدتا — وإلا الردُّ كلُّه */
+export function extractBlock(body: string, kind: "text" | "design"): string {
+  const tag = kind === "text" ? "نص" : "وصف التصميم";
+  const open = `---${tag}---`;
+  const close = `---/${tag}---`;
+  const start = body.indexOf(open);
+  const end = start >= 0 ? body.indexOf(close, start + open.length) : -1;
+  return (start >= 0 && end > start ? body.slice(start + open.length, end) : body).trim();
 }

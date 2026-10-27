@@ -104,7 +104,9 @@ async function cleanup() {
   }
   const ops = await A(S.ops);
   const ceo = await A(S.ceo);
-  chk("مسؤولُ التشغيل والرئيسُ التنفيذي معتمِدا مرحلتَيهما من دورهما", ops.planStage === "operations" && ceo.planStage === "executive" && !hasCapability(ops, "manager") && !hasCapability(ceo, "manager"));
+  // تغيّر التوقّع بقاعدةٍ طلبها المالكُ صراحةً (٢٠٢٦-١٠): اعتمادُ الحملة لقائدة القسم ومسؤول التشغيل
+  // وحدهما، كلاهما مطلوب — والرئيسُ التنفيذيُّ يطّلع (`isOverseer`) ولا مرحلةَ له في السلسلة
+  chk("مسؤولُ التشغيل معتمِدُ مرحلته من دوره، والرئيسُ التنفيذي مطّلعٌ بلا مرحلة", ops.planStage === "operations" && ceo.planStage === null && ceo.isOverseer && !hasCapability(ops, "manager") && !hasCapability(ceo, "manager"));
 
   chk("القائدُ لا يضيف المؤسس", code(await addTeamMember(lead, { kind: "user", id: founderU.id, capabilities: ["writer"] })) === "founder_excluded");
   chk("ولا يمنح «قائد التسويق» لأحد", code(await addTeamMember(lead, { kind: "user", id: w1U.id, capabilities: ["writer", "manager"] })) === "invalid_input");
@@ -158,11 +160,12 @@ async function cleanup() {
   const dec = (a: MkActor, v: string, stage: string, decision: "approved" | "changes_requested" = "approved", note?: string) =>
     decidePlan(a, C, { planVersionId: v, stage, decision, note });
   chk("الترتيب: مسؤولُ التشغيل لا يعتمد قبل القائد", code(await dec(ops, p1.planVersionId, "operations")) === "invalid_state");
-  chk("ولا الرئيسُ التنفيذي قبلهما", code(await dec(ceo, p1.planVersionId, "executive")) === "invalid_state");
+  chk("والرئيسُ التنفيذي لا يعتمد في أي مرحلة — ولا بمرحلةٍ مصطنعة", code(await dec(ceo, p1.planVersionId, "executive")) === "invalid_input" && code(await dec(ceo, p1.planVersionId, "department")) === "forbidden" && code(await dec(ceo, p1.planVersionId, "operations")) === "forbidden");
+  chk("ويرى الخطةَ المقدَّمة اطّلاعاً — ولا تنتظره", (await campaignPlan(ceo, C)) !== null && !(await plansAwaiting(ceo)).some((x) => x.id === C));
   chk("مرحلةٌ مصطنعة: مسؤولُ التشغيل يدّعي مرحلة القسم", code(await dec(ops, p1.planVersionId, "department")) === "forbidden");
   chk("والقائدُ يدّعي مرحلة التشغيل", code(await dec(lead, p1.planVersionId, "operations")) === "forbidden");
   chk("والكاتبُ والعضوُ لا مرحلةَ لهما", code(await dec(w1, p1.planVersionId, "department")) === "forbidden" && code(await dec(await A(S.member), p1.planVersionId, "department")) === "forbidden");
-  chk("والمؤسسُ لا يعتمد خطة", code(await dec(founder, p1.planVersionId, "executive")) === "founder_excluded");
+  chk("والمؤسسُ لا يعتمد خطة", code(await dec(founder, p1.planVersionId, "operations")) === "founder_excluded");
   chk("القائدُ يعتمد مرحلة القسم", (await dec(lead, p1.planVersionId, "department")).ok);
   chk("ولا تُقرَّر المرحلةُ مرتين", code(await dec(lead, p1.planVersionId, "department")) === "invalid_state");
   chk("الردُّ للتعديل بلا سببٍ يُرفض", code(await dec(ops, p1.planVersionId, "operations", "changes_requested")) === "invalid_input");
@@ -170,13 +173,13 @@ async function cleanup() {
   const v1 = await prisma.marketingPlanVersion.findUniqueOrThrow({ where: { id: p1.planVersionId }, include: { decisions: true } });
   const back = v1.decisions.find((d) => d.stage === "operations");
   chk("الردُّ يُبطل النسخة ويُحفظ بصاحبه وسببه ووقته ونسخته", !!v1.invalidatedAt && v1.invalidatedReason === "returned_for_revision" && back?.decision === "changes_requested" && back.note === "الموعد قريبٌ جداً" && back.deciderId === opsU.id && back.deciderRole === "operations_officer" && back.planVersionId === v1.id && !!back.createdAt);
-  chk("ولا يُعتمد ما رُدّ", code(await dec(ceo, p1.planVersionId, "executive")) === "plan_stale");
+  chk("ولا يُعتمد ما رُدّ", code(await dec(ops, p1.planVersionId, "operations")) === "plan_stale");
 
   await updateBrief(lead, C, { ...brief, deadline: new Date(Date.now() + 20 * 86400_000) });
   const p2 = await submitPlan(lead, C, { note: "موعدٌ أبعد" });
   if (!p2.ok) throw new Error("stop p2 " + code(p2));
   chk("النسخةُ الأولى تبقى في السجلّ بقرارها", (await prisma.marketingPlanDecision.count({ where: { planVersionId: p1.planVersionId } })) === 2);
-  chk("المراحلُ الثلاث بالترتيب على النسخة الثانية", (await dec(lead, p2.planVersionId, "department")).ok && (await dec(ops, p2.planVersionId, "operations")).ok && (await dec(ceo, p2.planVersionId, "executive")).ok);
+  chk("المرحلتان بالترتيب على النسخة الثانية", (await dec(lead, p2.planVersionId, "department")).ok && (await dec(ops, p2.planVersionId, "operations")).ok);
   chk("الخطةُ معتمدة", !!(await campaignPlan(lead, C))?.approved);
 
   // التعديلُ بعد الاعتماد يُسقطه
@@ -187,23 +190,23 @@ async function cleanup() {
   if (!p3.ok) throw new Error("stop p3");
   chk("قرارٌ على نسخةٍ قديمة يُرفض", code(await dec(lead, p2.planVersionId, "department")) === "version_not_current");
   await dec(lead, p3.planVersionId, "department");
-  await dec(ops, p3.planVersionId, "operations");
-  // مخرجٌ جديدٌ قبل الاعتماد الأخير يُبطل النسخة — والرئيسُ يرى «تغيّرت»
+  // مخرجٌ جديدٌ قبل الاعتماد الأخير يُبطل النسخة — ومسؤولُ التشغيل يرى «تغيّرت»
   await createDeliverable(lead, C, { title: "ستوري", platform: "instagram", formatKey: "story" });
-  chk("إضافةُ مخرجٍ تُبطل نسخةً قيد الاعتماد", code(await dec(ceo, p3.planVersionId, "executive")) === "plan_stale");
+  chk("إضافةُ مخرجٍ تُبطل نسخةً قيد الاعتماد", code(await dec(ops, p3.planVersionId, "operations")) === "plan_stale");
   await completePlanForTest(lead, C); // المخرجُ الجديد يحتاج مواعيدَه ومسؤوليه
   const p4 = await submitPlan(lead, C);
   if (!p4.ok) throw new Error("stop p4");
-  for (const [a, s] of [[lead, "department"], [ops, "operations"], [ceo, "executive"]] as const) await dec(a, p4.planVersionId, s);
+  chk("والقائدةُ وحدها لا تكفي — اعتمادُ القسم لا يفتح التنفيذ", (await dec(lead, p4.planVersionId, "department")).ok && code(await transitionCampaign(lead, C, "in_progress")) === "plan_not_approved");
 
-  // صلاحيةٌ سُحبت: رئيسٌ تنفيذيٌّ نُحّي لا يعتمد
-  await prisma.user.update({ where: { id: ceoU.id }, data: { isActive: false } });
-  chk("رئيسٌ تنفيذيٌّ نُحّي يفقد مرحلته فوراً", (await A(S.ceo)).planStage === null);
-  await prisma.user.update({ where: { id: ceoU.id }, data: { isActive: true } });
+  // صلاحيةٌ سُحبت: مسؤولُ تشغيلٍ نُحّي لا يعتمد
+  await prisma.user.update({ where: { id: opsU.id }, data: { isActive: false } });
+  chk("مسؤولُ تشغيلٍ نُحّي يفقد مرحلته فوراً", (await A(S.ops)).planStage === null);
+  await prisma.user.update({ where: { id: opsU.id }, data: { isActive: true } });
+  await dec(ops, p4.planVersionId, "operations");
 
   const opsWs = await campaignWorkspace(ops, C);
   chk("مسؤولُ التشغيل يرى موجزَ الحملة وخطتها لأن خطتها قُدّمت — بلا فريق", !!opsWs?.planOnly && opsWs.campaign.members.length === 0 && opsWs.roles.length === 0 && (await campaignPlan(ops, C)) !== null && (await listCampaigns(ops)).some((x) => x.id === C));
-  chk("وتبدأ الحملةُ بعد الاعتمادات الثلاثة", (await transitionCampaign(lead, C, "in_progress")).ok);
+  chk("وتبدأ الحملةُ بعد الاعتمادَين", (await transitionCampaign(lead, C, "in_progress")).ok);
   chk("ولا يُعدَّل الموجزُ تحت التنفيذ", code(await updateBrief(lead, C, { ...brief, objective: "هدفٌ آخر" })) === "plan_locked");
   chk("ولا يُضاف مخرجٌ تحت التنفيذ", code(await createDeliverable(lead, C, { title: "متأخّر", platform: "x", formatKey: "landscape" })) === "plan_locked");
 
@@ -246,6 +249,7 @@ async function cleanup() {
   // موقعُ معتمِدَي الخطة في الهيكل لا يفتح لهما عملَ الفريق: لا مسودةَ ولا ملفَّ ولا مهامَّ ولا تعليقات
   await addComment(w1, C, { body: "ملاحظةٌ داخلية للفريق", deliverableId: D });
   const fileId = (await prisma.marketingDesignVersion.findUniqueOrThrow({ where: { id: dv.versionId }, select: { fileId: true } })).fileId;
+  if (!fileId) throw new Error("stop fileId");
   for (const [who, a] of [["مسؤولُ التشغيل", ops], ["والرئيسُ التنفيذي", ceo]] as const) {
     const hidden = (await deliverableWorkspace(a, D)) === null && (await readCampaignFile(a, fileId)) === null && (await campaignTasks(a, C)) === null && (await campaignComments(a, C)) === null && (await deliverableJobs(a, D)) === null;
     chk(`${who} لا يفتح المخرجَ ولا ملفَّ التصميم ولا المهامَّ ولا التعليقات`, hidden);

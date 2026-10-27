@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  *  والصلاحيةُ في الخادم (`searchArchive`). */
 export default async function ArchivePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
-  const { actor, mk, isManager, canArchive } = await marketingPage("/marketing/archive");
+  const { actor, mk, isManager, canArchive, work, notices } = await marketingPage("/marketing/archive");
   const L = mk.archive;
   const asked = sp.q === "1";
   const query = { text: sp.text, from: sp.from, to: sp.to, platform: sp.platform, contentType: sp.contentType };
@@ -24,7 +24,7 @@ export default async function ArchivePage({ searchParams }: { searchParams: Prom
 
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-6 sm:px-5 sm:py-8">
-      <MkHeader mk={mk} current="archive" isManager={isManager} canArchive={canArchive} title={L.title} description={L.hint} />
+      <MkHeader mk={mk} current="archive" isManager={isManager} canArchive={canArchive} work={work} notices={notices} title={L.title} description={L.hint} />
       {!canArchive ? (
         <Muted>{L.forbidden}</Muted>
       ) : (

@@ -5,16 +5,19 @@ import { marketingPage } from "@/lib/marketing/page";
 import { plansAwaiting } from "@/lib/marketing/plan";
 import { fmt } from "@/i18n/fmt";
 import { MkHeader } from "./_components/MkHeader";
+import { ChatPanel } from "./_components/ChatPanel";
+import { assistantView } from "@/lib/marketing/ai/chat";
+import { serializeChat } from "@/lib/marketing/ai/chatView";
 import { Pill, Section, deliverableTone, taskTone, when, mkTheme } from "./_components/bits";
 
 export const dynamic = "force-dynamic";
 
 /** لوحةُ الوكيل: ما ينتظرك أولاً، ثم مهامّك، ثم الأعداد — كلُّها من الحقائق.
  *  و«ما ينتظرك» من مسؤولياتك في الحملات التي عُيِّنتَ فيها وحدها؛ ولأصحاب مراحل
- *  الخطة (قائد التسويق، مسؤول التشغيل، الرئيس التنفيذي) الخططُ التي تنتظر مرحلتهم. */
+ *  الخطة (قائد التسويق، مسؤول التشغيل) الخططُ التي تنتظر مرحلتهم. ومساعدُ القسم لكل عضوٍ في الفريق. */
 export default async function MarketingDashboard() {
-  const { actor, mk, isManager, canArchive } = await marketingPage("/marketing");
-  const [{ items, tasks }, overview, plans] = await Promise.all([actionItems(actor), marketingOverview(actor), plansAwaiting(actor)]);
+  const { actor, mk, isManager, canArchive, work, notices } = await marketingPage("/marketing");
+  const [{ items, tasks }, overview, plans, assistant] = await Promise.all([actionItems(actor), marketingOverview(actor), plansAwaiting(actor), assistantView(actor)]);
   const active = ["idea", "briefing", "ready_for_planning", "in_progress", "blocked"].reduce((n, k) => n + (overview.byStatus[k] ?? 0), 0);
   const canCreate = hasCapability(actor, "coordinator");
 
@@ -23,7 +26,7 @@ export default async function MarketingDashboard() {
       <MkHeader
         mk={mk}
         current="dashboard"
-        isManager={isManager} canArchive={canArchive}
+        isManager={isManager} canArchive={canArchive} work={work} notices={notices}
         title={mk.title}
         description={mk.tagline}
         actions={
@@ -34,6 +37,8 @@ export default async function MarketingDashboard() {
           ) : undefined
         }
       />
+
+      {assistant && <ChatPanel scope={{ kind: "assistant", campaignId: null }} initial={serializeChat(assistant)} contextLabel={mk.chat.contextNone} />}
 
       {actor.planStage && (
         <Section title={mk.plan.awaitingYou} hint={mk.plan.owner[actor.planStage]}>

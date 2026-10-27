@@ -6,6 +6,7 @@ import { completeIfAllPublished } from "./campaigns";
 import { checksPass, deliverableFacts, loadDeliverable, publicationBlockers, publishBlockers, reopenTasks, requireWorkable, writeDeliverable } from "./deliverables";
 import { abort, fail, guarded, isUniqueViolation, type MkResult } from "./result";
 import { assertNotArchiving } from "./archiveGuard";
+import { queuePostArchive } from "./postArchive";
 
 /** فحصُ الجودة والنشر.
  *
@@ -231,7 +232,7 @@ export async function recordPublication(
   actor: MkActor,
   deliverableId: string,
   input: { url: string; publishedAt: string | Date; confirmedLive: boolean; requestId?: string; timezone?: string; notes?: string }
-): Promise<MkResult<{ publicationId: string; duplicate?: boolean }>> {
+): Promise<MkResult<{ publicationId: string; postArchiveId?: string; duplicate?: boolean }>> {
   return guarded(async () => {
     const key = input.requestId?.slice(0, 80) || null;
     if (key) {
@@ -277,6 +278,9 @@ export async function recordPublication(
           select: { id: true },
         });
         await writeDeliverable(tx, d, { status: "published" });
+        // النشرُ المؤكَّد وحده يطلب الأرشفة — في المعاملة نفسها، فلا يضيع الطلبُ ولا يتكرّر
+        const postArchiveId = await queuePostArchive(tx, d.id, d.campaignId);
+        await logEvent(tx, actor, { action: "post_archive.queued", campaignId: d.campaignId, deliverableId: d.id, details: { postArchiveId } });
         await logEvent(tx, actor, {
           action: "publication.recorded",
           campaignId: d.campaignId,
@@ -284,7 +288,7 @@ export async function recordPublication(
           details: { url, platform: d.platform, content: d.currentContentVersion!.number, design: d.currentDesignVersion!.number },
         });
         await completeIfAllPublished(tx, actor, d.campaignId);
-        return { ok: true as const, publicationId: p.id };
+        return { ok: true as const, publicationId: p.id, postArchiveId };
       });
     } catch (e) {
       if (key && isUniqueViolation(e)) {

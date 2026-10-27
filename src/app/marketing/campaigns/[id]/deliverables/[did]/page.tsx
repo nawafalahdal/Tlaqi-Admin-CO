@@ -10,7 +10,7 @@ import { marketingPage } from "@/lib/marketing/page";
 import { fmt } from "@/i18n/fmt";
 import { MkHeader } from "../../../../_components/MkHeader";
 import { ActionForm } from "../../../../_components/ActionForm";
-import { Pill, Section, Field, inputCls, deliverableTone } from "../../../../_components/bits";
+import { Pill, Section, Field, inputCls, deliverableTone, when } from "../../../../_components/bits";
 import { CommentsTab, AuditTab } from "../../tabs";
 import { ContentSection, DesignSection, QualitySection, PublishSection, DecisionsList } from "./sections";
 import { DesignBriefSection, FinalCheckSection } from "./extras";
@@ -19,6 +19,7 @@ import { chatView } from "@/lib/marketing/ai/chat";
 import { serializeChat } from "@/lib/marketing/ai/chatView";
 import { prisma } from "@/lib/prisma";
 import { ChatPanel } from "../../../../_components/ChatPanel";
+import { assistantView } from "@/lib/marketing/ai/chat";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export const dynamic = "force-dynamic";
  *  بقي في صفحةٍ قديمة يُردّ برمزٍ مفهوم («ظهرت نسخةٌ أحدث»)، لا يُنفَّذ. */
 export default async function DeliverablePage({ params }: { params: Promise<{ id: string; did: string }> }) {
   const { id, did } = await params;
-  const { actor, mk, isManager, locale } = await marketingPage(`/marketing/campaigns/${id}/deliverables/${did}`);
+  const { actor, mk, isManager, locale, work, notices } = await marketingPage(`/marketing/campaigns/${id}/deliverables/${did}`);
   const ws = await deliverableWorkspace(actor, did);
   if (!ws || ws.deliverable.campaignId !== id) notFound();
   const { deliverable: d, roles, facts, blockers } = ws;
@@ -49,11 +50,15 @@ export default async function DeliverablePage({ params }: { params: Promise<{ id
     const v = await chatView(actor, scopeOf(kind));
     return v ? serializeChat(v) : null;
   };
-  const [gaps, contentChat, designChat, publishChat] = await Promise.all([
+  // النقلُ من المساعد: إلى المسودة لكاتبٍ والمنشورُ قيد العمل، وإلى وصف التصميم للمصمّم أو المنسّق قبل النشر
+  const canDraft = has("writer") && workable;
+  const canDescribe = (has("designer") || has("coordinator")) && d.status !== "published" && !d.archivedAt;
+  const [gaps, contentChat, designChat, publishChat, assistant] = await Promise.all([
     briefGaps(prisma, d.id),
     viewFor("content", has("writer")),
     viewFor("design", has("designer")),
     viewFor("publishing", has("publisher") || has("reviewer")),
+    assistantView(actor, id, d.id),
   ]);
 
   return (
@@ -62,6 +67,8 @@ export default async function DeliverablePage({ params }: { params: Promise<{ id
         mk={mk}
         current={null}
         isManager={isManager}
+        work={work}
+        notices={notices}
         title={
           <span className="flex flex-wrap items-center gap-2">
             {d.title}
@@ -85,6 +92,24 @@ export default async function DeliverablePage({ params }: { params: Promise<{ id
       )}
       {d.status === "blocked" && d.revisionNote && (
         <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-800">{fmt(mk.campaign.blockedBecause, d.revisionNote)}</p>
+      )}
+      {d.postArchive && (
+        <div data-post-archive={d.postArchive.status} className={`flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3 text-sm ${d.postArchive.status === "failed" ? "bg-red-50 text-red-800" : "bg-[#EEF6DF] text-[#1a0e1c]"}`}>
+          <p className="flex-1">
+            {d.postArchive.status === "completed"
+              ? fmt(mk.deliverable.postArchived, when(d.postArchive.completedAt))
+              : d.postArchive.status === "failed"
+                ? fmt(mk.work.archiveFailed, mk.archive.errors[(d.postArchive.lastError?.split(":")[0] ?? "sheet_error") as keyof typeof mk.archive.errors] ?? d.postArchive.lastError ?? "—")
+                : d.postArchive.lastError
+                  ? fmt(mk.deliverable.postArchiveRetrying, d.postArchive.attempts, d.postArchive.maxAttempts, when(d.postArchive.nextAttemptAt))
+                  : mk.work.archivePending}
+          </p>
+          {d.postArchive.status === "failed" && (has("coordinator") || has("publisher")) && (
+            <ActionForm op="post.archiveRetry" submit={mk.work.retry} variant="outline" inline>
+              <input type="hidden" name="deliverableId" value={d.id} />
+            </ActionForm>
+          )}
+        </div>
       )}
 
       {d.status !== "published" && (
@@ -147,14 +172,22 @@ export default async function DeliverablePage({ params }: { params: Promise<{ id
         {...ctx}
         ai={has("writer") && jobsView ? { initial: { status: ai.text, ...serializeJobs(jobsView) }, image: ai.image } : null}
       />
-      {contentChat && <ChatPanel scope={scopeOf("content")} initial={contentChat} />}
+      {contentChat && <ChatPanel scope={scopeOf("content")} initial={contentChat} transfer={{ deliverableId: d.id, toDraft: canDraft, toDesign: false }} />}
       <DesignBriefSection {...ctx} gaps={gaps} />
       <DesignSection {...ctx} />
-      {designChat && <ChatPanel scope={scopeOf("design")} initial={designChat} />}
+      {designChat && <ChatPanel scope={scopeOf("design")} initial={designChat} transfer={{ deliverableId: d.id, toDraft: false, toDesign: canDescribe }} />}
       <QualitySection {...ctx} />
       <FinalCheckSection {...ctx} />
       {publishChat && <ChatPanel scope={scopeOf("publishing")} initial={publishChat} />}
       <PublishSection {...ctx} />
+      {assistant && (
+        <ChatPanel
+          scope={{ kind: "assistant", campaignId: id, deliverableId: d.id }}
+          initial={serializeChat(assistant)}
+          transfer={{ deliverableId: d.id, toDraft: canDraft, toDesign: canDescribe }}
+          contextLabel={fmt(mk.chat.contextPost, d.seq != null ? fmt(mk.work.seq, d.seq) : "—", d.title)}
+        />
+      )}
       <DecisionsList mk={mk} approvals={d.approvals} />
       <CommentsTab mk={mk} actor={actor} campaignId={id} canWrite={roles.length > 0} deliverableId={d.id} />
       <AuditTab mk={mk} campaignId={id} deliverableId={d.id} locale={locale} />

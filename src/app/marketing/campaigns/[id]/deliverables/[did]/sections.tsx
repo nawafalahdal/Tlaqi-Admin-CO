@@ -165,21 +165,64 @@ export function DesignSection({ mk, d, facts, me, separate, workable, has }: Ctx
   const phase = DESIGN_PHASE.includes(d.status) || (d.status === "revision_required" && d.revisionTarget === "design");
   const canUpload = designer && workable && phase && facts.contentApproved;
   const current = d.designVersions.find((v) => v.id === d.currentDesignVersionId) ?? null;
-  const preview = d.designVersions.map((v) => ({ id: v.id, number: v.number, url: `/api/marketing/files/${v.fileId}`, width: v.width, height: v.height }));
+  // المعاينةُ للملفّات المرفوعة — والرابطُ يُفتح في مصدره (المنصةُ لا تجلبه)
+  const preview = d.designVersions.flatMap((v) => (v.fileId && v.width && v.height ? [{ id: v.id, number: v.number, url: `/api/marketing/files/${v.fileId}`, width: v.width, height: v.height }] : []));
+  const canDescribe = (designer || has("coordinator")) && d.status !== "published" && !d.archivedAt;
   const target = { width: d.width, height: d.height, safeTop: d.safeTop, safeRight: d.safeRight, safeBottom: d.safeBottom, safeLeft: d.safeLeft };
   const checksOf = (v: D["designVersions"][number]) => (Array.isArray(v.checks) ? (v.checks as Check[]) : []);
 
   return (
     <Section id="design" title={mk.deliverable.sections.design} hint={designer ? undefined : L.readOnly}>
       <div className="flex flex-col gap-4">
-        {preview.length > 0 ? <DesignPreview versions={preview} target={target} /> : <Muted>{L.noVersions}</Muted>}
+        {preview.length > 0 ? <DesignPreview versions={preview} target={target} /> : d.designVersions.length === 0 && <Muted>{L.noVersions}</Muted>}
+        {current?.linkUrl && <DesignLinkCard mk={mk} url={current.linkUrl} number={current.number} />}
+
+        <div className="rounded-xl border border-black/[0.08] p-3" data-design-description>
+          <p className="text-xs font-bold text-black/60">{L.description}</p>
+          {d.designDescription ? <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed" dir="auto">{d.designDescription}</p> : <Muted>{L.noDescription}</Muted>}
+          {canDescribe && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs font-bold text-black/60">{L.editDescription}</summary>
+              <div className="mt-2">
+                <ActionForm op="design.describe" submit={mk.common.save}>
+                  <input type="hidden" name="deliverableId" value={d.id} />
+                  <textarea name="description" rows={4} maxLength={2000} defaultValue={d.designDescription ?? ""} className={areaCls} />
+                </ActionForm>
+              </div>
+            </details>
+          )}
+        </div>
 
         {designer && workable && !facts.contentApproved && <Muted>{L.needsApprovedContent}</Muted>}
 
         {designer && <BrandAssets mk={mk} />}
 
         {canUpload && (
-          <details open={d.designVersions.length === 0}>
+          <details open={d.designVersions.length === 0} data-design-link-form>
+            <summary className="cursor-pointer text-sm font-bold">{current?.linkUrl ? L.updateLink : L.addLink}</summary>
+            <div className="mt-2">
+              <ActionForm op="design.link" submit={current?.linkUrl ? L.updateLink : L.addLink} resetOnSuccess>
+                <input type="hidden" name="deliverableId" value={d.id} />
+                <Field label={L.linkUrl} hint={L.linkHint}>
+                  <input name="url" type="url" required maxLength={500} dir="ltr" placeholder="https://www.canva.com/design/…" className={inputCls} />
+                </Field>
+                <Field label={L.description}>
+                  <textarea name="description" rows={3} maxLength={2000} defaultValue={d.designDescription ?? ""} className={areaCls} />
+                </Field>
+                <Field label={mk.content.changeNote}>
+                  <input name="changeNote" maxLength={1000} className={inputCls} />
+                </Field>
+                <label className="flex items-center gap-2 text-xs">
+                  <input type="checkbox" name="submit" value="1" defaultChecked />
+                  {L.submitNow}
+                </label>
+              </ActionForm>
+            </div>
+          </details>
+        )}
+
+        {canUpload && (
+          <details>
             <summary className="cursor-pointer text-sm font-bold">{L.upload}</summary>
             <div className="mt-2">
               <ActionForm op="design.upload" submit={L.upload} resetOnSuccess>
@@ -238,8 +281,13 @@ export function DesignSection({ mk, d, facts, me, separate, workable, has }: Ctx
                       <span>{when(v.createdAt)}</span>
                       {onCurrent ? <span>{fmt(L.onContent, v.basedOnContentVersion.number)}</span> : <Pill tone="review">{L.outdated}</Pill>}
                       <span>{v.submittedAt ? fmt(L.submitted, when(v.submittedAt)) : L.notSubmitted}</span>
-                      <a href={`/api/marketing/files/${v.fileId}?download=1`} className="underline-offset-2 hover:underline">{mk.common.download}</a>
+                      {v.fileId ? (
+                        <a href={`/api/marketing/files/${v.fileId}?download=1`} className="underline-offset-2 hover:underline">{mk.common.download}</a>
+                      ) : v.linkUrl ? (
+                        <a href={v.linkUrl} target="_blank" rel="noopener noreferrer" className="underline-offset-2 hover:underline" dir="ltr">{L.openLink}</a>
+                      ) : null}
                     </p>
+                    {v.description && <p className="mt-1 whitespace-pre-wrap text-xs text-black/70" dir="auto">{v.description}</p>}
                     {v.changeNote && <p className="mt-1 text-xs text-black/60">{v.changeNote}</p>}
                     <div className="mt-2">
                       <Checks list={checksOf(v)} labels={mk.designChecks} />
@@ -260,6 +308,18 @@ export function DesignSection({ mk, d, facts, me, separate, workable, has }: Ctx
         )}
       </div>
     </Section>
+  );
+}
+
+/** رابطُ التصميم الحاليّ — يُفتح في مصدره (Canva أو Drive)، والمنصةُ لا تجلبه ولا تدّعي فحصه */
+function DesignLinkCard({ mk, url, number }: { mk: Mk; url: string; number: number }) {
+  const L = mk.design;
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--brand-orange,#c34900)]/30 bg-[#c34900]/[0.04] p-3 text-sm">
+      <span className="font-bold">{fmt(L.currentLink, number)}</span>
+      <a href={url} target="_blank" rel="noopener noreferrer" className="break-all text-xs underline-offset-2 hover:underline" dir="ltr">{url}</a>
+      <span className="text-[11px] text-black/50">{L.linkManualCheck}</span>
+    </div>
   );
 }
 

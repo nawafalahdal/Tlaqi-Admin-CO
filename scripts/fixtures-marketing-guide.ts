@@ -87,7 +87,6 @@ async function setup(totpSecret: string) {
   // صيغةُ المخاطبة مختارةٌ سلفاً، فلا يظهر سؤالُها فوق كل صورة (يُعاد عند teardown)
   await prisma.user.updateMany({ where: { email: { in: PLAN_APPROVERS }, gender: null }, data: { gender: "male" } });
   const opsU = await prisma.user.findFirstOrThrow({ where: { email: "ops@fixture.test" } });
-  const execU = await prisma.user.findFirstOrThrow({ where: { email: "exec@fixture.test" } });
   const marketing = await prisma.department.findFirstOrThrow({ where: { slug: "marketing", parentId: null } });
   const hr = await prisma.department.findFirstOrThrow({ where: { slug: "hr" } });
   const tech = await prisma.department.findFirstOrThrow({ where: { slug: "tech" } });
@@ -111,7 +110,6 @@ async function setup(totpSecret: string) {
   const A = async (key: keyof typeof U) => actorOf(asRole(U[key].id, "department_admin", U[key].fullName));
   const lead = await A("lead");
   const ops = await actorOf(asRole(opsU.id, "operations_officer", opsU.fullName));
-  const ceo = await actorOf(asRole(execU.id, "executive", execU.fullName));
 
   const caps = { writer: ["writer"], writer2: ["writer"], designer: ["designer"], designer2: ["designer"], reviewer: ["reviewer"], publisher: ["publisher"] } as const;
   const M: Record<string, string> = {};
@@ -151,7 +149,8 @@ async function setup(totpSecret: string) {
       `brief ${name}`
     );
   }
-  const stages = [[lead, "department"], [ops, "operations"], [ceo, "executive"]] as const;
+  // سلسلةُ الاعتماد: القسم ثم التشغيل — والرئيسُ التنفيذي يطّلع ولا يعتمد
+  const stages = [[lead, "department"], [ops, "operations"]] as const;
   /** فريقُ الحملة: لا تُقدَّم خطةٌ بلا كاتبٍ ومصمّمٍ لكل قطعة (`plan_incomplete`) */
   async function team(id: string, keys: (keyof typeof caps)[] = ["writer", "writer2", "designer", "designer2", "reviewer", "publisher"]) {
     for (const k of keys) must(await addCampaignMember(lead, id, { marketingMemberId: M[k], role: caps[k][0] }), `team ${id} ${k}`);
@@ -190,7 +189,7 @@ async function setup(totpSecret: string) {
     [d.faq, "carousel", "أسئلةُ المنضمّين الجدد", "اسأل في التعليقات"],
   ];
   for (const [id, contentType, topic, cta] of topics) must(await updatePieceSchedule(lead, id, { contentType, topic, cta }), `topic ${topic}`);
-  await plan(c1, 3, "الخطة الأولى للإطلاق");
+  await plan(c1, 2, "الخطة الأولى للإطلاق");
   must(await transitionCampaign(lead, c1, "in_progress"), "c1 go");
 
   /** نصٌّ يكتبه الكاتب ويعتمده الثاني، وتصميمٌ يرفعه المصمّم ويعتمده الثاني */
@@ -286,7 +285,7 @@ async function setup(totpSecret: string) {
   must(await createDeliverable(lead, c3, { title: "إعلان التطوع", platform: "linkedin", formatKey: "landscape" }), "c3 d");
   must(await transitionCampaign(lead, c3, "ready_for_planning"), "c3 planning");
   await team(c3, ["writer", "designer"]);
-  await plan(c3, 2, "إعلانٌ واحدٌ على لينكدإن");
+  await plan(c3, 1, "إعلانٌ واحدٌ على لينكدإن"); // بانتظار مسؤول التشغيل
 
   // «حملة الأسبوع الأول»: ردّها مسؤولُ التشغيل بسبب
   const W = `حملة الأسبوع الأول${SUFFIX}`;
@@ -322,7 +321,7 @@ async function setup(totpSecret: string) {
   const n1 = must(await createDeliverable(lead, c7, { title: "تهنئة اليوم الوطني", platform: "instagram", formatKey: "square" }), "c7 d").deliverableId;
   must(await transitionCampaign(lead, c7, "ready_for_planning"), "c7 planning");
   await team(c7);
-  await plan(c7, 3, "تهنئةٌ واحدة");
+  await plan(c7, 2, "تهنئةٌ واحدة");
   must(await transitionCampaign(lead, c7, "in_progress"), "c7 go");
   const nv = await copy(n1, "كل عامٍ والوطنُ بخير — نعتزّ ونصنع.");
   const nd = await design(n1, 1080, 1080, "national");

@@ -18,7 +18,9 @@ import { abort } from "./result";
  *  **وأصحابُ القرار من هيكل المنصة نفسه — لا أدوارَ دخولٍ جديدة:**
  *  - **قائدُ التسويق** (قائدُ قسمٍ نشطٌ في قسم `marketing`): يدير الفريقَ
  *    ومسؤولياته، وينسّق كلَّ حملة، ويعتمد الخطةَ في مرحلة القسم.
- *  - **مسؤولُ التشغيل** يعتمدها في مرحلة التشغيل، و**الرئيسُ التنفيذي** في الأخيرة.
+ *  - **مسؤولُ التشغيل** يعتمدها في مرحلة التشغيل — وهي الأخيرة: الاعتمادُ باثنين معاً.
+ *  - **الرئيسُ التنفيذي يطّلع ولا يعتمد** (`isOverseer`): يرى ما قُدّمت خطتُه والأرشيفَ، ولا
+ *    مرحلةَ له في السلسلة، ولا يمنحه دورُه التنفيذيُّ شيئاً فوقها.
  *  - **المؤسسُ لا يشارك** في اعتماد الخطط ولا في عمليات الحملات: لا يدخل الوكيل،
  *    ولا يُضاف إلى الفريق، ولا تُحسب له عضويةٌ قديمة إن وُجدت.
  *
@@ -40,6 +42,8 @@ export type MkActor = {
   isMarketingLead: boolean;
   /** المرحلةُ التي يعتمد فيها الخطة — من دوره في المنصة لا من منحٍ في الوكيل */
   planStage: MarketingPlanStage | null;
+  /** اطّلاعٌ بلا قرار: الرئيسُ التنفيذي — يرى الخططَ المقدَّمة والأرشيف، ولا يعتمد */
+  isOverseer: boolean;
   /** عضويتُه الفعّالة في الفريق — `null` لمن ليس عضواً أو أُوقف هو أو حسابُه */
   member: { id: string; capabilities: MarketingCapability[] } | null;
 };
@@ -71,13 +75,9 @@ export async function marketingActor(session: Session | null, db: Db = prisma): 
   const isFounder = orgRole === "super_admin";
   const isMarketingLead =
     orgRole === "department_admin" && user?.department?.slug === MARKETING_DEPARTMENT_SLUG && !user.department.parentId;
-  const planStage: MarketingPlanStage | null = isMarketingLead
-    ? "department"
-    : orgRole === "operations_officer"
-      ? "operations"
-      : orgRole === "executive"
-        ? "executive"
-        : null;
+  // اعتمادُ الحملة لقائدة القسم ومسؤول التشغيل وحدهما — والتنفيذيُّ مطّلعٌ لا صاحبُ مرحلة
+  const planStage: MarketingPlanStage | null = isMarketingLead ? "department" : orgRole === "operations_officer" ? "operations" : null;
+  const isOverseer = orgRole === "executive";
 
   // الحسابُ المعطَّل أو المنتهية عضويتُه لا يحمل شيئاً في الفريق
   const principalLive = row
@@ -102,6 +102,7 @@ export async function marketingActor(session: Session | null, db: Db = prisma): 
     isFounder,
     isMarketingLead,
     planStage,
+    isOverseer,
     member,
   };
 }
@@ -116,7 +117,7 @@ export function hasCapability(actor: MkActor | null, cap: MarketingCapability): 
 /** هل يُرسَم له الوكيلُ أصلاً — القائمةُ والصفحاتُ تسأل هذا، والخادمُ يسأله قبلها */
 export function canEnterMarketing(actor: MkActor | null): boolean {
   if (!actor || actor.isFounder) return false;
-  if (actor.isMarketingLead || actor.planStage) return true;
+  if (actor.isMarketingLead || actor.planStage || actor.isOverseer) return true;
   return !!actor.member && actor.member.capabilities.length > 0;
 }
 
@@ -162,8 +163,8 @@ export async function campaignAccess(actor: MkActor | null, campaignId: string, 
     return { canView: roles.size > 0, canViewPlan: roles.size > 0, roles };
   }
   if (roles.size > 0) return { canView: true, canViewPlan: true, roles };
-  // معتمِدُ الخطة يرى خطةَ ما قُدّمت خطتُه — اطّلاعاً لا عملاً، ولا يرى عملَ الفريق
-  if (actor.planStage) {
+  // معتمِدُ الخطة (والمطّلعُ التنفيذي) يرى خطةَ ما قُدّمت خطتُه — اطّلاعاً لا عملاً، ولا يرى عملَ الفريق
+  if (actor.planStage || actor.isOverseer) {
     const c = await db.marketingCampaign.findUnique({ where: { id: campaignId }, select: { currentPlanVersionId: true } });
     return { canView: false, canViewPlan: !!c?.currentPlanVersionId, roles };
   }
@@ -196,7 +197,7 @@ export function visibleCampaignsWhere(actor: MkActor): Prisma.MarketingCampaignW
   if (actor.member) {
     ors.push({ members: { some: { memberId: actor.member.id, role: { in: actor.member.capabilities.filter(isCampaignRole) } } } });
   }
-  if (actor.planStage) ors.push({ currentPlanVersionId: { not: null } });
+  if (actor.planStage || actor.isOverseer) ors.push({ currentPlanVersionId: { not: null } });
   return ors.length ? { OR: ors } : { id: "__none__" };
 }
 

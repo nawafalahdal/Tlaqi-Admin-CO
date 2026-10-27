@@ -53,7 +53,7 @@ async function threadFor(tx: Prisma.TransactionClient, scope: ChatScope) {
   if (found) return found.id;
   try {
     const t = await tx.marketingChatThread.create({
-      data: { kind: scope.kind, campaignId: scope.campaignId, deliverableId: scope.deliverableId ?? null, scopeKey },
+      data: { kind: scope.kind, campaignId: scope.campaignId, deliverableId: scope.deliverableId ?? null, ownerId: scope.kind === "assistant" ? scope.ownerId ?? null : null, scopeKey },
       select: { id: true },
     });
     return t.id;
@@ -181,11 +181,11 @@ export async function processChatReply(replyId: string, deps?: ChatDeps): Promis
     where: { id: replyId },
     select: {
       id: true, attempts: true, maxAttempts: true, provider: true, contextFingerprint: true, replyToId: true, createdAt: true,
-      thread: { select: { id: true, kind: true, campaignId: true, deliverableId: true } },
+      thread: { select: { id: true, kind: true, campaignId: true, deliverableId: true, ownerId: true } },
     },
   });
   const t = reply.thread;
-  const scope: ChatScope = { kind: t.kind, campaignId: t.campaignId, deliverableId: t.deliverableId };
+  const scope: ChatScope = { kind: t.kind, campaignId: t.campaignId, deliverableId: t.deliverableId, ownerId: t.ownerId };
   const ours = { id: reply.id, status: "running" as const, attempts: reply.attempts };
   const question = reply.replyToId ? await M.findUnique({ where: { id: reply.replyToId }, select: { body: true, authorId: true } }) : null;
   if (!question?.authorId) return finish(ours, scope, { status: "failed", error: "orphaned" }, "chat.failed", now);
@@ -302,13 +302,15 @@ export async function processDueChats(opts: { threadId?: string; limit?: number;
 async function loadReply(replyId: string) {
   const r = await prisma.marketingChatMessage.findUnique({
     where: { id: replyId },
-    select: { id: true, role: true, status: true, error: true, attempts: true, provider: true, replyToId: true, thread: { select: { id: true, kind: true, campaignId: true, deliverableId: true } } },
+    select: { id: true, role: true, status: true, error: true, attempts: true, provider: true, replyToId: true, body: true, thread: { select: { id: true, kind: true, campaignId: true, deliverableId: true, ownerId: true } } },
   });
   if (!r || r.role !== "assistant") abort("not_found");
   return r;
 }
 
 /** محاولةٌ إضافيةٌ واحدة لردٍّ فشل — بالسؤال نفسه، وبعد إعادة الشرط */
+export { loadReply as loadChatReply };
+
 export async function retryChatReply(actor: MkActor, replyId: string, deps?: ChatDeps): Promise<MkResult> {
   return guarded(async () => {
     const r = await loadReply(replyId);
@@ -317,7 +319,7 @@ export async function retryChatReply(actor: MkActor, replyId: string, deps?: Cha
     const status = deps?.status?.() ?? aiStatus().text;
     if (status.state !== "ready" || status.provider !== r.provider) return fail("integration_not_configured", { reason: status.reason ?? "provider_changed" });
     if (await aiPaused()) return fail("ai_paused");
-    const scope: ChatScope = { kind: r.thread.kind, campaignId: r.thread.campaignId, deliverableId: r.thread.deliverableId };
+    const scope: ChatScope = { kind: r.thread.kind, campaignId: r.thread.campaignId, deliverableId: r.thread.deliverableId, ownerId: r.thread.ownerId };
     return prisma.$transaction(async (tx) => {
       const gate = await chatGate(tx, actor, scope);
       if (!gate.ok) abort(gate.code, gate.params);
@@ -337,7 +339,7 @@ export async function retryChatReply(actor: MkActor, replyId: string, deps?: Cha
 export async function cancelChatReply(actor: MkActor, replyId: string): Promise<MkResult> {
   return guarded(async () => {
     const r = await loadReply(replyId);
-    const scope: ChatScope = { kind: r.thread.kind, campaignId: r.thread.campaignId, deliverableId: r.thread.deliverableId };
+    const scope: ChatScope = { kind: r.thread.kind, campaignId: r.thread.campaignId, deliverableId: r.thread.deliverableId, ownerId: r.thread.ownerId };
     const q = r.replyToId ? await prisma.marketingChatMessage.findUnique({ where: { id: r.replyToId }, select: { authorId: true } }) : null;
     // يلغيه صاحبُ السؤال وحده
     if (!actor.member || q?.authorId !== actor.member.id) return fail("forbidden", { role: "assignee" });
@@ -356,8 +358,15 @@ export async function cancelChatReply(actor: MkActor, replyId: string): Promise<
  *  أن يرى الحملة؛ والكتابةُ بشرطها (`chatGate`). المحادثةُ المغلقة تُقرأ ولا تُحذف. */
 export async function chatView(actor: MkActor, scope: ChatScope, deps?: Pick<ChatDeps, "status">) {
   const { campaignAccess } = await import("../access");
-  const access = await campaignAccess(actor, scope.campaignId);
-  if (!access.canView) return null;
+  if (scope.kind === "assistant") {
+    // محادثةُ المساعد لصاحبها وحده — ومن لا عضويةَ له لا محادثةَ له
+    if (!actor.member || actor.isFounder || scope.ownerId !== actor.member.id) return null;
+    if (scope.campaignId && !(await campaignAccess(actor, scope.campaignId)).canView) return null;
+  } else {
+    if (!scope.campaignId) return null;
+    const access = await campaignAccess(actor, scope.campaignId);
+    if (!access.canView) return null;
+  }
   const thread = await prisma.marketingChatThread.findUnique({ where: { scopeKey: scopeKeyOf(scope) }, select: { id: true } });
   const messages = thread
     ? await prisma.marketingChatMessage.findMany({
@@ -378,5 +387,27 @@ export async function chatView(actor: MkActor, scope: ChatScope, deps?: Pick<Cha
     ai: { state: ai.state, reason: ai.reason, simulated: ai.simulated },
     paused,
     me: actor.member?.id ?? null,
+  };
+}
+
+/** محادثةُ مساعد القسم لصاحب الطلب، بسياق الصفحة (حملةٌ أو منشور أو لا شيء) — للعرض بلا كتابة.
+ *  وقائدُ التسويق الذي لم يُنشأ صفُّ عضويته بعدُ يرى محادثةً فارغةً يكتب فيها (يُنشأ صفُّه عند أول
+ *  إرسال، لا في رسم الصفحة). ومن ليس في الفريق لا مساعدَ له. */
+export async function assistantView(actor: MkActor, campaignId: string | null = null, deliverableId: string | null = null, deps?: Pick<ChatDeps, "status">) {
+  if (actor.isFounder) return null;
+  if (actor.member && (actor.isMarketingLead || actor.member.capabilities.length > 0)) {
+    return chatView(actor, { kind: "assistant", campaignId, deliverableId, ownerId: actor.member.id }, deps);
+  }
+  if (!actor.isMarketingLead) return null;
+  const ai = deps?.status?.() ?? aiStatus().text;
+  const paused = await aiPaused();
+  return {
+    threadId: null,
+    messages: [] as Awaited<ReturnType<typeof chatView>> extends infer V ? (V extends { messages: infer M } ? M : never) : never,
+    canWrite: ai.state === "ready" && !paused,
+    blocked: null,
+    ai: { state: ai.state, reason: ai.reason, simulated: ai.simulated },
+    paused,
+    me: null,
   };
 }

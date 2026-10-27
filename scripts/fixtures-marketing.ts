@@ -20,7 +20,7 @@ const FIXTURE_PASSWORD = "Fixture#2026aa";
  *  أصحابُ القرار من هيكل المنصة:
  *  - **قائدُ التسويق** (`mklead@fixture.test` — قائدُ قسم التسويق، حسابٌ مؤقّت يُنشأ هنا):
  *    يبني الفريق، وينسّق، ويعتمد الخطة في مرحلة القسم.
- *  - **مسؤولُ التشغيل** (`ops`) والرئيسُ التنفيذي (`exec`): مرحلتا الخطة التاليتان.
+ *  - **مسؤولُ التشغيل** (`ops`): مرحلةُ الخطة الأخيرة. والرئيسُ التنفيذي (`exec`) يطّلع ولا يعتمد.
  *  الفريق: مسؤولُ التشغيل كاتبٌ وناشر، والتنفيذيُّ مراجعُ جودة، والعضوُ مصمّم، و`crew@fixture.test`
  *  (حسابٌ مؤقّت) كاتبٌ ومصمّمٌ ثانٍ ليعتمد ما لم يكتبه. **والمؤسسُ لا يشارك**، وقائدُ قسم التقنية
  *  (`lead`) خارج الفريق — ليُفحص المنع.
@@ -96,11 +96,11 @@ async function setup(totpSecret: string) {
   const member = await actorOf(asRole(memberM.id, "member", N("member")));
 
   /** تقديمٌ ثم مراحلُ بأصحابها حتى `upTo` */
-  async function approve(campaignId: string, upTo: "department" | "operations" | "executive") {
+  async function approve(campaignId: string, upTo: "department" | "operations") {
     // الخطةُ تُقدَّم مكتملةً وإلا رُدّت (`plan_incomplete`) — يُكمل الفحصُ ناقصَها بقيمٍ للفحص
     await completePlanForTest(lead, campaignId);
     const p = must(await submitPlan(lead, campaignId, { note: "خطة الإطلاق" }), "plan");
-    for (const [a, stage] of [[lead, "department"], [ops, "operations"], [exec, "executive"]] as const) {
+    for (const [a, stage] of [[lead, "department"], [ops, "operations"]] as const) {
       must(await decidePlan(a, campaignId, { planVersionId: p.planVersionId, stage, decision: "approved" }), `plan ${stage}`);
       if (stage === upTo) break;
     }
@@ -125,7 +125,7 @@ async function setup(totpSecret: string) {
   for (const [id, role] of [[om.memberId, "writer"], [om.memberId, "publisher"], [cm.memberId, "writer"], [cm.memberId, "designer"], [mm.memberId, "designer"], [em.memberId, "reviewer"]] as const) {
     must(await addCampaignMember(lead, A, { marketingMemberId: id, role }), `assign ${role}`);
   }
-  await approve(A, "executive");
+  await approve(A, "operations");
   must(await transitionCampaign(lead, A, "in_progress"), "A in_progress");
 
   // d1: بانتظار مراجعة التصميم — كتبه مسؤول التشغيل واعتمده الكاتبُ الثاني، وصمّمه العضو

@@ -76,7 +76,6 @@ async function cleanup() {
   const marketing = await prisma.department.findFirstOrThrow({ where: { slug: "marketing", parentId: null } });
   const tech = await prisma.department.findFirstOrThrow({ where: { slug: "tech" } });
   const opsU = await prisma.user.findFirstOrThrow({ where: { email: "ops@fixture.test" } });
-  const ceoU = await prisma.user.findFirstOrThrow({ where: { email: "exec@fixture.test" } });
   const N = (k: string) => `load-mkj ${k}`;
   const mk = (k: string, departmentId: string) =>
     prisma.user.create({ data: { fullName: N(k), email: `${k}${DOMAIN}`, passwordHash: "x", role: "department_admin", departmentId, isActive: true } });
@@ -84,7 +83,6 @@ async function cleanup() {
   const writersU = await Promise.all([1, 2, 3, 4].map((i) => mk(`w${i}`, tech.id)));
   const lead = await actorOf(asRole(leadU.id, "department_admin", N("lead")));
   const ops = await actorOf(asRole(opsU.id, "operations_officer", N("ops")));
-  const ceo = await actorOf(asRole(ceoU.id, "executive", N("ceo")));
 
   const c = await createCampaign(lead, { name: `${MARK} حملة`, channels: ["instagram"] });
   if (!c.ok) throw new Error("campaign");
@@ -113,7 +111,8 @@ async function cleanup() {
   await completePlanForTest(lead, C);
   const p = await submitPlan(lead, C);
   if (!p.ok) throw new Error("plan");
-  for (const [a, stage] of [[lead, "department"], [ops, "operations"], [ceo, "executive"]] as const) {
+  // سلسلةُ الاعتماد: قائدةُ القسم ثم مسؤولُ التشغيل (التنفيذيُّ يطّلع ولا يعتمد — طلبُ المالك ٢٠٢٦-١٠)
+  for (const [a, stage] of [[lead, "department"], [ops, "operations"]] as const) {
     const r = await decidePlan(a, C, { planVersionId: p.planVersionId, stage, decision: "approved" });
     if (!r.ok) throw new Error("plan " + stage + " " + code(r));
   }

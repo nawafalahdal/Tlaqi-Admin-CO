@@ -9,8 +9,12 @@ import { closePlanningForApproval } from "./planningCycle";
 
 /** خطةُ الحملة وسلسلةُ اعتمادها — يفرضها الخادم، والواجهةُ تعرضها فقط.
  *
- *    تقديمٌ (المنسّق أو قائد التسويق) ← قائدُ التسويق (القسم) ← مسؤولُ التشغيل
- *    ← الرئيسُ التنفيذي (الاعتمادُ الأخير) ← ويُسمح عندها ببدء التنفيذ
+ *    تقديمٌ (المنسّق أو قائد التسويق) ← قائدةُ القسم (مراجعةُ الحملة ومحتواها وتصاميمها)
+ *    ← مسؤولُ التشغيل (جاهزيتُها وتنظيمُها واكتمالُ متطلباتها) ← ويُسمح عندها ببدء التنفيذ
+ *
+ *  - **الاعتمادُ النهائيُّ بموافقة الاثنين معاً** — ولا يملك الرئيسُ التنفيذيُّ مرحلةً فيه
+ *    (قرارُ المالك، 27/10/2026): يطّلع على الخطة ولا يقرّر فيها، ودورُه التنفيذيُّ لا يتجاوز
+ *    السلسلة. وقراراتُه السابقة في المرحلة الثالثة (`executive`) تبقى في السجلّ ولا تُحسب.
  *
  *  - **القرارُ على نسخةٍ بعينها:** التقديمُ صورةٌ من الموجز والمخرجات ببصمة.
  *    أيُّ تعديلٍ بعده يُبطل النسخة (يُختم ولا يُحذف) فيلزم تقديمٌ واعتمادٌ جديدان.
@@ -21,7 +25,9 @@ import { closePlanningForApproval } from "./planningCycle";
 
 type Tx = Prisma.TransactionClient;
 
-export const PLAN_STAGES: MarketingPlanStage[] = ["department", "operations", "executive"];
+export const PLAN_STAGES: MarketingPlanStage[] = ["department", "operations"];
+/** المرحلةُ الأخيرة — اعتمادُها يُتمّ الخطة */
+export const FINAL_PLAN_STAGE: MarketingPlanStage = PLAN_STAGES[PLAN_STAGES.length - 1];
 
 /** ما يُعدَّل فيه بعد التقديم يُبطله — وما لا يُعدَّل إلا قبل التنفيذ */
 const EDITABLE: MarketingCampaignStatus[] = ["idea", "briefing", "ready_for_planning"];
@@ -128,7 +134,7 @@ export async function invalidatePlanIfChanged(tx: Tx, actor: MkActor, campaignId
   return true;
 }
 
-/** شرطُ بدء التنفيذ: نسخةٌ حاليّةٌ قائمة، تطابق الحملةَ الآن، ومعتمدةٌ في مراحلها الثلاث */
+/** شرطُ بدء التنفيذ: نسخةٌ حاليّةٌ قائمة، تطابق الحملةَ الآن، ومعتمدةٌ من قائدة القسم ومسؤول التشغيل */
 export async function assertPlanApproved(tx: Tx, campaignId: string) {
   const c = await tx.marketingCampaign.findUniqueOrThrow({ where: { id: campaignId }, select: { currentPlanVersion: { select: versionSelect } } });
   const v = c.currentPlanVersion;
@@ -241,7 +247,7 @@ export async function decidePlan(
         await tx.marketingPlanVersion.update({ where: { id: v.id }, data: { invalidatedAt: new Date(), invalidatedReason: "returned_for_revision" } });
       }
       // الاعتمادُ الأخير يُغلق شاتَ التخطيط حتى قبل نهاية الحملة بسبعة أيام (`planningCycle.ts`)
-      if (input.decision === "approved" && stage === "executive") await closePlanningForApproval(tx, actor, campaignId);
+      if (input.decision === "approved" && stage === FINAL_PLAN_STAGE) await closePlanningForApproval(tx, actor, campaignId);
       await logEvent(tx, actor, {
         action: input.decision === "approved" ? "plan.approved" : "plan.changes_requested",
         campaignId,

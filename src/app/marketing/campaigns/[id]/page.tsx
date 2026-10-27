@@ -14,6 +14,9 @@ import { campaignPlan, planEditable } from "@/lib/marketing/plan";
 import { completeKpis } from "@/lib/marketing/schedule";
 import { CalendarTab } from "./calendar";
 import { PlanningPanel, ArchiveSection } from "./lifecycle";
+import { ChatPanel } from "../../_components/ChatPanel";
+import { assistantView } from "@/lib/marketing/ai/chat";
+import { serializeChat } from "@/lib/marketing/ai/chatView";
 
 export const dynamic = "force-dynamic";
 
@@ -35,10 +38,12 @@ const OPEN: MarketingCampaignStatus[] = ["idea", "briefing", "ready_for_planning
 export default async function CampaignPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; tp?: string }> }) {
   const { id } = await params;
   const { tab: rawTab, tp } = await searchParams;
-  const { actor, mk, isManager, locale } = await marketingPage(`/marketing/campaigns/${id}`);
+  const { actor, mk, isManager, locale, work, notices } = await marketingPage(`/marketing/campaigns/${id}`);
   const ws = await campaignWorkspace(actor, id);
   if (!ws) notFound();
   const { campaign: c, roles, planOnly } = ws;
+  // مساعدُ القسم بسياق الحملة — لمن يعمل فيها (لا لمن يرى خطتها وحدها)
+  const assistant = planOnly ? null : await assistantView(actor, c.id);
   const plan = await campaignPlan(actor, c.id);
   // معتمِدُ الخطة يرى الموجزَ والخطةَ وحدهما — لا تبويباتِ عمل الفريق (والخادمُ يردّها على كل حال)
   const allowed = planOnly ? PLAN_TABS : (TABS as readonly string[]);
@@ -58,6 +63,8 @@ export default async function CampaignPage({ params, searchParams }: { params: P
         mk={mk}
         current={null}
         isManager={isManager}
+        work={work}
+        notices={notices}
         title={
           <span className="flex flex-wrap items-center gap-2">
             {c.name}
@@ -219,6 +226,7 @@ export default async function CampaignPage({ params, searchParams }: { params: P
       {tab === "team" && <TeamTab mk={mk} actor={actor} campaign={c} canEdit={isCoordinator && !closed} />}
       {tab === "comments" && <CommentsTab mk={mk} actor={actor} campaignId={c.id} canWrite={roles.length > 0} />}
       {tab === "audit" && <AuditTab mk={mk} campaignId={c.id} locale={locale} />}
+      {assistant && <ChatPanel scope={{ kind: "assistant", campaignId: c.id }} initial={serializeChat(assistant)} contextLabel={fmt(mk.chat.contextCampaign, c.name)} />}
     </main>
   );
 }

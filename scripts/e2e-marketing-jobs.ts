@@ -96,12 +96,12 @@ async function cleanup() {
   await transitionCampaign(exec, A, "ready_for_planning");
   await addCampaignMember(exec, A, { marketingMemberId: addOps.memberId, role: "writer" });
   await addCampaignMember(exec, A, { marketingMemberId: addLead.memberId, role: "designer" });
-  // التنفيذُ بعد اعتماد الخطة بمراحلها الثلاث، كلٌّ بيد صاحبه
+  // التنفيذُ بعد اعتماد الخطة بمرحلتيها (القسم ثم التشغيل)، كلٌّ بيد صاحبه — والتنفيذيُّ لا يعتمد
   // الخطةُ تُقدَّم مكتملةً وإلا رُدّت (`plan_incomplete`) — يُكمل الفحصُ ناقصَها بقيمٍ للفحص
   await completePlanForTest(exec, A);
   const plan = await submitPlan(exec, A);
   if (!plan.ok) throw new Error("fixture: plan " + code(plan));
-  for (const [a, stage] of [[mkLead, "department"], [ops0, "operations"], [exec, "executive"]] as const) {
+  for (const [a, stage] of [[mkLead, "department"], [ops0, "operations"]] as const) {
     const r = await decidePlan(a, A, { planVersionId: plan.planVersionId, stage, decision: "approved" });
     if (!r.ok) throw new Error(`fixture: plan ${stage} ${code(r)}`);
   }

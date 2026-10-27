@@ -3,6 +3,8 @@ import { auth } from "@/auth";
 import { getDictionary, getLocale } from "@/i18n/server";
 import { canEnterMarketing, hasCapability, marketingActor, type MkActor } from "./access";
 import { canReadArchive } from "./archive";
+import { workCampaignsWhere, workCounts } from "./workQueue";
+import { unseenNotices } from "./postArchive";
 
 /** رأسُ كلِّ صفحةٍ في وكيل التسويق — يُحسب في الخادم قبل أن يُقرأ شيء.
  *
@@ -16,5 +18,7 @@ export async function marketingPage(path: string) {
   if (!actor || !canEnterMarketing(actor)) notFound();
   const locale = await getLocale();
   const t = getDictionary(locale);
-  return { session, actor: actor as MkActor, locale, t, mk: t.mk, isManager: hasCapability(actor, "manager"), canArchive: canReadArchive(actor) };
+  // صفحاتُ العمل وأعدادُها لمن يعمل في الحملات — ثلاثةُ عدٍّ مفهرسة، بلا قراءةٍ للأرشيف
+  const [work, notices] = await Promise.all([workCampaignsWhere(actor) ? workCounts(actor) : Promise.resolve(null), unseenNotices(actor)]);
+  return { session, actor: actor as MkActor, locale, t, mk: t.mk, isManager: hasCapability(actor, "manager"), canArchive: canReadArchive(actor), work, notices };
 }

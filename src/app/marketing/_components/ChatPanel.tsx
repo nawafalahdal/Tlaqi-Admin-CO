@@ -19,9 +19,11 @@ import { Pill, areaCls, when } from "./bits";
  *  - **القديمُ لا يُعرض كأنه حالي:** ردٌّ تغيّرت مهمّتُه بعد سؤاله معلَّمٌ بذلك.
  *  - **المحاكاةُ معلَّمة**، والمزوّدُ غيرُ المهيّأ يُقال اسمُه لا يُخفى. */
 
-type Scope = { kind: MarketingChatKind; campaignId: string; deliverableId?: string | null };
+type Scope = { kind: MarketingChatKind; campaignId: string | null; deliverableId?: string | null };
+/** نقلُ الرد إلى صفحته: إلى مسودة النص (للكاتب) أو وصف التصميم (للمصمّم والمنسّق) — على منشور السياق */
+type Transfer = { deliverableId: string; toDraft: boolean; toDesign: boolean };
 
-export function ChatPanel({ scope, initial }: { scope: Scope; initial: ChatViewData }) {
+export function ChatPanel({ scope, initial, transfer, contextLabel }: { scope: Scope; initial: ChatViewData; transfer?: Transfer | null; contextLabel?: string | null }) {
   const mk = useTranslations().mk;
   const { locale } = useLocale();
   const L = mk.chat;
@@ -53,6 +55,7 @@ export function ChatPanel({ scope, initial }: { scope: Scope; initial: ChatViewD
         {data.paused && <Pill tone="bad">{L.paused}</Pill>}
       </div>
       <p className="text-xs leading-relaxed text-black/55">{L.hints[scope.kind]}</p>
+      {contextLabel && <p className="text-[11px] font-bold text-[#1a0e1c]/70">{contextLabel}</p>}
       {data.ai.state !== "ready" && (
         <p className="text-xs text-amber-900">{fmt(L.notConfigured, data.ai.reason ? (mk.ai.reasons as Record<string, string>)[data.ai.reason] ?? data.ai.reason : mk.ai.states[data.ai.state])}</p>
       )}
@@ -73,6 +76,24 @@ export function ChatPanel({ scope, initial }: { scope: Scope; initial: ChatViewD
                 {m.role === "assistant" && (m.status === "queued" || m.status === "failed") && m.attempts > 0 && <span>{fmt(L.attempts, m.attempts, m.maxAttempts)}</span>}
               </p>
               {m.body && <p className={`whitespace-pre-wrap ${m.status === "stale" ? "text-black/50" : ""}`} dir="auto">{m.body}</p>}
+              {m.role === "assistant" && m.status === "done" && transfer && (transfer.toDraft || transfer.toDesign) && (
+                <div className="mt-2 flex flex-wrap gap-2" data-chat-transfer>
+                  {transfer.toDraft && (
+                    <ActionForm op="chat.transfer" submit={L.toDraft} variant="outline" inline>
+                      <input type="hidden" name="replyId" value={m.id} />
+                      <input type="hidden" name="target" value="draft" />
+                      <input type="hidden" name="deliverableId" value={transfer.deliverableId} />
+                    </ActionForm>
+                  )}
+                  {transfer.toDesign && (
+                    <ActionForm op="chat.transfer" submit={L.toDesign} variant="outline" inline>
+                      <input type="hidden" name="replyId" value={m.id} />
+                      <input type="hidden" name="target" value="design" />
+                      <input type="hidden" name="deliverableId" value={transfer.deliverableId} />
+                    </ActionForm>
+                  )}
+                </div>
+              )}
               {m.role === "assistant" && data.canWrite && (m.status === "failed" || m.status === "queued" || m.status === "running") && (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {m.status === "failed" && (
@@ -95,7 +116,7 @@ export function ChatPanel({ scope, initial }: { scope: Scope; initial: ChatViewD
       {data.canWrite ? (
         <ActionForm op="chat.send" submit={L.send} resetOnSuccess>
           <input type="hidden" name="kind" value={scope.kind} />
-          <input type="hidden" name="campaignId" value={scope.campaignId} />
+          {scope.campaignId && <input type="hidden" name="campaignId" value={scope.campaignId} />}
           {scope.deliverableId && <input type="hidden" name="deliverableId" value={scope.deliverableId} />}
           <textarea name="body" rows={3} required maxLength={4000} placeholder={L.placeholder} aria-label={L.placeholder} className={areaCls} dir="auto" />
           <p className="text-[11px] text-black/45">{L.privacy}</p>

@@ -31,6 +31,8 @@ export type MkEventAction =
   | "content.approved"
   | "content.changes_requested"
   | "design.uploaded"
+  | "design.linked"
+  | "design.described"
   | "design.submitted"
   | "design.approved"
   | "design.changes_requested"
@@ -75,7 +77,12 @@ export type MkEventAction =
   | "archive.requested"
   | "archive.verified"
   | "archive.failed"
-  | "archive.completed";
+  | "archive.completed"
+  | "post_archive.queued"
+  | "post_archive.completed"
+  | "post_archive.failed"
+  | "post_archive.retried"
+  | "chat.transferred";
 
 /** يُكتب في المعاملة نفسها التي تُغيّر الحالة — فلا تقع عمليةٌ بلا سجلّ ولا سجلٌّ بلا عملية */
 export async function logEvent(

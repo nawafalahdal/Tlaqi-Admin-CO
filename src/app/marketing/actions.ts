@@ -5,13 +5,15 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getDictionary, getLocale } from "@/i18n/server";
-import { marketingActor, type MkActor } from "@/lib/marketing/access";
+import { ensureMemberId, marketingActor, type MkActor } from "@/lib/marketing/access";
+import { transferFromChat } from "@/lib/marketing/ai/chatTransfer";
 import { mkMessage } from "@/lib/marketing/messages";
 import type { MkResult } from "@/lib/marketing/result";
 import { createCampaign, updateBrief, transitionCampaign, addCampaignMember, removeCampaignMember } from "@/lib/marketing/campaigns";
 import { createDeliverable, changeFormat, setDeliverableBlocked } from "@/lib/marketing/deliverables";
 import { saveDraft, submitContent, decideContent, keepApprovedContent } from "@/lib/marketing/content";
-import { uploadDesign, submitDesign, decideDesign, returnToWriter } from "@/lib/marketing/design";
+import { uploadDesign, submitDesign, decideDesign, returnToWriter, linkDesign, setDesignDescription } from "@/lib/marketing/design";
+import { processPostArchive, retryPostArchive, markNoticesSeen } from "@/lib/marketing/postArchive";
 import { sendToQuality, recordQuality, recordFinalCheck, recordPublication, recordResults, QUALITY_ITEMS, FINAL_ITEMS, METRIC_KEYS } from "@/lib/marketing/review";
 import { createTask, setTaskStatus, assignTask, deleteTask, addComment, attachToTask } from "@/lib/marketing/tasks";
 import { submitPlan, decidePlan } from "@/lib/marketing/plan";
@@ -60,12 +62,18 @@ const riyadhStart = (v: string) => (v ? `${v}T00:00:00+03:00` : null);
 const sent = (fd: Fd, k: string) => (fd.has(k) ? s(fd, k) : undefined);
 const sentAt = (fd: Fd, k: string) => (fd.has(k) ? riyadhDateTime(s(fd, k)) || null : undefined);
 const sentId = (fd: Fd, k: string) => (fd.has(k) ? s(fd, k) || null : undefined);
-const KINDS: MarketingChatKind[] = ["planning", "content", "design", "publishing"];
-const scopeOf = (fd: Fd): ChatScope => ({
-  kind: (KINDS as string[]).includes(s(fd, "kind")) ? (s(fd, "kind") as MarketingChatKind) : "content",
-  campaignId: s(fd, "campaignId"),
-  deliverableId: s(fd, "deliverableId") || null,
-});
+const KINDS: MarketingChatKind[] = ["planning", "content", "design", "publishing", "assistant"];
+/** نطاقُ المحادثة من النموذج — وصاحبُ محادثة المساعد من الجلسة وحدها، لا مما يُرسَل */
+const scopeFrom = (raw: { kind?: string | null; campaignId?: string | null; deliverableId?: string | null }, actor: MkActor): ChatScope => {
+  const kind = (KINDS as string[]).includes(raw.kind ?? "") ? (raw.kind as MarketingChatKind) : "content";
+  return {
+    kind,
+    campaignId: raw.campaignId || null,
+    deliverableId: raw.deliverableId || null,
+    ownerId: kind === "assistant" ? actor.member?.id ?? null : null,
+  };
+};
+const scopeOf = (fd: Fd, actor: MkActor): ChatScope => scopeFrom({ kind: s(fd, "kind"), campaignId: s(fd, "campaignId"), deliverableId: s(fd, "deliverableId") }, actor);
 /** «حتى تاريخ» للنتائج: آخرُ ذلك اليوم — واليومُ نفسُه «الآن» (الخادمُ يرفض وقتاً في المستقبل،
  *  ويرفض ما قبل النشر؛ وكان الظهرُ الثابت يردّ نتائجَ منشورٍ نُشر بعد الظهر في يومه) */
 function resultsAsOf(v: string): string {
@@ -142,6 +150,9 @@ const OPS: Record<string, Handler> = {
   "design.decide": (a, fd) =>
     decideDesign(a, s(fd, "deliverableId"), { designVersionId: s(fd, "versionId"), decision: s(fd, "decision") === "approved" ? "approved" : "changes_requested", note: s(fd, "note") }),
   "design.return": (a, fd) => returnToWriter(a, s(fd, "deliverableId"), s(fd, "note")),
+  "design.link": (a, fd) =>
+    linkDesign(a, s(fd, "deliverableId"), { url: s(fd, "url"), description: s(fd, "description"), changeNote: s(fd, "changeNote"), submit: on(fd, "submit"), requestId: s(fd, "requestId") }),
+  "design.describe": (a, fd) => setDesignDescription(a, s(fd, "deliverableId"), s(fd, "description")),
 
   "quality.send": (a, fd) => sendToQuality(a, s(fd, "deliverableId")),
   "quality.record": (a, fd) =>
@@ -159,8 +170,8 @@ const OPS: Record<string, Handler> = {
       items: FINAL_ITEMS.map((key) => ({ key, passed: on(fd, `item.${key}`), note: s(fd, `note.${key}`) })),
       note: s(fd, "note"),
     }),
-  "publish.record": (a, fd) =>
-    recordPublication(a, s(fd, "deliverableId"), {
+  "publish.record": async (a, fd) => {
+    const r = await recordPublication(a, s(fd, "deliverableId"), {
       url: s(fd, "url"),
       publishedAt: riyadhDateTime(s(fd, "publishedAt")),
       confirmedLive: on(fd, "confirmedLive"),
@@ -168,7 +179,19 @@ const OPS: Record<string, Handler> = {
       // الوقتُ يُدخل بتوقيت الرياض — والمنطقةُ تُحفظ معه كما هي
       timezone: "Asia/Riyadh",
       notes: s(fd, "notes"),
-    }),
+    });
+    // أرشفةُ المنشور في Google Sheets بعد خروج الرد — لا ينتظرها الناشر، ويكملها الكنسُ إن انقطعت
+    if (r.ok && r.postArchiveId) {
+      const id = r.postArchiveId;
+      after(() => processPostArchive(id).then(() => undefined));
+    }
+    return r;
+  },
+  "post.archiveRetry": async (a, fd) => {
+    const r = await retryPostArchive(a, s(fd, "deliverableId"));
+    if (r.ok) after(() => processPostArchive(r.postArchiveId).then(() => undefined));
+    return r;
+  },
   "publish.results": (a, fd) =>
     recordResults(a, s(fd, "publicationId"), {
       metrics: Object.fromEntries(METRIC_KEYS.map((k) => [k, s(fd, `metric.${k}`)])),
@@ -241,7 +264,9 @@ const OPS: Record<string, Handler> = {
 
   // الشات: الرسالةُ تُحفظ في الطلب، والردُّ يُعالَج بعد خروج الرد — فلا ينتظره أحد ولا يضيع
   "chat.send": async (a, fd) => {
-    const r = await sendChatMessage(a, scopeOf(fd), { body: s(fd, "body"), requestId: s(fd, "requestId") });
+    // قائدُ التسويق بلا صفّ عضويةٍ بعدُ يُنشأ صفُّه أوّلاً — فيكون للمساعد صاحب
+    if (s(fd, "kind") === "assistant") await ensureMemberId(a);
+    const r = await sendChatMessage(a, scopeOf(fd, a), { body: s(fd, "body"), requestId: s(fd, "requestId") });
     if (r.ok && !r.duplicate) after(() => processChatReply(r.replyId).then(() => undefined));
     return r;
   },
@@ -251,6 +276,7 @@ const OPS: Record<string, Handler> = {
     return r;
   },
   "chat.cancel": (a, fd) => cancelChatReply(a, s(fd, "replyId")),
+  "chat.transfer": (a, fd) => transferFromChat(a, s(fd, "replyId"), s(fd, "target") === "design" ? "design" : "draft", s(fd, "deliverableId")),
 
   // الأرشفة: تُطلب هنا وتُعالَج بعد الرد — ويكملها الكنسُ اليومي إن انقطعت
   "archive.request": async (a, fd) => {
@@ -333,11 +359,12 @@ export async function pollAiJobs(deliverableId: string) {
 }
 
 /** متابعةُ محادثة — تقرأ الحالة، وتُشغّل ما حان من ردودها (إعادةً مجدولة أو مهلةً انقضت) بعد الرد */
-export async function pollChat(scope: ChatScope) {
+export async function pollChat(raw: { kind: string; campaignId?: string | null; deliverableId?: string | null }) {
   const session = await auth();
   if (!session) return null;
   const actor = await marketingActor(session);
   if (!actor) return null;
+  const scope = scopeFrom(raw, actor);
   const view = await chatView(actor, scope);
   if (!view) return null;
   const now = Date.now();
@@ -350,3 +377,13 @@ export async function pollChat(scope: ChatScope) {
   }
   return serializeChat(view);
 }
+
+/** الإشعارُ يُعرض مرّةً واحدة: يُعلَّم «مقروءاً» من المتصفح بعد ظهوره — والعرضُ نفسُه قراءةٌ بلا كتابة */
+export async function markMarketingNoticesSeen(ids: string[]): Promise<number> {
+  const session = await auth();
+  if (!session) return 0;
+  const actor = await marketingActor(session);
+  if (!actor) return 0;
+  return markNoticesSeen(actor, Array.isArray(ids) ? ids.filter((x) => typeof x === "string").slice(0, 20) : []);
+}
+

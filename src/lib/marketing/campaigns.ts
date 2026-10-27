@@ -4,6 +4,7 @@ import { campaignAccess, ensureMemberId, hasCapability, requireCampaignRole, vis
 import { logEvent } from "./audit";
 import { assertPlanApproved, invalidatePlanIfChanged, planEditable } from "./plan";
 import { createExecutionTasks } from "./schedule";
+import { closePlanningForApproval } from "./planningCycle";
 import { abort, fail, guarded, type MkResult } from "./result";
 import { assertNotArchiving } from "./archiveGuard";
 
@@ -264,6 +265,9 @@ export async function transitionCampaign(
           const missing = teamMissing(live);
           if (missing.length) abort("team_incomplete", { missing: missing.join(",") });
           await assertPlanApproved(tx, campaignId);
+          // خطةٌ اكتملت بالمرحلتين قبل تقليص السلسلة (وكانت تنتظر الرئيسَ التنفيذي) لم يُغلَق تخطيطُها
+          // في معاملة قرارها — يُغلق هنا مرّةً واحدة، ولا يُمسّ ما أُغلق
+          if (!(await tx.marketingPlanningCycle.count({ where: { campaignId } }))) await closePlanningForApproval(tx, actor, campaignId);
           // المهامُّ من التقويم المعتمد — مربوطةً بنسخته، ولا تتكرّر إن عادت الحملةُ إلى التنفيذ
           await createExecutionTasks(tx, actor, campaignId, c.currentPlanVersionId!, memberId);
         }
@@ -343,8 +347,8 @@ export async function campaignWorkspace(actor: MkActor, campaignId: string) {
         select: { id: true, role: true, member: { select: { id: true, active: true, capabilities: true, user: { select: { fullName: true } }, member: { select: { fullName: true } }, nameSnapshot: true } } },
       },
       deliverables: {
-        orderBy: { createdAt: "asc" },
-        select: { id: true, title: true, platform: true, formatKey: true, width: true, height: true, status: true, updatedAt: true },
+        orderBy: [{ seq: "asc" }, { createdAt: "asc" }],
+        select: { id: true, seq: true, title: true, platform: true, formatKey: true, width: true, height: true, status: true, updatedAt: true, archivedAt: true },
       },
       _count: { select: { deliverables: true } },
     },

@@ -7,6 +7,7 @@ import { logEvent } from "./audit";
 import { checksPass, deliverableFacts, invalidateStale, loadDeliverable, reopenTasks, requireWorkable, settingsFor, writeDeliverable } from "./deliverables";
 import { requireBriefComplete } from "./designBrief";
 import { abort, fail, guarded, isUniqueViolation, type MkResult } from "./result";
+import { checkExternalLink, type LinkSource } from "@/lib/externalLinks";
 
 /** التصميم: ملفٌّ يرفعه المصمّم لمقاسٍ بعينه، مبنيٌّ على نسخة نصٍّ معتمدةٍ بعينها.
  *
@@ -184,12 +185,112 @@ export async function submitDesign(actor: MkActor, deliverableId: string, design
       const facts = await deliverableFacts(tx, d.id);
       if (!facts.contentApproved) abort("content_not_approved");
       if (!checksPass(v.checks)) abort("design_checks_failed");
-      // نسخةٌ رُفعت لمقاسٍ سابق لا تُقدَّم بعد تغيير المقاس — يُعاد الحكمُ على المقاس الحالي
-      if (!fitsFormat(v, d)) abort("design_checks_failed");
-      await tx.marketingDesignVersion.update({ where: { id: v.id }, data: { submittedAt: new Date() } });
-      await writeDeliverable(tx, d, { currentDesignVersionId: v.id, status: "design_review", revisionTarget: null, revisionNote: null });
-      await invalidateStale(tx, actor, d.id, `design_v${v.number}`);
-      await logEvent(tx, actor, { action: "design.submitted", campaignId: d.campaignId, deliverableId: d.id, details: { version: v.number } });
+      // ملفٌّ رُفع لمقاسٍ سابق لا يُقدَّم بعد تغيير المقاس — يُعاد الحكمُ على المقاس الحالي.
+      // والرابطُ لا أبعادَ له تُقرأ: مقاسُه يُفحص يدوياً في الجودة والفحص الأخير
+      if (v.fileId && !(v.width && v.height && fitsFormat({ width: v.width, height: v.height }, d))) abort("design_checks_failed");
+      await submitVersion(tx, actor, d, v);
+    });
+    return { ok: true };
+  });
+}
+
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+async function submitVersion(tx: Tx, actor: MkActor, d: Awaited<ReturnType<typeof loadDeliverable>>, v: { id: string; number: number }) {
+  await tx.marketingDesignVersion.update({ where: { id: v.id }, data: { submittedAt: new Date() } });
+  await writeDeliverable(tx, d, { currentDesignVersionId: v.id, status: "design_review", revisionTarget: null, revisionNote: null });
+  await invalidateStale(tx, actor, d.id, `design_v${v.number}`);
+  await logEvent(tx, actor, { action: "design.submitted", campaignId: d.campaignId, deliverableId: d.id, details: { version: v.number } });
+}
+
+/** مصادرُ رابط التصميم المقبولة — نطاقاتٌ رسميةٌ تُحلَّل ولا تُطابَق نصّاً (`externalLinks.ts`) */
+export const DESIGN_LINK_SOURCES: readonly LinkSource[] = ["canva", "drive", "docs"];
+const DESCRIPTION_MAX = 2000;
+
+/** **رابطُ التصميم** بدل الملف (Canva أو Drive…): نسخةُ تصميمٍ جديدة بالرابط ووصفه، مبنيّةٌ على
+ *  النص المعتمد كالملف تماماً — وتحديثُ الرابط نسخةٌ أخرى لا تعديلٌ في مكانه، فسجلُّ النسخ يبقى.
+ *
+ *  ولا يُدّعى ما لا يُعرف: المنصةُ لا تفتح الرابط (لا SSRF ولا ادّعاءَ فحص)، فلا أبعادَ ولا فحصَ
+ *  مقاسٍ آلي — يُعلَّم ذلك في الفحوص («يُفحص يدوياً»)، ويبقى بندُ المقاس في الجودة والفحص الأخير. */
+export async function linkDesign(
+  actor: MkActor,
+  deliverableId: string,
+  input: { url: string; description?: string; changeNote?: string; submit?: boolean; requestId?: string }
+): Promise<MkResult<{ versionId: string; number: number; duplicate?: boolean }>> {
+  return guarded(async () => {
+    const key = input.requestId?.slice(0, 80) || null;
+    if (key) {
+      const prior = await prisma.marketingDesignVersion.findUnique({ where: { idempotencyKey: key }, select: { id: true, number: true, deliverableId: true } });
+      if (prior && prior.deliverableId === deliverableId) return { ok: true, versionId: prior.id, number: prior.number, duplicate: true };
+    }
+    const link = checkExternalLink(String(input.url ?? ""), DESIGN_LINK_SOURCES);
+    if (!link.ok) return fail("url_invalid");
+    const description = input.description?.trim().slice(0, DESCRIPTION_MAX) || null;
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const d = await loadDeliverable(tx, deliverableId);
+        const { memberId } = await requireCampaignRole(actor, d.campaignId, "designer", tx);
+        requireWorkable(d);
+        requireDesignPhase(d);
+        const facts = await deliverableFacts(tx, d.id);
+        if (!facts.contentApproved || !d.currentContentVersion) abort("content_not_approved");
+        await requireBriefComplete(tx, d.id);
+        const extra = await tx.marketingDeliverable.findUniqueOrThrow({ where: { id: d.id }, select: { designDescription: true } });
+        const last = await tx.marketingDesignVersion.findFirst({ where: { deliverableId: d.id }, orderBy: { number: "desc" }, select: { number: true } });
+        const number = (last?.number ?? 0) + 1;
+        const checks: DesignCheck[] = [
+          { key: "design_link", level: "ok", params: { source: link.label } },
+          { key: "dimensions_manual", level: "warn", params: { targetWidth: d.width, targetHeight: d.height } },
+        ];
+        const v = await tx.marketingDesignVersion.create({
+          data: {
+            deliverableId: d.id,
+            number,
+            basedOnContentVersionId: d.currentContentVersion.id,
+            linkUrl: link.url,
+            description: description ?? extra.designDescription,
+            checks,
+            changeNote: input.changeNote?.trim().slice(0, 1000) || null,
+            authorId: memberId,
+            idempotencyKey: key,
+          },
+          select: { id: true, number: true },
+        });
+        // الوصفُ المكتوب مع الرابط يصير وصفَ التصميم الحاليّ للمنشور
+        if (description && description !== extra.designDescription) await tx.marketingDeliverable.update({ where: { id: d.id }, data: { designDescription: description } });
+        await logEvent(tx, actor, {
+          action: "design.linked",
+          campaignId: d.campaignId,
+          deliverableId: d.id,
+          details: { version: number, basedOnContent: d.currentContentVersion.number, source: link.source },
+        });
+        if (input.submit) await submitVersion(tx, actor, d, v);
+        return { ok: true as const, versionId: v.id, number };
+      });
+    } catch (e) {
+      if (key && isUniqueViolation(e)) {
+        const prior = await prisma.marketingDesignVersion.findUnique({ where: { idempotencyKey: key }, select: { id: true, number: true } });
+        if (prior) return { ok: true as const, versionId: prior.id, number: prior.number, duplicate: true };
+      }
+      throw e;
+    }
+  });
+}
+
+/** **وصفُ التصميم** للمنشور — يكتبه المنسّق أو المصمّم (أو يُنقل من المساعد بضغطة). معلومةٌ لا
+ *  قرار: لا يُسقط اعتماداً، وكلُّ نسخة تصميمٍ تحفظ الوصفَ كما كان لحظتَها. ولا يُعدَّل بعد النشر. */
+export async function setDesignDescription(actor: MkActor, deliverableId: string, text: string): Promise<MkResult> {
+  return guarded(async () => {
+    const value = String(text ?? "").trim().slice(0, DESCRIPTION_MAX);
+    const head = await prisma.marketingDeliverable.findUnique({ where: { id: deliverableId }, select: { campaignId: true, status: true, archivedAt: true } });
+    if (!head) return fail("not_found");
+    const access = await campaignAccess(actor, head.campaignId);
+    if (!access.canView) return fail("not_found");
+    if (!access.roles.has("coordinator") && !access.roles.has("designer")) return fail("forbidden", { role: "designer" });
+    if (head.status === "published" || head.archivedAt) return fail("invalid_state", { from: head.status });
+    await prisma.$transaction(async (tx) => {
+      await tx.marketingDeliverable.update({ where: { id: deliverableId }, data: { designDescription: value || null } });
+      await logEvent(tx, actor, { action: "design.described", campaignId: head.campaignId, deliverableId, details: { length: value.length } });
     });
     return { ok: true };
   });
