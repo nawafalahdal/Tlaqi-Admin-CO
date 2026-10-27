@@ -537,7 +537,7 @@ export function canReadArchive(actor: MkActor) {
 }
 
 export type ArchiveQuery = { text?: string; from?: string; to?: string; platform?: string; contentType?: string; page?: number };
-export type ArchiveHit = { campaignId: string; name: string; start: string; end: string; status: string; platforms: string[]; contentTypes: string[]; pieces: number; published: number; plan: string; archivedAt: string; runId: string };
+export type ArchiveHit = { campaignId: string; name: string; start: string; end: string; status: string; platforms: string[]; contentTypes: string[]; pieces: number; published: number; plan: string };
 export const ARCHIVE_PAGE_SIZE = 20;
 /** أعمدةُ الفهرس حتى «الخطة المعتمدة» — البحثُ لا يحمّل التفاصيلَ ولا النصوص */
 const SEARCH_COLS = COL.result + 1;
@@ -555,7 +555,7 @@ export async function searchIndex(store: ArchiveStore, q: ArchiveQuery) {
       return {
         campaignId: v[COL.campaignId], name: v[COL.item] || v[COL.campaign], start: v[COL.start], end: v[COL.end], status: v[COL.status],
         platforms: list(v[COL.platform]), contentTypes: list(v[COL.contentType]), pieces: Number(v[COL.planned]) || 0, published: Number(v[COL.actual]) || 0,
-        plan: v[COL.result], archivedAt: "", runId: "",
+        plan: v[COL.result],
       };
     });
   const text = q.text?.trim().toLowerCase() ?? "";

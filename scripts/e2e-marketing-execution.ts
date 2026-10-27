@@ -22,6 +22,8 @@ import { ProviderError, type ChatRequest, type ChatResult, type TextProvider } f
 import type { AiStatus } from "@/lib/marketing/ai/registry";
 import { archiveBlockers, documentUnpublished, requestArchive, processArchiveRun, retryArchive, searchArchive, archivedCampaign, searchIndex, ARCHIVE_PAGE_SIZE } from "@/lib/marketing/archive";
 import { sweepMarketing } from "@/lib/marketing/sweep";
+import { runArchiveSelfTest } from "@/lib/marketing/archiveSelfTest";
+import { GET as archiveSelfTestRoute } from "@/app/api/marketing/archive-selftest/route";
 
 /** دورةُ الحملة الكاملة — من الخطة إلى الأرشيف — على القاعدة المحلية وحدها.
  *
@@ -585,6 +587,30 @@ async function cleanup() {
   const cellsNow = (many.tab(INDEX_TAB.name).length) * (COL.result + 1);
   const cellsBefore = many.rows.length * 10; // التصميمُ السابق: تبويبٌ واحدٌ لكل الأنواع، وعشرةُ أعمدةٍ من كل صفّ
   chk(`وكلفةُ البحث: ${cellsNow} خلية من الفهرس وحده بدل ${cellsBefore} من كل الصفوف (${many.rows.length} صفّاً لـ٤٥ حملة)`, many.reads.length === 1 && many.reads[0].tabs.length === 1 && cellsNow < cellsBefore);
+
+  // ── فحصُ التكامل الذي يُشغَّل على ملف المعاينة الحقيقي: نجاحُه على ملفٍّ سليم، وفشلُه حين يتعذّر الملف
+  const st = await runArchiveSelfTest(new FakeSheet());
+  chk("فحصُ التكامل (المعاينة) يجتاز خطواته الثماني على ملفٍّ سليم: كتابةٌ ومطابقة، وإعادةٌ بلا تكرار، وكشفُ الاختلاف، وبحثٌ وتصفّحٌ واسترجاع",
+    st.ok && st.steps.length === 8 && st.steps.every((x) => x.ok), st.steps.filter((x) => !x.ok).map((x) => x.name).join(","));
+  const broken = new FakeSheet();
+  broken.fail = "append";
+  const stFail = await runArchiveSelfTest(broken);
+  chk("ويُبلغ بالفشل إن تعذّرت الكتابة — لا يدّعي نجاحاً", !stFail.ok && stFail.steps.find((x) => x.name === "write_read_verify")?.ok === false);
+  const envKeys = ["VERCEL", "VERCEL_ENV", "MARKETING_ARCHIVE_SPREADSHEET_ID", "MARKETING_ARCHIVE_SPREADSHEET_ID_PREVIEW", "GOOGLE_SHEETS_CLIENT_EMAIL", "GOOGLE_SHEETS_PRIVATE_KEY"] as const;
+  const envBefore = Object.fromEntries(envKeys.map((k) => [k, process.env[k]]));
+  const setEnv = (v: Partial<Record<(typeof envKeys)[number], string>>) => {
+    for (const k of envKeys) { if (v[k] === undefined) delete process.env[k]; else process.env[k] = v[k]; }
+  };
+  setEnv({ VERCEL: "1", VERCEL_ENV: "production" });
+  const inProd = (await archiveSelfTestRoute()).status;
+  setEnv({});
+  const inDev = (await archiveSelfTestRoute()).status;
+  // ملفُّ الإنتاج وبياناتُ اعتمادٍ مضبوطة — والمعاينةُ لا تلجأ إليه
+  setEnv({ VERCEL: "1", VERCEL_ENV: "preview", MARKETING_ARCHIVE_SPREADSHEET_ID: "production-file", GOOGLE_SHEETS_CLIENT_EMAIL: "x@example.invalid", GOOGLE_SHEETS_PRIVATE_KEY: "not-a-key" });
+  const inPreviewNoFile = (await archiveSelfTestRoute()).status;
+  setEnv(envBefore as Partial<Record<(typeof envKeys)[number], string>>);
+  chk("ومسارُه غيرُ موجودٍ في الإنتاج ولا محلياً (404)، وفي معاينةٍ بلا ملف اختبار «غير مهيّأ» (503) ولو ضُبط ملفُّ الإنتاج — لا يلجأ إليه",
+    inProd === 404 && inDev === 404 && inPreviewNoFile === 503, `${inProd}/${inDev}/${inPreviewNoFile}`);
 
   // ── الكنسُ المجدول: يعمل بلا زيارة صفحة، ولا يرمي
   const sweep = await sweepMarketing(new Date());
