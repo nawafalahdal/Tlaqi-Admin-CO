@@ -24,6 +24,8 @@ declare module "@auth/core/types" {
     departmentId: string | null;
     departmentSlug: string | null;
     mustChangePassword: boolean;
+    /** دخل بسجلّ ترشّحٍ لمنصبٍ قيادي لم يُعتمد بعد — تُراجَع جلستُه في كل طلب */
+    leadershipCandidate?: boolean;
   }
 }
 
@@ -38,5 +40,9 @@ declare module "@auth/core/jwt" {
     departmentId: string | null;
     departmentSlug: string | null;
     mustChangePassword: boolean;
+    /** انظر `User.leadershipCandidate` */
+    leadershipCandidate?: boolean;
+    /** آخر مراجعةٍ للحساب من القاعدة (`lib/sessionAccount`) بالمللي ثانية */
+    accountCheckedAt?: number;
   }
 }

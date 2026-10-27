@@ -7,6 +7,7 @@ import { verifyTotpCode } from "@/lib/totp";
 import { consumeLoginCode } from "@/lib/loginCodes";
 import { candidateWindowExpired, markFirstLogin } from "@/lib/workflow";
 import { issueSessionBinding, sessionBindingMatches, clearSessionBinding } from "@/lib/sessionBinding";
+import { resolveSessionAccount } from "@/lib/sessionAccount";
 
 /** جلسة قصيرة افتراضاً: ساعتان من آخر نشاط. من يعمل باستمرار لا تنقطع
  *  جلسته، ومن ترك جهازه ينتهي أثره بعدها. */
@@ -15,31 +16,6 @@ const DEFAULT_SESSION_HOURS = 2;
 /** ومن اختار "أبقني مسجّلاً" على جهازه الشخصي: ثلاثون يوماً. */
 const REMEMBER_DAYS = 30;
 
-
-/** هل الحساب ما يزال قائماً ونشطاً؟
- *
- *  يُسأل دورياً من `jwt` ليُبطل جلسةَ من حُذف أو عُطِّل. والخطأ في
- *  القراءة لا يُبطل جلسةً صحيحة: انقطاعُ القاعدة لحظةً ليس حذفاً، وطردُ
- *  الناس عند كل تعثّرٍ في الشبكة أسوأ من نافذة الخمس دقائق. */
-async function accountIsLive(sub: unknown, role: unknown): Promise<boolean> {
-  if (typeof sub !== "string" || !sub) return false;
-  try {
-    if (role === "member") {
-      const m = await prisma.member.findUnique({
-        where: { id: sub },
-        select: { isActive: true },
-      });
-      return Boolean(m?.isActive);
-    }
-    const u = await prisma.user.findUnique({
-      where: { id: sub },
-      select: { isActive: true },
-    });
-    return Boolean(u?.isActive);
-  } catch {
-    return true;
-  }
-}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   /** مدة الجلسة.
@@ -89,7 +65,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           include: { department: true },
         });
         // الحساب المُنحّى يبقى سجلاً فقط — لا يَقبل دخولاً بعد تنحيته
-        if (user && user.isActive && (await bcrypt.compare(password, user.passwordHash))) {
+        if (user?.isActive) {
+          // **ومن له حسابٌ إداريٌّ نشط لا يدخل بسجلّ ترشّحه أبداً.** كان الرفضُ هنا
+          // يُكمل إلى باب العضو، فكلمةٌ بقيت على سجلّ الترشّح (أو أُعيد تعيينها عليه)
+          // تُدخل القائدَ «عضواً» بلا أدوات قيادته. البريدُ واحد، والحسابُ الإداريُّ هو
+          // صاحبُه — ومن نسي كلمته يستعيدها له (`passwordReset` يبدأ بالحساب الإداري).
+          if (!(await bcrypt.compare(password, user.passwordHash))) {
+            await recordFailedAttempt(email);
+            return null;
+          }
           // من فعّل التحقّق بخطوتين يملك طريقين: رمز التطبيق أو رمز البريد.
           // الاثنان عامل ثانٍ صحيح، وحصرُه في التطبيق يحبسه خارج حسابه إن
           // ضاع جهازه — بينما بريده باقٍ معه.
@@ -109,13 +93,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             departmentId: user.departmentId,
             departmentSlug: user.department?.slug ?? null,
             mustChangePassword: user.mustChangePassword,
+            leadershipCandidate: false,
             remember,
           };
         }
 
         const member = await prisma.member.findUnique({
           where: { email },
-          include: { department: true },
+          include: { department: true, invite: { select: { targetRole: true } } },
         });
         // المرشّح يدخل منذ لحظة إنشاء حسابه — قبل الاختبار وقبل الاعتماد —
         // لأن هذه هي الخطوة التي يغيّر فيها كلمة المرور المؤقتة ثم يبدأ
@@ -154,6 +139,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             departmentId: member.departmentId,
             departmentSlug: member.department?.slug ?? null,
             mustChangePassword: member.mustChangePassword,
+            // مرشّحٌ لمنصبٍ قيادي: تُراجَع جلستُه في كل طلب حتى يُعتمد (انظر `jwt`)
+            leadershipCandidate: member.invite.targetRole !== "member",
             remember,
           };
         }
@@ -177,6 +164,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.departmentId = user.departmentId;
         token.departmentSlug = user.departmentSlug;
         token.mustChangePassword = user.mustChangePassword;
+        token.leadershipCandidate = user.leadershipCandidate ?? false;
         token.remember = user.remember ?? false;
       }
 
@@ -212,23 +200,33 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return null;
       }
 
-      // **الحساب يُراجَع لا يُفترَض باقياً.**
+      // **الحساب يُراجَع لا يُفترَض باقياً — ودورُه وقسمُه يُقرآن منه.**
       //
       // الجلسة توكنٌ موقَّع لا صفٌّ في جدول: فمن عُطِّل حسابه أو حُذف
       // نهائياً يبقى توكنُه صالحاً إلى أن تنتهي مدّته — وقد تبلغ أسبوعين
       // لمن اختار «تذكّرني». و`isActive` كان يُفحَص عند الدخول وحده.
+      // ومثلُه الدورُ: من اعتُمد قائداً وهو داخلٌ بسجلّ ترشّحه بقي «عضواً»
+      // (`lib/sessionAccount` — حادثةُ قائدة التسويق).
       //
       // فيُراجَع الحساب دورياً: كل خمس دقائق على الأكثر، لا عند كل طلب —
       // فحصٌ بكل طلبٍ يُضيف استعلاماً لكل صفحةٍ وإجراء. والنافذة خمس
-      // دقائق حدٌّ معلوم: من حُذف لا يبقى داخلاً أكثر منها.
+      // دقائق حدٌّ معلوم: من حُذف أو تغيّر منصبُه لا يبقى بحاله القديمة أكثر منها.
+      // **إلا المرشّحَ القياديّ:** يُراجَع في كل طلب حتى يُعتمد — هم قلّةٌ ومدّتُهم
+      // قصيرة، وبه يصل القائدُ حسابَه لحظةَ اعتماده لا بعد خمس دقائق.
       //
       // والإبطال بإرجاع `null`، وهو نفس ما تفعله نهايةُ المدّة أعلاه —
       // فيسري على كل ما يقرأ الجلسة لا على المسارات المحروسة وحدها.
       const CHECK_EVERY_MS = 5 * 60_000;
       const lastCheck = typeof token.accountCheckedAt === "number" ? token.accountCheckedAt : 0;
-      if (now - lastCheck > CHECK_EVERY_MS) {
-        const stillThere = await accountIsLive(token.sub, token.role);
-        if (!stillThere) return null;
+      if (token.leadershipCandidate === true || now - lastCheck > CHECK_EVERY_MS) {
+        const account = await resolveSessionAccount(token.sub, token.role);
+        if (account.status === "gone" || account.status === "superseded") return null;
+        if (account.status === "live") {
+          token.role = account.role;
+          token.departmentId = account.departmentId;
+          token.departmentSlug = account.departmentSlug;
+          token.leadershipCandidate = account.leadershipCandidate;
+        }
         token.accountCheckedAt = now;
       }
 

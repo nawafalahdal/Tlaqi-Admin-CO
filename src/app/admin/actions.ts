@@ -5,6 +5,7 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import {
   approveMember,
+  completeLeadershipPromotion,
   createCandidateAccount,
   rejectMember,
   reopenInviteForMember,
@@ -176,6 +177,23 @@ export async function approveMemberAction(memberId: string) {
   revalidatePath("/admin");
   revalidatePath("/admin/departments");
   return { tempPassword, email: member.email };
+}
+
+/** يُكمل اعتماداً قيادياً تعثّر قبل أن يصير الاعتمادُ والحسابُ معاملةً واحدة
+ *  (`completeLeadershipPromotion`). يملكه من يملك اعتمادَ ذلك المنصب لا غيرُه. */
+export async function completeLeadershipPromotionAction(memberId: string) {
+  const L = getDictionary(await getLocale()).rAdminActions;
+  const session = await requireSession();
+  const member = await prisma.member.findUniqueOrThrow({
+    where: { id: memberId },
+    include: { invite: { select: { targetRole: true } } },
+  });
+  if (!mayDecide(session, member)) throw new Error(L.youAreNotAllowed);
+  await completeLeadershipPromotion(memberId, session.user.name ?? undefined);
+  revalidatePath("/admin");
+  revalidatePath("/admin/approvals");
+  revalidatePath("/admin/departments");
+  revalidatePath("/structure");
 }
 
 export async function rejectMemberAction(memberId: string) {

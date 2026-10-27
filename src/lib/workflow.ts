@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
 import { approverFor } from "@/lib/notify";
 import { singleRecipient } from "@/lib/emailPolicy";
@@ -322,6 +323,19 @@ export async function submitTestAttempt(opts: { memberId: string; answers: Recor
  *  لمرشح قيادي (قائد قسم/تنفيذي) يُنشئ حساب دخول إداري (User) بدلاً من ذلك.
  *  في الحالتين تُولَّد كلمة مرور مؤقتة ويُجبر المستخدم على تغييرها عند أول دخول. */
 export async function approveMember(memberId: string) {
+  const candidate = await prisma.member.findUniqueOrThrow({
+    where: { id: memberId },
+    include: { department: true, invite: true },
+  });
+
+  // المرشّحُ القياديُّ: يُعتمد ويُنشأ حسابُه الإداريُّ معاً أو لا يقع شيء —
+  // انظر `provisionLeadershipAccount`
+  if (candidate.invite.targetRole !== "member") {
+    const { member, userId } = await provisionLeadershipAccount(candidate, { approve: true });
+    await finishLeadershipPromotion(member, userId, "اعتماد نهائي");
+    return { member, tempPassword: null as string | null };
+  }
+
   const member = await prisma.member.update({
     where: { id: memberId },
     data: { approvalStatus: "approved", decidedAt: new Date() },
@@ -332,123 +346,225 @@ export async function approveMember(memberId: string) {
   // إنشاء حسابه وغيّره بنفسه قبل الاختبار، فيدخل بعد الاعتماد بنفس كلمته.
   // توليد رمز ثانٍ هنا كان يعني بيانات دخول مزدوجة لشخص واحد، وإرباكاً في
   // تسليمها يدوياً.
-  // يُملأ حين يُرقَّى المرشّح إلى حساب إداري
-  let promotedUserId: string | null = null;
+  await appendApprovedMember({
+    fullName: member.fullName,
+    email: member.email,
+    departmentName: member.department?.name ?? "—",
+    jobTitle: member.jobTitle,
+    approvedAt: member.decidedAt ?? new Date(),
+  });
 
-  if (member.invite.targetRole === "member") {
-    await appendApprovedMember({
-      fullName: member.fullName,
-      email: member.email,
-      departmentName: member.department?.name ?? "—",
-      jobTitle: member.jobTitle,
-      approvedAt: member.decidedAt ?? new Date(),
+  const marketing = await prisma.department.findUnique({ where: { slug: "marketing" } });
+  if (marketing) {
+    await prisma.request.create({
+      data: {
+        type: "welcome_banner",
+        targetDepartmentId: marketing.id,
+        linkedMemberId: member.id,
+        status: "new",
+        dueDate: addDays(new Date(), WELCOME_BANNER_DUE_DAYS),
+        note: `بانر ترحيبي للعضو الجديد: ${member.fullName}`,
+      },
     });
+  }
 
-    const marketing = await prisma.department.findUnique({ where: { slug: "marketing" } });
-    if (marketing) {
-      await prisma.request.create({
-        data: {
-          type: "welcome_banner",
-          targetDepartmentId: marketing.id,
-          linkedMemberId: member.id,
-          status: "new",
-          dueDate: addDays(new Date(), WELCOME_BANNER_DUE_DAYS),
-          note: `بانر ترحيبي للعضو الجديد: ${member.fullName}`,
-        },
+  await syncMemberLifecycleRow(member.id);
+
+  await announceApproval(member, { kind: "member", id: member.id }, "اعتماد نهائي");
+  return { member, tempPassword: null as string | null };
+}
+
+type CandidateRecord = Prisma.MemberGetPayload<{ include: { department: true; invite: true } }>;
+
+/** المنصبُ الإداريُّ الذي يُمنَحه المرشّح القيادي */
+function leadershipRoleFor(targetRole: string): "executive" | "operations_officer" | "department_admin" {
+  return targetRole === "executive"
+    ? "executive"
+    : targetRole === "operations_officer"
+      ? "operations_officer"
+      : "department_admin";
+}
+
+/** يُنشئ الحسابَ الإداريَّ لمرشّحٍ قياديّ — **مع اعتماده في معاملةٍ واحدة، أو لا شيء.**
+ *
+ *  **العطبُ الذي يُصلحه، وهو حادثةُ قائدة التسويق:** كان الاعتمادُ يُكتب أولاً
+ *  (`approvalStatus = approved`) ثم يُفحص المنصب ويُنشأ الحساب. فإن تعثّر ما بعده —
+ *  منصبٌ يُرى مشغولاً، أو بريدٌ له حسابٌ إداريٌّ قديم، أو انقطاعُ التنفيذ — بقي
+ *  المرشّحُ «معتمَداً» بلا حسابٍ إداري وبكلمة مروره هو. فيدخل من باب العضو:
+ *  «عضو» في القائمة، وبوابةُ الأعضاء، ولا شيءَ من أدوات القيادة. ويخرج من قائمة
+ *  الاعتماد (لم يعد «بانتظار») فلا يراه أحدٌ ليعيد المحاولة.
+ *
+ *  فصار الترتيب: فحصُ المنصب قبل أي كتابة (والمرشّحُ نفسُه لا يُعدّ شاغلاً له)، ثم
+ *  الاعتمادُ وإنشاءُ الحساب ونقلُ كلمة المرور في معاملةٍ واحدة. فإن رُفض شيءٌ بقي
+ *  المرشّحُ في قائمته كما كان، وظهر سببُ الرفض لمن يعتمد.
+ *
+ *  و`approve: false` لإكمال اعتمادٍ سابقٍ تعثّر قبل هذا الإصلاح
+ *  (`completeLeadershipPromotion`) — الاعتمادُ مكتوبٌ من قبل، والناقصُ الحساب. */
+async function provisionLeadershipAccount(
+  candidate: CandidateRecord,
+  opts: { approve: boolean }
+): Promise<{ member: CandidateRecord; userId: string }> {
+  const role = leadershipRoleFor(candidate.invite.targetRole);
+
+  // قد يكون المنصب شُغل بين لحظة إنشاء المرشّح ولحظة اعتماده (مرشّحان قديمان،
+  // أو تنحية ثم تعيين) — فيُفحص الآن، قبل أن يُكتب شيء
+  await assertRoleSeatAvailable(candidate.invite.targetRole, candidate.departmentId, candidate.id);
+
+  // تُنقل كلمة المرور التي اختارها بنفسه إلى الحساب الإداري الجديد، ثم
+  // يُفرَّغ hash حساب المرشّح حتى لا يبقى لشخص واحد مَدخلان.
+  const passwordHash = candidate.passwordHash ?? (await hashPassword(generateTempPassword()));
+  const decidedAt = new Date();
+
+  return prisma.$transaction(async (tx) => {
+    if (opts.approve) {
+      // اعتمادان متزامنان لمرشّحٍ واحد: يمضي أحدهما، ويُردّ الثاني بسببه
+      const claimed = await tx.member.updateMany({
+        where: { id: candidate.id, approvalStatus: { not: "approved" } },
+        data: { approvalStatus: "approved", decidedAt },
       });
+      if (claimed.count === 0) throw new Error("حُسم أمرُ هذا المرشّح من قبل");
     }
 
-    await syncMemberLifecycleRow(member.id);
-  } else {
-    const role =
-      member.invite.targetRole === "executive"
-        ? "executive"
-        : member.invite.targetRole === "operations_officer"
-          ? "operations_officer"
-          : "department_admin";
-
-    // فحص ثانٍ لحظة الإنشاء الفعلي للحساب: قد يكون المنصب شُغل بين لحظة
-    // إنشاء المرشّح ولحظة اعتماده (مرشّحان قديمان، أو تنحية ثم تعيين)
-    await assertRoleSeatAvailable(member.invite.targetRole, member.departmentId);
-
-    // تُنقل كلمة المرور التي اختارها بنفسه إلى الحساب الإداري الجديد، ثم
-    // يُفرَّغ hash حساب المرشّح حتى لا يبقى لشخص واحد مَدخلان.
-    //
     // وتُنقل معها بياناته كلها — المسمى الذي حدّدته الإدارة الداعية،
     // وجواله وتخصصه وشعبته وتاريخ استكمالها. كانت تُترك خلفه فيُولَد
     // الحساب الإداري فارغاً، فتظهر بطاقة انضمامه بلا مهمة ولا فريق،
     // ويُطالَب باستكمال بيانات استكملها قبل اختباره.
-    const createdUser: { id: string } = await prisma.user.create({
+    const user = await tx.user.create({
       data: {
-        fullName: member.fullName,
-        email: member.email,
-        passwordHash: member.passwordHash ?? (await hashPassword(generateTempPassword())),
-        mustChangePassword: member.mustChangePassword,
+        fullName: candidate.fullName,
+        email: candidate.email,
+        passwordHash,
+        mustChangePassword: candidate.mustChangePassword,
         role,
-        departmentId: role === "department_admin" ? member.departmentId : null,
-        phone: member.phone,
-        jobTitle: member.jobTitle,
-        gender: member.gender,
-        specialization: member.specialization,
-        section: member.section,
-        profileCompletedAt: member.profileCompletedAt,
+        departmentId: role === "department_admin" ? candidate.departmentId : null,
+        phone: candidate.phone,
+        jobTitle: candidate.jobTitle,
+        gender: candidate.gender,
+        specialization: candidate.specialization,
+        section: candidate.section,
+        profileCompletedAt: candidate.profileCompletedAt,
       },
+      select: { id: true },
     });
-    await prisma.member.update({
-      where: { id: member.id },
+    const member = await tx.member.update({
+      where: { id: candidate.id },
       data: { passwordHash: null },
+      include: { department: true, invite: true },
     });
+    return { member, userId: user.id };
+  });
+}
 
-    await appendApprovedMember({
-      fullName: member.fullName,
-      email: member.email,
-      departmentName: member.department?.name ?? ROLE_LABELS[member.invite.targetRole],
-      jobTitle: member.jobTitle,
-      approvedAt: member.decidedAt ?? new Date(),
+/** ما يلي إنشاءَ الحساب القيادي: الشيت، وطلبُ التوقيع، وبطاقةُ الانضمام، والسجلّ.
+ *  لا يقع إلا بعد أن تُثبَّت المعاملة — فلا يُعلَن عن حسابٍ لم يُنشأ. */
+async function finishLeadershipPromotion(member: CandidateRecord, userId: string, event: string) {
+  const role = leadershipRoleFor(member.invite.targetRole);
+  await appendApprovedMember({
+    fullName: member.fullName,
+    email: member.email,
+    departmentName: member.department?.name ?? ROLE_LABELS[member.invite.targetRole],
+    jobTitle: member.jobTitle,
+    approvedAt: member.decidedAt ?? new Date(),
+  });
+
+  // الحساب الإداري الجديد يفتح صفه في تبويب الحسابات الإدارية فوراً،
+  // وصف المرشّح في تبويب الأعضاء يُغلق على حالته الأخيرة
+  await syncAdminAccountRow(userId);
+  await syncMemberLifecycleRow(member.id);
+
+  // قائدٌ جديد يُطلب توقيعه فوراً: الشهادات تصدر باسمه، ولا يُستعار
+  // توقيع من سبقه. والطلب هنا لا عند أول شهادة — حتى لا يُكتشَف
+  // النقص يوم الحاجة.
+  if (isSigningRole(role)) {
+    const { requestSignature } = await import("@/lib/signatures");
+    await requestSignature({
+      userId,
+      reason: `تكليف جديد: ${accountRoleLabel(role)}`,
     });
-
-    // الحساب الإداري الجديد يفتح صفه في تبويب الحسابات الإدارية فوراً،
-    // وصف المرشّح في تبويب الأعضاء يُغلق على حالته الأخيرة
-    await syncAdminAccountRow(createdUser.id);
-    await syncMemberLifecycleRow(member.id);
-    promotedUserId = createdUser.id;
-
-    // قائدٌ جديد يُطلب توقيعه فوراً: الشهادات تصدر باسمه، ولا يُستعار
-    // توقيع من سبقه. والطلب هنا لا عند أول شهادة — حتى لا يُكتشَف
-    // النقص يوم الحاجة.
-    if (isSigningRole(role)) {
-      const { requestSignature } = await import("@/lib/signatures");
-      await requestSignature({
-        userId: createdUser.id,
-        reason: `تكليف جديد: ${accountRoleLabel(role)}`,
-      });
-    }
   }
 
-  // رسالة واحدة تُعلن الاعتماد وتُرحّب وتحمل عدّة المشاركة. كانت ثلاثاً
-  // تصل متتابعة في دقائق عن حدثٍ واحد — تُقرأ أولاها ويُهمل الباقي.
-  // والاستيراد داخل الدالة لأن `welcome` يستورد من هذا الملف،
-  // واستيرادهما المتبادل في الأعلى يُدوّر الاعتماد.
   // من رُقِّي إلى حساب إداري تُكتب بطاقته على حسابه الجديد لا على صفّ
   // المرشّح: صفحته هي التي يقرأ فيها «وصلتك بتاريخ كذا»
+  await announceApproval(member, { kind: "user", id: userId }, event);
+}
+
+/** رسالة واحدة تُعلن الاعتماد وتُرحّب وتحمل عدّة المشاركة. كانت ثلاثاً
+ *  تصل متتابعة في دقائق عن حدثٍ واحد — تُقرأ أولاها ويُهمل الباقي.
+ *  والاستيراد داخل الدالة لأن `welcome` يستورد من هذا الملف،
+ *  واستيرادهما المتبادل في الأعلى يُدوّر الاعتماد. */
+async function announceApproval(
+  member: CandidateRecord,
+  account: { kind: "user" | "member"; id: string },
+  event: string
+) {
   const { sendWelcomePack } = await import("@/lib/welcome");
-  const welcomed = await sendWelcomePack(
-    promotedUserId ? { kind: "user", id: promotedUserId } : { kind: "member", id: member.id },
-    "approved"
-  );
+  const welcomed = await sendWelcomePack(account, "approved");
 
   await appendMemberEvent({
     fullName: member.fullName,
     email: member.email,
-    event: "اعتماد نهائي",
+    event,
     roleOrDepartment: await memberScope(member),
     details:
       "يدخل بنفس كلمة المرور التي اختارها — لم يُصدر رمز جديد" +
       (welcomed.ok ? " — وصلته بطاقة الانضمام" : " — تعذّر إرسال بطاقة الانضمام"),
     at: new Date(),
   });
+}
 
-  return { member, tempPassword: null as string | null };
+/** اعتماداتٌ قياديةٌ تعثّرت قبل أن يصير الاعتمادُ والحسابُ معاملةً واحدة: ترشّحٌ قياديٌّ
+ *  معتمَدٌ نشط، كلمةُ مروره ما تزال على سجلّه (لم تُنقل)، ولا حسابَ إداريَّ بالبريد نفسه.
+ *
+ *  صاحبُه يدخل عضواً منذ اعتماده — وهذه القائمة هي ما يراه من يملك إكمال اعتماده.
+ *  ولا تدخل فيها بقيةُ حسابٍ حُذف (كلمتُه فارغة — `leftoverLeaderIds`). */
+export async function halfApprovedLeaders() {
+  const rows = await prisma.member.findMany({
+    omit: { avatarData: true },
+    where: {
+      approvalStatus: "approved",
+      isActive: true,
+      terminatedAt: null,
+      passwordHash: { not: null },
+      invite: { targetRole: { not: "member" } },
+    },
+    include: { department: true, invite: true },
+    orderBy: { decidedAt: "asc" },
+    take: QUEUE_TAKE,
+  });
+  if (rows.length === 0) return [];
+  const held = new Set(
+    (await prisma.user.findMany({ where: { email: { in: rows.map((r) => r.email) } }, select: { email: true } })).map((u) => u.email)
+  );
+  return rows.filter((r) => !held.has(r.email));
+}
+
+/** يُكمل اعتماداً قيادياً تعثّر (`halfApprovedLeaders`): يُنشئ الحسابَ الإداريَّ الذي
+ *  قُرِّر ولم يُنشأ، بالشروط نفسها — المنصبُ شاغر، ولا حسابَ آخر بالبريد.
+ *
+ *  لا يُنشئ ترشّحاً ولا حساباً ثانياً: إن كان الحسابُ الإداريُّ قائماً عاد بلا تغيير.
+ *  ومن يملكه هو من يملك اعتمادَ ذلك المنصب (`canDecideCandidate` في الإجراء). */
+export async function completeLeadershipPromotion(memberId: string, performedByName?: string) {
+  const candidate = await prisma.member.findUniqueOrThrow({
+    where: { id: memberId },
+    include: { department: true, invite: true },
+  });
+  if (candidate.invite.targetRole === "member") throw new Error("هذا سجلُّ عضوية، لا ترشّحٌ لمنصب قيادي");
+  if (candidate.approvalStatus !== "approved") throw new Error("لم يُعتمد بعد — يُعتمد من قائمة «بانتظار اعتماد القيادة»");
+  if (!candidate.isActive || candidate.terminatedAt) throw new Error("هذا الحساب متوقف — لا يُكمَل اعتماده");
+
+  const existing = await prisma.user.findUnique({ where: { email: candidate.email }, select: { id: true, isActive: true } });
+  if (existing?.isActive) return { userId: existing.id, created: false as const };
+  if (existing) throw new Error("لهذا البريد حسابٌ إداريٌّ مُنحّى — لا يُنشأ له حسابٌ ثانٍ");
+  // كلمةٌ فارغة بلا حسابٍ إداري: بقيةُ حسابٍ حُذف (`leftoverLeaderIds`) — لا يُبعث
+  if (!candidate.passwordHash) throw new Error("هذا سجلُّ حسابٍ حُذف — يُدعى صاحبُه من جديد");
+
+  const { member, userId } = await provisionLeadershipAccount(candidate, { approve: false });
+  await finishLeadershipPromotion(
+    member,
+    userId,
+    performedByName ? `إكمال اعتماد قيادي تعثّر — نفّذه: ${performedByName}` : "إكمال اعتماد قيادي تعثّر"
+  );
+  return { userId, created: true as const };
 }
 
 export async function rejectMember(memberId: string) {
@@ -936,7 +1052,9 @@ export function isSingletonRole(role: string): role is SingletonRole {
  *  ثم تعذّر اعتماد أحدهما، وهذا إهدار لوقت شخص حقيقي. */
 export async function findRoleSeatHolder(
   targetRole: string,
-  departmentId: string | null
+  departmentId: string | null,
+  /** المرشّحُ الذي يُعتمَد الآن — لا يُعدّ شاغلاً للمنصب الذي يُمنَحه */
+  excludeMemberId?: string
 ): Promise<{ fullName: string; email: string; kind: "active" | "candidate" } | null> {
   if (!isSingletonRole(targetRole)) return null;
 
@@ -954,6 +1072,7 @@ export async function findRoleSeatHolder(
     where: {
       isActive: true,
       approvalStatus: "pending_review",
+      ...(excludeMemberId ? { id: { not: excludeMemberId } } : {}),
       invite: {
         targetRole,
         ...(targetRole === "department_admin" ? { departmentId } : {}),
@@ -968,8 +1087,8 @@ export async function findRoleSeatHolder(
 
 /** يرفض إنشاء أو اعتماد حساب لمنصب مشغول، برسالة تسمّي شاغله وتدل على
  *  طريق التفريغ — فلا يقف المستخدم أمام رفض بلا مخرج. */
-export async function assertRoleSeatAvailable(targetRole: string, departmentId: string | null) {
-  const holder = await findRoleSeatHolder(targetRole, departmentId);
+export async function assertRoleSeatAvailable(targetRole: string, departmentId: string | null, excludeMemberId?: string) {
+  const holder = await findRoleSeatHolder(targetRole, departmentId, excludeMemberId);
   if (!holder) return;
 
   const label = ROLE_LABELS[targetRole as keyof typeof ROLE_LABELS] ?? targetRole;

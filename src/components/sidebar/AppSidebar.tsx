@@ -9,6 +9,8 @@ import { avatarUrl } from "@/lib/avatarUrl";
 import { openTicketsWhere } from "@/lib/tickets";
 import { canEnterMarketing, marketingActor } from "@/lib/marketing/access";
 import { getLocale, getDictionary } from "@/i18n/server";
+import { roleTitle } from "@/lib/gender";
+import { halfApprovedLeaders } from "@/lib/workflow";
 import { NavGlyph } from "../icons";
 import { SidebarProvider } from "./SidebarRail";
 import { GenderPrompt } from "../account/GenderPrompt";
@@ -28,7 +30,8 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
   const session = await auth();
   if (!session) return <>{children}</>;
 
-  const t = getDictionary(await getLocale());
+  const locale = await getLocale();
+  const t = getDictionary(locale);
   const s = t.shell;
   const isMember = session.user.role === "member";
 
@@ -108,7 +111,9 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
       items={navFor(viewer, s.nav).map((it) => (badges[it.id] ? { ...it, badge: badges[it.id] } : it))}
       homeHref={homeFor(viewer)}
       userName={session.user.name ?? ""}
-      roleName={s.roles[session.user.role] ?? ""}
+      // المسمّى بجنس صاحبه وقسمه — «قائدة قسم التسويق» لا «قائد قسم» — ومن دوره في
+      // الجلسة، والجلسةُ تُراجَع من القاعدة (`lib/sessionAccount`)
+      roleName={roleTitle(session.user.role, stamp?.gender, session.user.role === "department_admin" ? stamp?.department?.name : null, locale)}
       account={account}
       raise={{ href: raiseTicketHref(viewer), label: t.composer.cta }}
       avatar={avatar}
@@ -144,8 +149,12 @@ async function badgesFor(
       prisma.ticket.count({
         where: { approverUserId: session.user.id, approvalState: { in: ["awaiting", "reviewing"] } },
       }),
+      // ومعها اعتماداتٌ قياديةٌ تعثّرت (`halfApprovedLeaders`): أصحابُها يدخلون أعضاءً حتى تُكمَل
       top
-        ? prisma.member.count({ where: { approvalStatus: "pending_review", testStatus: "passed" } })
+        ? Promise.all([
+            prisma.member.count({ where: { approvalStatus: "pending_review", testStatus: "passed" } }),
+            halfApprovedLeaders().then((r) => r.length),
+          ]).then(([pending, incomplete]) => pending + incomplete)
         : Promise.resolve(0),
       top || role === "department_admin"
         ? prisma.terminationRequest.count({ where: { status: "submitted" } })

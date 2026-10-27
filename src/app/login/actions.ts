@@ -62,7 +62,12 @@ export async function requestLoginCodeAction(
   }
 
   const user = await prisma.user.findUnique({ where: { email } });
-  if (user && user.isActive && (await bcrypt.compare(password, user.passwordHash))) {
+  if (user?.isActive) {
+    // من له حسابٌ إداريٌّ نشط لا يدخل بسجلّ ترشّحه — كما في `authorize`
+    if (!(await bcrypt.compare(password, user.passwordHash))) {
+      await recordFailedAttempt(email);
+      return { ...base, error: L.genericError };
+    }
     // يُرسَل رمز البريد حتى لمن فعّل تطبيق المصادقة، ليختار أيّهما أقرب
     // إليه الآن. مَن ضاع جهازه يبقى بريده معه، والعكس.
     const sent = await deliverCode(email, user.fullName);

@@ -6,7 +6,7 @@ import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { Card } from "@/components/ui";
 import { AvatarUpload } from "@/components/AvatarUpload";
 import { getLocale, getDictionary } from "@/i18n/server";
-import { accountRoleLabel } from "@/lib/testTracks";
+import { roleTitle } from "@/lib/gender";
 import { formatDate } from "@/lib/format";
 import { AdminProfileForm } from "./ProfileForm";
 import { seniorDepartment, affiliationFor } from "@/lib/seniorAffiliation";
@@ -43,7 +43,8 @@ export default async function AdminProfilePage() {
   const t = getDictionary(locale);
   const tp = t.adminProfile;
   const theme = themeFromColor(user.department?.colorHex ?? SUPER_ADMIN_THEME.colorHex);
-  const roleLabel = accountRoleLabel(user.role, locale);
+  // بجنس صاحبه وقسمه: «قائدة قسم التسويق»
+  const roleLabel = roleTitle(user.role, user.gender, user.role === "department_admin" ? user.department?.name : null, locale);
   const identityColor = shownDepartment?.colorHex ?? SUPER_ADMIN_THEME.colorHex;
 
   return (

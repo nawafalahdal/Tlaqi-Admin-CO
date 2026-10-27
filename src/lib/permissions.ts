@@ -38,3 +38,12 @@ export function canDecideCandidate(
       return false;
   }
 }
+
+/** من يدعو عضواً جديداً إلى قسم: قائدُ ذلك القسم وحده — حتى المؤسس لا يملكه مباشرة
+ *  (`createMemberInviteAction`). والدورُ والقسم من الجلسة، والجلسةُ تُراجَع من القاعدة. */
+export function canInviteMemberTo(
+  viewer: { role: UserRole | "member"; departmentId?: string | null },
+  departmentId: string
+): boolean {
+  return viewer.role === "department_admin" && !!departmentId && viewer.departmentId === departmentId;
+}

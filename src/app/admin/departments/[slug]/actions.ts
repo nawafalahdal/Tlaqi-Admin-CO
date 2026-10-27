@@ -25,6 +25,7 @@ import {
   canRequestCommitteeIn,
   committeeLeadTitle,
 } from "@/lib/committees";
+import { canInviteMemberTo } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 
 import { getLocale, getDictionary } from "@/i18n/server";
@@ -40,11 +41,7 @@ export async function createMemberInviteAction(
     const session = await auth();
     const departmentId = String(formData.get("departmentId") ?? "");
 
-    if (
-      !session ||
-      session.user.role !== "department_admin" ||
-      session.user.departmentId !== departmentId
-    ) {
+    if (!session || !canInviteMemberTo(session.user, departmentId)) {
       return { error: L.thisActionIsOnly, success: false };
     }
 
