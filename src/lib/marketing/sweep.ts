@@ -1,9 +1,10 @@
 import { reopenDuePlanning } from "./planningCycle";
 import { processDueChats } from "./ai/chat";
-import { processDueArchives } from "./archive";
+import { processDueArchives, ensureArchiveFile } from "./archive";
 
 /** كنسُ وكيل التسويق في الجدولة اليومية — ما يجب أن يقع ولو لم يفتح أحدٌ الصفحة:
- *  إعادةُ فتح شات التخطيط في موعده، وردودٌ معلّقةٌ حان إعادتها، وأرشفةٌ معلّقة.
+ *  إعادةُ فتح شات التخطيط في موعده، وردودٌ معلّقةٌ حان إعادتها، وأرشفةٌ معلّقة، وفحصُ ملف الأرشيف
+ *  (تبويباتُه وعناوينُه — بلا كتابة صفوف) فيظهر في السجلّ يومياً إن انقطع وصولُ المنصة إليه.
  *
  *  كلُّ خطوةٍ معزولة: فشلُ واحدةٍ لا يوقف غيرها ولا يُسقط بقيّةَ الكنس العام، ويُسجَّل رمزُ
  *  الخطأ وحده بلا نصٍّ ولا مفتاح. وكلُّ خطوةٍ لا تُكرّر ما وقع: الفتحُ مشروطٌ بأنه لم يقع،
@@ -21,5 +22,12 @@ export async function sweepMarketing(now = new Date()) {
   await step("planningReopened", () => reopenDuePlanning(now));
   await step("chats", async () => (await processDueChats({ limit: 5, budgetMs: 20_000 })).length);
   await step("archives", () => processDueArchives({ limit: 2, budgetMs: 25_000 }));
+  await step("archiveFile", async () => {
+    const r = await ensureArchiveFile();
+    // أسماءُ التبويبات ورمزُ الخطأ وحدهما — لا معرّفَ الملف ولا بياناتِ الاعتماد
+    if (r.error) console.error(`[cron/sweep] marketing archive file: ${r.error}`);
+    else if (r.configured) console.info(`[cron/sweep] marketing archive file ready (created: ${r.created?.length ?? 0}, headers fixed: ${r.fixedHeaders?.length ?? 0})`);
+    return r;
+  });
   return out;
 }

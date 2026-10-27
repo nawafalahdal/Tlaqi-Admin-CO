@@ -2,7 +2,8 @@ import sharp from "sharp";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/credentials";
-import { MARKETING_ARCHIVE_HEADERS, MARKETING_ARCHIVE_TAB, type ArchiveStore } from "@/lib/googleSheets";
+import type { ArchiveStore } from "@/lib/marketing/archiveSheet";
+import { ARCHIVE_TABS, ARCHIVE_FILE_LABEL, ARCHIVE_COLS, COL, INDEX_TAB, tabOf } from "@/lib/marketing/archiveLayout";
 import { fromRiyadhParts } from "@/lib/riyadh";
 import { marketingActor, type MkActor } from "@/lib/marketing/access";
 import { addTeamMember, setAiPaused } from "@/lib/marketing/team";
@@ -19,7 +20,7 @@ import { saveDesignBrief, briefGaps, BRAND_DEFAULTS } from "@/lib/marketing/desi
 import { sendChatMessage, processChatReply, retryChatReply, cancelChatReply, chatView, CHAT_DAILY_QUOTA, type ChatDeps } from "@/lib/marketing/ai/chat";
 import { ProviderError, type ChatRequest, type ChatResult, type TextProvider } from "@/lib/marketing/ai/provider";
 import type { AiStatus } from "@/lib/marketing/ai/registry";
-import { archiveBlockers, documentUnpublished, requestArchive, processArchiveRun, retryArchive, searchArchive, archivedCampaign } from "@/lib/marketing/archive";
+import { archiveBlockers, documentUnpublished, requestArchive, processArchiveRun, retryArchive, searchArchive, archivedCampaign, searchIndex, ARCHIVE_PAGE_SIZE } from "@/lib/marketing/archive";
 import { sweepMarketing } from "@/lib/marketing/sweep";
 
 /** دورةُ الحملة الكاملة — من الخطة إلى الأرشيف — على القاعدة المحلية وحدها.
@@ -59,37 +60,50 @@ const READY: AiStatus["text"] = { state: "ready", provider: "test-chat", model: 
 let clockShift = 0;
 const cdeps: ChatDeps = { status: () => READY, providerFor: (id) => (id === "test-chat" ? chatProvider : null), now: () => new Date(Date.now() + clockShift), attemptTimeoutMs: 2000 };
 
-// ── الشيتُ المُحقَن: واجهةُ التكامل الحقيقي نفسها، وصفوفٌ في الذاكرة، وفشلٌ يُطلب
+// ── الشيتُ المُحقَن: واجهةُ التكامل الحقيقي نفسها (تبويباتٌ بأسمائها)، وصفوفٌ في الذاكرة، وفشلٌ يُطلب
 class FakeSheet implements ArchiveStore {
-  readonly sheet = MARKETING_ARCHIVE_TAB;
-  rows: string[][] = [];
-  /** تبويبٌ آخر في الملف نفسه — لا يُمسّ */
-  other: string[][] = [["سجلّ الأعضاء", "صفٌّ قائم"], ["x", "y"]];
-  reads: { columns: number; window?: { from: number; to: number } }[] = [];
+  readonly sheet = ARCHIVE_FILE_LABEL;
+  tabs = new Map<string, string[][]>();
+  /** تبويبٌ آخر في الملف نفسه («اقرأني») — لا يُمسّ */
+  other: string[][] = [["اقرأني", "يكتبه صاحبُ الملف"], ["x", "y"]];
+  reads: { tabs: string[]; columns: number; windows: Record<string, { from: number; to: number }> }[] = [];
   appends = 0;
   fail: null | "ensure_permission" | "append" | "partial" | "read_timeout" = null;
   tamper = false;
+  /** كلُّ صفوف الأرشيف — في كل التبويبات */
+  get rows() { return [...this.tabs.values()].flat(); }
+  tab(name: string) { if (!this.tabs.has(name)) this.tabs.set(name, []); return this.tabs.get(name)!; }
   async ensure() {
     if (this.fail === "ensure_permission") { this.fail = null; throw Object.assign(new Error("forbidden"), { code: 403 }); }
+    const created = ARCHIVE_TABS.filter((t) => !this.tabs.has(t.name)).map((t) => t.name);
+    for (const t of ARCHIVE_TABS) this.tab(t.name);
+    return { created, fixedHeaders: [] };
   }
-  async readRows(columns = MARKETING_ARCHIVE_HEADERS.length, window?: { from: number; to: number }) {
-    this.reads.push({ columns, window });
+  async read(tabs: readonly string[], columns: number, windows: Partial<Record<string, { from: number; to: number }>> = {}) {
+    this.reads.push({ tabs: [...tabs], columns, windows: { ...windows } as Record<string, { from: number; to: number }> });
     if (this.fail === "read_timeout") { this.fail = null; throw Object.assign(new Error("timeout of 20000ms exceeded"), { code: "ETIMEDOUT" }); }
-    const src = window ? this.rows.slice(window.from, window.to + 1) : this.rows;
-    // كما يعيد Sheets: الخلايا الفارغة في آخر الصف لا تُعاد
-    let out = src.map((r) => { const v = r.slice(0, columns).map(String); while (v.length && v[v.length - 1] === "") v.pop(); return v; });
-    if (this.tamper && columns > 2) out = out.map((r, i) => (i === 0 ? [...r.slice(0, 8), r[8] + " (عُدّل في الملف)", ...r.slice(9)] : r));
+    const out: Record<string, string[][]> = {};
+    for (const name of tabs) {
+      const all = this.tabs.get(name) ?? [];
+      const w = windows[name];
+      const src = w ? all.slice(w.from, w.to + 1) : all;
+      // كما يعيد Sheets: الخلايا الفارغة في آخر الصف لا تُعاد
+      let rows = src.map((r) => { const v = r.slice(0, columns).map(String); while (v.length && v[v.length - 1] === "") v.pop(); return v; });
+      if (this.tamper && columns > 2 && name === INDEX_TAB.name) rows = rows.map((r, i) => (i === 0 ? [...r.slice(0, 8), r[8] + " (عُدّل في الملف)", ...r.slice(9)] : r));
+      out[name] = rows;
+    }
     return out;
   }
-  async appendRows(rows: string[][]) {
+  async append(tab: string, rows: string[][]) {
+    if (rows.length === 0) return;
     this.appends++;
     if (this.fail === "append") { this.fail = null; throw Object.assign(new Error("socket hang up"), { code: "ECONNRESET" }); }
     if (this.fail === "partial") {
       this.fail = null;
-      this.rows.push(...rows.slice(0, Math.ceil(rows.length / 2)).map((r) => [...r]));
+      this.tab(tab).push(...rows.slice(0, Math.ceil(rows.length / 2)).map((r) => [...r]));
       throw Object.assign(new Error("connection reset mid-write"), { code: "ECONNRESET" });
     }
-    this.rows.push(...rows.map((r) => [...r]));
+    this.tab(tab).push(...rows.map((r) => [...r]));
   }
 }
 
@@ -494,10 +508,10 @@ async function cleanup() {
   chk("مهلةُ القراءة: لا حذف", (await processArchiveRun(runId, adeps())) === "retry_scheduled" && (await prisma.marketingArchiveRun.findUniqueOrThrow({ where: { id: runId } })).lastError === "sheet_timeout" && JSON.stringify(await dataCount()) === JSON.stringify(original));
   // صفٌّ مكرَّرٌ في الملف (يدٌ عدّلته): فشلٌ نهائيٌّ لا يُعاد آلياً — ويُستأنف يدوياً بعد إصلاحه
   later(120);
-  sheet.rows.push([...sheet.rows[0]]);
+  sheet.tab(INDEX_TAB.name).push([...sheet.tab(INDEX_TAB.name)[0]]);
   chk("صفٌّ مكرَّرٌ في الملف: فشلٌ نهائي، ولا حذف", (await processArchiveRun(runId, adeps())) === "failed" && JSON.stringify(await dataCount()) === JSON.stringify(original));
   chk("وإعادتُه للقائد وحده", code(await retryArchive(w1, runId)) === "forbidden");
-  sheet.rows.pop();
+  sheet.tab(INDEX_TAB.name).pop();
   chk("ويُعيده القائدُ بعد إصلاح الملف", (await retryArchive(lead, runId)).ok);
 
   // ═══ ١٧–١٩) التصديرُ ثم القراءةُ والمطابقة ثم الحذفُ بعد التحقق وحده
@@ -507,15 +521,21 @@ async function cleanup() {
   step(18, "قراءة الأرشيف والتحقق من البيانات");
   const run = await prisma.marketingArchiveRun.findUniqueOrThrow({ where: { id: runId } });
   chk("اكتملت: كُتب ثم قُرئ وطابق، ثم حُذف", done === "completed" && run.status === "completed" && !!run.verifiedAt && !!run.deletedAt && run.expectedRows === run.verifiedRows && run.expectedRows === sheet.rows.length, `${done} ${run.status} ${run.expectedRows}/${run.verifiedRows}/${sheet.rows.length}`);
-  const types = new Set(sheet.rows.map((r) => r[2]));
-  chk("صفوفٌ منظّمةٌ بمعرّف الحملة: الحملة، والقرارات، والقطع، والاعتمادات، والجودة، والفحص النهائي، والنشر، والمهام، والتعديلات، والسجلّ", ["campaign", "plan_decision", "piece", "approval", "quality", "final_check", "publication", "task", "schedule_change", "event", "chat", "comment", "file"].filter((t) => t !== "comment").every((t) => types.has(t)) && sheet.rows.every((r) => r[1] === C && r[0].startsWith(`${C}:`)), [...types].join(","));
+  const types = new Set(sheet.rows.map((r) => r[COL.type]));
+  chk("صفوفٌ منظّمةٌ بمعرّف الحملة: الحملة، والموجز، والقرارات، والقطع، والتقويم، والنسخ، والاعتمادات، والجودة، والفحص النهائي، والنشر، والمهام، والتعديلات، والسجلّ، وعمليةُ الأرشفة", ["campaign", "brief", "plan_decision", "piece", "calendar", "content_version", "design_version", "approval", "quality", "final_check", "publication", "task", "schedule_change", "event", "chat", "file", "run"].every((t) => types.has(t)) && sheet.rows.every((r) => r[COL.campaignId] === C && r[COL.key].startsWith(`${C}:`)), [...types].join(","));
+  chk("كلُّ صفٍّ في تبويبه — اثنا عشر تبويباً بأسمائها", sheet.tabs.size === ARCHIVE_TABS.length && ARCHIVE_TABS.every((t) => sheet.tab(t.name).every((r) => t.types.includes(r[COL.type]))) && sheet.tab(INDEX_TAB.name).length === 1, [...sheet.tabs].map(([t, rs]) => `${t}:${rs.length}`).join(" "));
+  chk("وكلُّ صفٍّ بثمانيةَ عشرَ عموداً، ومعرّفُ عملية الأرشفة نفسُه في آخره", sheet.rows.every((r) => r.length === ARCHIVE_COLS && r[COL.runId] === runId) && sheet.tab(tabOf("run").name).some((r) => r[COL.key] === `${C}:run:${runId}`));
   const pieceRow = sheet.rows.find((r) => r[0] === `${C}:piece:${P1}`)!;
   const pieceDetails = JSON.parse(pieceRow[15]);
   chk("صفُّ القطعة: النصُّ النهائيُّ والموعدان المخطّطُ والفعلي والرابط — وملفُّ التصميم موصوفٌ لا محفوظ", pieceDetails.finalText.body.includes("نسخةٌ قُدّمت أثناء الرد") && pieceRow[10] === "2026-12-10T18:00:00.000Z" && pieceRow[14] === "https://www.instagram.com/p/mx-test-1/" && pieceDetails.design.fileArchived === false && !!pieceDetails.design.sha256 && pieceDetails.designBrief.externalLink === "https://www.canva.com/design/x");
   const p2Row = sheet.rows.find((r) => r[0] === `${C}:piece:${P2}`)!;
-  const campaignRow = sheet.rows.find((r) => r[2] === "campaign")!;
-  chk("وما لم يُنشر موثَّقٌ بسببه، والميزانيةُ «غير محدّدة» لا رقمٌ مخترع", p2Row[13].includes("تزامنت مع الاختبارات") && JSON.parse(campaignRow[15]).budget === "غير محدّدة" && campaignRow[4] === "2026-12-01" && campaignRow[5] === "2026-12-30");
-  chk("والنواقصُ موثَّقة (مؤشرٌ غيرُ مكتمل لم يُحسب)", JSON.parse(campaignRow[15]).kpis.length === 1);
+  const campaignRow = sheet.rows.find((r) => r[COL.type] === "campaign")!;
+  const briefOf = (f: string) => sheet.rows.find((r) => r[COL.key] === `${C}:brief:${f}`);
+  chk("وما لم يُنشر موثَّقٌ بسببه، والميزانيةُ «غير محدّدة» لا رقمٌ مخترع", p2Row[13].includes("تزامنت مع الاختبارات") && briefOf("budget")?.[COL.result] === "غير محدّدة" && campaignRow[4] === "2026-12-01" && campaignRow[5] === "2026-12-30");
+  chk("والنواقصُ موثَّقة (مؤشرٌ غيرُ مكتمل لم يُحسب)", sheet.rows.filter((r) => r[COL.key].startsWith(`${C}:brief:kpi:`)).length === 1);
+  chk("وفهرسُ الحملة: عددُ القطع والمنشورُ منها والمنصات", campaignRow[COL.planned] === "2" && campaignRow[COL.actual] === "1" && campaignRow[COL.platform].includes("instagram"));
+  chk("والتقويمُ: المواعيدُ الأربعة لكل قطعة", sheet.tab(tabOf("calendar").name).filter((r) => r[COL.type] === "calendar").length === 8);
+  chk("ونسخُ النص كلُّها لا الحاليةُ وحدها", sheet.rows.filter((r) => r[COL.type] === "content_version").length >= 3);
   step(19, "الحذف بعد نجاح التحقق فقط");
   const afterData = await dataCount();
   chk("الحملةُ وما يخصّها حُذفت من النظام النشط", afterData.campaign === 0 && afterData.deliverables === 0 && afterData.tasks === 0 && (await prisma.marketingChatThread.count({ where: { campaignId: C } })) === 0);
@@ -530,19 +550,41 @@ async function cleanup() {
   sheet.reads = [];
   const found = await searchArchive(lead, { text: "حملة الإطلاق" }, { store: sheet });
   chk("القائدُ يجدها بالاسم — بقطعها ومنصّاتها", found.ok && found.results.length === 1 && found.results[0].campaignId === C && found.results[0].pieces === 2 && found.results[0].published === 1 && found.results[0].platforms.includes("instagram"));
-  chk("والبحثُ يقرأ أعمدةَ الفهرس وحدها — لا التفاصيل", sheet.reads.length === 1 && sheet.reads[0].columns === 10 && !sheet.reads[0].window);
+  chk("والبحثُ يقرأ تبويبَ الفهرس وحده بأعمدته الأولى — لا التفاصيلَ ولا التبويباتِ الأخرى", sheet.reads.length === 1 && sheet.reads[0].tabs.length === 1 && sheet.reads[0].tabs[0] === INDEX_TAB.name && sheet.reads[0].columns === COL.result + 1 && Object.keys(sheet.reads[0].windows).length === 0);
   chk("وبالمعرّف، وبالفترة، وبالمنصة ونوع المحتوى", (await searchArchive(ops, { text: C }, { store: sheet })).ok && ((await searchArchive(lead, { from: "2026-12-01", to: "2026-12-31" }, { store: sheet })) as { results: unknown[] }).results.length >= 1 && ((await searchArchive(lead, { platform: "tiktok" }, { store: sheet })) as { results: { campaignId: string }[] }).results.every((r) => r.campaignId !== C) && ((await searchArchive(lead, { contentType: "post" }, { store: sheet })) as { results: { campaignId: string }[] }).results.some((r) => r.campaignId === C));
   sheet.reads = [];
   const detail = await archivedCampaign(lead, C, { store: sheet });
-  chk("وتفاصيلُها من الملف: فهرسٌ خفيف ثم نافذتُها وحدها", detail.ok && detail.rows.length === sheet.rows.length && sheet.reads.length === 2 && sheet.reads[0].columns === 2 && !!sheet.reads[1].window);
+  chk("وتفاصيلُها من الملف: مفاتيحُ التبويبات دفعةً ثم نوافذُها وحدها دفعةً ثانية", detail.ok && detail.rows.length === sheet.rows.length && sheet.reads.length === 2 && sheet.reads[0].columns === 2 && sheet.reads[0].tabs.length === ARCHIVE_TABS.length && Object.keys(sheet.reads[1].windows).length === sheet.reads[1].tabs.length && sheet.reads[1].columns === ARCHIVE_COLS);
+  chk("وتُعرض تبويباً تبويباً بترتيب الملف", detail.ok && detail.rows[0].tab === "index" && detail.rows.every((r, i, a) => i === 0 || ARCHIVE_TABS.findIndex((t) => t.id === a[i - 1].tab) <= ARCHIVE_TABS.findIndex((t) => t.id === r.tab)));
   chk("والاسترجاعُ لا يعيد الحملةَ إلى النظام النشط", (await prisma.marketingCampaign.count({ where: { id: C } })) === 0);
   chk("وتعذّرُ الملف يُقال — لا تُعرض نتيجةٌ قديمة", code(await searchArchive(lead, {}, { store: null }) as { ok: boolean; code?: string }) === "archive_unavailable");
 
   // ═══ ٢١) الحملاتُ الأخرى والأوراقُ الأخرى سليمة
   step(21, "عدم تضرر الحملات الأخرى");
   chk("الحملةُ الأخرى كما هي", (await prisma.marketingCampaign.count({ where: { id: C2 } })) === 1);
-  chk("والتبويبُ الآخر في الملف لم يُمسّ", JSON.stringify(sheet.other) === JSON.stringify([["سجلّ الأعضاء", "صفٌّ قائم"], ["x", "y"]]));
+  chk("والتبويبُ الآخر في الملف («اقرأني») لم يُمسّ", JSON.stringify(sheet.other) === JSON.stringify([["اقرأني", "يكتبه صاحبُ الملف"], ["x", "y"]]));
   chk("ولا صفَّ في الأرشيف لغير الحملة المؤرشفة", sheet.rows.every((r) => r[1] === C));
+
+  // ── التصفّحُ بالصفحات على فهرسٍ من خمسٍ وأربعين حملة، وكلفةُ البحث مقيسةً بالخلايا المقروءة
+  const many = new FakeSheet();
+  await many.ensure();
+  for (const [t, rs] of sheet.tabs) many.tab(t).push(...rs.map((r) => [...r]));
+  for (let i = 1; i <= 44; i++) {
+    const id = `arch-${String(i).padStart(2, "0")}`;
+    const end = `2026-${String(1 + (i % 12)).padStart(2, "0")}-28`;
+    many.tab(INDEX_TAB.name).push([`${id}:campaign`, id, "campaign", `حملة مؤرشفة ${i}`, "2026-01-01", end, i % 2 ? "instagram" : "linkedin", "post", `حملة مؤرشفة ${i}`, "archived", "3", "3", "قائد", "خطة نسخة 1", "", "{}", "2026-10-01T00:00:00.000Z", `${id}-run`]);
+    for (const t of ARCHIVE_TABS.slice(1)) for (let k = 0; k < 6; k++) many.tab(t.name).push([`${id}:${t.types[0]}:${k}`, id, t.types[0], `حملة مؤرشفة ${i}`, "2026-01-01", end, "", "", "x", "", "", "", "", "", "", "{}", "2026-10-01T00:00:00.000Z", `${id}-run`]);
+  }
+  const p1 = await searchIndex(many, {});
+  const p3 = await searchIndex(many, { page: 3 });
+  const pBeyond = await searchIndex(many, { page: 99 });
+  chk("التصفّحُ بصفحاتٍ من عشرين: ٤٥ حملة ← ٣ صفحات (٢٠ · ٢٠ · ٥)، وصفحةٌ بعد الأخيرة تعود إلى الأخيرة", p1.total === 45 && p1.pages === 3 && p1.results.length === ARCHIVE_PAGE_SIZE && p3.results.length === 5 && pBeyond.page === 3, `${p1.total}/${p1.pages}/${p3.results.length}`);
+  chk("والفرزُ بنهاية الحملة الأحدث أولاً، والتصفيةُ بالمنصة مع الصفحات", p1.results.every((r, i, a) => i === 0 || (a[i - 1].end || "") >= (r.end || "")) && (await searchIndex(many, { platform: "linkedin" })).total === 22);
+  many.reads = [];
+  await searchIndex(many, { text: "حملة مؤرشفة 7" });
+  const cellsNow = (many.tab(INDEX_TAB.name).length) * (COL.result + 1);
+  const cellsBefore = many.rows.length * 10; // التصميمُ السابق: تبويبٌ واحدٌ لكل الأنواع، وعشرةُ أعمدةٍ من كل صفّ
+  chk(`وكلفةُ البحث: ${cellsNow} خلية من الفهرس وحده بدل ${cellsBefore} من كل الصفوف (${many.rows.length} صفّاً لـ٤٥ حملة)`, many.reads.length === 1 && many.reads[0].tabs.length === 1 && cellsNow < cellsBefore);
 
   // ── الكنسُ المجدول: يعمل بلا زيارة صفحة، ولا يرمي
   const sweep = await sweepMarketing(new Date());

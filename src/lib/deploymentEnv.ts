@@ -40,6 +40,14 @@ export function spreadsheetId(env: Env = process.env): string | undefined {
   return deploymentEnv(env) === "preview" ? env.GOOGLE_SHEETS_SPREADSHEET_ID_PREVIEW : env.GOOGLE_SHEETS_SPREADSHEET_ID;
 }
 
+/** ملفُّ أرشيف حملات التسويق — ملفٌّ مستقلٌّ عن شيت المنصة المشترك، ولا يقع إليه أبداً.
+ *  في المعاينة ملفُّ الاختبار وحده (`…_PREVIEW`)، فلا تكتب معاينةٌ في أرشيف الإنتاج. وغيابُه يعني
+ *  «الأرشيف غير مهيّأ»: لا أرشفةَ ولا حذف — لا شيتَ بديل. */
+export function marketingArchiveSpreadsheetId(env: Env = process.env): string | undefined {
+  const id = deploymentEnv(env) === "preview" ? env.MARKETING_ARCHIVE_SPREADSHEET_ID_PREVIEW : env.MARKETING_ARCHIVE_SPREADSHEET_ID;
+  return id?.trim() || undefined;
+}
+
 /** من يصله البريد. في المعاينة: من في `PREVIEW_EMAIL_ALLOWLIST` وحدهم، وإلا فلا أحد */
 export function emailRecipientsAllowed(recipients: string[], env: Env = process.env): string[] {
   if (deploymentEnv(env) !== "preview") return recipients;

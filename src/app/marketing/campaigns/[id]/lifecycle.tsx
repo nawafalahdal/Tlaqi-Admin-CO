@@ -6,7 +6,7 @@ import { planningDesk } from "@/lib/marketing/planningCycle";
 import { chatView } from "@/lib/marketing/ai/chat";
 import { serializeChat } from "@/lib/marketing/ai/chatView";
 import { archiveBlockers, campaignArchiveRuns } from "@/lib/marketing/archive";
-import { marketingArchiveStore } from "@/lib/googleSheets";
+import { marketingArchiveStore } from "@/lib/marketing/archiveSheet";
 import { fmt } from "@/i18n/fmt";
 import { ActionForm } from "../../_components/ActionForm";
 import { ChatPanel } from "../../_components/ChatPanel";

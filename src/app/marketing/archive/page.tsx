@@ -4,20 +4,23 @@ import { searchArchive } from "@/lib/marketing/archive";
 import { CONTENT_TYPES } from "@/lib/marketing/schedule";
 import { fmt } from "@/i18n/fmt";
 import { MkHeader } from "../_components/MkHeader";
-import { Section, Field, inputCls, Muted, when } from "../_components/bits";
+import { Section, Field, inputCls, Muted, when, Pager } from "../_components/bits";
 
 export const dynamic = "force-dynamic";
 
-/** البحثُ في أرشيف الحملات — من ملف Google Sheets مباشرةً، عند الطلب وحده.
+/** البحثُ والتصفّحُ في أرشيف الحملات — من ملف أرشيف التسويق المستقل مباشرةً، عند الطلب وحده.
  *
- *  لا يُقرأ الملفُّ بفتح الصفحة: البحثُ يبدأ بإرسال النموذج، ويقرأ أعمدةَ الفهرس وحدها، ويعرض خمسين
- *  نتيجةً على الأكثر، ولا يخزّن شيئاً يُعرض لاحقاً كأنه حديث. والصلاحيةُ في الخادم (`searchArchive`). */
+ *  لا يُقرأ الملفُّ بفتح الصفحة: يبدأ البحثُ (أو «تصفّح الكل») بإرسال النموذج، ويقرأ تبويبَ «فهرس
+ *  الحملات» وحده بأعمدته الأولى، ويعرض صفحاتٍ من عشرين، ولا يخزّن شيئاً يُعرض لاحقاً كأنه حديث.
+ *  والصلاحيةُ في الخادم (`searchArchive`). */
 export default async function ArchivePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams;
   const { actor, mk, isManager, canArchive } = await marketingPage("/marketing/archive");
   const L = mk.archive;
   const asked = sp.q === "1";
-  const result = asked && canArchive ? await searchArchive(actor, { text: sp.text, from: sp.from, to: sp.to, platform: sp.platform, contentType: sp.contentType }) : null;
+  const query = { text: sp.text, from: sp.from, to: sp.to, platform: sp.platform, contentType: sp.contentType };
+  const result = asked && canArchive ? await searchArchive(actor, { ...query, page: Number(sp.p) || 1 }) : null;
+  const pageHref = (n: number) => `/marketing/archive?${new URLSearchParams({ q: "1", ...Object.fromEntries(Object.entries(query).filter(([, v]) => v)), p: String(n) } as Record<string, string>)}`;
 
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-6 sm:px-5 sm:py-8">
@@ -49,13 +52,14 @@ export default async function ArchivePage({ searchParams }: { searchParams: Prom
                   ))}
                 </select>
               </Field>
-              <div className="flex items-end sm:col-span-4">
+              <div className="flex flex-wrap items-end gap-2 sm:col-span-4">
                 <button type="submit" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-black/15 px-4 text-sm font-bold hover:bg-black/[0.04]">{L.search}</button>
+                <Link href="/marketing/archive?q=1" prefetch={false} className="inline-flex min-h-10 items-center justify-center rounded-xl px-3 text-sm font-bold text-black/60 hover:bg-black/[0.04]">{L.browse}</Link>
               </div>
             </form>
           </Section>
           {result && (
-            <Section title={result.ok ? fmt(L.results, result.results.length) : L.search} hint={result.ok ? fmt(L.readAt, when(result.readAt)) : undefined}>
+            <Section title={result.ok ? fmt(L.results, result.total) : L.search} hint={result.ok ? fmt(L.readAt, when(result.readAt)) : undefined}>
               {!result.ok ? (
                 <p className="text-sm text-red-800">{result.code === "archive_unavailable" ? L.unavailable : mk.errors.unknown}</p>
               ) : result.results.length === 0 ? (
@@ -68,10 +72,16 @@ export default async function ArchivePage({ searchParams }: { searchParams: Prom
                       <span className="text-xs text-black/60">{L.period}: {r.start || "—"} — {r.end || "—"}</span>
                       <span className="text-xs text-black/60">{L.pieces}: {r.pieces} · {L.published}: {r.published}</span>
                       <span className="text-xs text-black/60" dir="ltr">{r.platforms.join(", ")}</span>
+                      {r.plan && <span className="text-xs text-black/60" dir="auto">{r.plan}</span>}
                       <Link href={`/marketing/archive/${encodeURIComponent(r.campaignId)}`} className="text-xs font-bold underline-offset-2 hover:underline" prefetch={false}>{L.open}</Link>
                     </li>
                   ))}
                 </ul>
+              )}
+              {result.ok && (
+                <div className="mt-3">
+                  <Pager page={result.page} pages={result.pages} href={pageHref} labels={mk.common} />
+                </div>
               )}
             </Section>
           )}
