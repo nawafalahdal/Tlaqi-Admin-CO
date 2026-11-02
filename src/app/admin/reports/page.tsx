@@ -8,6 +8,8 @@ import { formatDate } from "@/lib/format";
 import { departmentsReport, membersReport, closedOnTimeTickets } from "@/lib/reports";
 import { TICKET_RETENTION_DAYS } from "@/lib/retention";
 import { outlineFor } from "@/lib/orgChart";
+import { committeesReport } from "@/lib/org/queries";
+import Link from "next/link";
 
 import { getLocale, getDictionary } from "@/i18n/server";
 import { fmt } from "@/i18n/fmt";
@@ -27,7 +29,9 @@ export const dynamic = "force-dynamic";
  *  ما لم يُؤرشَف بعد، ويُقال ذلك صريحاً لا يُترَك لُبساً.
  */
 export default async function ReportsPage() {
-  const L = getDictionary(await getLocale()).rReportsPage;
+  const dict = getDictionary(await getLocale());
+  const L = dict.rReportsPage;
+  const R = dict.org.report;
   const session = await auth();
   if (!session) redirect("/login");
   const role = session.user.role;
@@ -36,7 +40,7 @@ export default async function ReportsPage() {
   const seesDepartments = role === "super_admin" || role === "executive" || role === "operations_officer";
   const isLead = role === "department_admin";
 
-  const departments = seesDepartments ? await departmentsReport() : [];
+  const [departments, committees] = seesDepartments ? await Promise.all([departmentsReport(), committeesReport()]) : [[], []];
   const myDepartment = isLead && session.user.departmentId
     ? await prisma.department.findUnique({
         where: { id: session.user.departmentId },
@@ -100,6 +104,42 @@ export default async function ReportsPage() {
               }))}
             />
             <p className="mt-2 text-xs leading-relaxed text-black/50">{L.eachDepartmentCountsIts}</p>
+          </section>
+        )}
+
+        {seesDepartments && (
+          <section>
+            <h2 className="mb-3 text-base font-bold">{R.title}</h2>
+            <DataTable
+              emptyLabel={R.empty}
+              columns={[
+                { key: "dept", label: R.department, primary: true },
+                { key: "active", label: R.active },
+                { key: "pending", label: R.pending },
+                { key: "finished", label: R.finished },
+                { key: "open", label: R.open },
+                { key: "overdue", label: R.overdue },
+                { key: "progress", label: R.progress },
+              ]}
+              rows={committees.map((c) => ({
+                id: c.id,
+                cells: {
+                  dept: (
+                    <Link href={`/committees?dept=${c.id}`} className="inline-flex items-center gap-1.5 text-black/75 hover:underline">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ border: `1.5px dashed ${outlineFor(c.colorHex)}` }} />
+                      {c.name}
+                    </Link>
+                  ),
+                  active: c.active,
+                  pending: c.pending,
+                  finished: c.finished,
+                  open: c.open,
+                  overdue: c.overdue ? <span className="font-bold text-red-700">{c.overdue}</span> : 0,
+                  progress: c.progress === null ? <span className="text-black/35">—</span> : `${c.progress}%`,
+                },
+              }))}
+            />
+            <p className="mt-2 text-xs leading-relaxed text-black/50">{R.note}</p>
           </section>
         )}
 

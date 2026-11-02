@@ -279,6 +279,16 @@ export async function buildOrgChart(locale: Locale = "ar"): Promise<OrgChart> {
           select: USER_SELECT,
           orderBy: { createdAt: "asc" },
         },
+        // قائدُ اللجنة في النظام الحالي: عضوٌ من قسمها (لا حسابٌ قياديّ)
+        leadMember: { select: { ...MEMBER_SELECT, isActive: true, terminatedAt: true } },
+        // نائبُ قائد القسم — يُوسَم في بطاقته
+        deputyMemberId: true,
+        // أعضاءُ اللجنة بعضويتها لا بقسمهم: يبقون في قسمهم ويُرسَمون في لجنتهم أيضاً
+        committeeMemberships: {
+          where: { active: true, member: { isActive: true, approvalStatus: "approved", terminatedAt: null } },
+          select: { member: { select: MEMBER_SELECT } },
+          orderBy: { addedAt: "asc" },
+        },
         members: {
           // الهيكل يَعرض من هو في الفريق الآن: المعتمَد النشط.
           // والمرشّح لم يُعتمد بعد، والخارج خرج — وظهورُ أحدهما يقول
@@ -327,11 +337,28 @@ export async function buildOrgChart(locale: Locale = "ar"): Promise<OrgChart> {
   const flat: OrgDepartment[] = deptRows.map((d) => {
     const leadRow = d.admins[0];
     const isCommittee = Boolean(d.parentId);
-    const lead: OrgSeat = leadRow
-      ? { kind: "filled", person: personFromUser(leadRow, locale) }
-      : { kind: "vacant", title: fmt(isCommittee ? T.vacantCommitteeLead : T.vacantDeptLead, d.name) };
+    // قائدُ اللجنة: العضوُ المعيَّن قائداً إن كان نشطاً؛ وإلا الحسابُ القياديُّ القديم عليها
+    const leadMember = isCommittee && d.leadMember?.isActive && !d.leadMember.terminatedAt ? d.leadMember : null;
+    const lead: OrgSeat = leadMember
+      ? { kind: "filled", person: { ...personFromMember(leadMember, T), title: fmt(T.vacantCommitteeLead, d.name), scope: null } }
+      : leadRow
+        ? { kind: "filled", person: personFromUser(leadRow, locale) }
+        : { kind: "vacant", title: fmt(isCommittee ? T.vacantCommitteeLead : T.vacantDeptLead, d.name) };
     // الإدارةُ العليا يرأسها المؤسس والتنفيذي — لا مقعدَ «قائدٍ» لها يُعَدّ شاغراً
-    if (!leadRow && !(d.leadershipOnly && !d.parentId)) vacancies++;
+    if (!leadMember && !leadRow && !(d.leadershipOnly && !d.parentId)) vacancies++;
+    // أعضاءُ اللجنة: من قسمُه اللجنةُ نفسُها (النظام الأول) ومن عضويتُه فيها — بلا تكرارٍ ولا القائد
+    const seen = new Set<string>(leadMember ? [leadMember.id] : []);
+    const rows = [...d.members, ...d.committeeMemberships.map((cm) => cm.member)].filter((m) => {
+      if (seen.has(m.id) || !notAlreadyShown(m)) return false;
+      seen.add(m.id);
+      return true;
+    });
+    const members = rows.map((m) => {
+      const p = personFromMember(m, T);
+      // النائبُ يُوسَم ويُقدَّم — منصبٌ معلَن لا مسؤوليةٌ مكتومة
+      return !isCommittee && m.id === d.deputyMemberId ? { ...p, title: fmt(T.deputyTitle, d.name), scope: null } : p;
+    });
+    members.sort((a, b) => Number(b.id === d.deputyMemberId) - Number(a.id === d.deputyMemberId));
     return {
       id: d.id,
       name: d.name,
@@ -339,7 +366,7 @@ export async function buildOrgChart(locale: Locale = "ar"): Promise<OrgChart> {
       displayColor: departmentDisplayColor(d.name, d.colorHex),
       leadershipOnly: d.leadershipOnly,
       lead,
-      members: d.members.filter(notAlreadyShown).map((m) => personFromMember(m, T)),
+      members,
       committees: [],
       isCommittee,
     };
@@ -364,11 +391,17 @@ export async function buildOrgChart(locale: Locale = "ar"): Promise<OrgChart> {
   }
   const departments = roots;
 
+  // الأشخاصُ لا البطاقات: عضوُ اللجنة يُرسَم في قسمه وفي لجنته، ويُعَدّ مرّةً واحدة
+  const personIds = new Set<string>();
+  for (const d of flat) {
+    if (d.lead.kind === "filled") personIds.add(d.lead.person.id);
+    for (const m of d.members) personIds.add(m.id);
+  }
   const people =
     (founder ? 1 : 0) +
     (ceo ? 1 : 0) +
     opsOfficers.length +
-    flat.reduce((n, d) => n + (d.lead.kind === "filled" ? 1 : 0) + d.members.length, 0) +
+    personIds.size +
     unassignedMembers.filter(notAlreadyShown).length;
 
   // الإدارة العليا تُرفَع إلى أعلى ولا تُكرَّر تحت الأقسام: هي الطبقة

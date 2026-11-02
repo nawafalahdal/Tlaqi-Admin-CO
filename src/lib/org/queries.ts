@@ -44,6 +44,32 @@ export function visibleCommitteesWhere(a: OrgActor | null): Prisma.DepartmentWhe
   return ors.length ? { ...base, OR: ors } : null;
 }
 
+/** ما يظهر من أعمال اللجان في التقويم الموحَّد — بالحدود نفسِها.
+ *
+ *  الاجتماعاتُ: لكل من يرى اللجنة (والعضوُ لجانَه وحدها). والمهامُّ أضيق:
+ *  للعضو ما أُسند إليه أو ما في لجنةٍ يقودها، ولمن يتابع مهامَّ القسم مهامُّ
+ *  لجانه — لا أن يرى كلُّ عضوٍ مهامَّ زملائه في التقويم. */
+export function committeeCalendarWhere(a: OrgActor | null): {
+  meetings: Prisma.CommitteeMeetingWhereInput;
+  tasks: Prisma.CommitteeTaskWhereInput;
+} | null {
+  const visible = visibleCommitteesWhere(a);
+  if (!a || !visible) return null;
+  const working: Prisma.DepartmentWhereInput = { AND: [visible, { committeeStatus: { in: ["approved", "suspended", "completed"] } }] };
+  const taskOrs: Prisma.CommitteeTaskWhereInput[] = [];
+  if (a.isTop || a.isOps) taskOrs.push({ committee: working });
+  if (a.leadsDepartmentId) taskOrs.push({ committee: { parentId: a.leadsDepartmentId } });
+  if (a.deputy?.permissions.includes("tasks_view")) taskOrs.push({ committee: { parentId: a.deputy.departmentId } });
+  if (a.legacyCommitteeId) taskOrs.push({ committeeId: a.legacyCommitteeId });
+  if (a.kind === "member") {
+    taskOrs.push({ assigneeMemberId: a.id }, { committee: { leadMemberId: a.id } });
+  }
+  return {
+    meetings: { committee: working, status: { not: "cancelled" } },
+    tasks: taskOrs.length ? { AND: [{ committee: working }, { OR: taskOrs }] } : { id: "__none__" },
+  };
+}
+
 export type CommitteeStats = { members: number; open: number; overdue: number; done: number; total: number; progress: number | null };
 
 /** إحصاءُ مجموعةٍ من اللجان دفعةً واحدة */
@@ -371,4 +397,89 @@ export async function departmentOverview(actor: OrgActor | null, departmentId: s
     },
     deputyCandidates,
   };
+}
+
+// ═════════════════════════════════════════════════════════════════════
+//  «لجاني» — في صفحة العضو
+// ═════════════════════════════════════════════════════════════════════
+
+/** لجانُ العضو (ما اعتُمد منها وما بعده) ومهامُّه المفتوحة فيها */
+export async function myCommittees(memberId: string) {
+  const now = new Date();
+  const [memberships, tasks] = await Promise.all([
+    prisma.committeeMembership.findMany({
+      where: { memberId, active: true, committee: { committeeStatus: { in: MEMBER_VISIBLE } } },
+      orderBy: { addedAt: "desc" },
+      take: 50,
+      select: {
+        responsibility: true,
+        committee: {
+          select: {
+            id: true, name: true, committeeStatus: true, leadMemberId: true,
+            leadMember: { select: { fullName: true } },
+            parent: { select: { name: true, colorHex: true } },
+          },
+        },
+      },
+    }),
+    prisma.committeeTask.findMany({
+      where: { assigneeMemberId: memberId, status: { in: ["todo", "in_progress"] }, committee: { committeeStatus: "approved" } },
+      orderBy: [{ dueAt: { sort: "asc", nulls: "last" } }],
+      take: 50,
+      select: {
+        id: true, title: true, status: true, priority: true, dueAt: true,
+        committee: { select: { id: true, name: true } },
+      },
+    }),
+  ]);
+  return {
+    committees: memberships.map((m) => ({ ...m.committee, responsibility: m.responsibility, isLead: m.committee.leadMemberId === memberId })),
+    tasks: tasks.map((t) => ({ ...t, overdue: !!t.dueAt && t.dueAt < now })),
+  };
+}
+
+// ═════════════════════════════════════════════════════════════════════
+//  تقريرُ اللجان للإدارة العليا ومسؤول التشغيل — قسماً قسماً
+// ═════════════════════════════════════════════════════════════════════
+
+export async function committeesReport() {
+  const now = new Date();
+  // department-scope: all — اللجانُ بكل حالاتها تُعَدّ (النشطةُ والمنتهية) لكل قسمٍ أصيل
+  const [depts, committees, tasks, overdue] = await Promise.all([
+    prisma.department.findMany({
+      where: { parentId: null, committeeStatus: null, leadershipOnly: false },
+      select: { id: true, name: true, colorHex: true },
+      orderBy: { name: "asc" },
+      take: 100,
+    }),
+    // department-scope: all — كلُّ لجنةٍ بحالتها وقسمها (صفٌّ قصيرٌ لكل لجنة)
+    prisma.department.findMany({ where: { parentId: { not: null }, committeeStatus: { not: null } }, select: { id: true, parentId: true, committeeStatus: true }, take: 5000 }),
+    // العدُّ تجميعٌ في القاعدة لا صفوفٌ تُجلَب
+    prisma.committeeTask.groupBy({ by: ["committeeId", "status"], where: { status: { not: "cancelled" } }, _count: { _all: true } }),
+    prisma.committeeTask.groupBy({ by: ["committeeId"], where: { status: OPEN_TASK, dueAt: { lt: now } }, _count: { _all: true } }),
+  ]);
+  const parentOf = new Map(committees.map((c) => [c.id, c.parentId]));
+  return depts.map((d) => {
+    const mine = committees.filter((c) => c.parentId === d.id);
+    const n = (s: CommitteeStatus[]) => mine.filter((c) => c.committeeStatus && s.includes(c.committeeStatus)).length;
+    let total = 0;
+    let done = 0;
+    for (const g of tasks) {
+      if (parentOf.get(g.committeeId) !== d.id) continue;
+      total += g._count._all;
+      if (g.status === "done") done += g._count._all;
+    }
+    const late = overdue.filter((g) => parentOf.get(g.committeeId) === d.id).reduce((a, g) => a + g._count._all, 0);
+    return {
+      id: d.id,
+      name: d.name,
+      colorHex: d.colorHex,
+      active: n(["approved"]),
+      pending: n(["draft", "pending_review"]),
+      finished: n(["completed", "closed", "archived"]),
+      open: total - done,
+      overdue: late,
+      progress: total ? Math.round((done / total) * 100) : null,
+    };
+  });
 }

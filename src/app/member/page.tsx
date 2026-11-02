@@ -27,6 +27,8 @@ import { scheduleDueSweeps } from "@/lib/sweepThrottle";
 import { WorkspaceOverview } from "@/components/dashboard/WorkspaceOverview";
 import { avatarHasTransparency } from "@/lib/avatars";
 import { WELCOME_MAX_SENDS, resenderRoleFor } from "@/lib/welcomeResend";
+import { myCommittees } from "@/lib/org/queries";
+import { MyCommittees } from "@/app/committees/_components/MyCommittees";
 
 export default async function MemberPortalPage() {
   const session = await auth();
@@ -78,7 +80,7 @@ export default async function MemberPortalPage() {
     announcementsForSession(session, 6),
   ]);
 
-  const tasks = await myTasks({ memberId: member.id });
+  const [tasks, committees] = await Promise.all([myTasks({ memberId: member.id }), myCommittees(member.id)]);
 
   const alerts = await alertsForMember({
     memberId: member.id,
@@ -111,6 +113,8 @@ export default async function MemberPortalPage() {
 
         {/* ما عليه هذا الأسبوع — بمعاييره وأدلّته */}
         <MyTasks tasks={tasks} theme={theme} />
+        {/* لجانُه ومهامُّه فيها — منفصلةٌ عن مهامّ الخطة الأسبوعية */}
+        <MyCommittees data={committees} L={t.org} theme={theme} />
         <section>
           <Card className="p-4 sm:p-6">
             <p className="text-xs text-black/40">{t.member.memberOf}</p>

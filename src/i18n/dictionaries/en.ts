@@ -2606,6 +2606,8 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
     weeklyReviewMeeting: "Weekly review meeting",
     ticket: "Ticket #{0}: {1}",
     startOfTheExecution: "Start of the execution week",
+    committeeMeeting: "{0} committee meeting: {1}",
+    committeeTask: "{0} committee task: {1}",
     kind: {
       goal: "Goal",
       milestone: "Milestone",
@@ -2613,6 +2615,7 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
       meeting: "Meeting",
       ticket: "Ticket",
       period: "Week",
+      committee: "Committee",
     },
     months: {
       m0: "January",
@@ -2706,6 +2709,7 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
     vacantOps: "Operations officer",
     vacantCommitteeLead: "{0} committee lead",
     vacantDeptLead: "{0} lead",
+    deputyTitle: "Deputy {0} lead",
     founderVacant: "The founder's seat is vacant",
     ceoVacant: "The CEO's seat is vacant",
     noBranches: "No working departments in the structure yet",

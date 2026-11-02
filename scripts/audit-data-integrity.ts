@@ -88,12 +88,7 @@ function report(title: string, count: number, sample: string[], remedy: string) 
   const erased = await leftoverLeaderIds();
   report("بقايا ترشّحِ قادةٍ حُذفت حساباتهم", erased.size, [], "لا تُدخل ولا تُعرض — تُمحى عند الحذف النهائي إن طُلب");
 
-  const committees = await prisma.department.findMany({
-    where: { parentId: { not: null }, committeeStatus: "approved" },
-    select: { name: true, admins: { where: { isActive: true, role: "department_admin" }, select: { id: true } } },
-  });
-  const leaderless = committees.filter((c) => c.admins.length === 0);
-  report("لجانٌ معتمدة بلا قائد", leaderless.length, leaderless.map((c) => c.name), "دعوةُ قائد اللجنة من قسمها الأب");
+  // (اللجانُ بلا قائد: في القسم ٧ — القائدُ عضوٌ معيَّن أو الحسابُ القياديُّ القديم)
 
   // ألوانُ الأقسام الرسمية: الإدارة بنفسجي، التسويق برتقالي، التقنية أخضر، الموارد البشرية بيج
   const official = await prisma.department.findMany({ where: { parentId: null }, select: { name: true, slug: true, colorHex: true } });
@@ -139,6 +134,48 @@ function report(title: string, count: number, sample: string[], remedy: string) 
   report("مهامّ بلا صاحب", orphanTasks, [], "إسنادُها من خطة القسم");
   const escalated = await prisma.planTask.count({ where: { consecutiveCarryover: { gte: 3 } } });
   report("مهامّ رُحِّلت ٣ مرّاتٍ متتالية أو أكثر", escalated, [], "قرارٌ تنفيذيٌّ في مراجعة السبت");
+
+  // ── ٧) الهيكل واللجان
+  const leaderless = await prisma.department.findMany({
+    where: {
+      parentId: { not: null },
+      committeeStatus: { in: ["approved", "suspended"] },
+      OR: [{ leadMemberId: null }, { leadMember: { OR: [{ isActive: false }, { terminatedAt: { not: null } }] } }],
+      admins: { none: { isActive: true, role: "department_admin" } },
+    },
+    select: { name: true },
+    take: 20,
+  });
+  report("لجانٌ عاملة بلا قائدٍ نشط", leaderless.length, leaderless.map((c) => c.name), "صفحة اللجنة ← الأعضاء ← تعيين القائد (قائدُ القسم، أو المؤسس/الرئيس التنفيذي إن شغر مقعدُه)");
+  const nested = await prisma.department.count({ where: { parent: { parentId: { not: null } } } });
+  report("لجانٌ داخل لجان (من النظام الأول)", nested, [], "تبقى كما هي وتُقرأ؛ ولا تُنشأ جديدةٌ مثلها — يُقرَّر نقلُها أو إغلاقُها");
+  const withLead = await prisma.department.findMany({
+    where: { leadMemberId: { not: null } },
+    select: { name: true, leadMemberId: true, committeeMemberships: { where: { active: true }, select: { memberId: true } } },
+    take: 1000,
+  });
+  const leadMissing = withLead.filter((c) => !c.committeeMemberships.some((m) => m.memberId === c.leadMemberId)).map((c) => c.name);
+  report("قائدُ لجنةٍ ليس عضواً نشطاً فيها", leadMissing.length, leadMissing, "إعادةُ تعيينه من تبويب الأعضاء تُعيد عضويته");
+  const crossDept = await prisma.committeeMembership.findMany({
+    where: { active: true, committee: { parentId: { not: null } } },
+    select: { member: { select: { departmentId: true, department: { select: { parentId: true } } } }, committee: { select: { name: true, parentId: true } } },
+    take: 5000,
+  });
+  const outsiders = crossDept.filter(
+    (m) => m.member.departmentId !== m.committee.parentId && m.member.department?.parentId !== m.committee.parentId
+  );
+  report("أعضاءُ لجانٍ من خارج قسمها (نُقلوا بعد ضمّهم)", outsiders.length, outsiders.map((m) => m.committee.name), "قائدُ القسم يُخرجهم من اللجنة أو يُعيدهم إلى القسم");
+  const deputies = await prisma.department.findMany({
+    where: { deputyMemberId: { not: null } },
+    select: { id: true, name: true, parentId: true, deputyMember: { select: { departmentId: true, isActive: true, terminatedAt: true } } },
+    take: 100,
+  });
+  const badDeputy = deputies.filter(
+    (d) => d.parentId || !d.deputyMember || d.deputyMember.departmentId !== d.id || !d.deputyMember.isActive || d.deputyMember.terminatedAt
+  );
+  report("نوّابٌ خارج أقسامهم أو بحساباتٍ معطّلة", badDeputy.length, badDeputy.map((d) => d.name), "لا صلاحيةَ لهم فعلاً (تُفحص في كل طلب) — قائدُ القسم يسحب النيابة أو يعيّن غيره");
+  const staleProposals = await prisma.committeeProposal.count({ where: { status: "pending", createdAt: { lt: new Date(now - 14 * 86_400_000) } } });
+  report("اقتراحاتُ عضويةٍ معلّقةٌ أكثر من أسبوعين", staleProposals, [], "قائدُ القسم يقرّرها من تبويب الأعضاء");
 
   console.log(lines.join("\n"));
   console.log(`\n${issues === 0 ? "سليم — لا ملاحظات" : `ملاحظات: ${issues}`} (قراءةٌ فقط — لم يُغيَّر شيء)`);

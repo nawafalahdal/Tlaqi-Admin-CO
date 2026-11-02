@@ -2602,6 +2602,8 @@ raiseRequestHint: "وجّهها لقسم، أو لحساب إداري، أو ل�
     weeklyReviewMeeting: "اجتماعُ المراجعة الأسبوعي",
     ticket: "تذكرة #{0}: {1}",
     startOfTheExecution: "بدايةُ أسبوع التنفيذ",
+    committeeMeeting: "اجتماع لجنة {0}: {1}",
+    committeeTask: "مهمّة لجنة {0}: {1}",
     kind: {
       goal: "هدف",
       milestone: "محطّة",
@@ -2609,6 +2611,7 @@ raiseRequestHint: "وجّهها لقسم، أو لحساب إداري، أو ل�
       meeting: "اجتماع",
       ticket: "تذكرة",
       period: "أسبوع",
+      committee: "لجنة",
     },
     months: {
       m0: "يناير",
@@ -2702,6 +2705,7 @@ raiseRequestHint: "وجّهها لقسم، أو لحساب إداري، أو ل�
     vacantOps: "مسؤول التشغيل",
     vacantCommitteeLead: "قائد لجنة {0}",
     vacantDeptLead: "قائد {0}",
+    deputyTitle: "نائب قائد {0}",
     founderVacant: "مقعد المؤسس شاغر",
     ceoVacant: "مقعد الرئيس التنفيذي شاغر",
     noBranches: "لا أقسام عاملة في الهيكل بعد",

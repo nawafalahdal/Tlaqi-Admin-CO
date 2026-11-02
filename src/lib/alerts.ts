@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { orgActor } from "@/lib/org/actor";
+import { committeeAlerts } from "@/lib/org/alerts";
 import type { Session } from "next-auth";
 import { canDecideCommittee } from "@/lib/committees";
 import { canDecideDepartmentRequest } from "@/lib/departments";
@@ -370,6 +372,9 @@ export async function alertsForUser(session: Session, locale: Locale = "ar"): Pr
     }
   }
 
+  // ── اللجان والهيكل — بصلته بها الآن (من القاعدة لا من الجلسة)
+  alerts.push(...(await committeeAlerts(await orgActor(session), locale)));
+
   return alerts;
 }
 
@@ -538,6 +543,11 @@ export async function alertsForMember(opts: {
       });
     }
   }
+
+  // ── اللجان: مهامّه واجتماعاتُه، وما يقوده منها
+  alerts.push(
+    ...(await committeeAlerts(await orgActor({ user: { id: opts.memberId, role: "member" } } as Session), locale))
+  );
 
   return alerts;
 }

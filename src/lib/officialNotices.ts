@@ -23,6 +23,9 @@ export const OFFICIAL_NOTICE_KINDS: Record<string, NoticeCategory> = {
   "إنهاء عضوية": "membership",
   "قرار إنهاء إدارة": "membership",
   "ختام التجربة": "membership",
+  // التكليفُ قرارٌ رسميٌّ في عضويته: قيادةُ لجنة، أو نيابةُ قائد القسم وتفويضُها
+  "تكليف لجنة": "membership",
+  "تفويض نائب": "membership",
   "شهادة إتمام": "recognition",
   "تقدير ثلاثة أشهر": "recognition",
   "تكريم إنجاز": "recognition",

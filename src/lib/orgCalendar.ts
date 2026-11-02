@@ -4,6 +4,8 @@
 import { prisma } from "@/lib/prisma";
 import type { Session } from "next-auth";
 import { canReviewWork } from "@/lib/execution";
+import { orgActor } from "@/lib/org/actor";
+import { committeeCalendarWhere } from "@/lib/org/queries";
 import { startOfRiyadhDay, riyadhDateKey, toRiyadh, fromRiyadhParts } from "@/lib/riyadh";
 
 import { getDictionary, type Locale } from "@/i18n";
@@ -23,7 +25,7 @@ import { fmt } from "@/i18n/fmt";
 export type CalendarEntry = {
   id: string;
   date: string;
-  kind: "goal" | "milestone" | "task" | "meeting" | "ticket" | "period";
+  kind: "goal" | "milestone" | "task" | "meeting" | "ticket" | "period" | "committee";
   title: string;
   detail: string | null;
   href: string;
@@ -40,6 +42,7 @@ const KIND_COLOR: Record<CalendarEntry["kind"], string> = {
   meeting: "#1F6F8B",
   ticket: "#B38B2D",
   period: "#3F7D20",
+  committee: "#5B6B7A",
 };
 
 export const KIND_LABEL: Record<CalendarEntry["kind"], string> = {
@@ -49,6 +52,7 @@ export const KIND_LABEL: Record<CalendarEntry["kind"], string> = {
   meeting: "اجتماع",
   ticket: "تذكرة",
   period: "أسبوع",
+  committee: "لجنة",
 };
 
 /** اسمُ النوع بلغة الواجهة — والثابتُ أعلاه بالعربية لمن يكتب سجلاً أو رسالة */
@@ -71,7 +75,9 @@ export async function calendarEntries(opts: {
   const reviewer = canReviewWork(session.user.role);
   const deptId = session.user.departmentId ?? null;
 
-  const [goals, milestones, tasks, meetings, periods, tickets] = await Promise.all([
+  // أعمالُ اللجان بحدود صاحب الجلسة (`lib/org`) — تُقرأ صلتُه بها من القاعدة
+  const committeeScope = committeeCalendarWhere(await orgActor(session));
+  const [goals, milestones, tasks, meetings, periods, tickets, cMeetings, cTasks] = await Promise.all([
     prisma.strategicGoal.findMany({
       where: { status: { in: ["approved", "active"] }, dueDate: { gte: from, lte: to } },
       select: { id: true, title: true, dueDate: true, successCriteria: true },
@@ -150,6 +156,29 @@ export async function calendarEntries(opts: {
       },
       take: 120,
     }),
+    committeeScope
+      ? prisma.committeeMeeting.findMany({
+          where: { AND: [committeeScope.meetings, { startsAt: { gte: from, lte: to } }] },
+          select: {
+            id: true, title: true, startsAt: true, status: true, durationMinutes: true,
+            committee: { select: { id: true, name: true, parent: { select: { colorHex: true } } } },
+          },
+          orderBy: { startsAt: "asc" },
+          take: 200,
+        })
+      : Promise.resolve([]),
+    committeeScope
+      ? prisma.committeeTask.findMany({
+          where: { AND: [committeeScope.tasks, { status: { in: ["todo", "in_progress"] }, dueAt: { gte: from, lte: to } }] },
+          select: {
+            id: true, title: true, dueAt: true,
+            assignee: { select: { fullName: true } },
+            committee: { select: { id: true, name: true, parent: { select: { colorHex: true } } } },
+          },
+          orderBy: { dueAt: "asc" },
+          take: 200,
+        })
+      : Promise.resolve([]),
   ]);
 
   const entries: CalendarEntry[] = [];
@@ -230,6 +259,34 @@ export async function calendarEntries(opts: {
       href: isMember ? "/member" : "/admin/execution",
       colorHex: KIND_COLOR.period,
       overdue: false,
+      carried: false,
+    });
+  }
+
+  for (const m of cMeetings) {
+    entries.push({
+      id: `cmeet:${m.id}`,
+      date: riyadhDateKey(m.startsAt),
+      kind: "committee",
+      title: fmt(L.committeeMeeting, m.committee.name, m.title),
+      detail: fmt(L.meetingDetail, m.durationMinutes, m.status === "held" ? L.held : L.notHeld),
+      href: `/committees/${m.committee.id}?tab=meetings`,
+      colorHex: m.committee.parent?.colorHex ?? KIND_COLOR.committee,
+      overdue: m.status === "scheduled" && m.startsAt < now,
+      carried: false,
+    });
+  }
+  for (const t of cTasks) {
+    if (!t.dueAt) continue;
+    entries.push({
+      id: `ctask:${t.id}`,
+      date: riyadhDateKey(t.dueAt),
+      kind: "committee",
+      title: fmt(L.committeeTask, t.committee.name, t.title),
+      detail: t.assignee?.fullName ?? L.noOwner,
+      href: `/committees/${t.committee.id}?tab=tasks`,
+      colorHex: t.committee.parent?.colorHex ?? KIND_COLOR.committee,
+      overdue: t.dueAt < now,
       carried: false,
     });
   }
