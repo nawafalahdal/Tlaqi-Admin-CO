@@ -25,7 +25,6 @@ const STAMP = Date.now();
 (async () => {
   const founder = await prisma.user.findFirstOrThrow({ where: { role: "super_admin" } });
   const track = await prisma.testTrack.findFirstOrThrow({ where: { scope: "department_member" } });
-  const dept = await prisma.department.findFirstOrThrow({ where: { leadershipOnly: false } });
 
   // ── تنفيذيٌّ قديم وآخر جديد: الجديد أُنشئ بعده فالأقدم هو من يُقرأ
   //    تنفيذياً، وبزواله يرث الجديد الموضع نفسه
@@ -143,14 +142,19 @@ const STAMP = Date.now();
   chk("**والقادة والأعضاء تحته كما كانوا**", peopleUnderAfter === peopleUnderBefore,
       `${peopleUnderBefore} → ${peopleUnderAfter}`);
 
-  // ── قائد قسم: أعضاؤه يتبعون قسمه لا شخصه
+  // ── قائد قسم: أعضاؤه يتبعون قسمه لا شخصه.
+  //    في قسمٍ مؤقّتٍ بلا قائد: لو أُخذ قسمٌ قائمٌ له قائدٌ آخر لبقي «مشغولاً» بعد ذهاب قائد
+  //    الاختبار — وهذا صحيحٌ لا عطب، فكان الفحصُ يتعلّق ببيانات القاعدة لا بالقاعدة نفسها.
+  const leadDept = await prisma.department.create({
+    data: { name: `قسم الخلافة ${STAMP}`, slug: `succession-${STAMP}`, colorHex: "#67C090" },
+  });
   const lead = await prisma.user.create({
     data: {
       fullName: `قائد قسم ${STAMP}`, email: `lead-${STAMP}@example.test`,
-      passwordHash: "x", role: "department_admin", departmentId: dept.id, isActive: true,
+      passwordHash: "x", role: "department_admin", departmentId: leadDept.id, isActive: true,
     },
   });
-  const beforeLeadGone = (await buildOrgChart()).departments.find((d) => d.id === dept.id);
+  const beforeLeadGone = (await buildOrgChart()).departments.find((d) => d.id === leadDept.id);
   const membersUnderLead = beforeLeadGone?.members.length ?? 0;
   chk("القسم يُقرأ بقائده", beforeLeadGone?.lead.kind === "filled");
 
@@ -158,7 +162,7 @@ const STAMP = Date.now();
     kind: "user", id: lead.id, confirmEmail: lead.email, reason: "اختبار الخلافة",
     force: true, actorRole: "super_admin", actorId: founder.id, actorName: "المؤسس",
   });
-  const afterLeadGone = (await buildOrgChart()).departments.find((d) => d.id === dept.id);
+  const afterLeadGone = (await buildOrgChart()).departments.find((d) => d.id === leadDept.id);
   chk("**وبذهابه يُعلَن منصبُه شاغراً لا يُسنَد إلى أحد**",
       afterLeadGone?.lead.kind === "vacant", String(afterLeadGone?.lead.kind));
   chk("**وأعضاؤه باقون في قسمهم — يتبعون القسم لا الشخص**",
@@ -207,6 +211,7 @@ const STAMP = Date.now();
   });
   await prisma.invite.deleteMany({ where: { email: `invitee-${STAMP}@example.test` } });
   await prisma.user.deleteMany({ where: { id: { in: [newCeo.id, approver.id] } } });
+  await prisma.department.delete({ where: { id: leadDept.id } });
 
   console.log(log.join("\n"));
   const failed = log.some((l) => l.startsWith("✗"));
