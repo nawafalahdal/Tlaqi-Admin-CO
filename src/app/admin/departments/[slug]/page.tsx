@@ -21,6 +21,7 @@ import { RequestCard } from "./RequestCard";
 import { MemberInviteForm } from "./MemberInviteForm";
 import { MemberRoster } from "./MemberRoster";
 import { Pager, pageParam } from "@/components/Pager";
+import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 import { CommitteesPanel } from "./CommitteesPanel";
 import { AlertsPanel } from "@/components/AlertsPanel";
 import { alertsForUser } from "@/lib/alerts";
@@ -145,12 +146,6 @@ export default async function DepartmentBoardPage({
     candidate_expiry: () => sweepExpiredCandidateAccounts(),
   });
 
-  const rosterWhere = {
-    departmentId: department.id,
-    approvalStatus: "approved" as const,
-    isActive: true,
-    invite: { targetRole: "member" as const },
-  };
   const [
     approvalQueue,
     needsMeeting,
@@ -192,12 +187,12 @@ export default async function DepartmentBoardPage({
       orderBy: { createdAt: "desc" },
       take: QUEUE_TAKE,
     }),
-    prisma.member.count({ where: rosterWhere }).then(async (total) => {
+    prisma.member.count({ where: { ...ROSTER_MEMBER_WHERE, departmentId: department.id } }).then(async (total) => {
       const { page, pages } = pageParam((await searchParams).rp, total, ROSTER_PAGE);
       const rows = await prisma.member.findMany({
         // الصورةُ تُطلب من مسارها المخزَّن — لا تُحمَّل مع كل صفّ
         omit: { avatarData: true },
-        where: rosterWhere,
+        where: { ...ROSTER_MEMBER_WHERE, departmentId: department.id },
         // الاسمُ ثم المعرّف: ترتيبٌ ثابت فلا يتكرّر عضوٌ بين صفحتين ولا يسقط
         orderBy: [{ fullName: "asc" }, { id: "asc" }],
         skip: (page - 1) * ROSTER_PAGE,
