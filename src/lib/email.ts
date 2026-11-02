@@ -950,30 +950,6 @@ export async function sendRequestReminderEmail(opts: {
   );
 }
 
-export async function sendMeetingReminderEmail(opts: {
-  to: string;
-  candidateName: string;
-  dueDate: Date;
-}) {
-  const blocked = await suppressed("meeting.reminder", opts.to, "تذكير اجتماع", "تذكير باجتماع");
-  if (blocked) return blocked;
-  const r = await recipientOf(opts.to);
-
-  return send(
-    opts.to,
-    `طلب اجتماع شرح — ${opts.candidateName}`,
-    {
-      tone: "action",
-      title: `اجتماع شرح — ${opts.candidateName}`,
-      lead: `لم تبلغ نتيجةُ <b>${esc(opts.candidateName)}</b> نسبةَ الاجتياز في اختبار القبول، والمطلوب جدولةُ اجتماع شرحٍ قبل الموعد أدناه.`,
-      facts: [["الموعد", formatDate(opts.dueDate)]],
-      cta: { label: "فتح المنصة", url: portal() },
-    },
-    "اجتماع شرح",
-    themeOf(r)
-  );
-}
-
 /** «طلبٌ ينتظر اعتمادك» — للمعتمِد المختصّ وحده.
  *
  *  يُخبَر من يفعل، ولا يُخبَر من ينتظر: المرشّح يقرأ نتيجته على الشاشة،

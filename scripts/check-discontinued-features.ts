@@ -59,6 +59,9 @@ async function cleanup() {
   });
   chk("لا أثرَ في الشيفرة لمهمّتَي التذكير ولا لدالّتَي إرسالهما ولا لنوعَيهما", hits.length === 0, hits.join("، "));
   chk("والنوعان خارج سياسة البريد", !("totp.nudge" in EMAIL_POLICY) && !("window.reminder" in EMAIL_POLICY));
+  // تذكيرُ الاجتماع: مكتومٌ ولا يناديه شيء — أُزيل شيفرةً ميتة، فلا يعود
+  const deadHits = sources().filter((f) => /sendMeetingReminderEmail|"meeting\.reminder"/.test(readFileSync(f, "utf8")));
+  chk("ولا أثرَ لتذكير الاجتماع الميت (دالّته ونوعه)", deadHits.length === 0 && !("meeting.reminder" in EMAIL_POLICY), deadHits.join("، "));
   const cron = readFileSync("src/app/api/cron/sweep/route.ts", "utf8");
   chk("والكنسُ اليوميُّ لا يستورد من التذكير شيئاً", !/import[^;]*\b(remind|nudge)\w*/i.test(cron));
 

@@ -44,7 +44,6 @@ export type EmailEvent =
   | "ticket.withdrawn"
   | "ticket.reminder"
   | "request.reminder"
-  | "meeting.reminder"
   | "meeting.owner"
   | "test.failed"
   | "test.reopened"
@@ -112,7 +111,6 @@ export const EMAIL_POLICY: Record<EmailEvent, { send: boolean; why: string }> = 
   },
   "ticket.reminder": { send: false, why: "الموعد معروضٌ في البطاقة ومُصدَّرٌ إلى التقويم" },
   "request.reminder": { send: false, why: "الطلب في لوحة القسم بموعده" },
-  "meeting.reminder": { send: false, why: "الاجتماع في التقويم، والتذكير تكرارٌ له" },
   "meeting.owner": { send: false, why: "الاجتماع يظهر في لوحة قائد القسم عند جدولته" },
   "test.failed": {
     send: false,

@@ -30,8 +30,8 @@ const SUPPRESSED = "لم تُرسل (سياسة التقليل)";
   chk("ولا بطاقة الانضمام عند الاعتماد", emailAllowed("member.welcome"));
   chk("والتصعيد مكتوم", emailAllowed("ticket.escalated") === false);
   chk("والتذكيرات مكتومة",
-      !emailAllowed("ticket.reminder") && !emailAllowed("request.reminder") &&
-      !emailAllowed("meeting.reminder"));
+      !emailAllowed("ticket.reminder") && !emailAllowed("request.reminder"));
+  // تذكيرُ الاجتماع لم يكن يناديه شيء (شيفرةٌ ميتة) فأُزيل مع نوعه — ويُسأل عنه في `check-discontinued-features`
   chk("ونتيجة الرسوب وإعادة الاختبار مكتومتان",
       !emailAllowed("test.failed") && !emailAllowed("test.reopened"));
   // تذكيرُ مهلة الدخول وتذكيرُ التحقق الثنائي أُوقفا نهائياً وحُذف نوعاهما مع مهمّتَيهما — فلا يُسألان هنا
