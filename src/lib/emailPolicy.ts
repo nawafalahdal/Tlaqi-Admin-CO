@@ -48,8 +48,6 @@ export type EmailEvent =
   | "meeting.owner"
   | "test.failed"
   | "test.reopened"
-  | "window.reminder"
-  | "totp.nudge"
   | "execution.task_assigned"
   | "execution.verified"
   | "execution.week_opened"
@@ -121,8 +119,8 @@ export const EMAIL_POLICY: Record<EmailEvent, { send: boolean; why: string }> = 
     why: "قرأ نتيجته على الشاشة لحظة التسليم، واجتماعُ الشرح يُجدَّل في المنصة",
   },
   "test.reopened": { send: false, why: "الاختبار يُفتَح في بوابته — يراه حين يدخل" },
-  "window.reminder": { send: false, why: "المهلة مكتوبةٌ في رسالة الدخول الأولى وفي بوابته" },
-  "totp.nudge": { send: false, why: "نُخزةٌ لا خبر — وصفحة الحماية تقولها لمن يفتحها" },
+  // أُوقف نهائياً وحُذف مع كنسه — لا يُعاد هنا ولا في الكنس (`check-discontinued-features`):
+  //   «تذكير مهلة الدخول» و«تذكير التحقق الثنائي». انظر docs/audit/TLAQI_DISCONTINUED_FEATURES.md
   // ═══ يُكتَم: نظامُ التنفيذ كلُّه يُقرأ في «ما ينتظرك» على المنصة ═══
   "execution.task_assigned": {
     send: false,

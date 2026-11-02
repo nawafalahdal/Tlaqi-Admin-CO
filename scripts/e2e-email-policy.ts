@@ -31,10 +31,12 @@ const SUPPRESSED = "لم تُرسل (سياسة التقليل)";
   chk("والتصعيد مكتوم", emailAllowed("ticket.escalated") === false);
   chk("والتذكيرات مكتومة",
       !emailAllowed("ticket.reminder") && !emailAllowed("request.reminder") &&
-      !emailAllowed("meeting.reminder") && !emailAllowed("window.reminder"));
+      !emailAllowed("meeting.reminder"));
   chk("ونتيجة الرسوب وإعادة الاختبار مكتومتان",
       !emailAllowed("test.failed") && !emailAllowed("test.reopened"));
-  chk("ونُخزة التحقق بخطوتين مكتومة", !emailAllowed("totp.nudge"));
+  // تذكيرُ مهلة الدخول وتذكيرُ التحقق الثنائي أُوقفا نهائياً وحُذف نوعاهما مع مهمّتَيهما — فلا يُسألان هنا
+  // بل في `check-discontinued-features` (غيابُهما من السياسة ومن الكنس، وأنهما لا يعودان)
+  chk("**والنوعان الموقوفان نهائياً خارج السياسة أصلاً**", !("totp.nudge" in EMAIL_POLICY) && !("window.reminder" in EMAIL_POLICY));
 
   // ── ٢) لا نسخةَ مجاملة
   chk("**ثلاثةُ مرشّحين يصيرون مستلماً واحداً**",

@@ -12,12 +12,10 @@ import {
   sendAwaitingApprovalEmail,
   sendTestFailedEmail,
   sendMeetingOwnerEmail,
-  sendWindowReminderEmail,
   sendWarningEmail,
   sendExitEmail,
   sendRequestReminderEmail,
   sendTestReopenedEmail,
-  sendTotpNudgeEmail,
 } from "@/lib/email";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { generateTempPassword, hashPassword } from "@/lib/credentials";
@@ -1154,43 +1152,6 @@ export async function removeLeadershipUser(opts: {
 }
 
 
-/** يُذكّر من أُنشئ له حساب ولم يدخل بعد، قبل سقوط مهلته.
- *
- *  يُستدعى من الكنس اليومي. العلامة أن التذكير أُرسل هي firstLoginAt الفارغ
- *  مع اقتراب المهلة — ولتفادي تكرار التذكير في اليوم نفسه، يُرسَل فقط لمن
- *  بقي له 12 ساعة أو أقل، وهي نافذة لا يمرّ بها الحساب إلا مرة واحدة ما
- *  دام الكنس يومياً. */
-export async function remindExpiringCandidates() {
-  const now = Date.now();
-  const windowMs = CANDIDATE_WINDOW_HOURS * 3600_000;
-
-  const pending = await prisma.member.findMany({
-    where: {
-      firstLoginAt: null,
-      isActive: true,
-      approvalStatus: { not: "approved" },
-      credentialsIssuedAt: { not: null },
-    },
-    select: { fullName: true, email: true, credentialsIssuedAt: true },
-  });
-
-  let sent = 0;
-  for (const m of pending) {
-    const msLeft = m.credentialsIssuedAt!.getTime() + windowMs - now;
-    const hoursLeft = Math.ceil(msLeft / 3600_000);
-    if (hoursLeft <= 0 || hoursLeft > 12) continue;
-
-    await sendWindowReminderEmail({
-      to: m.email,
-      fullName: m.fullName,
-      hoursLeft,
-      loginUrl: `${baseUrl()}/login`,
-    });
-    sent++;
-  }
-  return sent;
-}
-
 /** يعيد فتح اختبار القبول لمرشّح لم يجتزه.
  *
  *  لا يُعاد الفتح بضغطة مجرّدة: الرسوب قرار مُسجَّل، ونقضُه يحتاج سبباً
@@ -1324,44 +1285,6 @@ export async function purgeCandidate(opts: {
   await prisma.invite.delete({ where: { id: member.inviteId } });
 
   return { email: member.email, fullName: member.fullName, warningsCount: member.warningsCount };
-}
-
-/** مهلة تكرار تذكير التحقق الثنائي — أسبوعان.
- *  يومياً يُزعج، وشهرياً يُنسى. */
-const TOTP_NUDGE_DAYS = 14;
-
-/** يذكّر الحسابات الإدارية التي لم تفعّل التحقق الثنائي.
- *
- *  التذكير يتكرّر ما دام غير مفعّل ويتوقّف من تلقائه بالتفعيل — لا حاجة
- *  لأن يُلغيه أحد. و`totpNudgedAt` يمنع تكراره كل يوم: من ذُكِّر أمس
- *  لا يُذكَّر اليوم. والحسابات المُنحّاة خارج النطاق أصلاً. */
-export async function nudgeMissingTwoFactor(): Promise<number> {
-  const cutoff = new Date(Date.now() - TOTP_NUDGE_DAYS * 24 * 60 * 60 * 1000);
-  const due = await prisma.user.findMany({
-    where: {
-      isActive: true,
-      totpEnabled: false,
-      OR: [{ totpNudgedAt: null }, { totpNudgedAt: { lt: cutoff } }],
-    },
-    select: { id: true, email: true, fullName: true },
-  });
-
-  const securityUrl = `${process.env.APP_BASE_URL || "http://localhost:3000"}/admin/security`;
-  let sent = 0;
-  for (const user of due) {
-    const res = await sendTotpNudgeEmail({
-      to: user.email,
-      fullName: user.fullName,
-      securityUrl,
-    });
-    // الختم يُكتب على المحاولة الناجحة وحدها: بريدٌ لم يخرج لا يُعدّ
-    // تذكيراً، وختمه يحجب صاحبه أسبوعين عن تذكير لم يصله
-    if (!res.skipped) {
-      await prisma.user.update({ where: { id: user.id }, data: { totpNudgedAt: new Date() } });
-      sent += 1;
-    }
-  }
-  return sent;
 }
 
 /** تعارضات المقاعد المفردة — يُقرأ الجواب من الإنتاج لا يُخمَّن.

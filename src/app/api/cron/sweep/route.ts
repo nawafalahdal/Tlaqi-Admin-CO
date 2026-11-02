@@ -1,10 +1,5 @@
 import { NextResponse } from "next/server";
-import {
-  remindExpiringCandidates,
-  sweepExpiredCandidateAccounts,
-  sweepOverdueRequests,
-  nudgeMissingTwoFactor,
-} from "@/lib/workflow";
+import { sweepExpiredCandidateAccounts, sweepOverdueRequests } from "@/lib/workflow";
 import { sweepTicketEscalation } from "@/lib/tickets";
 import { purgeExpiredLoginCodes } from "@/lib/loginCodes";
 import { sweepThreeMonthAppreciation } from "@/lib/appreciation";
@@ -37,15 +32,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  // التذكير قبل الكنس: من بقي له ساعات يُذكَّر، ومن انقضت مهلته يسقط
-  const reminded = await remindExpiringCandidates();
+  // **ولا تذكيرَ هنا.** كان الكنسُ يُذكّر المرشّحَ قبل سقوط مهلته ويُذكّر كلَّ إداريٍّ لم يفعّل التحقق
+  // الثنائي كل أسبوعين — وأوقفت الإدارةُ الرسالتين (`EMAIL_POLICY`، a588b11). فبقي الكنسُ يناديهما كل يوم
+  // ويُكتب عن كلّ نداءٍ سطرُ «لم تُرسل» في الإكسل: تذكيرٌ موقوفٌ يعود بلا رسالة. فحُذفت المهمّتان من
+  // أصلهما — والتحقق الثنائي نفسه باقٍ كما هو (`/admin/security`) — والفحصُ
+  // `check-discontinued-features` يمنع عودتهما. انظر docs/audit/TLAQI_DISCONTINUED_FEATURES.md
   const expiredAccounts = await sweepExpiredCandidateAccounts();
   await sweepOverdueRequests();
   await sweepTicketEscalation();
   // رموز الدخول قصيرة العمر وكثيرة، فلا تُترك تتراكم في الجدول
   const purgedCodes = await purgeExpiredLoginCodes();
-  // الحماية تُذكَّر لا تُفترض: من لم يفعّل طريقه الثاني يُنبَّه دورياً
-  const totpNudged = await nudgeMissingTwoFactor();
   // التكريم لا ينتظر أن يفتح أحدٌ اللوحة يوم الذكرى
   const appreciated = await sweepThreeMonthAppreciation();
   // من وُوفق على إنهائه وحلّ تاريخُه: الخروج يقع هنا لا عند الموافقة
@@ -76,10 +72,8 @@ export async function GET(request: Request) {
     carried: carry?.carried ?? 0,
     carrySkipped: carry?.skipped ?? 0,
     carryEscalated: carry?.escalated ?? 0,
-    reminded,
     expiredAccounts,
     purgedCodes,
-    totpNudged,
     appreciated,
     terminated,
     archivedTickets,

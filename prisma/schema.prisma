@@ -301,7 +301,8 @@ model User {
   /// يُحبَس أحدٌ خارج بطاقته لأن لامبدا ماتت مرّةً.
   welcomeClaimedAt   DateTime?
   welcomeEmailCount  Int       @default(0)
-  // آخر مرة نُبّه فيها لتفعيل التحقق الثنائي — حتى لا يتكرّر كل يوم
+  // مُتقاعد: كان ختمَ تذكير التحقق الثنائي، وأُوقف التذكير وحُذفت مهمّته. يُبقى العمود بلا
+  // استعمال لأن حذفه ترحيلٌ هدّام لا يلزم — انظر docs/audit/TLAQI_DISCONTINUED_FEATURES.md
   totpNudgedAt       DateTime?
 
   invitesIssued   Invite[] @relation("InvitedBy")

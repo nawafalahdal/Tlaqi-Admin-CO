@@ -72,11 +72,23 @@ async function logEmail(
   } catch (err) {
     console.error("تعذّر تسجيل البريد في قاعدة البيانات:", err);
   }
+  if (!mirroredToSheet(status)) return;
   try {
     await appendEmailLog({ to: recipients, kind, subject, status, at });
   } catch (err) {
     console.error("تعذّر تسجيل البريد في الشيت:", err);
   }
+}
+
+/** ما يُنسَخ إلى تبويب «الرسائل المُرسَلة» في الشيت: كلُّ محاولة إرسالٍ حقيقية — وصلت أو فشلت أو
+ *  تعذّرت لأن البريد معطّل. **أما ما كتمته السياسة فلا.**
+ *
+ *  **العطبُ الذي يُصلحه:** النوعُ المكتوم بقرار الإدارة (`EMAIL_POLICY`) كان يُكتب في الشيت سطراً
+ *  «لم تُرسل (سياسة التقليل)» عند كل نداء — والنداءُ في الكنس اليومي. فظلّ تذكيرُ التحقق الثنائي، بعد
+ *  إيقافه، يظهر في الإكسل كلَّ يوم لكل حساب لم يفعّله: سطرٌ عن رسالةٍ لم تُرسَل ولن تُرسَل. والمكتومُ
+ *  يبقى مسجّلاً في «سجل الرسائل» داخل المنصة بسببه — فيُعرف أنه كُتم عمداً — ولا يملأ سجلَّ ما أُرسل. */
+export function mirroredToSheet(status: string): boolean {
+  return status !== "لم تُرسل (سياسة التقليل)";
 }
 
 /** من أُغلقت تجربته لا يُراسَل بعدها أبداً.
@@ -1065,36 +1077,6 @@ export async function sendMeetingOwnerEmail(opts: {
   );
 }
 
-/** تذكير قبل سقوط مهلة الـ24 ساعة — فرصة أخيرة قبل أن يفقد الرمز صلاحيته */
-export async function sendWindowReminderEmail(opts: {
-  to: string;
-  fullName: string;
-  hoursLeft: number;
-  loginUrl: string;
-}) {
-  const blocked = await suppressed("window.reminder", opts.to, "تذكير مهلة", "تذكير بمهلة الدخول");
-  if (blocked) return blocked;
-  const r = await recipientOf(opts.to);
-
-  return send(
-    opts.to,
-    `تبقّى ${opts.hoursLeft} ساعة لتفعيل حسابك في تَـــلاقِ`,
-    {
-      tone: "alert",
-      badge: "مهلة توشك أن تنقضي",
-      title: `تبقّى ${opts.hoursLeft} ساعة لتفعيل حسابك`,
-      lead: `${esc(opts.fullName)}، أُنشئ ${forms(r.gender).toYou} حسابٌ في تَـــلاقِ ولم يُستعمل بعد.`,
-      paragraphs: [
-        `<b>يتبقّى ${opts.hoursLeft} ساعة</b> قبل أن يسقط الحساب تلقائياً وتفقد كلمة المرور المؤقتة صلاحيتها.`,
-      ],
-      cta: { label: "تسجيل الدخول الآن", url: esc(opts.loginUrl) },
-      note: "إن ضاعت كلمة المرور المؤقتة فالتواصل مع الجهة التي أنشأت الحساب.",
-    },
-    "تذكير قبل سقوط المهلة",
-    themeOf(r)
-  );
-}
-
 /** رابط استعادة كلمة المرور — صالح لمدة محدودة ولمرة واحدة */
 export async function sendPasswordResetEmail(opts: {
   to: string;
@@ -1364,34 +1346,6 @@ export async function sendFarewellEmail(opts: {
     },
     "ختام التجربة",
     { departmentName: opts.departmentName ?? r.departmentName, colorHex: r.colorHex }
-  );
-}
-
-/** تذكير بتفعيل التحقق الثنائي — يتكرّر كل أسبوعين لمن لم يفعّله. */
-export async function sendTotpNudgeEmail(opts: {
-  to: string;
-  fullName: string;
-  securityUrl: string;
-}) {
-  const blocked = await suppressed("totp.nudge", opts.to, "تنبيه حماية", "تفعيل التحقق بخطوتين");
-  if (blocked) return blocked;
-  const r = await recipientOf(opts.to);
-
-  return send(
-    opts.to,
-    "طريق دخولك الثاني لم يُفعَّل بعد — تَـــلاقِ",
-    {
-      tone: "security",
-      title: "طريق دخولك الثاني لم يُفعَّل بعد",
-      lead: `${esc(opts.fullName)}، دخولك إلى المنصة معلّقٌ ببريدك وحده. فإن تعذّر الوصول إليه يوماً — عطلٌ، أو تأخّر رمز، أو فقدانٌ للحساب — فلا طريق ثانياً.`,
-      paragraphs: [
-        "التحقق بخطوتين يحلّ هذا: يُفعَّل مرّة، فيكون الدخول بعدها برمز تطبيق المصادقة <b>أو</b> برمز البريد، أيّهما توفّر. والتفعيل يستغرق دقيقة.",
-      ],
-      cta: { label: "تفعيل التحقق بخطوتين", url: esc(opts.securityUrl) },
-      note: "يصل هذا التذكير كل أسبوعين ما دام التحقق غير مفعَّل، ويتوقّف تلقائياً بتفعيله.",
-    },
-    "تذكير التحقق الثنائي",
-    themeOf(r)
   );
 }
 

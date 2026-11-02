@@ -80,7 +80,6 @@ const KIND_VARIANT: Record<string, EmailVariant> = {
   تنبيه: "serious",
   "إنهاء عضوية": "serious",
   "عدم اجتياز الاختبار": "serious",
-  "تذكير قبل سقوط المهلة": "serious",
 
   // الانضمام والوداع
   "ترحيب": "welcome",
@@ -88,7 +87,6 @@ const KIND_VARIANT: Record<string, EmailVariant> = {
 
   // الأمن
   "رمز الدخول": "security",
-  "تذكير التحقق الثنائي": "security",
 
   // العام: الدعوة والدخول والاستعادة والإعلانات
   دعوة: "default",
