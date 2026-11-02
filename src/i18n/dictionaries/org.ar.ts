@@ -173,7 +173,7 @@ export const orgAr = {
     roleView: "اطّلاع",
     submitForApproval: "إرسال للاعتماد",
     submitting: "يُرسل…",
-    submitHint: "يُشترط: الغرض، والقائد، وعضوان على الأقل.",
+    submitHint: "يُشترط: الغرض، والقائد، وعضوٌ واحدٌ على الأقل غيرُه.",
     statusActions: "تغيير الحالة",
     toStatus: "إلى «{0}»",
     statusNoteHint: "إلزاميّ للتعليق والإغلاق.",

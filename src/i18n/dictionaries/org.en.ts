@@ -170,7 +170,7 @@ export const orgEn: typeof orgAr = {
     roleView: "View only",
     submitForApproval: "Send for approval",
     submitting: "Sending…",
-    submitHint: "Requires a purpose, a lead and at least two members.",
+    submitHint: "Requires a purpose, a lead and at least one other member.",
     statusActions: "Change status",
     toStatus: "To “{0}”",
     statusNoteHint: "Required to suspend or close.",
