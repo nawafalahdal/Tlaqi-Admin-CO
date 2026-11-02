@@ -28,6 +28,8 @@ const MARK = "e2e-cmh";
 const DOMAIN = "@e2e-cmh.test";
 const PASS = "Committee#2026aa";
 const SHOTS = process.env.COMMITTEES_SHOTS ?? "";
+/** `COMMITTEES_BROWSER=1`: إجراءاتٌ حقيقية بالمتصفّح — نماذج تُرسَل بنقرة، ونافذةُ تأكيد */
+const BROWSER = process.env.COMMITTEES_BROWSER === "1" || !!SHOTS;
 
 const lines: string[] = [];
 let failed = 0;
@@ -223,6 +225,7 @@ async function cleanup() {
   chk("النائبُ بلا تفويض الإدارة: لا يُنشئ", (await page(jD, "/committees/new")).status === 307);
 
   // ── اللقطات (اختيارية)
+  if (BROWSER) await browserFlows(jA, jM, cid, { m1: m1.id, m2: m2.id, deptA: A.id });
   if (SHOTS) await screenshots(jA, jM, cid);
 
   await cleanup();
@@ -238,7 +241,24 @@ async function cleanup() {
 });
 
 /** المتصفّحُ المثبَّت في بيئة الفحص (ليس من اعتماديات المشروع — فلا يدخل البناء) */
+type PwLocator = {
+  fill(v: string): Promise<void>;
+  click(): Promise<void>;
+  check(): Promise<void>;
+  selectOption(v: string | { label: string }): Promise<unknown>;
+  first(): PwLocator;
+  filter(o: { hasText: string }): PwLocator;
+  locator(sel: string): PwLocator;
+  getByRole(role: string, o: { name: string; exact?: boolean }): PwLocator;
+  count(): Promise<number>;
+};
 type PwPage = {
+  locator(sel: string): PwLocator;
+  getByRole(role: string, o: { name: string; exact?: boolean }): PwLocator;
+  waitForURL(re: RegExp, o?: { timeout: number }): Promise<void>;
+  waitForLoadState(s: "networkidle"): Promise<void>;
+  waitForTimeout(ms: number): Promise<void>;
+  url(): string;
   on(e: "console", f: (m: { type(): string; text(): string }) => void): void;
   on(e: "pageerror", f: (e: Error) => void): void;
   goto(url: string, o: { waitUntil: "networkidle" }): Promise<{ status(): number } | null>;
@@ -253,11 +273,88 @@ type PwContext = {
 };
 type PwBrowser = { newContext(o: { viewport: { width: number; height: number }; locale: string }): Promise<PwContext>; close(): Promise<void> };
 
-async function screenshots(leader: Jar, member: Jar, cid: string) {
+async function launch(): Promise<PwBrowser> {
   // المتصفّحُ مثبَّتٌ خارج المشروع — يُحمَّل بـ`require` (يتبع مسارات البيئة) لا بـ`import`
   const { createRequire } = await import("node:module");
   const { chromium } = createRequire(`${process.cwd()}/`)("playwright") as { chromium: { launch(): Promise<PwBrowser> } };
-  const browser = await chromium.launch();
+  return chromium.launch();
+}
+
+async function pageAs(browser: PwBrowser, jar: Jar): Promise<{ p: PwPage; ctx: PwContext; errors: string[] }> {
+  const host = new URL(BASE).hostname;
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "ar-SA" });
+  await ctx.addCookies([...jar.jar].map(([n, v]) => ({ name: n, value: v, domain: host, path: "/" })));
+  const p = await ctx.newPage();
+  const errors: string[] = [];
+  p.on("pageerror", (e) => errors.push(e.message));
+  return { p, ctx, errors };
+}
+
+/** إجراءاتٌ بنقرةٍ حقيقية على الجوال: النموذجُ يُرسَل، والإجراءُ يمرّ بالخادم، والقاعدةُ تشهد */
+async function browserFlows(leader: Jar, member: Jar, cid: string, ids: { m1: string; m2: string; deptA: string }) {
+  const browser = await launch();
+  // ١) قائدُ القسم ينشئ لجنةً من النموذج
+  {
+    const { p, ctx, errors } = await pageAs(browser, leader);
+    await p.goto(`${BASE}/committees/new`, { waitUntil: "networkidle" });
+    await p.locator('input[name="name"]').fill(`${MARK} لجنة من المتصفّح`);
+    await p.locator('textarea[name="purpose"]').fill("غرضٌ مكتوب من النموذج");
+    await p.locator('select[name="leadMemberId"]').selectOption(ids.m1);
+    await p.locator(`input[name="memberIds"][value="${ids.m2}"]`).check();
+    await p.getByRole("button", { name: "حفظ مسودّة" }).click();
+    await p.waitForURL(/\/committees\/(?!new)[a-z0-9]+$/, { timeout: 20000 }).catch(() => {});
+    const made = await prisma.department.findFirst({ where: { name: `${MARK} لجنة من المتصفّح` }, select: { id: true, committeeStatus: true, leadMemberId: true } });
+    chk("المتصفّح: إنشاءُ لجنةٍ من النموذج يُحفظ مسودّةً ويفتح صفحتها", !!made && made.committeeStatus === "draft" && made.leadMemberId === ids.m1 && p.url().endsWith(`/committees/${made.id}`), p.url());
+    chk("المتصفّح: بلا أخطاء صفحة", errors.length === 0, errors.join(" | "));
+    await ctx.close();
+  }
+  // ٢) العضو يحدّث حالة مهمّته
+  {
+    const { p, ctx, errors } = await pageAs(browser, member);
+    await p.goto(`${BASE}/committees/${cid}?tab=tasks`, { waitUntil: "networkidle" });
+    const card = p.locator("li").filter({ hasText: "حجز القاعة" }).first();
+    await card.locator('select[name="status"]').selectOption("done");
+    await card.locator('button[type="submit"]').click();
+    await p.waitForTimeout(2500);
+    const t = await prisma.committeeTask.findFirst({ where: { committeeId: cid, title: "حجز القاعة" }, select: { status: true, completedAt: true } });
+    chk("المتصفّح: العضوُ يحدّث حالة مهمّته فتُحفظ منجزةً بتاريخها", t?.status === "done" && !!t.completedAt, String(t?.status));
+    chk("المتصفّح: بلا أخطاء صفحة (العضو)", errors.length === 0, errors.join(" | "));
+    await ctx.close();
+  }
+  // ٣) إخراجُ عضوٍ يمرّ بنافذة التأكيد
+  {
+    const { p, ctx, errors } = await pageAs(browser, leader);
+    await p.goto(`${BASE}/committees/${cid}?tab=members`, { waitUntil: "networkidle" });
+    const row = p.locator("li").filter({ hasText: `${MARK} m2` }).first();
+    await row.getByRole("button", { name: "إخراج", exact: true }).click();
+    await p.waitForTimeout(400);
+    const stillActive = await prisma.committeeMembership.findUnique({ where: { committeeId_memberId: { committeeId: cid, memberId: ids.m2 } }, select: { active: true } });
+    chk("المتصفّح: الإخراجُ لا يقع قبل التأكيد", stillActive?.active === true);
+    await p.locator("dialog[open]").getByRole("button", { name: "إخراج", exact: true }).click();
+    await p.waitForTimeout(2500);
+    const after = await prisma.committeeMembership.findUnique({ where: { committeeId_memberId: { committeeId: cid, memberId: ids.m2 } }, select: { active: true, removedByName: true } });
+    chk("المتصفّح: وبعد التأكيد يُخرَج ويُنسب لفاعله", after?.active === false && !!after.removedByName, JSON.stringify(after));
+    chk("المتصفّح: بلا أخطاء صفحة (الإخراج)", errors.length === 0, errors.join(" | "));
+    await ctx.close();
+  }
+  // ٤) تفويضُ النائب من نظرة القسم
+  {
+    const { p, ctx, errors } = await pageAs(browser, leader);
+    await p.goto(`${BASE}/committees`, { waitUntil: "networkidle" });
+    const form = p.locator("form").filter({ hasText: "تحديث التفويض" }).first();
+    await form.locator('input[name="permissions"][value="tasks_view"]').check();
+    await form.getByRole("button", { name: "تحديث التفويض" }).click();
+    await p.waitForTimeout(2500);
+    const d = await prisma.department.findUnique({ where: { id: ids.deptA }, select: { deputyPermissions: true } });
+    chk("المتصفّح: تفويضُ النائب يُحفظ بما اختير", !!d && d.deputyPermissions.includes("tasks_view") && d.deputyPermissions.includes("members_view"), JSON.stringify(d?.deputyPermissions));
+    chk("المتصفّح: بلا أخطاء صفحة (التفويض)", errors.length === 0, errors.join(" | "));
+    await ctx.close();
+  }
+  await browser.close();
+}
+
+async function screenshots(leader: Jar, member: Jar, cid: string) {
+  const browser = await launch();
   const host = new URL(BASE).hostname;
   const pages: [string, Jar, string][] = [
     ["list-leader", leader, "/committees"],
