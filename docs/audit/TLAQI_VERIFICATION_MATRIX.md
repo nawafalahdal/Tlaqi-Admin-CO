@@ -80,6 +80,7 @@
 | `check-pagination.ts` (300 عضو) | ✅ **12/12** |
 | بعد `d94ebd9` (إزالة الشيفرة الميتة): `check-discontinued-features` | ✅ **14/14** |
 | بعد `d94ebd9`: `e2e-email-policy`، `check-email-coverage` | ✅ ALL PASS |
+| بعد `7952941` (حارس قائمة القسم): بناء، `check-member-roster` (18 قائمة)، `check-pagination` 12/12، `e2e-department-governance` 18، `e2e-member-roster` 9، `e2e-departments` 22، `e2e-committees` 40، `check-department-scope` | ✅ |
 
 ## ٤) متطلبات التوجيه ← الدليل
 
