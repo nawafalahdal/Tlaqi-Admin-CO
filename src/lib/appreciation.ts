@@ -118,8 +118,11 @@ export async function sweepThreeMonthAppreciation(): Promise<number> {
       noFurtherEmail: false,
       stepDownAt: null,
       offboardingClosedAt: null,
-      // شهادةُ «ثلاثة أشهر عضواً» للعضو وحده — لا لصفِّ مرشّحٍ قياديٍّ اعتُمد
+      // شهادةُ «ثلاثة أشهر عضواً» للعضو وحده — لا لصفِّ مرشّحٍ قياديٍّ اعتُمد،
+      // ولا لقائد لجنةٍ قديمٍ حُوِّل عضواً: أشهرُه الأولى كانت قيادةً لا عضوية،
+      // فلا تصله شهادةٌ مفاجئة يوم تحويله
       invite: { targetRole: "member" },
+      convertedAt: null,
     },
     select: { id: true, decidedAt: true, joinDate: true },
   });

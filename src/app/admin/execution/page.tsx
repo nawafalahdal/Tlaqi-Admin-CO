@@ -76,7 +76,8 @@ export default async function ExecutionPage() {
     overdueMeetings(),
     unresolvedReviewCount(next.id),
     prisma.department.findMany({
-      where: OPEN_DEPARTMENT_WHERE,
+      // اللجنةُ ليست وجهةً لشخصٍ ولا لدعوةٍ ولا لخطةٍ ولا لتذكرة — الأقسامُ الأصيلة وحدها
+      where: { ...OPEN_DEPARTMENT_WHERE, parentId: null },
       select: { id: true, name: true, colorHex: true },
       orderBy: { name: "asc" },
     }),

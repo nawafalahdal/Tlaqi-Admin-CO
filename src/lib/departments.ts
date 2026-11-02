@@ -282,6 +282,8 @@ export async function assignMemberDepartment(opts: {
 
   const dept = await prisma.department.findUnique({ where: { id: opts.departmentId } });
   if (!dept) return { ok: false, reason: "القسم غير موجود" };
+  // اللجنةُ ليست قسماً لأحد — يُصنَّف العضوُ في قسمه الأصيل ثم يُضَمّ إلى لجانه
+  if (dept.parentId) return { ok: false, reason: "اللجنةُ ليست قسماً: صنّفه في القسم الأصيل ثم يضمّه قائدُه إلى اللجنة" };
 
   // الحرس في `where` لا قبله: `departmentId: null` شرطُ التحديث نفسه،
   // فمتسابقان لا يمرّان، ومن صُنِّف لحظةَ الضغط لا يُعاد تصنيفه.

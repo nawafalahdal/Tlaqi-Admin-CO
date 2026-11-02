@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable } from "@/components/DataTable";
 import { Pager } from "@/components/Pager";
@@ -40,10 +41,14 @@ export default async function CommitteesPage({
   const page = Number.parseInt(sp.page ?? "1", 10) || 1;
   const overviewDeptId = actor.leadsDepartmentId ?? actor.deputy?.departmentId ?? deptFilter ?? null;
 
-  const [list, creatable, overview] = await Promise.all([
+  const [list, creatable, overview, legacyLeft] = await Promise.all([
     listCommittees(actor, { status: sp.status, leadMemberId: sp.lead, q: sp.q, departmentId: deptFilter, page }),
     departmentsForCreation(actor),
     overviewDeptId ? departmentOverview(actor, overviewDeptId) : Promise.resolve(null),
+    // للمؤسس: ما بقي من حساباتٍ قياديةٍ قديمة على لجان (مجمَّدةٍ حتى تُحوَّل)
+    actor.role === "super_admin"
+      ? prisma.user.count({ where: { isActive: true, role: "department_admin", department: { is: { parentId: { not: null } } } } })
+      : Promise.resolve(0),
   ]);
   if (!list) redirect("/login");
 
@@ -139,6 +144,11 @@ export default async function CommitteesPage({
           }
         />
 
+        {legacyLeft > 0 && (
+          <Link href="/admin/org-migration" className="rounded-2xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 hover:underline">
+            {L.migration.title} — {fmt(L.migration.total, legacyLeft)}
+          </Link>
+        )}
         {overview && <DepartmentOverview o={overview} theme={theme} L={L} />}
 
         <Card className="p-4">

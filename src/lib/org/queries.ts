@@ -34,7 +34,6 @@ export function visibleCommitteesWhere(a: OrgActor | null): Prisma.DepartmentWhe
   const ors: Prisma.DepartmentWhereInput[] = [];
   if (a.leadsDepartmentId) ors.push({ parentId: a.leadsDepartmentId });
   if (a.deputy) ors.push({ parentId: a.deputy.departmentId });
-  if (a.legacyCommitteeId) ors.push({ id: a.legacyCommitteeId });
   if (a.kind === "member") {
     ors.push({
       committeeStatus: { in: MEMBER_VISIBLE },
@@ -60,7 +59,6 @@ export function committeeCalendarWhere(a: OrgActor | null): {
   if (a.isTop || a.isOps) taskOrs.push({ committee: working });
   if (a.leadsDepartmentId) taskOrs.push({ committee: { parentId: a.leadsDepartmentId } });
   if (a.deputy?.permissions.includes("tasks_view")) taskOrs.push({ committee: { parentId: a.deputy.departmentId } });
-  if (a.legacyCommitteeId) taskOrs.push({ committeeId: a.legacyCommitteeId });
   if (a.kind === "member") {
     taskOrs.push({ assigneeMemberId: a.id }, { committee: { leadMemberId: a.id } });
   }
@@ -156,15 +154,14 @@ export async function listCommittees(
 /** الأقسامُ التي يُنشئ فيها صاحبُ الطلب لجاناً — ليُعرض له زرُّ الإنشاء حيث يملكه وحده */
 export async function departmentsForCreation(actor: OrgActor | null) {
   if (!actor?.role) return [];
-  const ids = actor.isTop
-    ? null
-    : [actor.leadsDepartmentId, actor.deputy?.permissions.includes("committees_manage") ? actor.deputy.departmentId : null].filter(
-        (x): x is string => !!x
-      );
-  if (ids && !ids.length) return [];
+  // الاقتراحُ لقائد القسم ونائبه المفوَّض وحدهما — والرئيسُ والمؤسس يعتمدان ولا يقترحان
+  const ids = [actor.leadsDepartmentId, actor.deputy?.permissions.includes("committees_manage") ? actor.deputy.departmentId : null].filter(
+    (x): x is string => !!x
+  );
+  if (!ids.length) return [];
   // department-scope: all — أقسامٌ أصيلةٌ عاملة (لا لجان، ولا القسم الاستثنائي)
   return prisma.department.findMany({
-    where: { parentId: null, committeeStatus: null, leadershipOnly: false, ...(ids ? { id: { in: ids } } : {}) },
+    where: { parentId: null, committeeStatus: null, leadershipOnly: false, id: { in: ids } },
     select: { id: true, name: true, colorHex: true },
     orderBy: { name: "asc" },
   });
@@ -281,6 +278,14 @@ export async function committeeDetail(actor: OrgActor | null, committeeId: strin
   return {
     committee: { ...c, legacyLeadName: c.leadMember ? null : c.admins[0]?.fullName ?? null },
     role: ctx.role,
+    // تعيينُ القائد وتسليمُ القيادة لقائد القسم ونائبه — وللرئيس والمؤسس حين يخلو مقعدُ قائد القسم وحده
+    canAppointLead:
+      ctx.role.manage &&
+      (ctx.role.propose ||
+        !(await prisma.user.findFirst({ where: { isActive: true, role: "department_admin", departmentId: c.parent!.id }, select: { id: true } }))),
+    // القائدُ الحاليُّ غادر أو عُطِّل أو خرج من القسم — مسارُ التسليم
+    leadDeparted:
+      !!c.leadMember && (!c.leadMember.isActive || !(await departmentPeople(c.parent!.id)).some((p) => p.id === c.leadMemberId)),
     transitions: ctx.role.manage ? STATUS_TRANSITIONS[c.committeeStatus!] ?? [] : [],
     memberships,
     candidates,
@@ -362,7 +367,6 @@ export async function departmentOverview(actor: OrgActor | null, departmentId: s
           parentId: departmentId,
           committeeStatus: { in: ["approved", "suspended"] },
           OR: [{ leadMemberId: null }, { leadMember: { OR: [{ isActive: false }, { terminatedAt: { not: null } }] } }],
-          admins: { none: { isActive: true, role: "department_admin" } },
         },
         select: { id: true, name: true },
       }),

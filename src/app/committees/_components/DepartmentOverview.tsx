@@ -7,7 +7,7 @@ import { fmt } from "@/i18n/fmt";
 import type { Dictionary } from "@/i18n/dictionaries/ar";
 import {
   appointDeputyAction,
-  deputyPermissionsAction,
+  deputyPermissionAction,
   revokeDeputyAction,
   memberResponsibilityAction,
 } from "../actions";
@@ -112,11 +112,35 @@ export function DepartmentOverview({ o, theme, L }: { o: Overview; theme: Theme;
             </div>
           )}
           {o.can.appointDeputy && o.dept.deputyMember && (
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <ActionForm action={deputyPermissionsAction} submits={[{ label: D.update }]} pendingLabel={V.saving} theme={theme}>
-                <input type="hidden" name="departmentId" value={o.dept.id} />
-                <PermissionBoxes L={L} selected={o.dept.deputyPermissions} />
-              </ActionForm>
+            <div className="flex flex-col gap-3">
+              {/* كلُّ صلاحيةٍ وحدها: تُمنح وتُسحب بزرّها، ويُسجَّل كلُّ تغيير */}
+              <p className="text-xs text-black/50">{D.perPermissionHint}</p>
+              <ul className="flex flex-col divide-y divide-black/5 rounded-xl border border-black/5">
+                {DEPUTY_PERMISSIONS.map((p) => {
+                  const on = o.dept.deputyPermissions.includes(p);
+                  return (
+                    <li key={p} className="flex items-center justify-between gap-3 px-3 py-2">
+                      <span className="text-sm">
+                        {L.deputyPermissions[p]}
+                        <span className={`ms-2 inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold ${on ? "bg-emerald-50 text-emerald-800" : "bg-black/[0.05] text-black/55"}`}>
+                          {on ? D.granted : D.notGranted}
+                        </span>
+                      </span>
+                      <ActionForm
+                        action={deputyPermissionAction}
+                        submits={[{ label: on ? D.withdraw : D.grant, variant: on ? "outline" : undefined }]}
+                        pendingLabel={V.saving}
+                        theme={theme}
+                        compact
+                      >
+                        <input type="hidden" name="departmentId" value={o.dept.id} />
+                        <input type="hidden" name="permission" value={p} />
+                        <input type="hidden" name="granted" value={on ? "0" : "1"} />
+                      </ActionForm>
+                    </li>
+                  );
+                })}
+              </ul>
               <ActionForm
                 action={revokeDeputyAction}
                 submits={[{ label: D.revoke, variant: "outline" }]}

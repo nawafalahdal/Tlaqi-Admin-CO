@@ -80,7 +80,8 @@ function Meta({ items }: { items: [string, ReactNode][] }) {
 export function OverviewTab({ d, L, theme }: Ctx) {
   const c = d.committee;
   const T = L.detail;
-  const leadless = !c.leadMember?.isActive && !c.legacyLeadName && (c.committeeStatus === "approved" || c.committeeStatus === "suspended");
+  // والحسابُ القياديُّ القديم مجمَّدٌ لا يقود — فاللجنةُ بلا قائدٍ حتى يُحوَّل أو يُعيَّن غيرُه
+  const leadless = !c.leadMember?.isActive && (c.committeeStatus === "approved" || c.committeeStatus === "suspended");
   return (
     <div className="flex flex-col gap-6">
       {isFrozen(d) && <Banner tone="info">{T.frozen}</Banner>}
@@ -131,7 +132,8 @@ export function OverviewTab({ d, L, theme }: Ctx) {
         </Section>
       </div>
 
-      {d.role.manage && (c.committeeStatus === "draft" || c.committeeStatus === "rejected") && (
+      {/* الإرسالُ للاعتماد لقائد القسم ونائبه المفوَّض — والرئيسُ والمؤسس يعتمدان ولا يرسلان */}
+      {d.role.propose && (c.committeeStatus === "draft" || c.committeeStatus === "rejected") && (
         <div className="flex flex-col gap-2 rounded-2xl border border-black/5 p-4">
           <p className="text-xs text-black/55">{T.submitHint}</p>
           <ActionForm action={submitCommitteeAction} submits={[{ label: T.submitForApproval }]} pendingLabel={T.submitting} theme={theme}>
@@ -222,12 +224,19 @@ export function MembersTab({ d, L, theme }: Ctx) {
         )}
       </Section>
 
+      {canManage && d.leadDeparted && <Banner tone="warn">{M.leadDeparted}</Banner>}
       {canManage && (
         <div className="grid gap-5 lg:grid-cols-2">
-          <Section title={M.appointLead}>
-            <ActionForm action={appointLeadAction} submits={[{ label: M.appointLead }]} pendingLabel={M.appointing} theme={theme}>
+          {d.canAppointLead && (
+          <Section title={c.leadMemberId ? M.handover : M.appointLead}>
+            <ActionForm
+              action={appointLeadAction}
+              submits={[{ label: c.leadMemberId ? M.handover : M.appointLead }]}
+              pendingLabel={M.appointing}
+              theme={theme}
+            >
               <Hidden d={d} />
-              <p className="text-xs text-black/55">{M.appointLeadHint}</p>
+              <p className="text-xs text-black/55">{c.leadMemberId ? M.handoverHint : M.appointLeadHint}</p>
               <select name="memberId" required defaultValue="" aria-label={M.appointLead} className={inputCls}>
                 <option value="" disabled>
                   {M.choose}
@@ -240,8 +249,15 @@ export function MembersTab({ d, L, theme }: Ctx) {
                     </option>
                   ))}
               </select>
+              {c.leadMemberId && (
+                <label className="flex min-h-9 items-center gap-2 text-sm">
+                  <input type="checkbox" name="reassignOpenTasks" defaultChecked={d.leadDeparted} className="h-4 w-4" />
+                  {M.reassignTasks}
+                </label>
+              )}
             </ActionForm>
           </Section>
+          )}
           <Section title={M.add}>
             {d.candidates.length === 0 ? (
               <p className="text-xs text-black/50">{M.noCandidates}</p>

@@ -1,5 +1,6 @@
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { isCommitteeScopedLeader } from "@/lib/org/legacy";
 
 /** ما تقوله القاعدة الآن عن صاحب الجلسة — لا ما كُتب في توكنه يوم دخل.
  *
@@ -54,9 +55,11 @@ export async function resolveSessionAccount(sub: unknown, role: unknown): Promis
     }
     const u = await prisma.user.findUnique({
       where: { id: sub },
-      select: { isActive: true, role: true, departmentId: true, department: { select: { slug: true } } },
+      select: { isActive: true, role: true, departmentId: true, department: { select: { slug: true, parentId: true } } },
     });
     if (!u?.isActive) return { status: "gone" };
+    // حسابٌ قياديٌّ قديم على لجنة: مجمَّدٌ حتى يُحوَّل (`lib/org/legacy`)
+    if (isCommitteeScopedLeader(u)) return { status: "gone" };
     return {
       status: "live",
       role: u.role,

@@ -19,7 +19,7 @@ import {
   proposeMembershipChange,
   decideProposal,
   appointDeputy,
-  setDeputyPermissions,
+  setDeputyPermission,
   revokeDeputy,
   assignMemberResponsibility,
   type CommitteeInput,
@@ -131,7 +131,9 @@ export async function changeCommitteeStatusAction(_p: FormState, fd: FormData): 
 
 export async function appointLeadAction(_p: FormState, fd: FormData): Promise<FormState> {
   const id = s(fd, "committeeId");
-  return run(committeePaths(id), async () => appointCommitteeLead(await actor(), id, s(fd, "memberId"), opt(fd, "note")));
+  return run(committeePaths(id), async () =>
+    appointCommitteeLead(await actor(), id, s(fd, "memberId"), opt(fd, "note"), { reassignOpenTasks: s(fd, "reassignOpenTasks") === "on" })
+  );
 }
 
 export async function addMembersAction(_p: FormState, fd: FormData): Promise<FormState> {
@@ -272,9 +274,12 @@ export async function appointDeputyAction(_p: FormState, fd: FormData): Promise<
   return run(deptPaths, async () => appointDeputy(await actor(), deptId, s(fd, "memberId"), perms));
 }
 
-export async function deputyPermissionsAction(_p: FormState, fd: FormData): Promise<FormState> {
+/** صلاحيةٌ واحدة تُمنح أو تُسحب — ولكلّ تغييرٍ حدثُه في السجلّ */
+export async function deputyPermissionAction(_p: FormState, fd: FormData): Promise<FormState> {
   const deptId = s(fd, "departmentId");
-  return run(deptPaths, async () => setDeputyPermissions(await actor(), deptId, fd.getAll("permissions").map(String)));
+  return run(deptPaths, async () =>
+    setDeputyPermission(await actor(), deptId, s(fd, "permission"), s(fd, "granted") === "1", opt(fd, "note"))
+  );
 }
 
 export async function revokeDeputyAction(_p: FormState, fd: FormData): Promise<FormState> {

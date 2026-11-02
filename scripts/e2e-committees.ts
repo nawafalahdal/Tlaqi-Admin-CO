@@ -368,10 +368,12 @@ function sess(role: string, departmentId: string | null, id: string, name = "ا�
   // ═══ ١٣) سجلُّ التدقيق ═══
   const events = await prisma.orgAuditEvent.findMany({ where: { entityId: cid }, orderBy: { createdAt: "asc" } });
   const actions = new Set(events.map((e) => e.action));
-  for (const a of ["committee.created", "committee.members_added", "committee.submitted", "committee.decided", "committee.lead", "committee.status", "committee.proposal", "committee.proposal_decided", "task.created", "task.status", "meeting.scheduled", "meeting.recorded", "decision.added", "report.submitted", "report.reviewed", "committee.responsibility"]) {
+  for (const a of ["committee.created", "committee.members_added", "committee.submitted", "committee.decided", "committee.handover", "committee.status", "committee.proposal", "committee.proposal_decided", "task.created", "task.status", "meeting.scheduled", "meeting.recorded", "decision.added", "report.submitted", "report.reviewed", "committee.responsibility"]) {
     chk(`١٣ · السجلُّ يحفظ «${a}»`, actions.has(a));
   }
-  const leadEvt = events.filter((e) => e.action === "committee.lead").pop();
+  // تغييرُ قائدٍ قائمٍ تسليمٌ (`committee.handover`) منذ ملاحظة المؤسس الثالثة — كان «committee.lead»؛
+  // و«committee.lead» يبقى لتعيين قائدٍ للجنةٍ خالية. التوقّعُ تغيّر بالمتطلّب، لا ليُخضرّ الفحص
+  const leadEvt = events.filter((e) => e.action === "committee.handover").pop();
   chk("١٣ · وتغييرُ القائد بقبلُه وبعدُه", !!leadEvt && JSON.stringify(leadEvt.before).includes(a1.fullName) && JSON.stringify(leadEvt.after).includes(a2.fullName), JSON.stringify([leadEvt?.before, leadEvt?.after]).slice(0, 120));
   chk("١٣ · وكلُّ حدثٍ باسم فاعله ووقته", events.every((e) => e.actorName && e.createdAt));
   const closeEvt = events.find((e) => e.action === "committee.status" && JSON.stringify(e.after).includes("closed"));

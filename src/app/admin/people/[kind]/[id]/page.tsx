@@ -124,7 +124,7 @@ export default async function PersonPage({
       select: { id: true, kind: true, subject: true, status: true, createdAt: true },
     }),
     isFounder && member && !member.departmentId
-      ? prisma.department.findMany({ where: OPEN_DEPARTMENT_WHERE, select: { id: true, name: true } })
+      ? prisma.department.findMany({ where: { ...OPEN_DEPARTMENT_WHERE, parentId: null }, select: { id: true, name: true } })
       : Promise.resolve(undefined),
   ]);
 

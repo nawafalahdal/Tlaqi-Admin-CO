@@ -22,7 +22,8 @@ export async function adminTicketTargets(
 ): Promise<TicketTarget[]> {
   const [departments, people, members] = await Promise.all([
     prisma.department.findMany({
-      where: OPEN_DEPARTMENT_WHERE,
+      // اللجنةُ ليست وجهةً لشخصٍ ولا لدعوةٍ ولا لخطةٍ ولا لتذكرة — الأقسامُ الأصيلة وحدها
+      where: { ...OPEN_DEPARTMENT_WHERE, parentId: null },
       orderBy: { name: "asc" },
       take: DEPARTMENT_TAKE,
     }),
@@ -64,7 +65,8 @@ export async function memberTicketTargets(
 ): Promise<TicketTarget[]> {
   const [departments, colleagues, leadership] = await Promise.all([
     prisma.department.findMany({
-      where: OPEN_DEPARTMENT_WHERE,
+      // اللجنةُ ليست وجهةً لشخصٍ ولا لدعوةٍ ولا لخطةٍ ولا لتذكرة — الأقسامُ الأصيلة وحدها
+      where: { ...OPEN_DEPARTMENT_WHERE, parentId: null },
       orderBy: { name: "asc" },
       take: DEPARTMENT_TAKE,
     }),

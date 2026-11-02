@@ -91,6 +91,8 @@ export async function stepDownMember(opts: {
       exitReason: opts.reason,
     },
   });
+  // قائدُ لجنةٍ غادر: يُكتب في سجلّ لجانه، فيظهر لقائد القسم مسارُ التسليم
+  await (await import("@/lib/org/committeeService")).noteCommitteeLeadDeparture(member.id, opts.reason);
 
   await sendExitEmail({ to: member.email, fullName: member.fullName, reason: opts.reason });
 

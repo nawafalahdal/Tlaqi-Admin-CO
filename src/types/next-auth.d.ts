@@ -44,5 +44,7 @@ declare module "@auth/core/jwt" {
     leadershipCandidate?: boolean;
     /** آخر مراجعةٍ للحساب من القاعدة (`lib/sessionAccount`) بالمللي ثانية */
     accountCheckedAt?: number;
+    /** نموذجُ الحساب الذي صدر به التوكن (`ACCOUNT_MODEL` في `auth.ts`) */
+    accountModel?: number;
   }
 }

@@ -341,12 +341,16 @@ async function browserFlows(leader: Jar, member: Jar, cid: string, ids: { m1: st
   {
     const { p, ctx, errors } = await pageAs(browser, leader);
     await p.goto(`${BASE}/committees`, { waitUntil: "networkidle" });
-    const form = p.locator("form").filter({ hasText: "تحديث التفويض" }).first();
-    await form.locator('input[name="permissions"][value="tasks_view"]').check();
-    await form.getByRole("button", { name: "تحديث التفويض" }).click();
+    // كلُّ صلاحيةٍ بزرّها منذ ملاحظة المؤسس الرابعة (كانت قائمةَ خاناتٍ تُحفظ دفعةً واحدة):
+    // يُمنح «متابعة المهام» وحده، ويبقى ما سبق تفويضُه، ويُكتب حدثُ تلك الصلاحية وحدها
+    const evBefore = await prisma.orgAuditEvent.count({ where: { entityId: ids.deptA, action: "department.deputy_permission_granted" } });
+    const row = p.locator('li:has(input[name="permission"][value="tasks_view"])').first();
+    await row.getByRole("button", { name: "منح", exact: true }).click();
     await p.waitForTimeout(2500);
     const d = await prisma.department.findUnique({ where: { id: ids.deptA }, select: { deputyPermissions: true } });
-    chk("المتصفّح: تفويضُ النائب يُحفظ بما اختير", !!d && d.deputyPermissions.includes("tasks_view") && d.deputyPermissions.includes("members_view"), JSON.stringify(d?.deputyPermissions));
+    chk("المتصفّح: منحُ صلاحيةٍ واحدة يُحفظ ويُبقي ما سبق", !!d && d.deputyPermissions.includes("tasks_view") && d.deputyPermissions.includes("members_view"), JSON.stringify(d?.deputyPermissions));
+    const evAfter = await prisma.orgAuditEvent.findMany({ where: { entityId: ids.deptA, action: "department.deputy_permission_granted" }, orderBy: { createdAt: "desc" } });
+    chk("المتصفّح: ويُكتب حدثُ تلك الصلاحية وحدها", evAfter.length === evBefore + 1 && JSON.stringify(evAfter[0].after).includes('"permission":"tasks_view"'));
     chk("المتصفّح: بلا أخطاء صفحة (التفويض)", errors.length === 0, errors.join(" | "));
     await ctx.close();
   }

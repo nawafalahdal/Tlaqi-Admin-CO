@@ -13,10 +13,12 @@ import {
   canAppointDeputy,
   canAssignResponsibilities,
   canManageCommitteesOf,
+  canProposeCommitteesOf,
   committeeRoleFor,
   type OrgActor,
 } from "./actor";
 import { diffFields, fail, recordOrgEvent, type OrgResult } from "./audit";
+import { committeeGaps, GAP_LABELS } from "./completeness";
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -176,8 +178,12 @@ export async function createCommittee(
   input: CommitteeInput & { leadMemberId: string; memberIds: string[]; submit: boolean }
 ): Promise<OrgResult<{ id: string; status: CommitteeStatus }>> {
   if (!actor?.role) return fail("سجّل الدخول أولاً");
-  if (!canManageCommitteesOf(actor, departmentId)) {
-    return fail("إنشاءُ لجان القسم لقائده (ولنائبه إن فُوِّض) — لا لجنةَ في قسمٍ آخر");
+  if (!canProposeCommitteesOf(actor, departmentId)) {
+    return fail(
+      actor.isTop
+        ? "اقتراحُ اللجنة لقائد القسم (أو نائبه المفوَّض) — والرئيسُ التنفيذي والمؤسس يعتمدان ما يُرسَل إليهما"
+        : "إنشاءُ لجان القسم لقائده (ولنائبه إن فُوِّض) — لا لجنةَ في قسمٍ آخر"
+    );
   }
   const dept = await prisma.department.findUnique({
     where: { id: departmentId },
@@ -308,17 +314,12 @@ export async function updateCommitteeDetails(
 export async function submitCommittee(actor: OrgActor | null, committeeId: string): Promise<OrgResult> {
   const c = await loadCommittee(prisma, committeeId);
   if (!c) return fail("اللجنة غير موجودة");
-  if (!canManageCommitteesOf(actor, c.parentId!)) return fail("إرسالُ اللجنة للاعتماد لقائد قسمها ومن فُوِّض");
+  if (!canProposeCommitteesOf(actor, c.parentId!)) return fail("إرسالُ اللجنة للاعتماد لقائد قسمها ونائبه المفوَّض وحدهما");
   if (c.committeeStatus !== "draft" && c.committeeStatus !== "rejected") {
     return fail("تُرسَل للاعتماد المسودّةُ أو المردودة وحدها");
   }
-  const full = await prisma.department.findUniqueOrThrow({
-    where: { id: committeeId },
-    select: { purpose: true, _count: { select: { committeeMemberships: { where: { active: true } } } } },
-  });
-  if (!full.purpose || !c.leadMemberId || full._count.committeeMemberships < 2) {
-    return fail("لا تُرسَل لجنةٌ بلا غرضٍ وقائدٍ وعضوٍ واحدٍ على الأقل غيرِه");
-  }
+  const gaps = await committeeGaps(prisma, committeeId);
+  if (gaps?.length) return fail(`لا تُرسَل لجنةٌ ناقصة — ينقصها: ${gaps.map((g) => GAP_LABELS[g]).join("، ")}`);
   const now = new Date();
   const written = await prisma.$transaction(async (tx) => {
     const w = await tx.department.updateMany({
@@ -355,10 +356,9 @@ export async function changeCommitteeStatus(
   if (NEEDS_NOTE.includes(to) && !why) return fail("التعليقُ والإغلاقُ لا يقعان بلا سببٍ مكتوب");
   // لا تعود لجنةٌ إلى العمل بلا قائدٍ نشط
   if (to === "approved") {
-    const lead = c.leadMemberId
-      ? await prisma.member.findFirst({ where: { id: c.leadMemberId, ...departmentPeopleWhere(c.parentId!) }, select: { id: true } })
-      : null;
-    if (!lead) return fail("عيّن قائداً نشطاً للجنة قبل إعادة تفعيلها");
+    const gaps = await committeeGaps(prisma, committeeId);
+    if (gaps?.includes("lead")) return fail("عيّن قائداً نشطاً للجنة قبل إعادة تفعيلها");
+    if (gaps?.length) return fail(`لا تعود لجنةٌ ناقصةٌ للعمل — ينقصها: ${gaps.map((g) => GAP_LABELS[g]).join("، ")}`);
   }
   const written = await prisma.$transaction(async (tx) => {
     const w = await tx.department.updateMany({
@@ -380,36 +380,99 @@ export async function changeCommitteeStatus(
 //  القائد والأعضاء
 // ═════════════════════════════════════════════════════════════════════
 
-/** يعيّن قائد اللجنة أو يغيّره — **قائدٌ واحد**، من أعضاء القسم، ويُسجَّل التغيير.
- *  والقائدُ السابق يبقى عضواً فيها (لا يُخرَج بتغيير القيادة). */
+/** هل خلا مقعدُ قائد هذا القسم الأصيل؟ — شرطُ تدخّل الرئيس التنفيذي والمؤسس في تعيين قائد لجنة */
+async function departmentLeaderVacant(departmentId: string) {
+  const lead = await prisma.user.findFirst({
+    where: { isActive: true, role: "department_admin", departmentId },
+    select: { id: true },
+  });
+  return !lead;
+}
+
+/** **يعيّن قائد اللجنة، أو يسلّم قيادتها لبديل** — قائدٌ واحد، من أعضاء القسم، ويُسجَّل.
+ *
+ *  - **من يعيّن:** قائدُ القسم، ونائبُه المفوَّض. والرئيسُ التنفيذي والمؤسس **حين يخلو مقعدُ
+ *    قائد القسم وحده** — فلا يُتجاوَز قائدُ القسم في لجان قسمه.
+ *  - **التسليم:** إن غادر القائدُ السابق أو عُطِّل حسابُه أو خرج من القسم، تُغلق عضويتُه في
+ *    اللجنة (ولا تُحذف). وإلا بقي عضواً فيها.
+ *  - **المهامّ:** تُنقل مهامُّه المفتوحة إلى البديل إن طُلب ذلك، وتُسمّى في السجلّ.
+ *  - **ولا يُمَسّ شيءٌ غير ذلك:** الاجتماعاتُ والقراراتُ والتقاريرُ وسجلُّ التدقيق باقيةٌ كما هي. */
 export async function appointCommitteeLead(
   actor: OrgActor | null,
   committeeId: string,
   memberId: string,
-  note?: string | null
-): Promise<OrgResult> {
+  note?: string | null,
+  opts: { reassignOpenTasks?: boolean } = {}
+): Promise<OrgResult<{ handover: boolean; tasksMoved: number }>> {
   const c = await loadCommittee(prisma, committeeId);
   if (!c) return fail("اللجنة غير موجودة");
   if (!canManageCommitteesOf(actor, c.parentId!)) return fail("تعيينُ قائد اللجنة لقائد قسمها ومن فُوِّض");
+  if (!canProposeCommitteesOf(actor, c.parentId!) && !(await departmentLeaderVacant(c.parentId!))) {
+    return fail("تعيينُ قائد اللجنة وتسليمُ قيادتها لقائد القسم — ويتدخّل الرئيسُ التنفيذي أو المؤسس حين يخلو مقعدُه وحده");
+  }
   if (FROZEN.includes(c.committeeStatus!)) return fail("اللجنةُ مغلقة — لا يُعيَّن لها قائد");
   if (c.leadMemberId === memberId) return fail("هذا العضوُ قائدُها بالفعل");
   const ok = await eligibleIds(prisma, c.parentId!, [memberId]);
   if (!ok.has(memberId)) return fail("قائدُ اللجنة يُختار من أعضاء القسم المعتمَدين");
   const person = await prisma.member.findUniqueOrThrow({ where: { id: memberId }, select: { fullName: true, email: true } });
-  await prisma.$transaction(async (tx) => {
+
+  // القائدُ السابق: هل غادر؟ — من صفّه الآن لا من الشاشة
+  const previous = c.leadMemberId
+    ? await prisma.member.findUnique({
+        where: { id: c.leadMemberId },
+        select: { id: true, fullName: true, isActive: true, terminatedAt: true, departmentId: true },
+      })
+    : null;
+  const departed =
+    !!previous && (!previous.isActive || !!previous.terminatedAt || !(await eligibleIds(prisma, c.parentId!, [previous.id])).has(previous.id));
+  const handover = !!previous;
+
+  const result = await prisma.$transaction(async (tx) => {
     await tx.committeeMembership.upsert({
       where: { committeeId_memberId: { committeeId, memberId } },
       create: { committeeId, memberId, addedByName: actor!.name },
       update: { active: true, removedAt: null, removedByName: null },
     });
-    await tx.department.update({ where: { id: committeeId }, data: { leadMemberId: memberId } });
+    // الحرسُ في `where`: تعيينانِ متزامنان لا يمرّان على قائدٍ واحد
+    const w = await tx.department.updateMany({
+      where: { id: committeeId, leadMemberId: c.leadMemberId },
+      data: { leadMemberId: memberId },
+    });
+    if (!w.count) throw new Error("تغيّر قائدُ اللجنة للتوّ — أعِد فتح الصفحة");
+    if (previous && departed) {
+      await tx.committeeMembership.updateMany({
+        where: { committeeId, memberId: previous.id, active: true },
+        data: { active: false, removedAt: new Date(), removedByName: actor!.name },
+      });
+    }
+    let moved: string[] = [];
+    if (previous && opts.reassignOpenTasks) {
+      const open = await tx.committeeTask.findMany({
+        where: { committeeId, assigneeMemberId: previous.id, status: { in: ["todo", "in_progress"] } },
+        select: { id: true },
+      });
+      moved = open.map((t) => t.id);
+      if (moved.length) {
+        await tx.committeeTask.updateMany({ where: { id: { in: moved } }, data: { assigneeMemberId: memberId } });
+      }
+    }
     await recordOrgEvent(tx, {
-      scope: "committee", entityId: committeeId, departmentId: c.parentId!, action: "committee.lead",
+      scope: "committee", entityId: committeeId, departmentId: c.parentId!,
+      action: handover ? "committee.handover" : "committee.lead",
       actor: actor!,
-      before: { leadMemberId: c.leadMemberId, leadName: c.leadMember?.fullName ?? null },
-      after: { leadMemberId: memberId, leadName: person.fullName },
+      before: {
+        leadMemberId: c.leadMemberId,
+        leadName: c.leadMember?.fullName ?? null,
+        ...(previous ? { previousDeparted: departed } : {}),
+      },
+      after: {
+        leadMemberId: memberId,
+        leadName: person.fullName,
+        ...(handover ? { previousMembershipClosed: departed, tasksMoved: moved } : {}),
+      },
       note: text(note, LIMITS.short),
     });
+    return { tasksMoved: moved.length };
   });
   await sendCommitteeLeadAppointedEmail({
     to: person.email,
@@ -419,7 +482,31 @@ export async function appointCommitteeLead(
     appointedByName: actor!.name,
     url: `${baseUrl()}/committees/${committeeId}`,
   });
-  return { ok: true };
+  return { ok: true, handover, tasksMoved: result.tasksMoved };
+}
+
+/** **مغادرةُ قائد لجنة تُسجَّل في لجنته** — حين يُنهى أو يتنحّى أو يُعطَّل.
+ *  لا تُعيِّن بديلاً بنفسها (التعيينُ لقائد القسم)، لكنها تكتب الحدثَ في سجلّ اللجنة،
+ *  فيظهر لقائد القسم تنبيهُ «لجنةٌ بلا قائدٍ نشط» ومسارُ التسليم. لا تُرمى أبداً. */
+export async function noteCommitteeLeadDeparture(memberId: string, reason: string): Promise<number> {
+  try {
+    // department-scope: all — كلُّ لجنةٍ يقودها، مهما كانت حالتُها
+    const led = await prisma.department.findMany({
+      where: { leadMemberId: memberId, parentId: { not: null } },
+      select: { id: true, parentId: true, leadMember: { select: { fullName: true } } },
+    });
+    for (const c of led) {
+      await recordOrgEvent(prisma, {
+        scope: "committee", entityId: c.id, departmentId: c.parentId!, action: "committee.lead_departed",
+        actor: { kind: "system", id: "system", name: "المنصة" },
+        before: { leadMemberId: memberId, leadName: c.leadMember?.fullName ?? null },
+        note: reason.slice(0, LIMITS.short),
+      });
+    }
+    return led.length;
+  } catch {
+    return 0;
+  }
 }
 
 export async function addCommitteeMembers(
@@ -665,6 +752,8 @@ export async function appointDeputy(
       before: { deputyMemberId: dept.deputyMemberId, deputyName: dept.deputyMember?.fullName ?? null, permissions: dept.deputyPermissions },
       after: { deputyMemberId: memberId, deputyName: m.fullName, permissions: perms },
     });
+    if (dept.deputyMemberId) await writePermissionEvents(tx, actor!, departmentId, dept.deputyMemberId, dept.deputyPermissions, []);
+    await writePermissionEvents(tx, actor!, departmentId, memberId, [], perms);
   });
   await sendDeputyAppointedEmail({
     to: m.email,
@@ -677,6 +766,59 @@ export async function appointDeputy(
   return { ok: true };
 }
 
+/** **كلُّ صلاحيةٍ من الأربع تُمنح وتُسحب مستقلّةً، ولكلّ تغييرٍ حدثُه في السجلّ** (ملاحظةُ المؤسس الرابعة).
+ *  الحدثُ يسمّي الصلاحيةَ وحدها، ومعه القائمةُ قبل التغيير وبعده — فيُقرأ من فوَّض ماذا ومتى. */
+async function writePermissionEvents(
+  tx: Prisma.TransactionClient,
+  actor: OrgActor,
+  departmentId: string,
+  deputyMemberId: string,
+  before: DeputyPermission[],
+  after: DeputyPermission[],
+  note?: string | null
+) {
+  for (const p of DEPUTY_PERMISSIONS) {
+    const had = before.includes(p);
+    const has = after.includes(p);
+    if (had === has) continue;
+    await recordOrgEvent(tx, {
+      scope: "department", entityId: departmentId, departmentId,
+      action: has ? "department.deputy_permission_granted" : "department.deputy_permission_revoked",
+      actor, before: { deputyMemberId, permission: p, permissions: before }, after: { deputyMemberId, permission: p, permissions: after },
+      note: note ?? null,
+    });
+  }
+}
+
+/** يمنح صلاحيةً واحدة للنائب أو يسحبها — لقائد القسم وحده */
+export async function setDeputyPermission(
+  actor: OrgActor | null,
+  departmentId: string,
+  permission: string,
+  granted: boolean,
+  note?: string | null
+): Promise<OrgResult<{ changed: boolean }>> {
+  if (!canAppointDeputy(actor, departmentId)) return fail("تفويضُ النائب لقائد القسم وحده");
+  if (!DEPUTY_PERMISSIONS.includes(permission as DeputyPermission)) return fail(UNKNOWN_PERMISSION);
+  const p = permission as DeputyPermission;
+  const dept = await prisma.department.findUnique({ where: { id: departmentId }, select: { deputyMemberId: true, deputyPermissions: true } });
+  if (!dept?.deputyMemberId) return fail("لا نائبَ للقسم");
+  const before = dept.deputyPermissions;
+  if (before.includes(p) === granted) return { ok: true, changed: false };
+  const after = DEPUTY_PERMISSIONS.filter((x) => (x === p ? granted : before.includes(x)));
+  const written = await prisma.$transaction(async (tx) => {
+    // الحرسُ في `where`: تفويضانِ متزامنان لا يكتب أحدُهما فوق الآخر بقائمةٍ قديمة
+    const w = await tx.department.updateMany({
+      where: { id: departmentId, deputyMemberId: dept.deputyMemberId, deputyPermissions: { equals: before } },
+      data: { deputyPermissions: after },
+    });
+    if (w.count) await writePermissionEvents(tx, actor!, departmentId, dept.deputyMemberId!, before, after, text(note, LIMITS.short));
+    return w.count;
+  });
+  return written ? { ok: true, changed: true } : fail("تغيّر تفويضُ النائب للتوّ — أعِد فتح الصفحة");
+}
+
+/** القائمةُ كاملةً دفعةً واحدة — وتُكتب أحداثُها صلاحيةً صلاحية كما في `setDeputyPermission` */
 export async function setDeputyPermissions(
   actor: OrgActor | null,
   departmentId: string,
@@ -691,10 +833,7 @@ export async function setDeputyPermissions(
   if (same) return { ok: true };
   await prisma.$transaction(async (tx) => {
     await tx.department.update({ where: { id: departmentId }, data: { deputyPermissions: perms } });
-    await recordOrgEvent(tx, {
-      scope: "department", entityId: departmentId, departmentId, action: "department.deputy_permissions",
-      actor: actor!, before: { permissions: dept.deputyPermissions }, after: { permissions: perms },
-    });
+    await writePermissionEvents(tx, actor!, departmentId, dept.deputyMemberId!, dept.deputyPermissions, perms);
   });
   return { ok: true };
 }
@@ -718,6 +857,7 @@ export async function revokeDeputy(actor: OrgActor | null, departmentId: string,
       after: { deputyMemberId: null, permissions: [] },
       note: text(note, LIMITS.short),
     });
+    await writePermissionEvents(tx, actor!, departmentId, dept.deputyMemberId!, dept.deputyPermissions, [], text(note, LIMITS.short));
   });
   return { ok: true };
 }

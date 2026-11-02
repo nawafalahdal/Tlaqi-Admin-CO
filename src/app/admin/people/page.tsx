@@ -129,7 +129,8 @@ export default async function PeoplePage({
     // قائم في القاعدة وله لونُه وصفُّه في الهيكل، فحجبُه عن التصنيف
     // يجعله قسماً لا يُدخَل إليه — وهذا ليس حكماً، بل نقصٌ في الواجهة.
     prisma.department.findMany({
-      where: OPEN_DEPARTMENT_WHERE,
+      // اللجنةُ ليست وجهةً لشخصٍ ولا لدعوةٍ ولا لخطةٍ ولا لتذكرة — الأقسامُ الأصيلة وحدها
+      where: { ...OPEN_DEPARTMENT_WHERE, parentId: null },
       select: { id: true, name: true, colorHex: true, leadershipOnly: true, parentId: true },
       orderBy: [{ leadershipOnly: "desc" }, { name: "asc" }],
     }),

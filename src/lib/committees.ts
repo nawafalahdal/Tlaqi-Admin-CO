@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { committeeGaps, GAP_LABELS } from "@/lib/org/completeness";
 import type { Session } from "next-auth";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { sendCommitteeDecisionEmail, sendCommitteeLeadAppointedEmail } from "@/lib/email";
@@ -127,6 +128,15 @@ export async function decideCommittee(opts: {
   // وطلبُ القسم الأصيل يحمل الحالةَ نفسَها — لكن اعتمادَه للمؤسس وحده
   // (`decideDepartmentRequest`)، فلا يمرّ من باب اللجان
   if (!committee.committeeStatus || !committee.parentId) return { ok: false, reason: "هذا قسمٌ أصيل لا لجنة" };
+
+  // **ولا تُعتمد لجنةٌ ناقصة** — غرضٌ ونوعٌ وقائدٌ نشطٌ من القسم وعضوٌ آخر (وتاريخُ نهايةٍ
+  // للمؤقّتة)، من القاعدة لحظةَ القرار. والردُّ يبقى ممكناً: هو ما يُعيدها لتُستكمَل
+  if (opts.decision === "approved" && committee.committeeStatus === "pending_review") {
+    const gaps = await committeeGaps(prisma, committee.id);
+    if (gaps?.length) {
+      return { ok: false, reason: `لا تُعتمد لجنةٌ ناقصة — ينقصها: ${gaps.map((g) => GAP_LABELS[g]).join("، ")}. رُدَّها ليستكملها قائدُ القسم` };
+    }
+  }
 
   const now = new Date();
   // الحرسُ في `where` لا قبله: قرارانِ متسابقان لا يمرّان، ومن قُرِّر

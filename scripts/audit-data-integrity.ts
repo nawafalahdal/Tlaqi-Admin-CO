@@ -140,8 +140,8 @@ function report(title: string, count: number, sample: string[], remedy: string) 
     where: {
       parentId: { not: null },
       committeeStatus: { in: ["approved", "suspended"] },
+      // والحسابُ القياديُّ القديم مجمَّدٌ لا يقود — فلا يُستثنى به شيء
       OR: [{ leadMemberId: null }, { leadMember: { OR: [{ isActive: false }, { terminatedAt: { not: null } }] } }],
-      admins: { none: { isActive: true, role: "department_admin" } },
     },
     select: { name: true },
     take: 20,
@@ -149,6 +149,26 @@ function report(title: string, count: number, sample: string[], remedy: string) 
   report("لجانٌ عاملة بلا قائدٍ نشط", leaderless.length, leaderless.map((c) => c.name), "صفحة اللجنة ← الأعضاء ← تعيين القائد (قائدُ القسم، أو المؤسس/الرئيس التنفيذي إن شغر مقعدُه)");
   const nested = await prisma.department.count({ where: { parent: { parentId: { not: null } } } });
   report("لجانٌ داخل لجان (من النظام الأول)", nested, [], "تبقى كما هي وتُقرأ؛ ولا تُنشأ جديدةٌ مثلها — يُقرَّر نقلُها أو إغلاقُها");
+  // ── ثوابتُ فصل قيادة اللجنة عن قيادة القسم (docs/TLAQI_COMMITTEE_LEAD_SEPARATION_PLAN_AR.md)
+  const frozenLeads = await prisma.user.findMany({
+    where: { isActive: true, role: "department_admin", department: { is: { parentId: { not: null } } } },
+    select: { fullName: true },
+    take: 20,
+  });
+  report(
+    "حساباتٌ قياديةٌ نشطة قسمُها لجنة (مجمَّدة حتى تُحوَّل)",
+    frozenLeads.length,
+    frozenLeads.map((u) => u.fullName),
+    "صفحة «ترحيل فصل قيادة اللجان» (/admin/org-migration) بيد المؤسس — الحالة L1"
+  );
+  const membersInCommittees = await prisma.member.count({
+    where: { isActive: true, terminatedAt: null, approvalStatus: { not: "rejected" }, department: { is: { parentId: { not: null } } } },
+  });
+  report("أعضاءٌ أو مرشّحون نشطون قسمُهم لجنة", membersInCommittees, [], "الحالتان L3 وL4 في صفحة الترحيل — يُنقلون إلى القسم الأصيل وتبقى عضويتُهم في اللجنة");
+  const invitesToCommittees = await prisma.invite.count({ where: { status: "open", department: { is: { parentId: { not: null } } } } });
+  report("دعواتٌ مفتوحة إلى لجنة", invitesToCommittees, [], "الحالتان L5 وL5x في صفحة الترحيل");
+  const ticketsToCommittees = await prisma.ticket.count({ where: { status: { not: "resolved" }, targetDepartment: { is: { parentId: { not: null } } } } });
+  report("تذاكرُ مفتوحة وجهتُها لجنة", ticketsToCommittees, [], "الحالة L9 في صفحة الترحيل — تُوجَّه إلى القسم الأصيل");
   const withLead = await prisma.department.findMany({
     where: { leadMemberId: { not: null } },
     select: { name: true, leadMemberId: true, committeeMemberships: { where: { active: true }, select: { memberId: true } } },

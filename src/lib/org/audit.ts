@@ -21,7 +21,7 @@ export async function recordOrgEvent(
     entityId: string;
     departmentId: string;
     action: string;
-    actor: Pick<OrgActor, "kind" | "id" | "name">;
+    actor: Pick<OrgActor, "id" | "name"> & { kind: OrgActor["kind"] | "system" };
     before?: Prisma.InputJsonValue | null;
     after?: Prisma.InputJsonValue | null;
     note?: string | null;

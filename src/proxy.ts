@@ -26,6 +26,11 @@ export default auth((req) => {
     if (pathname.startsWith("/member") && session.user.role !== "member") {
       return NextResponse.redirect(new URL("/admin", req.nextUrl.origin));
     }
+    // ترحيلُ الهيكل للمؤسس وحده — يُردّ هنا بتحويلٍ حقيقي، لا بصفحة «غير موجودة» مُبثّةٍ بحالة 200
+    // (حدُّ التحميل في `/admin` يبثّ الاستجابة). والصفحةُ تفحص الدورَ من القاعدة ثانيةً
+    if (pathname.startsWith("/admin/org-migration") && session.user.role !== "super_admin") {
+      return NextResponse.redirect(new URL("/admin", req.nextUrl.origin));
+    }
 
   }
 });

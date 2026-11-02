@@ -8,6 +8,7 @@ import { consumeLoginCode } from "@/lib/loginCodes";
 import { candidateWindowExpired, markFirstLogin } from "@/lib/workflow";
 import { issueSessionBinding, sessionBindingMatches, clearSessionBinding } from "@/lib/sessionBinding";
 import { resolveSessionAccount } from "@/lib/sessionAccount";
+import { isCommitteeScopedLeader } from "@/lib/org/legacy";
 
 /** جلسة قصيرة افتراضاً: ساعتان من آخر نشاط. من يعمل باستمرار لا تنقطع
  *  جلسته، ومن ترك جهازه ينتهي أثره بعدها. */
@@ -15,6 +16,11 @@ const DEFAULT_SESSION_HOURS = 2;
 
 /** ومن اختار "أبقني مسجّلاً" على جهازه الشخصي: ثلاثون يوماً. */
 const REMEMBER_DAYS = 30;
+
+/** نموذجُ الحساب الذي صدر به التوكن. يُرفع حين تتغيّر قواعدُ «من صاحبُ الجلسة» تغيّراً
+ *  لا يحتمل انتظار الفحص الدوري — فكلُّ توكنٍ أقدم يُراجَع في طلبه التالي.
+ *  ٢: تجميدُ الحساب القياديّ القديم على لجنة. */
+const ACCOUNT_MODEL = 2;
 
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -64,6 +70,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where: { email },
           include: { department: true },
         });
+        // **الحسابُ القياديُّ القديم على لجنة مجمَّد** (`lib/org/legacy`): قيادةُ اللجنة
+        // ليست قيادةَ قسم، ولا يُدخَل بدورٍ يحمل صلاحيات قائد القسم. يدخل صاحبُه بعد
+        // تحويله عضواً في قسمه الأصيل — بالبريد والكلمة نفسيهما
+        if (user?.isActive && isCommitteeScopedLeader(user)) return null;
         // الحساب المُنحّى يبقى سجلاً فقط — لا يَقبل دخولاً بعد تنحيته
         if (user?.isActive) {
           // **ومن له حسابٌ إداريٌّ نشط لا يدخل بسجلّ ترشّحه أبداً.** كان الرفضُ هنا
@@ -177,6 +187,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.sessionExpiry = now + horizon;
         token.sessionBinding = await issueSessionBinding();
+        token.accountModel = ACCOUNT_MODEL;
         return token;
       }
 
@@ -218,7 +229,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // فيسري على كل ما يقرأ الجلسة لا على المسارات المحروسة وحدها.
       const CHECK_EVERY_MS = 5 * 60_000;
       const lastCheck = typeof token.accountCheckedAt === "number" ? token.accountCheckedAt : 0;
-      if (token.leadershipCandidate === true || now - lastCheck > CHECK_EVERY_MS) {
+      // **والتوكنُ الصادر قبل هذا الإصدار يُراجَع فوراً** (`accountModel`): تجميدُ الحساب
+      // القياديّ القديم على لجنة لا ينتظر خمس دقائق تبقى فيها صلاحياتُه القديمة
+      if (token.leadershipCandidate === true || token.accountModel !== ACCOUNT_MODEL || now - lastCheck > CHECK_EVERY_MS) {
         const account = await resolveSessionAccount(token.sub, token.role);
         if (account.status === "gone" || account.status === "superseded") return null;
         if (account.status === "live") {
@@ -228,6 +241,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.leadershipCandidate = account.leadershipCandidate;
         }
         token.accountCheckedAt = now;
+        if (account.status === "live") token.accountModel = ACCOUNT_MODEL;
       }
 
       // الجلسة القصيرة تُقاس من آخر نشاط: من يعمل باستمرار لا تنقطع

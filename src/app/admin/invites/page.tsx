@@ -38,7 +38,8 @@ export default async function AdminInvitesPage() {
 
   const [departments, invites, execSeat, opsSeat, tracks] = await Promise.all([
     prisma.department.findMany({
-      where: OPEN_DEPARTMENT_WHERE,
+      // اللجنةُ ليست وجهةً لشخصٍ ولا لدعوةٍ ولا لخطةٍ ولا لتذكرة — الأقسامُ الأصيلة وحدها
+      where: { ...OPEN_DEPARTMENT_WHERE, parentId: null },
       orderBy: { name: "asc" },
       take: DEPARTMENT_TAKE,
     }),

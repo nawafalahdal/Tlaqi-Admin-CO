@@ -26,7 +26,9 @@ function inline(raw) {
     .map((p) => {
       if (p.startsWith("`") && p.endsWith("`")) return `<code dir="ltr">${esc(p.slice(1, -1))}</code>`;
       let h = esc(p).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
-      h = h.replace(/\[(معتمد|قائم|مقترح|قرار معلّق)\]/g, (_, k) => `<span class="badge ${BADGES[k]}">${k}</span>`);
+      // والوسمُ قد يحمل مرجعَه: «[معتمد — ملاحظة المؤسس ٤]» ← الوسمُ ثم المرجعُ بخطٍّ أخفّ
+      h = h.replace(/\[(معتمد|قائم|مقترح|قرار معلّق)(?: — ([^\]]+))?\]/g, (_, k, note) =>
+        `<span class="badge ${BADGES[k]}">${k}</span>${note ? ` <span class="badge-note">${note}</span>` : ""}`);
       return h;
     })
     .join("");
@@ -85,9 +87,14 @@ function render(md) {
       continue;
     }
     if (/^- /.test(line)) {
+      // قائمةٌ بمستوى فرعيٍّ واحد: «  - » تحت البند الذي قبلها (والأعمقُ يُسطَّح إليه)
       const items = [];
-      while (i < lines.length && /^- /.test(lines[i])) { items.push(`<li>${inline(lines[i].slice(2))}</li>`); i++; }
-      out.push(`<ul>${items.join("")}</ul>`);
+      while (i < lines.length && (/^- /.test(lines[i]) || /^\s{2,}- /.test(lines[i]))) {
+        if (/^- /.test(lines[i])) items.push({ text: inline(lines[i].slice(2)), subs: [] });
+        else if (items.length) items[items.length - 1].subs.push(inline(lines[i].replace(/^\s+- /, "")));
+        i++;
+      }
+      out.push(`<ul>${items.map((it) => `<li>${it.text}${it.subs.length ? `<ul>${it.subs.map((x) => `<li>${x}</li>`).join("")}</ul>` : ""}</li>`).join("")}</ul>`);
       continue;
     }
     const para = [];
@@ -119,6 +126,8 @@ th{background:#341D2B;color:#fff}
 tr{break-inside:avoid}
 hr{border:0;border-top:1px solid #D9D0D6;margin:6mm 0}
 .badge{display:inline-block;font-size:8pt;font-weight:700;line-height:1.5;padding:0 2mm;border-radius:2mm;margin-inline-end:1mm;white-space:nowrap}
+.badge-note{font-size:8pt;color:#6b5a64;font-weight:600}
+li ul{margin:1mm 0 0;padding-inline-start:5mm}
 .badge.ok{background:#E3F4EA;color:#1F6B43;border:1px solid #67C090}
 .badge.now{background:#EFE8EC;color:#341D2B;border:1px solid #8A6B7E}
 .badge.prop{background:#FCEBDD;color:#8A3300;border:1px solid #C34900}

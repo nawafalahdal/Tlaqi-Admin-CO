@@ -26,8 +26,8 @@ export async function committeeAlerts(a: OrgActor | null, locale: Locale = "ar")
   const leaderless = (where: Prisma.DepartmentWhereInput): Prisma.DepartmentWhereInput => ({
     ...where,
     committeeStatus: { in: ["approved", "suspended"] },
+    // والحسابُ القياديُّ القديم مجمَّدٌ لا يقود — فلا يُستثنى به شيء
     OR: [{ leadMemberId: null }, { leadMember: { OR: [{ isActive: false }, { terminatedAt: { not: null } }] } }],
-    admins: { none: { isActive: true, role: "department_admin" } },
   });
 
   const [proposals, reports, noLead, leadOverdue, myOverdue, myOpen, soon] = await Promise.all([

@@ -404,6 +404,12 @@ async function provisionLeadershipAccount(
 ): Promise<{ member: CandidateRecord; userId: string }> {
   const role = leadershipRoleFor(candidate.invite.targetRole);
 
+  // لا حسابَ «قائد قسم» على لجنة — قيادةُ اللجنة دورٌ في عضويتها لا منصبٌ إداري.
+  // ومرشّحٌ قديمٌ كهذا يُردّ أو يُدعى عضواً في القسم الأصيل (خطةُ الفصل، الحالة L4x)
+  if (role === "department_admin" && candidate.department?.parentId) {
+    throw new Error("لا يُعتمد حسابٌ قياديٌّ على لجنة: قيادةُ اللجنة يعيّنها قائدُ القسم من أعضائه");
+  }
+
   // قد يكون المنصب شُغل بين لحظة إنشاء المرشّح ولحظة اعتماده (مرشّحان قديمان،
   // أو تنحية ثم تعيين) — فيُفحص الآن، قبل أن يُكتب شيء
   await assertRoleSeatAvailable(candidate.invite.targetRole, candidate.departmentId, candidate.id);
@@ -610,6 +616,10 @@ export async function issueWarning(opts: { memberId: string; issuedByUserId: str
       ...(terminated ? { terminatedAt: new Date(), exitReason: "تجاوز 3 تنبيهات" } : {}),
     },
   });
+  if (terminated) {
+    // قائدُ لجنةٍ غادر: يُكتب في سجلّ لجانه، فيظهر لقائد القسم مسارُ التسليم
+    await (await import("@/lib/org/committeeService")).noteCommitteeLeadDeparture(member.id, "تجاوز 3 تنبيهات");
+  }
 
   await sendWarningEmail({
     to: member.email,
@@ -649,6 +659,8 @@ export async function markMemberExited(memberId: string, reason: string) {
     where: { id: memberId },
     data: { isActive: false, terminatedAt: new Date(), exitReason: reason },
   });
+  // قائدُ لجنةٍ غادر: يُكتب في سجلّ لجانه، فيظهر لقائد القسم مسارُ التسليم
+  await (await import("@/lib/org/committeeService")).noteCommitteeLeadDeparture(member.id, reason);
 
   await sendExitEmail({ to: member.email, fullName: member.fullName, reason });
 
@@ -849,9 +861,14 @@ export async function createCandidateAccount(opts: {
   if (opts.departmentId) {
     const open = await prisma.department.findFirst({
       where: { id: opts.departmentId, ...OPEN_DEPARTMENT_WHERE },
-      select: { id: true },
+      select: { id: true, parentId: true },
     });
     if (!open) throw new Error("هذا القسم لم يُعتمد بعد — لا يُدعى إليه أحدٌ قبل اعتماده");
+    // **واللجنةُ ليست قسماً لأحد:** يُدعى الشخصُ إلى قسمه الأصيل، ثم يضمّه قائدُ القسم
+    // إلى لجانه. ولا يُرشَّح أحدٌ «قائداً» للجنة بحسابٍ إداري — قيادتُها دورٌ في عضويتها
+    if (open.parentId) {
+      throw new Error("اللجنةُ ليست قسماً: يُدعى الشخصُ إلى القسم الأصيل، ثم يُضَمّ إلى لجانه منه");
+    }
   }
 
   const existingUser = await prisma.user.findUnique({ where: { email: opts.email } });

@@ -44,7 +44,10 @@ export async function successorFor(user: {
 
   const chain: Record<string, unknown>[] = [];
   if (user.role === "department_admin" && user.departmentId) {
-    chain.push({ role: "department_admin", departmentId: user.departmentId });
+    // قائدُ القسم الأصيل وحده يرث — والحسابُ القديم على لجنةٍ يرثه قائدُ قسمها الأصيل،
+    // لا حسابٌ قديمٌ مجمَّدٌ مثلُه (`lib/org/legacy`)
+    const d = await prisma.department.findUnique({ where: { id: user.departmentId }, select: { parentId: true } });
+    chain.push({ role: "department_admin", departmentId: d?.parentId ?? user.departmentId, department: { is: { parentId: null } } });
   }
   if (user.role !== "executive") chain.push({ role: "executive" });
   else chain.push({ role: "executive" });
