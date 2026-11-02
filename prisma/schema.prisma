@@ -166,6 +166,83 @@ enum CommitteeStatus {
   approved
   /// رُدَّت بسببٍ مكتوب — لا تُفتح ولا تظهر في الهيكل
   rejected
+  /// كتبها قائدُ القسم ولم يُرسلها للاعتماد بعد — لا تعمل ولا تظهر في الهيكل
+  draft
+  /// أوقفها قائدُ القسم مؤقّتاً — سجلُّها باقٍ ولا يُضاف إليها عمل
+  suspended
+  /// أنجزت مخرجاتها — بانتظار إغلاقها
+  completed
+  /// أُغلقت — سجلُّها ومهامُّها وقراراتُها باقيةٌ للقراءة
+  closed
+  /// أُرشفت — للقراءة وحدها، ولا تعود
+  archived
+}
+
+/// نوعُ اللجنة: دائمةٌ بلا تاريخ انتهاء، أو مؤقّتةٌ بتاريخ انتهاءٍ إلزامي
+enum CommitteeKind {
+  permanent
+  temporary
+}
+
+/// صلاحياتُ نائب قائد القسم — يمنحها القائدُ واحدةً واحدة ويسحبها متى شاء.
+/// **ولا يرث النائبُ شيئاً غيرها:** لا دعوةَ أعضاء، ولا اعتمادَ مرشّحين،
+/// ولا خطةَ أسبوع، ولا تعيينَ نائب.
+enum DeputyPermission {
+  /// إنشاءُ لجان القسم وتعديلُها وتعيينُ قادتها وأعضائها وتعليقُها وإغلاقُها
+  committees_manage
+  /// الاطّلاعُ على أعضاء القسم ومسؤولياتهم
+  members_view
+  /// توزيعُ مسؤوليات أعضاء القسم
+  responsibilities_assign
+  /// متابعةُ مهامّ القسم المفتوحة والمتأخّرة
+  tasks_view
+}
+
+enum CommitteeMeetingStatus {
+  scheduled
+  held
+  cancelled
+}
+
+enum CommitteeAttendanceStatus {
+  present
+  absent
+  excused
+}
+
+enum CommitteeDecisionKind {
+  /// قرارٌ ملزِم
+  decision
+  /// توصيةٌ تُرفع
+  recommendation
+  /// محضرٌ أو ملاحظة
+  note
+}
+
+enum CommitteeTaskStatus {
+  todo
+  in_progress
+  done
+  cancelled
+}
+
+enum CommitteeTaskPriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum CommitteeProposalKind {
+  add_member
+  remove_member
+  replace_member
+}
+
+enum CommitteeProposalStatus {
+  pending
+  accepted
+  rejected
 }
 
 /// قسم داخلي — كل قسم له لون هوية خاص (hex) يُستخدم في تخصيص الواجهات.
@@ -216,6 +293,41 @@ model Department {
   decidedByName   String?
   decisionNote    String?
 
+  // ── بياناتُ اللجنة (للجنة وحدها؛ `null` للقسم الأصيل)
+  description      String?
+  purpose          String?
+  scope            String?
+  responsibilities String?
+  expectedOutputs  String?
+  kpis             String?
+  committeeKind    CommitteeKind?
+  startDate        DateTime?
+  endDate          DateTime?
+  /// آخرُ تغييرٍ في حالتها وسببُه — والسجلُّ الكامل في `OrgAuditEvent`
+  statusChangedAt  DateTime?
+  statusNote       String?
+
+  /// **قائدُ اللجنة: عضوٌ من القسم في حقلٍ واحد** — فلا تحمل لجنةٌ قائدَين.
+  /// ولا يصير بها قائدَ قسم: لا حسابَ قياديّاً يُنشأ له ولا دورَ يتغيّر.
+  /// (لجانٌ سبقت هذا النظام قد يقودها حسابٌ قياديٌّ قديم في `admins` — يبقى كما هو.)
+  leadMemberId     String?
+  leadMember       Member?  @relation("CommitteeLead", fields: [leadMemberId], references: [id], onDelete: SetNull)
+
+  // ── نائبُ قائد القسم (للقسم الأصيل وحده): عضوٌ واحد في حقلٍ فريد —
+  //    فلا نائبان لقسم، ولا يُنيب عضوٌ عن قسمين.
+  deputyMemberId        String?            @unique
+  deputyMember          Member?            @relation("DepartmentDeputy", fields: [deputyMemberId], references: [id], onDelete: SetNull)
+  deputyPermissions     DeputyPermission[] @default([])
+  deputyAppointedAt     DateTime?
+  deputyAppointedByName String?
+
+  committeeMemberships CommitteeMembership[]
+  committeeMeetings    CommitteeMeeting[]
+  committeeTasks       CommitteeTask[]
+  committeeDecisions   CommitteeDecision[]
+  committeeReports     CommitteeReport[]
+  committeeProposals   CommitteeProposal[]
+
   admins        User[]
   invites       Invite[]
   members       Member[]
@@ -234,6 +346,7 @@ model Department {
   /// (كان الفهرسُ مكتوباً في ترحيلِ اللجان وحدَه ولم يُصرَّح به هنا،
   /// فكاد فرقُ المخطّط التالي يُسقطه.)
   @@index([parentId])
+  @@index([leadMemberId])
 }
 
 /// حساب إداري (قائد قسم / تنفيذي / الإدارة العليا) — يُنشأ إما مباشرة (بذرة النظام)
@@ -485,6 +598,15 @@ model Member {
   tasksOwned      PlanTask[]      @relation("TaskOwnerMember")
   /// عضويتُه في فريق التسويق — انظر `MarketingMember`
   marketingProfile MarketingMember?
+
+  // ── الهيكلُ واللجان
+  committeesLed                 Department[]          @relation("CommitteeLead")
+  deputyOf                      Department?           @relation("DepartmentDeputy")
+  committeeMemberships          CommitteeMembership[]
+  committeeAttendance           CommitteeAttendance[]
+  committeeTasks                CommitteeTask[]       @relation("CommitteeTaskAssignee")
+  committeeProposalsAbout       CommitteeProposal[]   @relation("CommitteeProposalTarget")
+  committeeProposalsReplacement CommitteeProposal[]   @relation("CommitteeProposalReplacement")
 
   // الكنس اليومي يسأل: من لم تصله شهادة تقديره؟ فيُجاب رخيصاً
   @@index([appreciationSentAt])
@@ -2526,3 +2648,184 @@ model MarketingNotice {
   @@index([memberId, seenAt])
 }
 
+
+// ═════════════════════════════════════════════════════════════════════
+//  اللجان — أعمالُها وسجلُّها
+//
+//  **اللجنةُ صفُّ القسم نفسُه (`Department` بأبٍ)، لا كائنٌ موازٍ.** وهذه
+//  الجداولُ تحمل ما يجري فيها: من فيها، ومتى تجتمع، وما تقرّر، وما يُسنَد
+//  وما يُرفَع. والعضويةُ لا تنقل أحداً من قسمه: عضوُ القسم يبقى في قسمه
+//  ويُضاف إلى لجنته — حساباتُ المنصة نفسُها لا عضوياتٌ منفصلة.
+//
+//  والحذفُ مقيَّد (`Restrict`) من جهة اللجنة: لجنةٌ تحمل سجلّاً لا يُحذف
+//  صفُّها — تُغلَق وتُؤرشَف ولا تُمحى.
+// ═════════════════════════════════════════════════════════════════════
+
+/// عضوٌ في لجنة — من أعضاء قسمها. والإزالةُ تعطيلٌ يحفظ التاريخ، وإعادةُ
+/// الإضافة تُحيي الصفَّ نفسه (`@@unique`) فلا يتكرّر عضو.
+model CommitteeMembership {
+  id             String     @id @default(cuid())
+  committeeId    String
+  committee      Department @relation(fields: [committeeId], references: [id], onDelete: Restrict)
+  memberId       String
+  member         Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  /// مسؤوليتُه داخل اللجنة («منسّق المحتوى»)
+  responsibility String?
+  active         Boolean    @default(true)
+  addedAt        DateTime   @default(now())
+  addedByName    String
+  removedAt      DateTime?
+  removedByName  String?
+
+  @@unique([committeeId, memberId])
+  @@index([memberId, active])
+}
+
+/// اجتماعُ لجنة — مستقلٌّ عن اجتماع السبت وعن اجتماعات القسم
+model CommitteeMeeting {
+  id              String                 @id @default(cuid())
+  committeeId     String
+  committee       Department             @relation(fields: [committeeId], references: [id], onDelete: Restrict)
+  title           String
+  startsAt        DateTime
+  durationMinutes Int                    @default(60)
+  location        String?
+  meetingUrl      String?
+  agenda          String?
+  status          CommitteeMeetingStatus @default(scheduled)
+  /// المحضر — ما جرى، يُكتب بعد الانعقاد
+  minutes         String?
+  cancelledReason String?
+  createdAt       DateTime               @default(now())
+  createdByName   String
+
+  attendance CommitteeAttendance[]
+  decisions  CommitteeDecision[]
+  tasks      CommitteeTask[]
+
+  @@index([committeeId, startsAt])
+  @@index([startsAt])
+}
+
+/// حضورُ عضوٍ أو غيابُه — صفٌّ واحد لكل عضوٍ في كل اجتماع
+model CommitteeAttendance {
+  id             String                    @id @default(cuid())
+  meetingId      String
+  meeting        CommitteeMeeting          @relation(fields: [meetingId], references: [id], onDelete: Restrict)
+  memberId       String
+  member         Member                    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  status         CommitteeAttendanceStatus
+  note           String?
+  recordedAt     DateTime                  @default(now())
+  recordedByName String
+
+  @@unique([meetingId, memberId])
+}
+
+/// قرارٌ أو توصيةٌ أو محضر — يُكتب ولا يُعدَّل (يُضاف تصحيحٌ بعده)
+model CommitteeDecision {
+  id            String                @id @default(cuid())
+  committeeId   String
+  committee     Department            @relation(fields: [committeeId], references: [id], onDelete: Restrict)
+  meetingId     String?
+  meeting       CommitteeMeeting?     @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+  kind          CommitteeDecisionKind
+  text          String
+  createdAt     DateTime              @default(now())
+  createdByName String
+
+  @@index([committeeId, createdAt])
+}
+
+/// مهمّةُ لجنة — تُسنَد إلى عضوٍ فيها بموعدٍ وأولوية.
+/// **وهي غيرُ مهامّ خطة الأسبوع (`PlanTask`):** تلك التزاماتُ القسم الأسبوعية
+/// التي يتحقّق منها الرئيس التنفيذي، وهذه عملُ اللجنة يتابعه قائدُها.
+model CommitteeTask {
+  id               String                @id @default(cuid())
+  committeeId      String
+  committee        Department            @relation(fields: [committeeId], references: [id], onDelete: Restrict)
+  meetingId        String?
+  meeting          CommitteeMeeting?     @relation(fields: [meetingId], references: [id], onDelete: SetNull)
+  title            String
+  description      String?
+  assigneeMemberId String?
+  assignee         Member?               @relation("CommitteeTaskAssignee", fields: [assigneeMemberId], references: [id], onDelete: SetNull)
+  dueAt            DateTime?
+  priority         CommitteeTaskPriority @default(normal)
+  status           CommitteeTaskStatus   @default(todo)
+  completedAt      DateTime?
+  createdAt        DateTime              @default(now())
+  createdByName    String
+  updatedAt        DateTime              @updatedAt
+
+  @@index([committeeId, status])
+  @@index([assigneeMemberId, status])
+  @@index([dueAt])
+}
+
+/// تقريرُ اللجنة — يرفعه قائدُها إلى قائد القسم، ويُسجَّل اطّلاعُ القائد عليه
+model CommitteeReport {
+  id              String     @id @default(cuid())
+  committeeId     String
+  committee       Department @relation(fields: [committeeId], references: [id], onDelete: Restrict)
+  periodLabel     String
+  summary         String
+  achievements    String?
+  challenges      String?
+  nextSteps       String?
+  submittedAt     DateTime   @default(now())
+  submittedByName String
+  reviewedAt      DateTime?
+  reviewedByName  String?
+  reviewNote      String?
+
+  @@index([committeeId, submittedAt])
+}
+
+/// اقتراحُ قائد اللجنة على قائد القسم: إضافةُ عضوٍ أو إزالتُه أو استبدالُه.
+/// **والقرارُ لقائد القسم** — والاقتراحُ لا يُغيّر شيئاً حتى يُقبل.
+model CommitteeProposal {
+  id                  String                  @id @default(cuid())
+  committeeId         String
+  committee           Department              @relation(fields: [committeeId], references: [id], onDelete: Restrict)
+  kind                CommitteeProposalKind
+  memberId            String?
+  member              Member?                 @relation("CommitteeProposalTarget", fields: [memberId], references: [id], onDelete: SetNull)
+  replacementMemberId String?
+  replacement         Member?                 @relation("CommitteeProposalReplacement", fields: [replacementMemberId], references: [id], onDelete: SetNull)
+  note                String?
+  status              CommitteeProposalStatus @default(pending)
+  createdAt           DateTime                @default(now())
+  proposedByName      String
+  decidedAt           DateTime?
+  decidedByName       String?
+  decisionNote        String?
+
+  @@index([committeeId, status])
+}
+
+/// سجلُّ تدقيق الهيكل واللجان — يُضاف إليه ولا يُعدَّل ولا يُحذَف.
+///
+/// كلُّ إنشاءٍ أو تعديلٍ أو تعيينٍ أو إلغاءٍ أو إغلاق: من، ومتى، وما كان، وما
+/// صار. والمعرّفاتُ نصوصٌ بلا علاقاتٍ أجنبية عن قصد — السجلُّ يبقى ولو زال
+/// صاحبُه أو حسابُه، والاسمُ محفوظٌ نصّاً.
+model OrgAuditEvent {
+  id           String   @id @default(cuid())
+  /// `committee` أو `department`
+  scope        String
+  /// معرّفُ اللجنة أو القسم
+  entityId     String
+  /// القسمُ الأصيل الذي يقع فيه الحدث — لقراءة سجلّ القسم كلِّه
+  departmentId String
+  action       String
+  actorKind    String
+  actorId      String
+  actorName    String
+  before       Json?
+  after        Json?
+  note         String?
+  createdAt    DateTime @default(now())
+
+  @@index([entityId, createdAt])
+  @@index([departmentId, createdAt])
+}
