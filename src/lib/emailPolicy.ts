@@ -39,7 +39,10 @@ export type EmailEvent =
   | "signature.request"
   | "announcement.broadcast"
   | "execution.work_returned"
+  | "committee.lead_appointed"
+  | "org.deputy_appointed"
   // ── ما يُكتم
+  | "committee.member_added"
   | "ticket.escalated"
   | "ticket.withdrawn"
   | "ticket.reminder"
@@ -58,6 +61,14 @@ export const EMAIL_POLICY: Record<EmailEvent, { send: boolean; why: string }> = 
   "execution.work_returned": {
     send: true,
     why: "صاحبُه يَحسب عملَه منتهياً فلا يَفتح المنصة، والمهلةُ تمضي — وهذا الخبرُ وحدَه يُغيّر ما يفعله اليوم",
+  },
+  "committee.lead_appointed": {
+    send: true,
+    why: "تكليفٌ بقيادة لجنةٍ ومسؤوليةٌ جديدة — يجب أن يعرفه صاحبُه ولو لم يفتح المنصة",
+  },
+  "org.deputy_appointed": {
+    send: true,
+    why: "تفويضٌ بصلاحياتٍ محدّدة في القسم — صاحبُه يجب أن يعرفه ويعرف حدودَه",
   },
   "auth.login_code": { send: true, why: "العامل الثاني نفسه — لا دخول بدونه" },
   "auth.password_reset": { send: true, why: "طلبه صاحبه، والرابط لا يصل بغيره" },
@@ -116,6 +127,7 @@ export const EMAIL_POLICY: Record<EmailEvent, { send: boolean; why: string }> = 
     send: false,
     why: "قرأ نتيجته على الشاشة لحظة التسليم، واجتماعُ الشرح يُجدَّل في المنصة",
   },
+  "committee.member_added": { send: false, why: "اللجنةُ تظهر في بوابته («لجاني») ومهامُّها في قائمته" },
   "test.reopened": { send: false, why: "الاختبار يُفتَح في بوابته — يراه حين يدخل" },
   // أُوقف نهائياً وحُذف مع كنسه — لا يُعاد هنا ولا في الكنس (`check-discontinued-features`):
   //   «تذكير مهلة الدخول» و«تذكير التحقق الثنائي». انظر docs/audit/TLAQI_DISCONTINUED_FEATURES.md

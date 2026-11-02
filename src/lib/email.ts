@@ -1393,12 +1393,107 @@ export async function sendCommitteeDecisionEmail(opts: {
       facts: [["القرار من", opts.decidedByName]],
       after: [
         opts.approved
-          ? `والخطوة التالية من لوحة قسمك: <b>${gx(r.gender, "ادعُ قائدها", "ادعي قائدها", "دعوةُ قائدها")}</b> — ومن يُدعى لقيادتها يتولّاها بمسمّاها، ثم يدعو أعضاءها ويملأ بنك أسئلتهم.`
+          ? "واللجنةُ تعمل الآن بقائدها وأعضائها الذين اختيروا من القسم — وتُتابَع أعمالُها واجتماعاتُها ومهامُّها من صفحة «اللجان»."
           : "واللجنة لم تُفتح: لا تظهر في الهيكل ولا يُدعى لها أحد. ويمكن إزالة الاقتراح من لوحة القسم، أو اقتراحُ لجنةٍ أخرى تُعالج السبب أعلاه.",
       ],
-      cta: { label: "فتح لوحة القسم", url: esc(opts.boardUrl) },
+      cta: { label: "فتح اللجان", url: esc(opts.boardUrl) },
     },
     "قرار لجنة",
+    themeOf(r)
+  );
+}
+
+/** تكليفٌ بقيادة لجنة — لصاحبه وحده. ولا يصير به قائدَ قسم: قيادةُ لجنةٍ داخل قسمه */
+export async function sendCommitteeLeadAppointedEmail(opts: {
+  to: string;
+  fullName: string;
+  committeeName: string;
+  parentName: string;
+  appointedByName: string;
+  url: string;
+}) {
+  const subject = `كُلِّفتَ بقيادة لجنة «${opts.committeeName}»`;
+  const blocked = await suppressed("committee.lead_appointed", opts.to, "تكليف لجنة", subject);
+  if (blocked) return blocked;
+  const r = await recipientOf(opts.to);
+  const head = `${gx(r.gender, "كُلِّفتَ", "كُلِّفتِ", "كُلِّفت")} بقيادة لجنة «${opts.committeeName}»`;
+  return send(
+    opts.to,
+    head,
+    {
+      tone: "action",
+      badge: "تكليف",
+      title: head,
+      lead: `${esc(opts.fullName)}، ${gx(r.gender, "أنتَ", "أنتِ", "أنت")} الآن قائدُ لجنة <b>${esc(opts.committeeName)}</b> في ${esc(opts.parentName)}.`,
+      facts: [["التكليف من", opts.appointedByName]],
+      after: [
+        "تدير أعمالَ اللجنة: اجتماعاتِها وحضورَها وقراراتِها ومهامَّها وتقاريرَها إلى قائد القسم. والتعيينُ في عضويتها قرارُ قائد القسم، ولك أن تقترح.",
+      ],
+      cta: { label: "فتح اللجنة", url: esc(opts.url) },
+    },
+    "تكليف لجنة",
+    themeOf(r)
+  );
+}
+
+/** ضمٌّ إلى لجنة — مكتومٌ بالسياسة: اللجنةُ تظهر في بوابة صاحبها */
+export async function sendCommitteeMemberAddedEmail(opts: { to: string; fullName: string; committeeName: string; url: string }) {
+  const subject = `انضممتَ إلى لجنة «${opts.committeeName}»`;
+  const blocked = await suppressed("committee.member_added", opts.to, "عضوية لجنة", subject);
+  if (blocked) return blocked;
+  const r = await recipientOf(opts.to);
+  return send(
+    opts.to,
+    subject,
+    {
+      tone: "info",
+      title: subject,
+      lead: `${esc(opts.fullName)}، أُضفتَ إلى لجنة <b>${esc(opts.committeeName)}</b>.`,
+      cta: { label: "فتح اللجنة", url: esc(opts.url) },
+    },
+    "عضوية لجنة",
+    themeOf(r)
+  );
+}
+
+const DEPUTY_PERMISSION_LABELS: Record<string, string> = {
+  committees_manage: "إدارة لجان القسم",
+  members_view: "الاطّلاع على أعضاء القسم ومسؤولياتهم",
+  responsibilities_assign: "توزيع مسؤوليات الأعضاء",
+  tasks_view: "متابعة مهامّ القسم",
+};
+
+/** تعيينُ نائبٍ لقائد القسم — لصاحبه وحده، بما فُوِّض إليه حرفاً حرفاً */
+export async function sendDeputyAppointedEmail(opts: {
+  to: string;
+  fullName: string;
+  departmentName: string;
+  permissions: string[];
+  appointedByName: string;
+  url: string;
+}) {
+  const subject = `عُيِّنتَ نائباً لقائد ${opts.departmentName}`;
+  const blocked = await suppressed("org.deputy_appointed", opts.to, "تفويض نائب", subject);
+  if (blocked) return blocked;
+  const r = await recipientOf(opts.to);
+  const head = `${gx(r.gender, "عُيِّنتَ نائباً", "عُيِّنتِ نائبةً", "عُيِّنت نائباً")} لقائد ${opts.departmentName}`;
+  const granted = opts.permissions.map((p) => DEPUTY_PERMISSION_LABELS[p] ?? p);
+  return send(
+    opts.to,
+    head,
+    {
+      tone: "action",
+      badge: "تفويض",
+      title: head,
+      lead: `${esc(opts.fullName)}، فوّضك قائدُ القسم بما يلي وحده:`,
+      facts: granted.length ? granted.map((g) => ["✓", g] as [string, string]) : [["—", "لا صلاحيات بعد — يحدّدها قائد القسم"]],
+      after: [
+        `التعيين من: ${esc(opts.appointedByName)}.`,
+        "ولا تمتدّ النيابةُ إلى غير ذلك: لا دعوةَ أعضاء ولا اعتمادَ مرشّحين ولا خطةَ أسبوع. ويُعدّل القائدُ التفويضَ أو يسحبه متى شاء.",
+      ],
+      cta: { label: "فتح اللجان", url: esc(opts.url) },
+    },
+    "تفويض نائب",
     themeOf(r)
   );
 }
