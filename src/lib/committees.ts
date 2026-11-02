@@ -111,7 +111,7 @@ async function committeeApprover() {
     select: { id: true, fullName: true, email: true },
     orderBy: { createdAt: "asc" },
   });
-  if (exec) return { ...exec, label: "المدير التنفيذي" };
+  if (exec) return { ...exec, label: "الرئيس التنفيذي" };
   const founder = await prisma.user.findFirst({
     where: { role: "super_admin", isActive: true },
     select: { id: true, fullName: true, email: true },
@@ -249,7 +249,7 @@ export async function decideCommittee(opts: {
   { ok: true; name: string; parentName: string; decision: "approved" | "rejected" } | { ok: false; reason: string }
 > {
   if (!canDecideCommittee(opts.session.user.role)) {
-    return { ok: false, reason: "اعتماد اللجان للمدير التنفيذي — ومعه المؤسس" };
+    return { ok: false, reason: "اعتماد اللجان للرئيس التنفيذي — ومعه المؤسس" };
   }
   const note = opts.note?.trim() || null;
   if (opts.decision === "rejected" && !note) {

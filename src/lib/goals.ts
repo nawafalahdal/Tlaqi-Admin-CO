@@ -97,7 +97,7 @@ export async function decideGoal(opts: {
   session: Session;
 }): Promise<{ ok: true; message: string } | { ok: false; reason: string }> {
   if (!canApproveGoal(opts.session.user.role)) {
-    return { ok: false, reason: "اعتمادُ الأهداف للمؤسس والمدير التنفيذي" };
+    return { ok: false, reason: "اعتمادُ الأهداف للمؤسس والرئيس التنفيذي" };
   }
   const note = opts.note?.trim() || null;
   if (opts.decision === "rejected" && !note) {
@@ -146,7 +146,7 @@ export async function createMilestone(opts: {
   session: Session;
 }): Promise<{ ok: true; id: string } | { ok: false; reason: string }> {
   if (!canApproveGoal(opts.session.user.role)) {
-    return { ok: false, reason: "المحطّاتُ الشهرية تُعتمَد من المؤسس والمدير التنفيذي" };
+    return { ok: false, reason: "المحطّاتُ الشهرية تُعتمَد من المؤسس والرئيس التنفيذي" };
   }
   const title = opts.title.trim();
   const result = opts.expectedResult.trim();
@@ -239,7 +239,7 @@ export async function decideObjective(opts: {
   session: Session;
 }): Promise<{ ok: true; message: string } | { ok: false; reason: string }> {
   if (!canApproveGoal(opts.session.user.role)) {
-    return { ok: false, reason: "اعتمادُ أهداف الأقسام للمؤسس والمدير التنفيذي" };
+    return { ok: false, reason: "اعتمادُ أهداف الأقسام للمؤسس والرئيس التنفيذي" };
   }
   const note = opts.note?.trim() || null;
   if (opts.decision === "rejected" && !note) {

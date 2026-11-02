@@ -272,7 +272,7 @@ export async function submitPeriod(opts: { periodId: string; session: Session })
 /** اعتمادُها للعرض في اجتماع السبت */
 export async function approvePeriodForReview(opts: { periodId: string; session: Session }) {
   if (!canReviewWork(opts.session.user.role)) {
-    return { ok: false as const, reason: "الاعتمادُ للمدير التنفيذي — ومعه المؤسس" };
+    return { ok: false as const, reason: "الاعتمادُ للرئيس التنفيذي — ومعه المؤسس" };
   }
   return transition({
     periodId: opts.periodId,
@@ -287,7 +287,7 @@ export async function approvePeriodForReview(opts: { periodId: string; session: 
 /** بدءُ المراجعة — يقع بعقد الاجتماع */
 export async function beginReview(opts: { periodId: string; session: Session }) {
   if (!canReviewWork(opts.session.user.role)) {
-    return { ok: false as const, reason: "بدءُ المراجعة للمدير التنفيذي — ومعه المؤسس" };
+    return { ok: false as const, reason: "بدءُ المراجعة للرئيس التنفيذي — ومعه المؤسس" };
   }
   return transition({
     periodId: opts.periodId,
@@ -301,7 +301,7 @@ export async function beginReview(opts: { periodId: string; session: Session }) 
 /** إعلانُ اكتمال المراجعة — تنتقل الفترةُ إلى انتظار إذن الفتح */
 export async function completeReview(opts: { periodId: string; session: Session }) {
   if (!canReviewWork(opts.session.user.role)) {
-    return { ok: false as const, reason: "إتمامُ المراجعة للمدير التنفيذي — ومعه المؤسس" };
+    return { ok: false as const, reason: "إتمامُ المراجعة للرئيس التنفيذي — ومعه المؤسس" };
   }
   const outstanding = await unresolvedReviewCount(opts.periodId);
   if (outstanding > 0) {
@@ -351,7 +351,7 @@ export async function openPeriod(opts: {
   emergencyReason?: string | null;
 }): Promise<PeriodDecision> {
   if (!canGovernPeriod(opts.session.user.role)) {
-    return { ok: false, reason: "فتحُ الأسبوع للمدير التنفيذي — ومعه المؤسس" };
+    return { ok: false, reason: "فتحُ الأسبوع للرئيس التنفيذي — ومعه المؤسس" };
   }
   const period = await prisma.executionPeriod.findUnique({
     where: { id: opts.periodId },
@@ -418,7 +418,7 @@ export async function reopenPeriod(opts: {
   reason: string;
 }): Promise<PeriodDecision> {
   if (!canGovernPeriod(opts.session.user.role)) {
-    return { ok: false, reason: "إعادةُ الفتح للمدير التنفيذي — ومعه المؤسس" };
+    return { ok: false, reason: "إعادةُ الفتح للرئيس التنفيذي — ومعه المؤسس" };
   }
   const reason = opts.reason?.trim();
   if (!reason) return { ok: false, reason: "إعادةُ الفتح لا تقع بلا سببٍ مكتوب" };

@@ -360,7 +360,7 @@ export async function decideWeekPlan(opts: {
   session: Session;
 }): Promise<{ ok: true; message: string } | { ok: false; reason: string }> {
   if (!canGovernPeriod(opts.session.user.role)) {
-    return { ok: false, reason: "اعتمادُ الخطط للمدير التنفيذي — ومعه المؤسس" };
+    return { ok: false, reason: "اعتمادُ الخطط للرئيس التنفيذي — ومعه المؤسس" };
   }
   const note = opts.note?.trim() || null;
   if (opts.decision === "returned" && !note) {

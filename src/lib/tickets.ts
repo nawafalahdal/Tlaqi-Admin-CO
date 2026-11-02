@@ -28,7 +28,7 @@ export function baseUrl() {
 export const TICKET_STAGE_LABELS: Record<string, string> = {
   department: "القسم المعني",
   lead_escalation: "قائد القسم",
-  ceo_escalation: "المدير التنفيذي",
+  ceo_escalation: "الرئيس التنفيذي",
   founder_escalation: "الإدارة العليا",
 };
 

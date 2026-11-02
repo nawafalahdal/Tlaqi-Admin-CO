@@ -286,7 +286,7 @@ export async function reviewTask(opts: {
   session: Session;
 }): Promise<{ ok: true; message: string } | { ok: false; reason: string }> {
   if (!canReviewWork(opts.session.user.role)) {
-    return { ok: false, reason: "التحقّقُ من الإنجاز للمدير التنفيذي — ومعه المؤسس" };
+    return { ok: false, reason: "التحقّقُ من الإنجاز للرئيس التنفيذي — ومعه المؤسس" };
   }
   const task = await prisma.planTask.findUnique({
     where: { id: opts.taskId },
@@ -406,7 +406,7 @@ export async function changeTaskDeadline(opts: {
   if (!canReviewWork(opts.session.user.role)) {
     return {
       ok: false,
-      reason: "تمديدُ الموعد المعتمَد للمدير التنفيذي — ومعه المؤسس. ويَطلبه قائدُ القسم بسببٍ مكتوب.",
+      reason: "تمديدُ الموعد المعتمَد للرئيس التنفيذي — ومعه المؤسس. ويَطلبه قائدُ القسم بسببٍ مكتوب.",
     };
   }
   const reason = opts.reason?.trim();
@@ -459,7 +459,7 @@ export async function waiveTask(opts: {
   session: Session;
 }): Promise<{ ok: true; message: string } | { ok: false; reason: string }> {
   if (!canReviewWork(opts.session.user.role)) {
-    return { ok: false, reason: "إسقاطُ الالتزام للمدير التنفيذي — ومعه المؤسس" };
+    return { ok: false, reason: "إسقاطُ الالتزام للرئيس التنفيذي — ومعه المؤسس" };
   }
   const reason = opts.reason?.trim();
   if (!reason) return { ok: false, reason: "لا يُسقَط التزامٌ بلا سببٍ مكتوب" };
@@ -525,7 +525,7 @@ export async function reassignTask(opts: {
   session: Session;
 }): Promise<{ ok: true; message: string } | { ok: false; reason: string }> {
   if (!canReviewWork(opts.session.user.role)) {
-    return { ok: false, reason: "نقلُ المسؤولية للمدير التنفيذي — ومعه المؤسس" };
+    return { ok: false, reason: "نقلُ المسؤولية للرئيس التنفيذي — ومعه المؤسس" };
   }
   const reason = opts.reason?.trim();
   if (!reason) return { ok: false, reason: "النقلُ لا يقع بلا سببٍ مكتوب" };

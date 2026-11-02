@@ -94,7 +94,7 @@ export async function savePlanIntro(opts: {
   session: Session;
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (!canManagePlans(opts.session.user.role)) {
-    return { ok: false, reason: "تحرير المركز للمؤسس والمدير التنفيذي" };
+    return { ok: false, reason: "تحرير المركز للمؤسس والرئيس التنفيذي" };
   }
   const heading = opts.heading.trim() || "خطط تَـــلاقِ";
   const intro = opts.intro.trim();
@@ -135,7 +135,7 @@ export async function addPlanDoc(opts: {
   session: Session;
 }): Promise<{ ok: true; id: string; title: string } | { ok: false; reason: string }> {
   if (!canManagePlans(opts.session.user.role)) {
-    return { ok: false, reason: "الإضافة إلى المركز للمؤسس والمدير التنفيذي" };
+    return { ok: false, reason: "الإضافة إلى المركز للمؤسس والرئيس التنفيذي" };
   }
 
   const title = opts.title.trim();
@@ -222,7 +222,7 @@ export async function renamePlanDoc(opts: {
   session: Session;
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (!canManagePlans(opts.session.user.role)) {
-    return { ok: false, reason: "التعديل للمؤسس والمدير التنفيذي" };
+    return { ok: false, reason: "التعديل للمؤسس والرئيس التنفيذي" };
   }
   const title = opts.title.trim();
   if (!title) return { ok: false, reason: "العنوان مطلوب" };
@@ -244,7 +244,7 @@ export async function movePlanDoc(opts: {
   session: Session;
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (!canManagePlans(opts.session.user.role)) {
-    return { ok: false, reason: "الترتيب للمؤسس والمدير التنفيذي" };
+    return { ok: false, reason: "الترتيب للمؤسس والرئيس التنفيذي" };
   }
   const doc = await prisma.planDoc.findUnique({
     where: { id: opts.id },
@@ -275,7 +275,7 @@ export async function removePlanDoc(opts: {
   session: Session;
 }): Promise<{ ok: true; title: string } | { ok: false; reason: string }> {
   if (!canManagePlans(opts.session.user.role)) {
-    return { ok: false, reason: "الحذف للمؤسس والمدير التنفيذي" };
+    return { ok: false, reason: "الحذف للمؤسس والرئيس التنفيذي" };
   }
   const doc = await prisma.planDoc.findUnique({
     where: { id: opts.id },

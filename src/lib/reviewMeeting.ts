@@ -81,7 +81,7 @@ export async function saveMeetingSettings(opts: {
   session: Session;
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (!canGovernPeriod(opts.session.user.role)) {
-    return { ok: false, reason: "إعداداتُ الاجتماع للمدير التنفيذي — ومعه المؤسس" };
+    return { ok: false, reason: "إعداداتُ الاجتماع للرئيس التنفيذي — ومعه المؤسس" };
   }
   if (opts.weekday < 0 || opts.weekday > 6) return { ok: false, reason: "يومُ الأسبوع بين ٠ و٦" };
   if (opts.hour < 0 || opts.hour > 23) return { ok: false, reason: "الساعة بين ٠ و٢٣" };
@@ -285,7 +285,7 @@ export async function markAgendaStage(opts: {
   session: Session;
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (!canGovernPeriod(opts.session.user.role)) {
-    return { ok: false, reason: "إدارةُ الأجندة للمدير التنفيذي — ومعه المؤسس" };
+    return { ok: false, reason: "إدارةُ الأجندة للرئيس التنفيذي — ومعه المؤسس" };
   }
   const meeting = await ensureMeeting(opts.periodId);
   if (!meeting) return { ok: false, reason: "الفترة غير موجودة" };
@@ -306,7 +306,7 @@ export async function markMeetingHeld(opts: {
   session: Session;
 }): Promise<{ ok: true; message: string } | { ok: false; reason: string }> {
   if (!canGovernPeriod(opts.session.user.role)) {
-    return { ok: false, reason: "إعلانُ الانعقاد للمدير التنفيذي — ومعه المؤسس" };
+    return { ok: false, reason: "إعلانُ الانعقاد للرئيس التنفيذي — ومعه المؤسس" };
   }
   const meeting = await ensureMeeting(opts.periodId);
   if (!meeting) return { ok: false, reason: "الفترة غير موجودة" };
@@ -332,7 +332,7 @@ export async function addMeetingDecision(opts: {
   session: Session;
 }): Promise<{ ok: true; id: string } | { ok: false; reason: string }> {
   if (!canGovernPeriod(opts.session.user.role)) {
-    return { ok: false, reason: "تسجيلُ القرارات للمدير التنفيذي — ومعه المؤسس" };
+    return { ok: false, reason: "تسجيلُ القرارات للرئيس التنفيذي — ومعه المؤسس" };
   }
   const text = opts.text.trim();
   if (!text) return { ok: false, reason: "نصُّ القرار مطلوب" };

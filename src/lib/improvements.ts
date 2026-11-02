@@ -204,7 +204,7 @@ export async function advanceImprovement(opts: {
   session: Session;
 }): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (!canTriage(opts.session.user.role)) {
-    return { ok: false, reason: "إدارةُ صندوق التحسين للمؤسس والمدير التنفيذي" };
+    return { ok: false, reason: "إدارةُ صندوق التحسين للمؤسس والرئيس التنفيذي" };
   }
 
   const ticket = await prisma.ticket.findUnique({
