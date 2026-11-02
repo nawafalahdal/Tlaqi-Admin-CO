@@ -71,8 +71,10 @@ export default async function CommitteesPage({
   const rows = list.rows.map((c) => ({
     id: c.id,
     cells: {
+      // عناصرُ سطريّة لا `div`: الجدولُ يضع الخليةَ الأساسية في `<p>` على الجوال، و`div`
+      // داخل `p` يُغلقه المتصفّحُ قبله فيختلف ما رُسم عمّا يُرطَّب
       name: (
-        <div className="flex flex-col gap-1">
+        <span className="flex flex-col gap-1">
           <Link href={`/committees/${c.id}`} className="font-bold hover:underline">
             {c.name}
           </Link>
@@ -86,7 +88,7 @@ export default async function CommitteesPage({
             {" · "}
             {c.committeeKind ? L.kinds[c.committeeKind] : L.kinds.permanent}
           </span>
-        </div>
+        </span>
       ),
       lead: c.leadMember ? (
         <span className={c.leadMember.isActive ? "" : "text-red-700"}>{c.leadMember.fullName}</span>
@@ -98,7 +100,7 @@ export default async function CommitteesPage({
       status: c.committeeStatus ? <StatusChip status={c.committeeStatus} label={L.statuses[c.committeeStatus]} /> : null,
       members: <span className="tabular-nums">{c.stats.members}</span>,
       progress: (
-        <div className="flex flex-col items-end gap-1 sm:items-start">
+        <span className="flex flex-col items-end gap-1 sm:items-start">
           <span className="tabular-nums">{c.stats.progress === null ? L.notSet : `${c.stats.progress}%`}</span>
           <span className="text-xs text-black/50">
             {L.cols.openTasks}: <span className="tabular-nums">{c.stats.open}</span>
@@ -109,7 +111,7 @@ export default async function CommitteesPage({
               </>
             )}
           </span>
-        </div>
+        </span>
       ),
       dates: (
         <span className="text-xs tabular-nums text-black/60">

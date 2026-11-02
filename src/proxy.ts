@@ -5,8 +5,8 @@ export default auth((req) => {
   const session = req.auth;
   const { pathname } = req.nextUrl;
   const isProtected = pathname.startsWith("/admin") || pathname.startsWith("/member");
-  // وكيلُ التسويق للإداري والعضو معاً — فلا تحويلَ بالدور، وحرسُه في صفحاته
-  const needsSession = isProtected || pathname.startsWith("/marketing");
+  // وكيلُ التسويق واللجانُ للإداري والعضو معاً — فلا تحويلَ بالدور، وحرسُهما في صفحاتهما
+  const needsSession = isProtected || pathname.startsWith("/marketing") || pathname.startsWith("/committees");
 
   if (needsSession && !session) {
     const url = new URL("/login", req.nextUrl.origin);
@@ -31,5 +31,5 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/admin/:path*", "/member/:path*", "/marketing/:path*", "/marketing", "/change-password"],
+  matcher: ["/admin/:path*", "/member/:path*", "/marketing/:path*", "/marketing", "/committees/:path*", "/committees", "/change-password"],
 };

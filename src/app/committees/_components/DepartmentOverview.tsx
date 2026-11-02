@@ -129,24 +129,27 @@ export function DepartmentOverview({ o, theme, L }: { o: Overview; theme: Theme;
             </div>
           )}
           {o.can.appointDeputy && (
-            <ActionForm action={appointDeputyAction} submits={[{ label: D.appoint }]} pendingLabel={D.appointing} theme={theme}>
-              <input type="hidden" name="departmentId" value={o.dept.id} />
-              <Field label={D.member} hint={o.dept.deputyMember ? D.replaceNote : undefined}>
-                <select name="memberId" required defaultValue="" className={inputCls}>
-                  <option value="" disabled>
-                    {D.choose}
-                  </option>
-                  {o.deputyCandidates
-                    .filter((m) => m.id !== o.dept.deputyMemberId)
-                    .map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.fullName}
+            // نائبٌ قائم: الاستبدالُ مطويٌّ — لا قائمتا صلاحياتٍ متجاورتان تُلبسان أيّهما للحالي
+            <AppointDeputy open={!o.dept.deputyMember} summary={D.replace}>
+              <ActionForm action={appointDeputyAction} submits={[{ label: D.appoint }]} pendingLabel={D.appointing} theme={theme}>
+                  <input type="hidden" name="departmentId" value={o.dept.id} />
+                  <Field label={D.member} hint={o.dept.deputyMember ? D.replaceNote : undefined}>
+                    <select name="memberId" required defaultValue="" className={inputCls}>
+                      <option value="" disabled>
+                        {D.choose}
                       </option>
-                    ))}
-                </select>
-              </Field>
-              <PermissionBoxes L={L} selected={[]} />
-            </ActionForm>
+                      {o.deputyCandidates
+                        .filter((m) => m.id !== o.dept.deputyMemberId)
+                        .map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.fullName}
+                          </option>
+                        ))}
+                    </select>
+                  </Field>
+                  <PermissionBoxes L={L} selected={[]} />
+              </ActionForm>
+            </AppointDeputy>
           )}
         </section>
       )}
@@ -214,5 +217,15 @@ function PermissionBoxes({ L, selected }: { L: Dictionary["org"]; selected: stri
         </label>
       ))}
     </fieldset>
+  );
+}
+
+function AppointDeputy({ open, summary, children }: { open: boolean; summary: string; children: React.ReactNode }) {
+  if (open) return <>{children}</>;
+  return (
+    <details className="rounded-xl bg-black/[0.03] p-3">
+      <summary className="cursor-pointer text-xs font-bold text-black/70">{summary}</summary>
+      <div className="mt-3">{children}</div>
+    </details>
   );
 }

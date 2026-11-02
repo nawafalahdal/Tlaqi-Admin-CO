@@ -98,6 +98,7 @@ export const orgEn: typeof orgAr = {
     revokeBody: "They lose every delegated permission immediately and remain a member of the department.",
     appointedBy: "Appointed {0} by {1}",
     replaceNote: "Appointing another member ends the current deputyship.",
+    replace: "Appoint a different deputy",
     none: "Nothing delegated — the deputy has no permissions until you choose some.",
     saved: "Saved.",
   },

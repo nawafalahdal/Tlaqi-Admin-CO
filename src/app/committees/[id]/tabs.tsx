@@ -195,7 +195,7 @@ export function MembersTab({ d, L, theme }: Ctx) {
                         name="responsibility"
                         defaultValue={m.responsibility ?? ""}
                         maxLength={80}
-                        placeholder={M.responsibility}
+                        placeholder={L.overview.responsibility}
                         aria-label={`${M.responsibility} — ${m.member.fullName}`}
                         className="min-h-9 w-40 rounded-lg border border-black/10 bg-white px-2.5 text-xs outline-none focus:border-black/30"
                       />
