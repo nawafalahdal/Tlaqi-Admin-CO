@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { decideCommitteeAction } from "./actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
@@ -22,6 +23,10 @@ export type PendingCommittee = {
   requestedByName: string | null;
   parentName: string;
   parentColorHex: string;
+  purpose: string | null;
+  kind: "permanent" | "temporary" | null;
+  leadName: string | null;
+  memberCount: number;
 };
 
 export function CommitteeRequests({
@@ -61,7 +66,9 @@ function RequestRow({
   theme: ReturnType<typeof themeFromColor>;
   onDone: (message: string) => void;
 }) {
-  const L = useTranslations().rCommitteeRequests;
+  const t = useTranslations();
+  const L = t.rCommitteeRequests;
+  const O = t.org;
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState(false);
@@ -93,6 +100,17 @@ function RequestRow({
             {r.leadTitle?.trim() || fmt(L.committeeLead, r.name)}
             {r.requestedByName ? fmt(L.proposedBy, r.requestedByName) : ""}
           </p>
+          <p className="mt-1.5 text-xs text-black/60">
+            {O.kinds[r.kind ?? "permanent"]}
+            {" · "}
+            {O.detail.lead}: {r.leadName ?? O.noLead}
+            {" · "}
+            {O.detail.members}: {r.memberCount}
+          </p>
+          {r.purpose && <p className="mt-1.5 line-clamp-3 whitespace-pre-line text-xs leading-relaxed text-black/70">{r.purpose}</p>}
+          <Link href={`/committees/${r.id}`} className="mt-1.5 inline-flex text-xs font-bold underline">
+            {O.viewDetails}
+          </Link>
         </div>
       </div>
 

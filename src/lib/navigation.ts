@@ -56,7 +56,7 @@ export type NavGroup = (typeof NAV_GROUPS)[number];
 /** أسماءُ البنود — من القاموس (`shell.nav`)، لا مكتوبةً هنا */
 export type NavLabels = Record<
   "home" | "opsHome" | "members" | "myDeptMembers" | "approvals" | "departments" | "execution" | "calendar" |
-  "reports" | "plans" | "tickets" | "structure" | "invites" | "messages" | "terminations" | "signature" | "welcomeCards" | "sheet" | "marketing",
+  "reports" | "plans" | "tickets" | "structure" | "committees" | "invites" | "messages" | "terminations" | "signature" | "welcomeCards" | "sheet" | "marketing",
   string
 >;
 
@@ -137,6 +137,8 @@ export function navFor(v: NavViewer, L: NavLabels): NavItem[] {
   items.push({ id: "plans", label: L.plans, href: "/plans", icon: "plans", match: ["/plans"], group: "reports" });
   if (admin) items.push({ id: "tickets", label: L.tickets, href: "/admin/tickets", icon: "tickets", match: ["/admin/tickets"], group: "tickets" });
   items.push({ id: "structure", label: L.structure, href: "/structure", icon: "structure", match: ["/structure"], group: "org" });
+  // اللجان لكل الأدوار: كلٌّ يرى منها ما يخصّه (والقائمةُ تقول ذلك حين تكون فارغة)
+  items.push({ id: "committees", label: L.committees, href: "/committees", icon: "departments", match: ["/committees"], group: "org" });
   if (top) {
     items.push({ id: "invites", label: L.invites, href: "/admin/invites", icon: "invites", match: ["/admin/invites", "/admin/tests"], group: "people" });
   }

@@ -90,6 +90,7 @@ export async function listCommittees(
   const total = await prisma.department.count({ where });
   const pages = Math.max(1, Math.ceil(total / COMMITTEE_PAGE));
   const page = Math.min(pages, Math.max(1, f.page ?? 1));
+  // department-scope: all — سجلُّ اللجان بكل حالاتها (المسودّة والمغلقة والمؤرشفة)، محدودٌ بـ`visibleCommitteesWhere`
   const rows = await prisma.department.findMany({
     where,
     orderBy: [{ statusChangedAt: { sort: "desc", nulls: "last" } }, { name: "asc" }],
@@ -259,6 +260,10 @@ export async function committeeDetail(actor: OrgActor | null, committeeId: strin
     candidates,
     tasks,
     overdueTaskIds: new Set(overdueTasks.map((t) => t.id)),
+    // القادمُ: المجدولُ الذي لم يمضِ على موعده أكثرُ من ثلاث ساعات (اجتماعٌ جارٍ يبقى في القادمة)
+    upcomingMeetingIds: new Set(
+      meetings.filter((m) => m.status === "scheduled" && m.startsAt.getTime() >= now.getTime() - 3 * 3600_000).map((m) => m.id)
+    ),
     meetings,
     decisions,
     reports,
@@ -325,6 +330,7 @@ export async function departmentOverview(actor: OrgActor | null, departmentId: s
       prisma.committeeProposal.count({ where: { committee: { parentId: departmentId }, status: "pending" } }),
       prisma.committeeReport.count({ where: { committee: { parentId: departmentId }, reviewedAt: null } }),
       // لجانٌ عاملة بلا قائدٍ نشط — مسارُ التسليم
+      // department-scope: all — المعلّقةُ تُعدّ أيضاً: لا تُعاد للعمل بلا قائد
       prisma.department.findMany({
         where: {
           parentId: departmentId,

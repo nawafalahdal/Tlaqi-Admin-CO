@@ -22,7 +22,6 @@ import { MemberInviteForm } from "./MemberInviteForm";
 import { MemberRoster } from "./MemberRoster";
 import { Pager, pageParam } from "@/components/Pager";
 import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
-import { CommitteesPanel } from "./CommitteesPanel";
 import { AlertsPanel } from "@/components/AlertsPanel";
 import { alertsForUser } from "@/lib/alerts";
 import { OffboardingPanel } from "./OffboardingPanel";
@@ -33,7 +32,6 @@ import Link from "next/link";
 
 import { AnnouncementList } from "../../hub/AnnouncementList";
 import { AnnouncementComposer } from "../../hub/AnnouncementComposer";
-import { committeesOf } from "@/lib/committees";
 import { WeekPlanPanel } from "@/components/execution/WeekPlanPanel";
 import { currentAndNextPeriod, canGovernPeriod, canPlanDepartment, stateLabel } from "@/lib/execution";
 import { assessWeekPlan, DEFAULT_CAPACITY_POINTS } from "@/lib/carryover";
@@ -90,9 +88,13 @@ export default async function DepartmentBoardPage({
   const department = await prisma.department.findUnique({ where: { slug } });
   if (!department) notFound();
 
-  // لجانُه بكل حالاتها: قائدُ القسم يرى المقترحةَ والمردودةَ أيضاً —
-  // هو من اقترحها، فحجبُها عنه يُخفي عليه مصير طلبه
-  const committees = await committeesOf(department.id);
+  // لجانُه بحالاتها — عدٌّ للبطاقة فقط؛ والإدارةُ كلُّها في صفحة اللجان
+  const committeeCounts = await prisma.department.groupBy({
+    by: ["committeeStatus"],
+    where: { parentId: department.id },
+    _count: { _all: true },
+  });
+  const countOf = (s: string) => committeeCounts.find((g) => g.committeeStatus === s)?._count._all ?? 0;
   // ما ينتظر القائدَ شخصياً — ومركزُ الخطط يُقرأ من لوحته كما من لوحة غيره
   const alerts = isOwnDept ? await alertsForUser(session, await getLocale()) : [];
 
@@ -368,30 +370,32 @@ export default async function DepartmentBoardPage({
           </Card>
         </section>
 
-        {/* اللجان: قسمٌ داخل القسم — يقترحه قائده ويعتمده التنفيذي */}
+        {/* الهيكل واللجان: تُدار من صفحة اللجان — نائبُ القائد ومسؤولياتُ الأعضاء ولجانُ القسم */}
         <section>
-          <Card className="p-5 sm:p-6">
-            <CommitteesPanel
-              parentId={department.id}
-              parentName={department.name}
-              parentColorHex={department.colorHex}
-              canPropose={isOwnDept}
-              theme={theme}
-              committees={committees.map((c) => ({
-                id: c.id,
-                name: c.name,
-                slug: c.slug,
-                colorHex: c.colorHex,
-                leadTitle: c.leadTitle,
-                committeeStatus: c.committeeStatus,
-                requestedByName: c.requestedByName,
-                decidedByName: c.decidedByName,
-                decisionNote: c.decisionNote,
-                lead: c.admins[0] ?? null,
-                memberCount: c._count.members,
-                subCommitteeCount: c._count.committees,
-              }))}
-            />
+          <Card className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+            <div className="min-w-0">
+              <h2 className="text-sm font-bold">{t.org.board.title}</h2>
+              <p className="mt-1 text-xs leading-relaxed text-black/55">
+                {department.parentId ? t.org.board.committeeDesc : t.org.board.desc}
+              </p>
+              {!department.parentId && (
+                <p className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold">
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-900">{fmt(t.org.board.activeN, countOf("approved"))}</span>
+                  {countOf("pending_review") > 0 && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900">{fmt(t.org.board.pendingN, countOf("pending_review"))}</span>
+                  )}
+                  {countOf("draft") > 0 && (
+                    <span className="rounded-full bg-black/[0.06] px-2 py-0.5 text-black/70">{fmt(t.org.board.draftN, countOf("draft"))}</span>
+                  )}
+                </p>
+              )}
+            </div>
+            <Link
+              href={department.parentId ? `/committees/${department.id}` : "/committees"}
+              className="btn-brand inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl px-4 text-sm font-semibold"
+            >
+              {department.parentId ? t.org.board.openCommittee : t.org.board.open}
+            </Link>
           </Card>
         </section>
 

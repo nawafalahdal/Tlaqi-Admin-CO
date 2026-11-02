@@ -37,6 +37,8 @@ export function Button({
   onClick,
   disabled,
   className = "",
+  name,
+  value,
 }: {
   children: ReactNode;
   theme: Theme;
@@ -45,6 +47,9 @@ export function Button({
   onClick?: () => void;
   disabled?: boolean;
   className?: string;
+  /** زرُّ إرسالٍ يحمل قيمتَه (مسودّة/إرسال، قبول/رفض) — تصل مع النموذج */
+  name?: string;
+  value?: string;
 }) {
   const base =
     "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-transparent px-4 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 hover:brightness-95";
@@ -65,6 +70,8 @@ export function Button({
   return (
     <button
       type={type}
+      name={name}
+      value={value}
       onClick={onClick}
       disabled={disabled}
       className={`${base} ${className}`}

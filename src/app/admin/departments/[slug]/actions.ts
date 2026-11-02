@@ -19,17 +19,10 @@ import {
   markFarewellDesigned,
   closeOffboarding,
 } from "@/lib/offboarding";
-import {
-  requestCommittee,
-  withdrawCommittee,
-  canRequestCommitteeIn,
-  committeeLeadTitle,
-} from "@/lib/committees";
 import { canInviteMemberTo } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 
 import { getLocale, getDictionary } from "@/i18n/server";
-import { fmt } from "@/i18n/fmt";
 /** حوكمة صارمة: إصدار دعوة عضو داخل قسم معيّن هو حصراً من صلاحية أدمن ذلك
  *  القسم — حتى المؤسس نفسه لا يملك هذا الإجراء مباشرة */
 export async function createMemberInviteAction(
@@ -350,118 +343,4 @@ export async function closeOffboardingAction(
   revalidatePath("/admin/departments");
   revalidatePath("/admin");
   return { error: null };
-}
-
-/** اقتراحُ لجنةٍ داخل قسم — من لوحة قائده.
- *
- *  والتصريحُ يُفرَض في `requestCommittee` نفسها لا هنا: الإجراء بابٌ
- *  يُنادى من أي مكان، والحرسُ عند الحقيقة لا عند الواجهة. */
-export async function requestCommitteeAction(
-  _prevState: { error: string | null; success: boolean; message?: string },
-  formData: FormData
-): Promise<{ error: string | null; success: boolean; message?: string }> {
-  const L = getDictionary(await getLocale()).rDeptActions;
-  try {
-    const session = await auth();
-    if (!session) return { error: L.youNeedToSign, success: false };
-
-    const res = await requestCommittee({
-      parentId: String(formData.get("parentId") ?? ""),
-      name: String(formData.get("name") ?? ""),
-      leadTitle: String(formData.get("leadTitle") ?? ""),
-      session,
-    });
-    if (!res.ok) return { error: res.reason, success: false };
-
-    revalidatePath("/admin/departments");
-    revalidatePath("/admin");
-    revalidatePath("/structure");
-    return {
-      error: null,
-      success: true,
-      message: res.approverName
-        ? fmt(L.theProposalWasSent, res.name, res.approverName)
-        : fmt(L.theProposalWasRecorded, res.name),
-    };
-  } catch (err) {
-    return { error: safeErrorMessage(err), success: false };
-  }
-}
-
-/** سحبُ اقتراحٍ أو إزالةُ لجنةٍ مردودة — للساكن وحده */
-export async function withdrawCommitteeAction(
-  committeeId: string
-): Promise<{ error: string | null; done?: boolean; name?: string }> {
-  const L = getDictionary(await getLocale()).rDeptActions;
-  const session = await auth();
-  if (!session) return { error: L.youNeedToSign };
-  try {
-    const res = await withdrawCommittee({ committeeId, session });
-    if (!res.ok) return { error: res.reason };
-    revalidatePath("/admin/departments");
-    revalidatePath("/admin");
-    return { error: null, done: true, name: res.name };
-  } catch (err) {
-    return { error: safeErrorMessage(err) };
-  }
-}
-
-/** دعوةُ قائدٍ للجنةٍ معتمدة — بيد قائد القسم الأب.
- *
- *  **وهذا هو ما يُدير الدائرة:** المدعوُّ يصير `department_admin` قسمُه
- *  اللجنة، فله لوحةٌ ودعواتٌ وبنكُ أسئلةٍ وتذاكرُ كقائد القسم — لكن في
- *  نطاق لجنته وحدها. والمسمّى مسمّاها الذي أُقرَّ عند اعتمادها.
- *
- *  ولا تُدعى قيادةٌ للجنةٍ لم تُعتمد: ذاك اقتراحٌ لا منصب. */
-export async function inviteCommitteeLeadAction(
-  _prevState: { error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } },
-  formData: FormData
-): Promise<{ error: string | null; success: boolean; credentials?: { email: string; tempPassword: string } }> {
-  const L = getDictionary(await getLocale()).rDeptActions;
-  try {
-    const session = await auth();
-    if (!session) return { error: L.youNeedToSign, success: false };
-
-    const committeeId = String(formData.get("committeeId") ?? "");
-    const committee = await prisma.department.findUnique({
-      where: { id: committeeId },
-      select: { id: true, name: true, leadTitle: true, parentId: true, committeeStatus: true },
-    });
-    if (!committee || !committee.parentId) {
-      return { error: L.committeeNotFound, success: false };
-    }
-    if (committee.committeeStatus !== "approved") {
-      return { error: L.thisCommitteeIsNot, success: false };
-    }
-    if (!canRequestCommitteeIn(session, committee.parentId)) {
-      return { error: L.invitingACommitteeLead, success: false };
-    }
-
-    const fullName = String(formData.get("fullName") ?? "").trim();
-    const email = String(formData.get("email") ?? "").trim().toLowerCase();
-    if (!fullName || !email) return { error: L.nameAndEmailAre, success: false };
-
-    // المسمّى مسمّى اللجنة المُقَرّ، لا ما يكتبه الداعي لحظتها: أُقِرَّ
-    // مع اعتمادها فلا يُغيَّر بعده من نموذجٍ عابر
-    const jobTitle = committeeLeadTitle(committee.name, committee.leadTitle);
-    // واختبارُه اختبارُ القادة نفسُه: قائدُ اللجنة قائدٌ بمسؤوليةٍ أصغر
-    // لا صفةٌ أخرى — ولو أُعفي منه لصار باباً خلفياً إلى القيادة.
-    const track = await getTrackForTarget("department_admin", null);
-
-    const { tempPassword } = await createCandidateAccount({
-      fullName,
-      email,
-      jobTitle,
-      targetRole: "department_admin",
-      departmentId: committee.id,
-      testTrackId: track.id,
-      invitedById: session.user.id,
-    });
-
-    revalidatePath("/admin/departments");
-    revalidatePath("/admin");
-    return { error: null, success: true, credentials: { email, tempPassword } };
-  } catch (err) {
-    return { error: safeErrorMessage(err), success: false };
-  }
 }

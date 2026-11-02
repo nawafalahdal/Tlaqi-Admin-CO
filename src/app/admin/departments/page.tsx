@@ -196,6 +196,10 @@ export default async function DepartmentsIndexPage() {
                     requestedByName: p.requestedByName,
                     parentName: p.parent?.name ?? "—",
                     parentColorHex: p.parent?.colorHex ?? "#341D2B",
+                    purpose: p.purpose,
+                    kind: p.committeeKind,
+                    leadName: p.leadMember?.fullName ?? null,
+                    memberCount: p._count.committeeMemberships,
                   }))}
                 />
               </Card>

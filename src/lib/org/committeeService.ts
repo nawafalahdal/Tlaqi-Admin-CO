@@ -13,6 +13,7 @@ import {
   canAppointDeputy,
   canAssignResponsibilities,
   canManageCommitteesOf,
+  committeeRoleFor,
   type OrgActor,
 } from "./actor";
 import { diffFields, fail, recordOrgEvent, type OrgResult } from "./audit";
@@ -134,6 +135,11 @@ function cleanDetails(input: CommitteeInput): OrgResult<{ data: CleanDetails }> 
       endDate: input.kind === "temporary" ? end : null,
     },
   };
+}
+
+/** قائدُ هذه اللجنة؟ — من صفّها وصفّه، لا من قولِ المنادي */
+function isCommitteeLead(actor: OrgActor | null, c: { id: string; parentId: string | null; leadMemberId: string | null }) {
+  return committeeRoleFor(actor, c, false).lead;
 }
 
 /** صفُّ اللجنة كما يحتاجه كلُّ إجراء — ومعه قسمُها الأصيل */
@@ -497,12 +503,11 @@ export async function setCommitteeResponsibility(
   actor: OrgActor | null,
   committeeId: string,
   memberId: string,
-  responsibility: string | null,
-  isLead: boolean
+  responsibility: string | null
 ): Promise<OrgResult> {
   const c = await loadCommittee(prisma, committeeId);
   if (!c) return fail("اللجنة غير موجودة");
-  if (!isLead && !canManageCommitteesOf(actor, c.parentId!)) return fail("توزيعُ المسؤوليات لقائد اللجنة أو قائد قسمها");
+  if (!isCommitteeLead(actor, c) && !canManageCommitteesOf(actor, c.parentId!)) return fail("توزيعُ المسؤوليات لقائد اللجنة أو قائد قسمها");
   if (FROZEN.includes(c.committeeStatus!)) return fail("اللجنةُ مغلقة");
   const row = await prisma.committeeMembership.findUnique({
     where: { committeeId_memberId: { committeeId, memberId } },
@@ -528,12 +533,11 @@ export async function setCommitteeResponsibility(
 export async function proposeMembershipChange(
   actor: OrgActor | null,
   committeeId: string,
-  input: { kind: "add_member" | "remove_member" | "replace_member"; memberId: string; replacementMemberId?: string | null; note?: string | null },
-  isLead: boolean
+  input: { kind: "add_member" | "remove_member" | "replace_member"; memberId: string; replacementMemberId?: string | null; note?: string | null }
 ): Promise<OrgResult> {
   const c = await loadCommittee(prisma, committeeId);
   if (!c) return fail("اللجنة غير موجودة");
-  if (!isLead) return fail("الاقتراحُ لقائد اللجنة — والقرارُ لقائد القسم");
+  if (!isCommitteeLead(actor, c)) return fail("الاقتراحُ لقائد اللجنة — والقرارُ لقائد القسم");
   if (c.committeeStatus !== "approved") return fail("اللجنةُ ليست نشطة");
   const active = await prisma.committeeMembership.findMany({ where: { committeeId, active: true }, select: { memberId: true } });
   const isMember = (id: string) => active.some((a) => a.memberId === id);
