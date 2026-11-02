@@ -14,7 +14,8 @@ import { getTrackForTarget } from "@/lib/testTracks";
 import { resolveSessionAccount } from "@/lib/sessionAccount";
 import { canDecideCandidate, canInviteMemberTo } from "@/lib/permissions";
 import { canPlanDepartment } from "@/lib/execution";
-import { requestCommittee, withdrawCommittee } from "@/lib/committees";
+import { orgActor, canManageCommitteesOf } from "@/lib/org/actor";
+import { createCommittee } from "@/lib/org/committeeService";
 import { buildOrgChart } from "@/lib/orgChart";
 import { marketingActor, canEnterMarketing, type MkActor } from "@/lib/marketing/access";
 import { assistantView } from "@/lib/marketing/ai/chat";
@@ -130,6 +131,10 @@ async function cleanup() {
   await prisma.marketingMember.deleteMany({ where: { OR: [{ userId: { in: userIds } }, { memberId: { in: members.map((m) => m.id) } }] } });
   await prisma.leaderSignature.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.request.deleteMany({ where: { linkedMemberId: { in: members.map((m) => m.id) } } });
+  // اللجانُ التجريبية وما تعلّق بها (العضويةُ مقيّدةٌ بلجنتها — Restrict — عن قصد)
+  const cmts = (await prisma.department.findMany({ where: { OR: [{ slug: { startsWith: MARK } }, { name: { startsWith: MARK } }], parentId: { not: null } }, select: { id: true } })).map((c) => c.id);
+  await prisma.orgAuditEvent.deleteMany({ where: { entityId: { in: cmts } } });
+  await prisma.committeeMembership.deleteMany({ where: { committeeId: { in: cmts } } });
   await prisma.department.deleteMany({ where: { slug: { startsWith: MARK }, parentId: { not: null } } });
   await prisma.department.deleteMany({ where: { name: { startsWith: MARK }, parentId: { not: null } } });
   for (const m of members) {
@@ -263,15 +268,26 @@ async function cleanup() {
   chk("وصفحةُ التنفيذ والأهداف تُفتح لها", exec.status === 200, String(exec.status));
 
   // ───────────────────────── ٦: اللجان
-  section("٦) رفعُ طلب لجنة");
-  const committee = await requestCommittee({ parentId: marketing.id, name: `${MARK} لجنة المحتوى`, session: leadS });
-  chk("تقترح لجنةً داخل قسمها", committee.ok, committee.ok ? "" : committee.reason);
+  // (تغيّر بتغيّر المتطلَّب: نظامُ اللجان الجديد — تُنشأ بقائدها وأعضائها من القسم،
+  //  مسودّةً أو طلبَ اعتماد؛ ولا «سحب» بعد اليوم: المسودّةُ تُغلَق ولا تُحذف)
+  section("٦) لجانُ قسمها");
+  const leadO = (await orgActor(leadS))!;
+  chk("تدير لجانَ قسمها وحده", canManageCommitteesOf(leadO, marketing.id) && !canManageCommitteesOf(leadO, other.id));
+  const cmTrack = await getTrackForTarget("member", marketing.id);
+  const cmMember = async (tag: string) => {
+    const email = `cm-${tag}${DOMAIN}`;
+    const invite = await prisma.invite.create({ data: { fullName: `${MARK} ${tag}`, email, targetRole: "member", departmentId: marketing.id, testTrackId: cmTrack.id, invitedById: founder.id, status: "used" } });
+    return prisma.member.create({ data: { fullName: `${MARK} ${tag}`, email, departmentId: marketing.id, inviteId: invite.id, passwordHash: "x", approvalStatus: "approved", testStatus: "passed", isActive: true } });
+  };
+  const [cmLead, cmOne] = [await cmMember("lead"), await cmMember("one")];
+  const committeeInput = { name: `${MARK} لجنة المحتوى`, purpose: "محتوى القسم", kind: "permanent" as const, leadMemberId: cmLead.id, memberIds: [cmOne.id], submit: true };
+  const committee = await createCommittee(leadO, marketing.id, committeeInput);
+  chk("تنشئ لجنةً داخل قسمها بقائدها وأعضائها", committee.ok, committee.ok ? "" : committee.reason);
   if (committee.ok) {
     const c = await prisma.department.findUniqueOrThrow({ where: { id: committee.id } });
     chk("والطلبُ ينتظر قرارَ الإدارة — لا يُفتح بقرارها", c.parentId === marketing.id && c.committeeStatus === "pending_review");
-    chk("وتسحبه إن شاءت", (await withdrawCommittee({ committeeId: committee.id, session: leadS })).ok);
   }
-  chk("ولا تقترح في قسمٍ غير قسمها", !(await requestCommittee({ parentId: other.id, name: `${MARK} لجنة دخيلة`, session: leadS })).ok);
+  chk("ولا تنشئ في قسمٍ غير قسمها", !(await createCommittee(leadO, other.id, { ...committeeInput, name: `${MARK} لجنة دخيلة` })).ok);
 
   // ───────────────────────── ٧، ٨: وكيل التسويق ومساعده
   section("٧) مساعدُ القسم (Claude) متاحٌ لها");
@@ -327,7 +343,7 @@ async function cleanup() {
   chk("لا يدعو، ولا يكلّف، ولا يعتمد مرشّحاً",
     !canInviteMemberTo(memberS.user, marketing.id) && !canPlanDepartment(memberS, marketing.id) &&
     !canDecideCandidate(memberS.user, { targetRole: "member", departmentId: marketing.id }));
-  chk("ولا يقترح لجنة", !(await requestCommittee({ parentId: marketing.id, name: `${MARK} لجنة عضو`, session: memberS })).ok);
+  chk("ولا ينشئ لجنة", !(await createCommittee(await orgActor(memberS), marketing.id, { ...committeeInput, name: `${MARK} لجنة عضو` })).ok);
   const memberA = (await marketingActor(memberS))!;
   chk("وفي الوكيل: ما مُنح له فقط — لا قيادةَ ولا مرحلةَ اعتماد", !memberA.isMarketingLead && memberA.planStage === null);
   const deptAsMember = await page(mj, "/admin/departments/marketing");

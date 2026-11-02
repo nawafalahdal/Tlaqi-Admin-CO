@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Session } from "next-auth";
 import { appendMemberEvent } from "@/lib/googleSheets";
-import { sendCommitteeDecisionEmail } from "@/lib/email";
+import { sendCommitteeDecisionEmail, sendCommitteeLeadAppointedEmail } from "@/lib/email";
 import { recordOrgEvent } from "@/lib/org/audit";
 
 /** اللجان — **صفُّ القسم نفسُه بأبٍ**، لا كائنٌ جديد.
@@ -120,6 +120,7 @@ export async function decideCommittee(opts: {
       committeeStatus: true,
       requestedById: true,
       parent: { select: { name: true } },
+      leadMember: { select: { email: true, fullName: true, isActive: true } },
     },
   });
   if (!committee) return { ok: false, reason: "اللجنة غير موجودة" };
@@ -197,6 +198,18 @@ export async function decideCommittee(opts: {
         boardUrl: `${baseUrl()}/committees/${committee.id}`,
       });
     }
+  }
+
+  // وتكليفُ قائدها يصله حين تُعتمد — لا قبلها: المسودّةُ والطلبُ ليسا تكليفاً بعد
+  if (opts.decision === "approved" && committee.leadMember?.isActive) {
+    await sendCommitteeLeadAppointedEmail({
+      to: committee.leadMember.email,
+      fullName: committee.leadMember.fullName,
+      committeeName: committee.name,
+      parentName: committee.parent?.name ?? "—",
+      appointedByName: opts.session.user.name ?? "—",
+      url: `${baseUrl()}/committees/${committee.id}`,
+    });
   }
 
   return {

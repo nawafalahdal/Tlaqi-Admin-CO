@@ -624,9 +624,13 @@ export async function decideProposal(
 //  نائبُ قائد القسم ومسؤولياتُ الأعضاء
 // ═════════════════════════════════════════════════════════════════════
 
-function cleanPermissions(input: string[]): DeputyPermission[] {
+/** الصلاحياتُ المفوَّضة من القائمة المكتوبة وحدها — وما ليس فيها يُرفَض صراحةً لا يُسقَط صامتاً:
+ *  طلبٌ يحمل صلاحيةً مجهولة طلبٌ مصنوع، فلا يمرّ نصفُه */
+function cleanPermissions(input: string[]): DeputyPermission[] | null {
+  if (input.some((p) => !DEPUTY_PERMISSIONS.includes(p as DeputyPermission))) return null;
   return DEPUTY_PERMISSIONS.filter((p) => input.includes(p));
 }
+const UNKNOWN_PERMISSION = "صلاحيةٌ غير معروفة — يُفوَّض من القائمة المعتمدة وحدها";
 
 /** يعيّن نائباً للقسم أو يستبدله — **نائبٌ واحد**، من أعضاء القسم، بما فُوِّض إليه وحده */
 export async function appointDeputy(
@@ -649,6 +653,7 @@ export async function appointDeputy(
   if (!m) return fail("النائبُ من أعضاء القسم المعتمَدين النشطين");
   if (m.deputyOf && m.deputyOf.id !== departmentId) return fail("هذا العضوُ نائبٌ في قسمٍ آخر");
   const perms = cleanPermissions(permissions);
+  if (!perms) return fail(UNKNOWN_PERMISSION);
   await prisma.$transaction(async (tx) => {
     await tx.department.update({
       where: { id: departmentId },
@@ -681,6 +686,7 @@ export async function setDeputyPermissions(
   const dept = await prisma.department.findUnique({ where: { id: departmentId }, select: { deputyMemberId: true, deputyPermissions: true } });
   if (!dept?.deputyMemberId) return fail("لا نائبَ للقسم");
   const perms = cleanPermissions(permissions);
+  if (!perms) return fail(UNKNOWN_PERMISSION);
   const same = perms.length === dept.deputyPermissions.length && perms.every((p) => dept.deputyPermissions.includes(p));
   if (same) return { ok: true };
   await prisma.$transaction(async (tx) => {
