@@ -75,6 +75,9 @@ export const en: Dictionary = {
     twoFactor: "Two-factor auth",
     back: "Back",
     cancel: "Cancel",
+    pageOf: "Page {0} of {1}",
+    prevPage: "Previous",
+    nextPage: "Next",
   },
   status: {
     new: "New",

@@ -9,6 +9,7 @@ import { RemovedAccountRow } from "./RemovedAccountRow";
 import { MemberAccountRow } from "./MemberAccountRow";
 import { StuckCandidateRow, type StuckCandidate } from "./StuckCandidateRow";
 import { DataTable } from "@/components/DataTable";
+import { Pager, pageParam } from "@/components/Pager";
 import { PageHeader } from "@/components/PageHeader";
 import Link from "next/link";
 import { RosterRowActions } from "./RosterRowActions";
@@ -56,10 +57,14 @@ const TABS: { id: Tab }[] = [
   { id: "removed" },
 ];
 
+/** صفوفُ السجلّ في الصفحة الواحدة. كان السجلُّ كلُّه يُرسم دفعةً واحدة — وكلُّ صفٍّ مرّتين (جدولٌ
+ *  وبطاقةُ جوّال) — فبلغت الصفحةُ 3 ميغابايت عند 300 عضو. والعدّادات والبحث على السجلّ كلّه. */
+const PAGE_SIZE = 50;
+
 export default async function PeoplePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; q?: string; dept?: string }>;
+  searchParams: Promise<{ tab?: string; q?: string; dept?: string; p?: string }>;
 }) {
   const locale = await getLocale();
   const L = getDictionary(locale).rPeoplePage;
@@ -410,13 +415,19 @@ export default async function PeoplePage({
   };
   const shown = (tab === "leaders" ? leaderRows : tab === "members" ? memberRows : tab === "attention" ? attention : everyone).filter(matches);
   const rosterTab = tab === "all" || tab === "leaders" || tab === "members" || tab === "attention";
+  const { page, pages } = pageParam(sp.p, shown.length, PAGE_SIZE);
+  const pageRows = shown.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const href = (patch: Partial<{ tab: string; q: string; dept: string }>) => {
+  /** رابطٌ بحالة القائمة. تغييرُ التبويب أو البحث أو القسم يعود إلى الصفحة الأولى؛
+   *  و`href({})` يحفظ الصفحة — فيعود «رجوع» من ملفّ الشخص إلى حيث كان. */
+  const href = (patch: Partial<{ tab: string; q: string; dept: string; p: number }>) => {
     const p = new URLSearchParams();
-    const next = { tab, q: sp.q ?? "", dept: deptFilter, ...patch };
+    const keepPage = !("tab" in patch || "q" in patch || "dept" in patch);
+    const next = { tab, q: sp.q ?? "", dept: deptFilter, p: keepPage ? page : 1, ...patch };
     if (next.tab && next.tab !== "all") p.set("tab", next.tab);
     if (next.q) p.set("q", next.q);
     if (next.dept) p.set("dept", next.dept);
+    if (next.p > 1) p.set("p", String(next.p));
     const s = p.toString();
     return s ? `/admin/people?${s}` : "/admin/people";
   };
@@ -489,7 +500,7 @@ export default async function PeoplePage({
               { key: "welcome", label: L.welcomeCard },
               { key: "actions", label: "" },
             ]}
-            rows={shown.map((r) => ({
+            rows={pageRows.map((r) => ({
               id: `${r.kind}-${r.id}`,
               cells: {
                 name: (
@@ -533,6 +544,7 @@ export default async function PeoplePage({
             }))}
           />
         )}
+        {rosterTab && <Pager page={page} pages={pages} href={(n) => href({ p: n })} labels={t.common} />}
 
         {rosterTab && (
           <p className="text-[11px] leading-relaxed text-black/45">{L.acceptedMeansTheEmail}</p>

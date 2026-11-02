@@ -20,6 +20,7 @@ import { NeedsMeetingRow } from "./NeedsMeetingRow";
 import { RequestCard } from "./RequestCard";
 import { MemberInviteForm } from "./MemberInviteForm";
 import { MemberRoster } from "./MemberRoster";
+import { Pager, pageParam } from "@/components/Pager";
 import { CommitteesPanel } from "./CommitteesPanel";
 import { AlertsPanel } from "@/components/AlertsPanel";
 import { alertsForUser } from "@/lib/alerts";
@@ -49,10 +50,16 @@ function isCertificateEligible(decidedAt: Date | null) {
   return Date.now() - decidedAt.getTime() >= 90 * 24 * 60 * 60 * 1000;
 }
 
+/** أعضاءُ القسم في الصفحة الواحدة. كانوا مقصوصين عند ٢٠٠ بلا تنبيه — والعنوانُ يَعدّ المقصوص —
+ *  ويُرسمون كلُّهم بطاقاتٍ تفاعلية دفعةً واحدة (٢٫٤ ميغابايت عند ٣٠٠ عضو). */
+const ROSTER_PAGE = 40;
+
 export default async function DepartmentBoardPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ rp?: string }>;
 }) {
   const locale = await getLocale();
   const L = getDictionary(locale).rDeptPage;
@@ -138,11 +145,17 @@ export default async function DepartmentBoardPage({
     candidate_expiry: () => sweepExpiredCandidateAccounts(),
   });
 
+  const rosterWhere = {
+    departmentId: department.id,
+    approvalStatus: "approved" as const,
+    isActive: true,
+    invite: { targetRole: "member" as const },
+  };
   const [
     approvalQueue,
     needsMeeting,
     requests,
-    activeMembers,
+    roster,
     tickets,
     openInvites,
     announcements,
@@ -179,17 +192,18 @@ export default async function DepartmentBoardPage({
       orderBy: { createdAt: "desc" },
       take: QUEUE_TAKE,
     }),
-    prisma.member.findMany({
-      // الصورةُ تُطلب من مسارها المخزَّن — لا تُحمَّل مع كل صفّ
-      omit: { avatarData: true },
-      where: {
-        departmentId: department.id,
-        approvalStatus: "approved",
-        isActive: true,
-        invite: { targetRole: "member" },
-      },
-      orderBy: { fullName: "asc" },
-      take: QUEUE_TAKE,
+    prisma.member.count({ where: rosterWhere }).then(async (total) => {
+      const { page, pages } = pageParam((await searchParams).rp, total, ROSTER_PAGE);
+      const rows = await prisma.member.findMany({
+        // الصورةُ تُطلب من مسارها المخزَّن — لا تُحمَّل مع كل صفّ
+        omit: { avatarData: true },
+        where: rosterWhere,
+        // الاسمُ ثم المعرّف: ترتيبٌ ثابت فلا يتكرّر عضوٌ بين صفحتين ولا يسقط
+        orderBy: [{ fullName: "asc" }, { id: "asc" }],
+        skip: (page - 1) * ROSTER_PAGE,
+        take: ROSTER_PAGE,
+      });
+      return { total, page, pages, rows };
     }),
     // قاعدة الرؤية المشتركة: تشمل ما وُجِّه إلى قائد القسم باسمه وما
     // رفعه هو — وكلاهما كان يسقط من الاستعلام المكتوب هنا بيد
@@ -459,12 +473,12 @@ export default async function DepartmentBoardPage({
           </section>
         )}
 
-        <section>
-          <h2 className="mb-4 text-lg font-bold">{t.deptBoard.activeMembersTitle} ({activeMembers.length})</h2>
+        <section id="roster" className="scroll-mt-24">
+          <h2 className="mb-4 text-lg font-bold">{t.deptBoard.activeMembersTitle} ({roster.total})</h2>
           <MemberRoster
             theme={theme}
             canReset={session.user.role === "super_admin"}
-            members={activeMembers.map((m) => ({
+            members={roster.rows.map((m) => ({
               id: m.id,
               fullName: m.fullName,
               email: m.email,
@@ -474,6 +488,11 @@ export default async function DepartmentBoardPage({
               certificateEligible: isCertificateEligible(m.decidedAt),
             }))}
           />
+          {roster.pages > 1 && (
+            <div className="mt-4">
+              <Pager page={roster.page} pages={roster.pages} href={(n) => `/admin/departments/${department.slug}?rp=${n}#roster`} labels={t.common} />
+            </div>
+          )}
         </section>
 
         {/* الخروج قسمٌ قائم بذاته: من بدأ خروجه لا يختفي من اللوحة حتى

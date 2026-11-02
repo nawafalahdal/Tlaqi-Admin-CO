@@ -127,14 +127,4 @@ export function dateTimeInput(d: Date | string | null | undefined): string {
 }
 
 /** تنقّلٌ بين الصفحات بروابط — يعمل بلا شيفرة متصفّح، ولا يُرسم لصفحةٍ واحدة */
-export function Pager({ page, pages, href, labels }: { page: number; pages: number; href: (p: number) => string; labels: { pageOf: string; prevPage: string; nextPage: string } }) {
-  if (pages <= 1) return null;
-  const cls = "inline-flex min-h-9 items-center rounded-xl border border-black/10 px-3 text-xs font-bold hover:bg-black/[0.04]";
-  return (
-    <nav className="flex flex-wrap items-center justify-center gap-3 text-xs" aria-label={labels.pageOf.replace("{0}", String(page)).replace("{1}", String(pages))}>
-      {page > 1 && <Link href={href(page - 1)} className={cls} prefetch={false}>{labels.prevPage}</Link>}
-      <span className="text-black/55">{labels.pageOf.replace("{0}", String(page)).replace("{1}", String(pages))}</span>
-      {page < pages && <Link href={href(page + 1)} className={cls} prefetch={false}>{labels.nextPage}</Link>}
-    </nav>
-  );
-}
+export { Pager } from "@/components/Pager";
