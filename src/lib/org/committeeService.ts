@@ -5,6 +5,7 @@ import { appendMemberEvent } from "@/lib/googleSheets";
 import {
   sendCommitteeRequestEmail,
   sendCommitteeLeadAppointedEmail,
+  appointerTitle,
   sendCommitteeMemberAddedEmail,
   sendDeputyAppointedEmail,
 } from "@/lib/email";
@@ -501,6 +502,7 @@ export async function appointCommitteeLead(
       committeeName: c.name,
       parentName: c.parent!.name,
       appointedByName: actor!.name,
+      appointedByTitle: appointerTitle(actor!.role, c.parent!.name),
       url: `${baseUrl()}/committees/${committeeId}`,
     });
   }

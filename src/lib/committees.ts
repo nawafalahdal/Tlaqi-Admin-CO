@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { committeeGaps, GAP_LABELS } from "@/lib/org/completeness";
 import type { Session } from "next-auth";
 import { appendMemberEvent } from "@/lib/googleSheets";
-import { sendCommitteeDecisionEmail, sendCommitteeLeadAppointedEmail } from "@/lib/email";
+import { appointerTitle, sendCommitteeDecisionEmail, sendCommitteeLeadAppointedEmail } from "@/lib/email";
 import { recordOrgEvent } from "@/lib/org/audit";
 
 /** اللجان — **صفُّ القسم نفسُه بأبٍ**، لا كائنٌ جديد.
@@ -218,6 +218,7 @@ export async function decideCommittee(opts: {
       committeeName: committee.name,
       parentName: committee.parent?.name ?? "—",
       appointedByName: opts.session.user.name ?? "—",
+      appointedByTitle: appointerTitle(opts.session.user.role, committee.parent?.name),
       url: `${baseUrl()}/committees/${committee.id}`,
     });
   }

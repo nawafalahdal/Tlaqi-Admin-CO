@@ -44,6 +44,10 @@ export default async function CertificatePage({
       {/* الورقة A4 عرضيّة بلا هوامش — مقاسُ القالب المعتمد. هنا لا في الأنماط العامة: يخصّ هذه الصفحة */}
       <style>{"@page { size: A4 landscape; margin: 0; }"}</style>
       <PrintButton />
+      {/* الشهادةُ ورقةٌ A4 عرضيّة: على شاشة الجوّال تصغر كلُّها معاً، فيُدَلّ قارئُها على القراءة الواضحة */}
+      <p className="mx-auto mb-3 max-w-[1123px] text-center text-xs leading-relaxed text-[#EEF6DF]/75 sm:hidden print:hidden">
+        للقراءة على الجوّال: كبّر الصفحة بإصبعين، أو احفظها PDF من الزرّ أعلاه.
+      </p>
       <div
         className="mx-auto w-full max-w-[1123px] overflow-hidden rounded-[1.2cqw] print:max-w-none print:rounded-none"
         style={{ aspectRatio: "1123 / 794", containerType: "inline-size" }}
@@ -120,7 +124,7 @@ function ClassicFrame({ data }: { data: CertificateData }) {
             {heading.en.toUpperCase()}
           </p>
           <p style={{ fontSize: u(15.3), opacity: 0.8, marginTop: u(18.9) }}>
-            {data.kind === "appreciation" ? "تتقدّم TLAQI بخالص الشكر والتقدير إلى" : "تتقدّم TLAQI بخالص الشكر والامتنان إلى"}
+            تتقدّم <Tlaqi /> {data.kind === "appreciation" ? "بخالص الشكر والتقدير إلى" : "بخالص الشكر والامتنان إلى"}
           </p>
           <h1 className="font-extrabold" style={{ fontSize: u(56), lineHeight: 1.25, marginTop: u(3.8) }}>
             {data.fullName}
@@ -203,6 +207,19 @@ function Signer({ s, ink }: { s: CertificateSigner; ink: string }) {
       </p>
       <p style={{ fontSize: u(11.47), opacity: 0.7, marginTop: u(2) }}>{s.name}</p>
     </div>
+  );
+}
+
+/** «TLAQI» في سطر الشهادة.
+ *
+ *  خطُّ المنصة (Cairo) يُبقي بين T وL فراغاً ظاهراً في المقاسات الصغيرة لا يقرّبه التقنين
+ *  (`font-kerning`)، فيُقرأ «T LAQI». فيُقرَّب الحرفان بمقدارٍ صغير ثابت بالنسبة للخطّ —
+ *  دون تغيير الخطّ ولا التباعد في باقي السطر. */
+function Tlaqi() {
+  return (
+    <bdi dir="ltr">
+      T<span style={{ marginInlineStart: "-0.08em" }}>LAQI</span>
+    </bdi>
   );
 }
 

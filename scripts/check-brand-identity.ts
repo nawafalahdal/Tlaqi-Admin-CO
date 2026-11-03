@@ -3,7 +3,7 @@
  *  ١) حبرُ التوقيع يُختار من خلفية منطقته: Temptress أو Beige الأعلى تبايناً (المصفوفة المعتمدة).
  *  ٢) ألوانُ «الإطار الكلاسيكي» من لون القسم: البيجُ الذائب في الورق يأخذ Temptress، والأخضرُ إطارٌ لا عنوان.
  *  ٣) مدّةُ المشاركة بالعربية الصحيحة: «٣ أشهر»، «٤ أشهر و١٢ يوماً»، «شهران ويومان».
- *  ٤) رسالةُ تعيين قائد اللجنة: الشعارُ المعتمد مع الاسم الكامل، بلا الاسم العربي ولا هاشتاق، وبجنس صاحبها.
+ *  ٤) رسالةُ تعيين قائد اللجنة: شهادة تعيين بطراز «الترويسة التحريرية»، بالشعار المعتمد، بلا الاسم العربي ولا هاشتاق، وبجنس صاحبها.
  *  ٥) الرسائلُ الأخرى: القالبُ الموحَّد كما كان (الشعار الصغير والجملة)، ولا يظهر فيها الجديد.
  *  ٦) ملفّا الشعار المعتمد موجودان، شفّافان، بدقّة الملف الرسمي (٨٨٠ عرضاً).
  *
@@ -11,7 +11,7 @@
 import { readFileSync } from "fs";
 import { inkForBackground, certificateFrame, serviceDurationAr, CERTIFICATE_PAPER } from "../src/lib/certificate";
 import { renderEmail } from "../src/lib/emailBrand";
-import { committeeLeadAppointedContent } from "../src/lib/email";
+import { appointerTitle, committeeLeadAppointedContent } from "../src/lib/email";
 
 let failed = 0;
 function check(label: string, ok: boolean, detail = "") {
@@ -51,12 +51,13 @@ eq("المثنى", serviceDurationAr(d("2026-07-01"), d("2026-09-03")), "شهر�
 eq("أحد عشر فما فوق", serviceDurationAr(d("2025-08-01"), d("2026-07-01")), "١١ شهراً");
 eq("لا مدّة", serviceDurationAr(d("2026-07-01"), d("2026-07-01")), "أقل من يوم");
 
-// ٤) رسالة تعيين قائد اللجنة
+// ٤) رسالة تعيين قائد اللجنة — بطراز «الترويسة التحريرية» المعتمد
 const base = {
   fullName: "سارة عبدالله المثال",
   committeeName: "المحتوى الرقمي",
   parentName: "التسويق",
-  appointedByName: "قائدة قسم التسويق",
+  appointedByName: "نورة سعد",
+  appointedByTitle: appointerTitle("department_admin", "التسويق"),
   url: "https://example.test/committees/x",
   appointedAt: d("2026-09-15"),
 };
@@ -64,20 +65,28 @@ const female = committeeLeadAppointedContent(base, "female");
 const male = committeeLeadAppointedContent({ ...base, fullName: "فيصل ناصر" }, "male");
 const neutral = committeeLeadAppointedContent({ ...base, committeeName: "لجنة المحتوى الرقمي" }, null);
 const html = renderEmail({ subject: female.title, content: female, theme: { departmentName: "التسويق", colorHex: "#C34900" } }).html;
-check("التذييل بالشعار المعتمد مع الاسم الكامل", html.includes("/brand/logo-fullname-on-dark.png") && html.includes('alt="TLAQI — Talent Link Advancing Quality Innovation"'));
+check("الترويسة بالشعار المعتمد مع الاسم الكامل (٣٢٠px)", html.includes("/brand/logo-fullname-on-dark.png") && html.includes('width="320"') && html.includes('alt="TLAQI — Talent Link Advancing Quality Innovation"'));
 check("لا الاسم العربي في الرسالة", !/تَـــلاقِ|تلاقي|تلاق/.test(html));
-check("لا الجملة القديمة ولا أي هاشتاق (رسالةٌ إدارية)", !html.includes("نلتقي") && !/#[؀-ۿ]/.test(html));
-check("رأسُ التهنئة: التحية باسمها الأول والسطرُ بصيغة المؤنث", html.includes("مبارك يا سارة!") && html.includes("أنتِ الآن قائدةُ «لجنة المحتوى الرقمي»"));
-check("الحقول الخمسة مع تاريخ التعيين بالعربية", ["اللجنة", "القسم", "المسمى القيادي", "تاريخ التعيين", "صدر التعيين من", "١٥ سبتمبر ٢٠٢٦"].every((s) => html.includes(s)));
-check("الخطوات الأولى مرقّمة", html.includes("خطواتكِ الأولى") && html.includes("افتحي صفحة اللجنة"));
-check("صيغة المذكّر", male.hero?.subtitle === "أنتَ الآن قائدُ «لجنة المحتوى الرقمي»" && (male.steps?.items[0] ?? "").startsWith("افتح "));
-check("الصيغة المحايدة لمن لم يختر، ولا تتكرّر «لجنة»", neutral.hero?.subtitle === "أنت الآن قائدُ «لجنة المحتوى الرقمي»" && (neutral.steps?.items[0] ?? "").startsWith("فتحُ"));
+check("لا الجملة القديمة ولا أي هاشتاق (رسالةٌ إدارية)", !html.includes("نلتقي") && !/#[\u0600-\u06FF]/.test(html));
+check("شهادة التعيين: العنوان والاسم والصفة بصيغة المؤنث", ["شهادة تعيين", "CERTIFICATE OF APPOINTMENT", "سارة عبدالله المثال", "قائدةً للجنة المحتوى الرقمي"].every((t) => html.includes(t)));
+check("الحقول الأربعة وتاريخ التعيين بالعربية، ومُصدِر التعيين وموقعه", ["اللجنة", "القسم", "المسمى القيادي", "تاريخ التعيين", "١٥ سبتمبر ٢٠٢٦", "صدر التعيين من", "نورة سعد", "قيادة قسم التسويق"].every((t) => html.includes(t)));
+check("الخطوات الأولى والزرّ", html.includes("خطواتكِ الأولى") && html.includes("افتحي صفحة اللجنة") && html.includes("فتح صفحة اللجنة"));
+eq("العنوان بالمؤنث بلا تكرار «لجنة»", female.title, "شهادة تعيين: قائدة لجنة المحتوى الرقمي");
+eq("العنوان بالمذكّر", male.title, "شهادة تعيين: قائد لجنة المحتوى الرقمي");
+eq("العنوان المحايد لاسمٍ يبدأ بـ«لجنة» (لا «لجنة لجنة»)", neutral.title, "شهادة تعيين: قيادة لجنة المحتوى الرقمي");
+check("صيغة المذكّر", male.appointment?.role === "قائداً للجنة المحتوى الرقمي" && (male.appointment?.steps.items[0] ?? "").startsWith("افتح "));
+check("الصيغة المحايدة لا تفترض مذكّراً", neutral.appointment?.role === "لقيادة لجنة المحتوى الرقمي" && neutral.appointment?.facts[2][1] === "قيادة اللجنة" && (neutral.appointment?.steps.items[0] ?? "").startsWith("فتحُ"));
 check("اسم اللجنة يُهرَّب", !renderEmail({ subject: "x", content: committeeLeadAppointedContent({ ...base, committeeName: "<b>x</b>" }, "female") }).html.includes("<b>x</b>"));
+const techHtml = renderEmail({ subject: "x", content: male, theme: { departmentName: "التقنية", colorHex: "#67C090" } }).html;
+check("أرقام الخطوات بـMahogany المقروء (لا بأخضر القسم الباهت ٢٫٢:١)", /class="tq-ap-num"[^>]*color:#C34900/.test(techHtml) && !/class="tq-ap-num"[^>]*color:#67C090/.test(techHtml));
+check("الوضع الداكن: الترويسة والتذييل يبقيان داكنين ونصُّهما محميّ من القلب", (html.match(/linear-gradient\(#341D2B,#341D2B\)/g) ?? []).length >= 2 && html.includes("gm-s") && html.includes("prefers-color-scheme: dark"));
+eq("موقع مُصدِر التعيين: الرئاسة التنفيذية", appointerTitle("executive", "التسويق"), "الرئاسة التنفيذية");
+eq("ولا موقع لغير القيادة (يُكتب الاسم وحده)", appointerTitle("member", "التسويق"), null);
 
 // ٥) الرسائل الأخرى كما كانت
 const other = renderEmail({ subject: "عام", content: { title: "عنوان", lead: "متن" }, theme: { departmentName: "التقنية", colorHex: "#67C090" } }).html;
 check("الرسائل الأخرى: الشعار الصغير والجملة كما هما", other.includes('width="96" height="28"') && other.includes("نلتقي"));
-check("الرسائل الأخرى: لا الشعار الجديد ولا رأس التهنئة", !other.includes("logo-fullname") && !other.includes("tq-hero"));
+check("الرسائل الأخرى: لا الشعار الجديد ولا قالب التعيين", !other.includes("logo-fullname") && !other.includes("tq-ap-"));
 
 // ٦) ملفّا الشعار المعتمد: PNG بقناة شفافية، ٨٨٠ عرضاً
 for (const tone of ["light", "dark"]) {
