@@ -31,6 +31,12 @@ export default auth((req) => {
     if (pathname.startsWith("/admin/org-migration") && session.user.role !== "super_admin") {
       return NextResponse.redirect(new URL("/admin", req.nextUrl.origin));
     }
+    // قراراتُ الحوكمة (تغييرُ قائد القسم، وحالةُ العضوية) للمؤسس والرئيس التنفيذي وحدهما — تحويلٌ حقيقي
+    // هنا، والقاعدةُ تفحص الدورَ ثانيةً في `lib/org`
+    const top = session.user.role === "super_admin" || session.user.role === "executive";
+    if (!top && (/^\/admin\/departments\/[^/]+\/leader/.test(pathname) || /^\/admin\/people\/[^/]+\/[^/]+\/membership/.test(pathname))) {
+      return NextResponse.redirect(new URL("/admin", req.nextUrl.origin));
+    }
 
   }
 });

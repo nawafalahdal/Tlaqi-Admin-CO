@@ -398,8 +398,15 @@ async function convertLeader(actor: Actor, key: string, userId: string): Promise
       memberId = m.id;
     }
 
+    // يقودها إن لم يكن لها قائدٌ عضو — ولو كانت بيد القائم بالخلافة (ملءُ الترحيل): يُرفع في الكتابة نفسها،
+    // فقائدٌ واحد (قيدُ `Department_single_committee_lead`)
     const leads = !committee.leadMemberId;
-    if (leads) await tx.department.update({ where: { id: committee.id }, data: { leadMemberId: memberId } });
+    if (leads) {
+      await tx.department.update({
+        where: { id: committee.id },
+        data: { leadMemberId: memberId, actingLeadUserId: null, actingLeadSince: null, actingLeadReason: null },
+      });
+    }
     await tx.committeeMembership.upsert({
       where: { committeeId_memberId: { committeeId: committee.id, memberId } },
       create: { committeeId: committee.id, memberId, addedByName: actor.name },

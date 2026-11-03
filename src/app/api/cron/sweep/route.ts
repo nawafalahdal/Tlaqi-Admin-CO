@@ -46,6 +46,9 @@ export async function GET(request: Request) {
   const appreciated = await sweepThreeMonthAppreciation();
   // من وُوفق على إنهائه وحلّ تاريخُه: الخروج يقع هنا لا عند الموافقة
   const terminated = await sweepEffectiveTerminations();
+  // شبكةُ أمان القيادة: لجنةٌ عاملةٌ أو معلّقةٌ قائدُها غيرُ نشط ولا قائمَ بالخلافة ⇐ خلافةٌ آلية
+  const { reconcileCommitteeLeadership } = await import("@/lib/org/committeeLeadership");
+  const committeeSuccessions = await reconcileCommitteeLeadership();
   // الأرشفة: ما زال عن الشاشة ليلة السبت يُمحى من القاعدة هنا — وقد
   // كُتب في الإكسل قبل ذلك، فالمحو تنظيفٌ لا فقد. والاختفاء وقع في
   // موعده بشرط القراءة، وهذا يُفرّغ الجدول بعده على مهل.
@@ -69,6 +72,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     marketing,
     ok: true,
+    committeeSuccessions,
     carried: carry?.carried ?? 0,
     carrySkipped: carry?.skipped ?? 0,
     carryEscalated: carry?.escalated ?? 0,

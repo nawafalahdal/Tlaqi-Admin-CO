@@ -208,6 +208,12 @@ export default async function PersonPage({
           {top && (
             <a href="#manage" className="wizard-btn-2">{L.manageTheAccount}</a>
           )}
+          {/* حالةُ العضوية والوصول (إنهاءٌ، وإيقافٌ مؤقت) — للمؤسس والرئيس التنفيذي */}
+          {top && member && (
+            <Link href={`/admin/people/member/${member.id}/membership`} className="wizard-btn-2">
+              {getDictionary(locale).org.governance.manageMembership}
+            </Link>
+          )}
         </Card>
 
         <div className="grid gap-4 lg:grid-cols-3">

@@ -100,7 +100,7 @@ export function OverviewTab({ d, L, theme }: Ctx) {
           [T.created, fmtWhen(c.createdAt, false)],
           [T.start, fmtDay(c.startDate)],
           [T.end, c.endDate ? fmtDay(c.endDate) : L.openEnded],
-          [T.lead, c.leadMember?.fullName ?? (c.legacyLeadName ? fmt(L.legacyLead, c.legacyLeadName) : L.noLead)],
+          [T.lead, c.leadMember?.fullName ?? (d.actingLeadName ? fmt(L.actingLead, d.actingLeadName) : c.legacyLeadName ? fmt(L.legacyLead, c.legacyLeadName) : L.noLead)],
           [T.requestedBy, c.requestedByName ?? "—"],
           [T.decidedBy, c.decidedByName ? `${c.decidedByName} · ${fmtWhen(c.decidedAt, false)}` : "—"],
         ]}
@@ -224,7 +224,10 @@ export function MembersTab({ d, L, theme }: Ctx) {
         )}
       </Section>
 
-      {canManage && d.leadDeparted && <Banner tone="warn">{M.leadDeparted}</Banner>}
+      {d.leadDeparted && (d.role.manage || d.role.view) && <Banner tone="warn">{M.leadDeparted}</Banner>}
+      {canManage && !d.leadDeparted && !d.canAppointLead && (c.committeeStatus === "approved" || c.committeeStatus === "suspended") && (
+        <Banner tone="info">{M.leadLocked}</Banner>
+      )}
       {canManage && (
         <div className="grid gap-5 lg:grid-cols-2">
           {d.canAppointLead && (

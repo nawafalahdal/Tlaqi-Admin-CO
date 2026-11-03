@@ -374,7 +374,12 @@ function sess(role: string, departmentId: string | null, id: string, name = "ا�
   // تغييرُ قائدٍ قائمٍ تسليمٌ (`committee.handover`) منذ ملاحظة المؤسس الثالثة — كان «committee.lead»؛
   // و«committee.lead» يبقى لتعيين قائدٍ للجنةٍ خالية. التوقّعُ تغيّر بالمتطلّب، لا ليُخضرّ الفحص
   const leadEvt = events.filter((e) => e.action === "committee.handover").pop();
-  chk("١٣ · وتغييرُ القائد بقبلُه وبعدُه", !!leadEvt && JSON.stringify(leadEvt.before).includes(a1.fullName) && JSON.stringify(leadEvt.after).includes(a2.fullName), JSON.stringify([leadEvt?.before, leadEvt?.after]).slice(0, 120));
+  // منذ المرحلة الثالثة (المتطلب الرابع): قيادةُ القائد الغائب تنتهي **بالخلافة الآلية** قبل أي تعيين — فالقائدُ
+  // السابقُ في حدث `committee.succession`، وحدثُ التعيين يبدأ من القائم بالخلافة. التوقّعُ تغيّر بالمتطلّب
+  const succEvt = events.find((e) => e.action === "committee.succession");
+  chk("١٣ · وتغييرُ القائد بقبلُه وبعدُه (السابقُ في الخلافة، والجديدُ في التعيين)",
+    !!leadEvt && !!succEvt && JSON.stringify(succEvt.before).includes(a1.fullName) && JSON.stringify(leadEvt.before).includes("actingLeadUserId") && JSON.stringify(leadEvt.after).includes(a2.fullName),
+    JSON.stringify([succEvt?.before, leadEvt?.before, leadEvt?.after]).slice(0, 160));
   chk("١٣ · وكلُّ حدثٍ باسم فاعله ووقته", events.every((e) => e.actorName && e.createdAt));
   const closeEvt = events.find((e) => e.action === "committee.status" && JSON.stringify(e.after).includes("closed"));
   chk("١٣ · والإغلاقُ بسببه", !!closeEvt && (closeEvt.note ?? "").includes("انتهت"));

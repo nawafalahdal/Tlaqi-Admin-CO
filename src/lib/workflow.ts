@@ -1136,6 +1136,9 @@ export async function removeLeadershipUser(opts: {
   // يبقى صحيحاً بتاريخه. ولا يُورَّث لخَلَفِه — الوراثة انتحال.
   const { supersedeSignatures } = await import("@/lib/signatures");
   await supersedeSignatures(user.id, `تنحية عن ${accountRoleLabel(user.role)}`);
+  // لجانٌ بيده بالخلافة (رئيسٌ تنفيذيٌّ أو مؤسس) تنتقل إلى الخَلَف التالي — لا قيادةَ باسم حسابٍ معطَّل
+  const { reassignActingLeads } = await import("@/lib/org/committeeLeadership");
+  await reassignActingLeads(user.id, `تنحية ${accountRoleLabel(user.role)}`, opts.performedByName);
 
   // والعملُ المعلَّق باسمه ينتقل إلى خَلَفِه: المُنحّى لا يَفتح المنصة،
   // فطلبُ اعتمادٍ ينتظره وتذكرةٌ وُجِّهت إليه يبقيان في بريدٍ مغلق.

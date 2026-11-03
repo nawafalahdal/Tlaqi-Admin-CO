@@ -97,6 +97,8 @@ export default async function CommitteesPage({
       ),
       lead: c.leadMember ? (
         <span className={c.leadMember.isActive ? "" : "text-red-700"}>{c.leadMember.fullName}</span>
+      ) : c.actingLeadUser ? (
+        fmt(L.actingLead, c.actingLeadUser.fullName)
       ) : c.legacyLeadName ? (
         fmt(L.legacyLead, c.legacyLeadName)
       ) : (

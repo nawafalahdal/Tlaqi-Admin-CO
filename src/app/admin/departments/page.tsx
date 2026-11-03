@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { PageHeader } from "@/components/PageHeader";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -55,6 +56,8 @@ export default async function DepartmentsIndexPage() {
   const canDelete = canDeleteDepartment(role);
   const canDecide = canDecideCommittee(role);
   const canDecideDepartments = canDecideDepartmentRequest(role);
+  // تغييرُ قائد القسم قرارٌ إداريٌّ للمؤسس والرئيس التنفيذي وحدهما — والخادمُ يفرضه (`departmentLeadership`)
+  const canChangeLeader = role === "super_admin" || role === "executive";
 
   const [departments, pending, deptRequests, senior, ceo, opsCount, seniorPeople, holdings] = await Promise.all([
     // department-scope: all — صفحةُ الحوكمة: تُعرَض فيها المقترحةُ والمردودة
@@ -224,6 +227,7 @@ export default async function DepartmentsIndexPage() {
             const held = holdingsOf.get(d.id);
             const deletable =
               canDelete && held !== undefined && deleteBlockers(held, isSenior ? seniorPeople : 0).length === 0;
+            const leaderChange = canChangeLeader && !isCommittee && !d.leadershipOnly && d.committeeStatus === null;
             return (
               <Card
                 key={d.id}
@@ -320,9 +324,17 @@ export default async function DepartmentsIndexPage() {
                     )}
                   </div>
                 </div>
-                {(canCreate || deletable) && (
+                {(canCreate || deletable || leaderChange) && (
                   <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-black/5 pt-3">
                     {canCreate && <DepartmentColor departmentId={d.id} current={d.colorHex} />}
+                    {leaderChange && (
+                      <Link
+                        href={`/admin/departments/${d.slug}/leader`}
+                        className="inline-flex min-h-11 items-center justify-center rounded-xl border border-black/10 px-4 text-sm font-semibold hover:bg-black/[0.04]"
+                      >
+                        {t.org.governance.leaderTitle}
+                      </Link>
+                    )}
                     {/* الحذف للمؤسس وحده، ولقسمٍ فارغٍ تماماً — والخادم يفرضهما */}
                     {deletable && <DeleteDepartment departmentId={d.id} departmentName={d.name} theme={theme} />}
                   </div>

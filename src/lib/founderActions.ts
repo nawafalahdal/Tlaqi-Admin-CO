@@ -251,6 +251,9 @@ async function eraseMember(member: ErasableMember, ctx: { tombstone: string; rea
   await prisma.terminationRequest.deleteMany({ where: { memberId: member.id } });
   await prisma.memberDateEdit.deleteMany({ where: { memberId: member.id } });
   await retireMarketingProfile(prisma, { memberId: member.id }, member.fullName);
+  // قيادةُ لجانه العاملة تُخلَف قبل محو صفّه: لا تبقى لجنةٌ نشطةٌ بلا قائد (قيدُ القاعدة يرفض المحو وإلا)
+  const { succeedCommitteesLedBy } = await import("@/lib/org/committeeLeadership");
+  await succeedCommitteesLedBy(member.id, "حذفٌ نهائيٌّ لحساب القائد");
   await prisma.member.delete({ where: { id: member.id } });
   await prisma.invite.delete({ where: { id: member.inviteId } });
 }
@@ -399,6 +402,9 @@ export async function permanentlyDeleteAccount(opts: {
     await prisma.ticket.updateMany({ where: { targetUserId: user.id }, data: { targetUserId: null } });
     // عضويةُ فريق التسويق تبقى سجلاً موقوفاً باسمه — وما كتبه واعتمده لا يُمحى
     await retireMarketingProfile(prisma, { userId: user.id }, user.fullName);
+    // لجانٌ بيده بالخلافة تنتقل إلى الخَلَف التالي قبل المحو (القيدُ `Restrict` يمنع المحوَ وإلا)
+    const { reassignActingLeads } = await import("@/lib/org/committeeLeadership");
+    await reassignActingLeads(user.id, "حذفٌ نهائيٌّ لحساب القائم بالخلافة", opts.actorName);
     try {
       await prisma.user.delete({ where: { id: user.id } });
     } catch (err) {

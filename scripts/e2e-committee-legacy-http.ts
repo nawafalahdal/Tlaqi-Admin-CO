@@ -76,7 +76,9 @@ async function cleanup() {
   const depts = (await prisma.department.findMany({ where: { slug: { startsWith: MARK } }, select: { id: true } })).map((d) => d.id);
   await prisma.orgAuditEvent.deleteMany({ where: { OR: [{ entityId: { in: depts } }, { departmentId: { in: depts } }] } });
   await prisma.committeeMembership.deleteMany({ where: { committeeId: { in: depts } } });
-  await prisma.department.updateMany({ where: { id: { in: depts } }, data: { leadMemberId: null } });
+  // تُغلق اللجانُ أولاً ثم تُرفع القيادة — قيدُ القاعدة لا يقبل لجنةً عاملةً بلا قائد
+  await prisma.department.updateMany({ where: { id: { in: depts }, parentId: { not: null } }, data: { committeeStatus: "closed" } });
+  await prisma.department.updateMany({ where: { id: { in: depts } }, data: { leadMemberId: null, actingLeadUserId: null } });
   await prisma.member.deleteMany({ where: { email: { endsWith: DOMAIN } } });
   await prisma.invite.deleteMany({ where: { email: { endsWith: DOMAIN } } });
   await prisma.emailLog.deleteMany({ where: { recipient: { endsWith: DOMAIN } } });
@@ -94,7 +96,8 @@ async function cleanup() {
   const hash = await hashPassword(PASS);
   const P = await prisma.department.create({ data: { name: `${MARK} قسم`, slug: `${MARK}-p`, colorHex: "#2F7D32" } });
   const C = await prisma.department.create({
-    data: { name: `${MARK} لجنة قديمة`, slug: `${MARK}-c`, colorHex: "#2F7D32", parentId: P.id, committeeStatus: "approved", purpose: "غرض" },
+    // لجنةٌ عاملةٌ من النظام الأول بلا قائدٍ عضو — بقائدٍ بالخلافة كما يملؤها ترحيلُ المرحلة الثالثة
+    data: { name: `${MARK} لجنة قديمة`, slug: `${MARK}-c`, colorHex: "#2F7D32", parentId: P.id, committeeStatus: "approved", purpose: "غرض", actingLeadUserId: (await prisma.user.findFirstOrThrow({ where: { role: "super_admin", isActive: true } })).id },
   });
   const track = await prisma.testTrack.create({ data: { scope: "department_member", departmentId: P.id } });
   // مؤسسٌ اختباريٌّ بكلمةٍ معلومة — المؤسسُ الحقيقيُّ في القاعدة المحلية لا تُعرف كلمتُه ولا تُمسّ

@@ -140,13 +140,19 @@ function report(title: string, count: number, sample: string[], remedy: string) 
     where: {
       parentId: { not: null },
       committeeStatus: { in: ["approved", "suspended"] },
-      // والحسابُ القياديُّ القديم مجمَّدٌ لا يقود — فلا يُستثنى به شيء
-      OR: [{ leadMemberId: null }, { leadMember: { OR: [{ isActive: false }, { terminatedAt: { not: null } }] } }],
+      // لا قائدَ عضوٌ نشط ولا قائمٌ بالخلافة — قيدُ القاعدة يمنع الأولى، وشبكةُ الأمان في الكنس تعالج الثانية
+      OR: [
+        { leadMemberId: null, actingLeadUserId: null },
+        { leadMember: { OR: [{ isActive: false }, { terminatedAt: { not: null } }, { suspendedAt: { not: null } }] } },
+        { actingLeadUser: { isActive: false } },
+      ],
     },
     select: { name: true },
     take: 20,
   });
   report("لجانٌ عاملة بلا قائدٍ نشط", leaderless.length, leaderless.map((c) => c.name), "صفحة اللجنة ← الأعضاء ← تعيين القائد (قائدُ القسم، أو المؤسس/الرئيس التنفيذي إن شغر مقعدُه)");
+  const acting = await prisma.department.count({ where: { parentId: { not: null }, committeeStatus: { in: ["approved", "suspended"] }, actingLeadUserId: { not: null } } });
+  report("لجانٌ بقيادةٍ بالخلافة (الرئيس التنفيذي أو المؤسس) تنتظر قائداً عضواً", acting, [], "يعيّن قائدُ القسم قائداً من أعضائه — صفحة اللجنة ← الأعضاء");
   const nested = await prisma.department.count({ where: { parent: { parentId: { not: null } } } });
   report("لجانٌ داخل لجان (من النظام الأول)", nested, [], "تبقى كما هي وتُقرأ؛ ولا تُنشأ جديدةٌ مثلها — يُقرَّر نقلُها أو إغلاقُها");
   // ── ثوابتُ فصل قيادة اللجنة عن قيادة القسم (docs/TLAQI_COMMITTEE_LEAD_SEPARATION_PLAN_AR.md)

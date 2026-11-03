@@ -35,13 +35,16 @@ export async function resolveSessionAccount(sub: unknown, role: unknown): Promis
         where: { id: sub },
         select: {
           isActive: true,
+          terminatedAt: true,
+          suspendedAt: true,
           email: true,
           departmentId: true,
           department: { select: { slug: true } },
           invite: { select: { targetRole: true } },
         },
       });
-      if (!m?.isActive) return { status: "gone" };
+      // المغادرُ والموقوفُ لا جلسةَ لهما — صراحةً، لا اتّكالاً على `isActive` وحده
+      if (!m?.isActive || m.terminatedAt || m.suspendedAt) return { status: "gone" };
       // البريدُ هو ما يصل سجلَّ الترشّح بالحساب الإداري الذي أُنشئ منه (`approveMember`)
       const leader = await prisma.user.findUnique({ where: { email: m.email }, select: { isActive: true } });
       if (leader?.isActive) return { status: "superseded" };

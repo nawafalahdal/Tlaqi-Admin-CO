@@ -17,7 +17,7 @@ export const fail = (reason: string): { ok: false; reason: string } => ({ ok: fa
 export async function recordOrgEvent(
   db: Db,
   e: {
-    scope: "committee" | "department";
+    scope: "committee" | "department" | "member";
     entityId: string;
     departmentId: string;
     action: string;

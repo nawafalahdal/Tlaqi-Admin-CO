@@ -59,7 +59,7 @@ export default async function CommitteePage({
         ? L.detail.roleMember
         : L.detail.roleView;
   const status = c.committeeStatus!;
-  const leadName = c.leadMember?.fullName ?? (c.legacyLeadName ? fmt(L.legacyLead, c.legacyLeadName) : null);
+  const leadName = c.leadMember?.fullName ?? (d.actingLeadName ? fmt(L.actingLead, d.actingLeadName) : c.legacyLeadName ? fmt(L.legacyLead, c.legacyLeadName) : null);
   const ctx = { d, actor, L, theme };
 
   return (

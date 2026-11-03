@@ -49,7 +49,9 @@ async function purge() {
   await prisma.committeeMembership.deleteMany({ where: { committeeId: { in: ids } } });
   await prisma.marketingMember.deleteMany({ where: { OR: [{ userId: { in: uids } }, { member: { email: { contains: "@lg-" } } }] } });
   await prisma.leaderSignature.deleteMany({ where: { userId: { in: uids } } });
-  await prisma.department.updateMany({ where: { id: { in: ids } }, data: { leadMemberId: null, deputyMemberId: null } });
+  // تُغلق اللجانُ أولاً ثم تُرفع القيادة — قيدُ القاعدة لا يقبل لجنةً عاملةً بلا قائد
+  await prisma.department.updateMany({ where: { id: { in: ids }, parentId: { not: null } }, data: { committeeStatus: "closed" } });
+  await prisma.department.updateMany({ where: { id: { in: ids } }, data: { leadMemberId: null, actingLeadUserId: null, deputyMemberId: null } });
   await prisma.member.deleteMany({ where: { email: { contains: "@lg-" } } });
   await prisma.invite.deleteMany({ where: { OR: [{ email: { contains: "@lg-" } }, { invitedById: { in: uids } }] } });
   await prisma.emailLog.deleteMany({ where: { recipient: { contains: "@lg-" } } });
@@ -69,9 +71,14 @@ async function purge() {
   // ═══ البيانات: قسمٌ أصيل بقائده الفعلي، ولجانٌ وحساباتٌ بشكل النظام الأول ═══
   const P = await prisma.department.create({ data: { name: `قسم أصيل lg ${STAMP}`, slug: `lg-p-${STAMP}`, colorHex: "#2F7D32" } });
   const track = await prisma.testTrack.create({ data: { scope: "department_member", departmentId: P.id } });
+  const founderId = (await prisma.user.findFirstOrThrow({ where: { role: "super_admin", isActive: true }, orderBy: { createdAt: "asc" } })).id;
   const mkC = (tag: string, parentId: string, status: "approved" | "pending_review" = "approved", extra: object = {}) =>
     prisma.department.create({
-      data: { name: `لجنة ${tag} lg ${STAMP}`, slug: `lg-${tag}-${STAMP}`, colorHex: "#2F7D32", parentId, committeeStatus: status, ...extra },
+      // لجنةٌ عاملةٌ من النظام الأول بلا قائدٍ عضو — يملؤها ترحيلُ المرحلة الثالثة بقائدٍ بالخلافة (قيدُ القاعدة)
+      data: {
+        name: `لجنة ${tag} lg ${STAMP}`, slug: `lg-${tag}-${STAMP}`, colorHex: "#2F7D32", parentId, committeeStatus: status,
+        ...(status === "approved" ? { actingLeadUserId: founderId } : {}), ...extra,
+      },
     });
   const C1 = await mkC("c1", P.id, "approved", { purpose: "غرض قديم", committeeKind: "permanent" });
   const C2 = await mkC("c2", P.id);
@@ -238,7 +245,8 @@ async function purge() {
   });
   await prisma.member.update({ where: { id: MLU1.id }, data: { isActive: false, terminatedAt: new Date(), exitReason: "lg" } });
   const noted = await noteCommitteeLeadDeparture(MLU1.id, "مغادرة (اختبار)");
-  chk("٦ · مغادرةُ القائد تُكتب في سجلّ لجنته", noted >= 1 && !!(await prisma.orgAuditEvent.findFirst({ where: { entityId: C1.id, action: "committee.lead_departed" } })));
+  // منذ المرحلة الثالثة: مغادرةُ قائد لجنةٍ عاملة تُكتب خلافةً آلية (`committee.succession`) لا حدثَ مغادرةٍ وحده
+  chk("٦ · مغادرةُ القائد تُكتب في سجلّ لجنته (خلافة آلية)", noted >= 1 && !!(await prisma.orgAuditEvent.findFirst({ where: { entityId: C1.id, action: "committee.succession" } })));
   const aRL2 = await orgActor(sess("department_admin", RL.id));
   const alerts = await committeeAlerts(aRL2, "ar");
   chk("٦ · ويظهر لقائد القسم تنبيهُ «بلا قائدٍ نشط»", alerts.some((a) => a.id === "committee-leaderless"));
@@ -256,6 +264,9 @@ async function purge() {
   chk("٦ · وسجلُّ التسليم يسمّي المهامّ المنقولة", !!hoEvt && JSON.stringify(hoEvt.after).includes(task.id));
   chk("٦ · ولا يُمسّ غيرُ ذلك (الاجتماعات)", (await prisma.committeeMeeting.count({ where: { committeeId: C1.id } })) === meetingsBefore);
   // حين يخلو مقعدُ قائد القسم وحده يتدخّل المؤسس
+  // منذ المرحلة الثالثة لا يُستبدل قائدٌ نشط — فيغادر القائدُ الجديد أولاً (خلافةٌ آلية)، ثم يخلو مقعدُ قائد القسم
+  await prisma.member.update({ where: { id: M1.id }, data: { isActive: false } });
+  await noteCommitteeLeadDeparture(M1.id, "مغادرة (اختبار)");
   await prisma.user.update({ where: { id: RL.id }, data: { isActive: false } });
   const topVacant = await appointCommitteeLead(fActor, C1.id, M2.id);
   chk("٦ · ويعيّن المؤسسُ حين يخلو مقعدُ قائد القسم", topVacant.ok, topVacant.ok ? "" : topVacant.reason);
@@ -283,7 +294,8 @@ async function purge() {
   chk("٧ · سحبُ النائب يسجّل سحبَ ما بقي له", rv.ok && (await grantEvt()).filter((e) => e.action.endsWith("revoked")).length === 2);
 
   // ═══ ٨) مسارُ الاعتماد (ملاحظة ٥) ═══
-  const base = { name: `لجنة جديدة lg ${STAMP}`, purpose: "غرض", kind: "permanent" as const, leadMemberId: M1.id, memberIds: [M2.id] };
+  // M1 غادر في القسم ٦ (المرحلة الثالثة: لا يُستبدل قائدٌ نشط) — فالقائدُ المقترح هنا M5
+  const base = { name: `لجنة جديدة lg ${STAMP}`, purpose: "غرض", kind: "permanent" as const, leadMemberId: M5.id, memberIds: [M2.id] };
   const byTop = await createCommittee(fActor, P.id, { ...base, submit: true });
   chk("٨ · المؤسسُ لا يُنشئ لجنة (يعتمد ولا يقترح)", !byTop.ok);
   const created = await createCommittee(aRL3, P.id, { ...base, submit: false });

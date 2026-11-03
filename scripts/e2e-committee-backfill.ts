@@ -39,7 +39,8 @@ async function purge() {
   const founder = await prisma.user.findFirstOrThrow({ where: { role: "super_admin" } });
   const parent = await prisma.department.create({ data: { name: `قسم ترحيل ${STAMP}`, slug: `bf-${STAMP}`, colorHex: "#C34900" } });
   const legacy = await prisma.department.create({
-    data: { name: `لجنة قديمة ${STAMP}`, slug: `bf-c-${STAMP}`, colorHex: "#C34900", parentId: parent.id, committeeStatus: "approved", decidedAt: new Date("2026-06-01") },
+    // لجنةٌ عاملةٌ من النظام الأول بلا قائدٍ عضو — وترحيلُ المرحلة الثالثة يملؤها بقائدٍ بالخلافة (قيدُ القاعدة)
+    data: { name: `لجنة قديمة ${STAMP}`, slug: `bf-c-${STAMP}`, colorHex: "#C34900", parentId: parent.id, committeeStatus: "approved", decidedAt: new Date("2026-06-01"), actingLeadUserId: founder.id },
   });
   const track = await prisma.testTrack.findFirstOrThrow({ where: { scope: "department_member" } });
   const mk = async (tag: string, o: { role?: "member" | "department_admin"; approved?: boolean; active?: boolean; deptId?: string }) => {

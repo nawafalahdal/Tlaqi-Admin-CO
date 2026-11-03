@@ -9,6 +9,7 @@ import { candidateWindowExpired, markFirstLogin } from "@/lib/workflow";
 import { issueSessionBinding, sessionBindingMatches, clearSessionBinding } from "@/lib/sessionBinding";
 import { resolveSessionAccount } from "@/lib/sessionAccount";
 import { isCommitteeScopedLeader } from "@/lib/org/legacy";
+import { revocationEpoch } from "@/lib/accessRevocation";
 
 /** جلسة قصيرة افتراضاً: ساعتان من آخر نشاط. من يعمل باستمرار لا تنقطع
  *  جلسته، ومن ترك جهازه ينتهي أثره بعدها. */
@@ -188,6 +189,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.sessionExpiry = now + horizon;
         token.sessionBinding = await issueSessionBinding();
         token.accountModel = ACCOUNT_MODEL;
+        // الدخولُ نفسُه قرأ الحساب من القاعدة لحظتَه
+        token.accountCheckedAt = now;
         return token;
       }
 
@@ -231,7 +234,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const lastCheck = typeof token.accountCheckedAt === "number" ? token.accountCheckedAt : 0;
       // **والتوكنُ الصادر قبل هذا الإصدار يُراجَع فوراً** (`accountModel`): تجميدُ الحساب
       // القياديّ القديم على لجنة لا ينتظر خمس دقائق تبقى فيها صلاحياتُه القديمة
-      if (token.leadershipCandidate === true || token.accountModel !== ACCOUNT_MODEL || now - lastCheck > CHECK_EVERY_MS) {
+      // **وكلُّ جلسةٍ رُوجعت قبل آخر إبطال وصولٍ تُراجَع الآن** (`lib/accessRevocation`): من أُنهيت
+      // عضويتُه أو أُوقف أو تغيّر منصبُه يسقط خلال ثوانٍ، لا بعد خمس دقائق — بلا استعلامٍ لكل مستخدم
+      const revokedSince = (await revocationEpoch()) > lastCheck;
+      if (token.leadershipCandidate === true || token.accountModel !== ACCOUNT_MODEL || revokedSince || now - lastCheck > CHECK_EVERY_MS) {
         const account = await resolveSessionAccount(token.sub, token.role);
         if (account.status === "gone" || account.status === "superseded") return null;
         if (account.status === "live") {

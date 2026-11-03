@@ -124,6 +124,7 @@ export async function listCommittees(
       id: true, name: true, committeeStatus: true, committeeKind: true, startDate: true, endDate: true,
       parent: { select: { id: true, name: true, colorHex: true } },
       leadMember: { select: { id: true, fullName: true, isActive: true } },
+      actingLeadUser: { select: { fullName: true } },
       admins: { where: { isActive: true, role: "department_admin" }, select: { fullName: true }, take: 1 },
     },
   });
@@ -197,6 +198,9 @@ export async function committeeDetail(actor: OrgActor | null, committeeId: strin
       requestedAt: true, requestedByName: true, decidedAt: true, decidedByName: true, decisionNote: true,
       leadMemberId: true,
       leadMember: { select: { id: true, fullName: true, jobTitle: true, isActive: true } },
+      actingLeadUserId: true,
+      actingLeadUser: { select: { fullName: true } },
+      actingLeadSince: true,
       admins: { where: { isActive: true, role: "department_admin" }, select: { id: true, fullName: true }, take: 1 },
       parent: { select: { id: true, name: true, colorHex: true, slug: true } },
     },
@@ -278,14 +282,18 @@ export async function committeeDetail(actor: OrgActor | null, committeeId: strin
   return {
     committee: { ...c, legacyLeadName: c.leadMember ? null : c.admins[0]?.fullName ?? null },
     role: ctx.role,
-    // تعيينُ القائد وتسليمُ القيادة لقائد القسم ونائبه — وللرئيس والمؤسس حين يخلو مقعدُ قائد القسم وحده
+    // **لا يُغيَّر قائدٌ نشطٌ معتمد** — والتعيينُ في الاقتراح لمقترحها، وفي اللجنة العاملة بعد انتهاء قيادة
+    // قائدها وحده: لقائد القسم ونائبه، وللرئيس والمؤسس حين يخلو مقعدُ قائد القسم (والخادمُ يفحصها ثانيةً)
     canAppointLead:
-      ctx.role.manage &&
-      (ctx.role.propose ||
-        !(await prisma.user.findFirst({ where: { isActive: true, role: "department_admin", departmentId: c.parent!.id }, select: { id: true } }))),
-    // القائدُ الحاليُّ غادر أو عُطِّل أو خرج من القسم — مسارُ التسليم
-    leadDeparted:
-      !!c.leadMember && (!c.leadMember.isActive || !(await departmentPeople(c.parent!.id)).some((p) => p.id === c.leadMemberId)),
+      ((c.committeeStatus === "draft" || c.committeeStatus === "rejected") && ctx.role.propose) ||
+      ((c.committeeStatus === "approved" || c.committeeStatus === "suspended") &&
+        !ctx.leadActive &&
+        ctx.role.manage &&
+        (ctx.role.propose ||
+          !(await prisma.user.findFirst({ where: { isActive: true, role: "department_admin", departmentId: c.parent!.id }, select: { id: true } })))),
+    // انتهت قيادةُ القائد (غادر، أو انتهت عضويتُه، أو عُطِّل) — واللجنةُ بيد القائم بالخلافة حتى يُعيَّن قائد
+    leadDeparted: (c.committeeStatus === "approved" || c.committeeStatus === "suspended") && !ctx.leadActive,
+    actingLeadName: c.actingLeadUser?.fullName ?? null,
     transitions: ctx.role.manage ? STATUS_TRANSITIONS[c.committeeStatus!] ?? [] : [],
     memberships,
     candidates,

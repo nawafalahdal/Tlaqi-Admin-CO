@@ -158,19 +158,42 @@ export type CommitteeRole = {
   view: boolean;
 };
 
-export function committeeRoleFor(
-  a: OrgActor | null,
-  c: { id: string; parentId: string | null; leadMemberId: string | null },
-  isActiveMember: boolean
-): CommitteeRole {
+/** صفُّ اللجنة كما تحتاجه الصلاحية — ومعه حالةُ قائدها الفعلية من القاعدة (`committeeLeadState`).
+ *  و`leadActive` إن غاب يُعدّ «قائدٌ نشط»: الأضيقُ للمؤسس والرئيس، فلا تُوسَّع صلاحيةٌ بنسيان حقل. */
+export type CommitteeRow = {
+  id: string;
+  parentId: string | null;
+  leadMemberId: string | null;
+  committeeStatus?: string | null;
+  leadActive?: boolean;
+  actingLeadUserId?: string | null;
+};
+
+/** **إدارةُ لجنةٍ بعينها** (ملاحظةُ المؤسس الثانية في المرحلة الثالثة):
+ *  - قائدُ قسمها ونائبُه المفوَّض: كما كانت.
+ *  - **المؤسس والرئيس التنفيذي: بحسب حالة قائدها.** قائدٌ نشطٌ معتمد ⇐ اطّلاعٌ فقط — لا إدارة ولا أعضاء
+ *    ولا تعليق ولا إغلاق. وغادر القائد (أو انتهت عضويتُه أو عُطِّل) ⇐ تُفعَّل الإدارة، للجنةٍ عاملةٍ أو
+ *    معلّقة وحدها. ولا تُمنح بمجرد الصفة. */
+export function canManageCommittee(a: OrgActor | null, c: CommitteeRow): boolean {
+  if (!a?.role || !c.parentId) return false;
+  if (canProposeCommitteesOf(a, c.parentId)) return true;
+  if (!a.isTop) return false;
+  const leadActive = c.leadActive ?? true;
+  return !leadActive && (c.committeeStatus === "approved" || c.committeeStatus === "suspended");
+}
+
+export function committeeRoleFor(a: OrgActor | null, c: CommitteeRow, isActiveMember: boolean): CommitteeRole {
   const none = { manage: false, propose: false, lead: false, member: false, view: false };
   if (!a?.role || !c.parentId) return none;
-  const manage = canManageCommitteesOf(a, c.parentId);
-  // قائدُها عضوٌ فيها وحده — قيادةُ اللجنة دورٌ في عضويتها لا دورٌ إداري،
-  // ولا تمنح شيئاً على القسم (`canManageCommitteesOf` لا يقرؤها)
-  const lead = a.kind === "member" && c.leadMemberId === a.id;
+  const manage = canManageCommittee(a, c);
+  // قائدُها عضوٌ فيها — قيادةُ اللجنة دورٌ في عضويتها لا دورٌ إداري، ولا تمنح شيئاً على القسم.
+  // أو القائمُ بقيادتها بالخلافة (الرئيسُ التنفيذي أو المؤسس) حتى يُعيَّن قائدٌ عضو — قائدٌ فعّالٌ واحد
+  const lead =
+    (a.kind === "member" && c.leadMemberId === a.id) ||
+    (a.kind === "user" && !!c.actingLeadUserId && c.actingLeadUserId === a.id);
   const member = a.kind === "member" && isActiveMember;
   const view =
-    manage || lead || member || a.isOps || a.leadsDepartmentId === c.parentId || a.deputy?.departmentId === c.parentId;
+    // والمؤسسُ والرئيسُ يطّلعان دائماً — الإدارةُ وحدها تتبع حالةَ القائد
+    manage || lead || member || a.isTop || a.isOps || a.leadsDepartmentId === c.parentId || a.deputy?.departmentId === c.parentId;
   return { manage, propose: canProposeCommitteesOf(a, c.parentId), lead, member, view };
 }

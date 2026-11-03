@@ -313,6 +313,14 @@ model Department {
   leadMemberId     String?
   leadMember       Member?  @relation("CommitteeLead", fields: [leadMemberId], references: [id], onDelete: SetNull)
 
+  /// قيادةٌ بالخلافة حين يغادر قائدُ اللجنة أو تنتهي عضويتُه أو يُعطَّل حسابُه: الرئيسُ التنفيذي، ثم المؤسس.
+  /// قائدٌ فعّالٌ واحد: لا يجتمع هذا و`leadMemberId` (قيدُ `Department_single_committee_lead` في القاعدة)،
+  /// ولا تخلو لجنةٌ نشطةٌ أو معلّقةٌ منهما (`Department_active_committee_has_lead`)
+  actingLeadUserId String?
+  actingLeadUser   User?     @relation("CommitteeActingLead", fields: [actingLeadUserId], references: [id], onDelete: Restrict)
+  actingLeadSince  DateTime?
+  actingLeadReason String?
+
   // ── نائبُ قائد القسم (للقسم الأصيل وحده): عضوٌ واحد في حقلٍ فريد —
   //    فلا نائبان لقسم، ولا يُنيب عضوٌ عن قسمين.
   deputyMemberId        String?            @unique
@@ -439,6 +447,8 @@ model User {
 
   /// عضويتُه في فريق التسويق — لا تُمنح بالدور ولا بالقسم، بل صراحةً
   marketingProfile MarketingMember?
+
+  committeesActingLead Department[] @relation("CommitteeActingLead")
 }
 
 /// دعوة مقفلة بالاسم والإيميل — لا تسجيل عام. targetRole يحدد المسار:
@@ -581,6 +591,11 @@ model Member {
   convertedFromUserId String?   @unique
   /// تاريخُ ذلك التحويل
   convertedAt         DateTime?
+
+  /// إيقافٌ مؤقت بقرار المؤسس أو الرئيس التنفيذي (لا دخول) — يُرفع بإعادة التفعيل. والمغادرةُ (`terminatedAt`) نهائية:
+  /// لا يعود المغادرُ إلا بانضمامٍ جديدٍ موثَّق
+  suspendedAt         DateTime?
+  suspendedReason     String?
 
   // حوكمة التنحي: لا ينتهي أحد فجأة ولا يبقى معلّقاً بلا تاريخ.
   // يُنحّيه قائده، فيتوقّف عمله ويُحدَّد تاريخ انتهائه، ثم لا تُغلق
@@ -2833,4 +2848,18 @@ model OrgAuditEvent {
 
   @@index([entityId, createdAt])
   @@index([departmentId, createdAt])
+}
+
+/// إبطالُ الوصول — كلُّ صفٍّ هنا يُلزم كلَّ جلسةٍ قائمة بمراجعة حسابها في طلبها التالي
+/// (`auth.ts`: حقبةُ الإبطال)، فلا تنتظر الجلسةُ المنتهيةُ نافذةَ الدقائق الخمس. ويبقى سجلاً بمن أُبطل ولماذا.
+model AccessRevocation {
+  id          String   @id @default(cuid())
+  accountKind String
+  accountId   String
+  reason      String
+  byName      String
+  revokedAt   DateTime @default(now())
+
+  @@index([revokedAt])
+  @@index([accountId])
 }

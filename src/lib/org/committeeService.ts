@@ -12,13 +12,15 @@ import { newCommitteeSlug, committeeApprover } from "@/lib/committees";
 import {
   canAppointDeputy,
   canAssignResponsibilities,
-  canManageCommitteesOf,
+  canManageCommittee,
   canProposeCommitteesOf,
   committeeRoleFor,
+  type CommitteeRow,
   type OrgActor,
 } from "./actor";
 import { diffFields, fail, recordOrgEvent, type OrgResult } from "./audit";
 import { committeeGaps, GAP_LABELS } from "./completeness";
+import { committeeLeadState, ensureCommitteeSuccession, LEAD_REQUIRED, succeedCommitteesLedBy } from "./committeeLeadership";
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -140,26 +142,38 @@ function cleanDetails(input: CommitteeInput): OrgResult<{ data: CleanDetails }> 
 }
 
 /** قائدُ هذه اللجنة؟ — من صفّها وصفّه، لا من قولِ المنادي */
-function isCommitteeLead(actor: OrgActor | null, c: { id: string; parentId: string | null; leadMemberId: string | null }) {
+function isCommitteeLead(actor: OrgActor | null, c: CommitteeRow) {
   return committeeRoleFor(actor, c, false).lead;
 }
 
-/** صفُّ اللجنة كما يحتاجه كلُّ إجراء — ومعه قسمُها الأصيل */
+/** صفُّ اللجنة كما يحتاجه كلُّ إجراء — ومعه قسمُها الأصيل وحالةُ قائدها الفعلية.
+ *
+ *  **ويُصلح نفسَه قبل أي إجراء:** لجنةٌ عاملةٌ أو معلّقةٌ غادر قائدُها ولم تُخلَف بعد (مسارُ مغادرةٍ لم
+ *  ينادِ الخلافة) تُخلَف أولاً في معاملتها — فلا يقع إجراءٌ على لجنةٍ بلا قائد. */
 async function loadCommittee(db: Db, id: string) {
-  const c = await db.department.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      name: true,
-      parentId: true,
-      committeeStatus: true,
-      leadMemberId: true,
-      leadMember: { select: { id: true, fullName: true, email: true } },
-      parent: { select: { id: true, name: true, parentId: true } },
-    },
-  });
+  const read = () =>
+    db.department.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        parentId: true,
+        committeeStatus: true,
+        leadMemberId: true,
+        actingLeadUserId: true,
+        leadMember: { select: { id: true, fullName: true, email: true } },
+        parent: { select: { id: true, name: true, parentId: true } },
+      },
+    });
+  let c = await read();
   if (!c || !c.parentId || !c.committeeStatus) return null;
-  return c;
+  let state = await committeeLeadState(db, c);
+  if (LEAD_REQUIRED.includes(c.committeeStatus) && !state.leadActive && !state.actingLeadUserId) {
+    await ensureCommitteeSuccession(id, { reason: "قائدٌ غيرُ نشط عند إجراءٍ على اللجنة", source: "automatic", byName: "المنصة — خلافة آلية" });
+    c = (await read())!;
+    state = await committeeLeadState(db, c);
+  }
+  return { ...c, leadActive: state.leadActive, actingLeadUserId: state.actingLeadUserId, actingLeadName: state.actingLeadName };
 }
 
 // ═════════════════════════════════════════════════════════════════════
@@ -284,7 +298,7 @@ export async function updateCommitteeDetails(
 ): Promise<OrgResult<{ changed: number }>> {
   const c = await loadCommittee(prisma, committeeId);
   if (!c) return fail("اللجنة غير موجودة");
-  if (!canManageCommitteesOf(actor, c.parentId!)) return fail("تعديلُ بيانات اللجنة لقائد قسمها ومن فُوِّض");
+  if (!canManageCommittee(actor, c)) return fail("تعديلُ بيانات اللجنة لقائد قسمها ومن فُوِّض");
   if (FROZEN.includes(c.committeeStatus!)) return fail("اللجنةُ مغلقة — سجلُّها يُقرأ ولا يُعدَّل");
   const details = cleanDetails(input);
   if (!details.ok) return details;
@@ -349,7 +363,7 @@ export async function changeCommitteeStatus(
 ): Promise<OrgResult> {
   const c = await loadCommittee(prisma, committeeId);
   if (!c) return fail("اللجنة غير موجودة");
-  if (!canManageCommitteesOf(actor, c.parentId!)) return fail("تغييرُ حالة اللجنة لقائد قسمها ومن فُوِّض");
+  if (!canManageCommittee(actor, c)) return fail("تغييرُ حالة اللجنة لقائد قسمها ومن فُوِّض");
   const from = c.committeeStatus!;
   if (!(STATUS_TRANSITIONS[from] ?? []).includes(to)) return fail("هذا الانتقال غير مسموح من حالتها الحالية");
   const why = text(note, LIMITS.short);
@@ -389,14 +403,15 @@ async function departmentLeaderVacant(departmentId: string) {
   return !lead;
 }
 
-/** **يعيّن قائد اللجنة، أو يسلّم قيادتها لبديل** — قائدٌ واحد، من أعضاء القسم، ويُسجَّل.
+/** **يعيّن قائدَ اللجنة — ولا يُبدَّل قائدٌ نشطٌ معتمدٌ أبداً** (ملاحظةُ المؤسس الرابعة، المرحلة الثالثة).
  *
- *  - **من يعيّن:** قائدُ القسم، ونائبُه المفوَّض. والرئيسُ التنفيذي والمؤسس **حين يخلو مقعدُ
- *    قائد القسم وحده** — فلا يُتجاوَز قائدُ القسم في لجان قسمه.
- *  - **التسليم:** إن غادر القائدُ السابق أو عُطِّل حسابُه أو خرج من القسم، تُغلق عضويتُه في
- *    اللجنة (ولا تُحذف). وإلا بقي عضواً فيها.
- *  - **المهامّ:** تُنقل مهامُّه المفتوحة إلى البديل إن طُلب ذلك، وتُسمّى في السجلّ.
- *  - **ولا يُمَسّ شيءٌ غير ذلك:** الاجتماعاتُ والقراراتُ والتقاريرُ وسجلُّ التدقيق باقيةٌ كما هي. */
+ *  - **مرحلةُ الاقتراح** (مسودّة أو مردودة): يختار مقترحُها (قائدُ القسم أو نائبُه المفوَّض) قائدَها المقترح.
+ *  - **لجنةٌ عاملةٌ أو معلّقة:** يُعيَّن قائدٌ **فقط** إن لم يكن لها قائدٌ نشطٌ معتمد — أي بعد أن غادر قائدُها
+ *    أو انتهت عضويتُه أو عُطِّل حسابُه (وتكون حينها بيد القائم بالخلافة). والمنعُ يشمل الجميع: قائدَ القسم
+ *    والمؤسسَ والرئيسَ التنفيذي، من الواجهة أو أي طلبٍ مباشر.
+ *  - **من يعيّن بعد المغادرة:** قائدُ القسم ونائبُه المفوَّض؛ والمؤسسُ أو الرئيسُ حين يخلو مقعدُ قائد القسم وحده.
+ *  - **في معاملةٍ واحدة وبحرسٍ في `where`:** يُكتب القائدُ العضوُ وتُرفع القيادةُ بالخلافة معاً — قائدٌ واحد،
+ *    ولا يمرّ تعيينان متزامنان. وتُنقل اختيارياً مهامُّ من غادر من أعضائها المفتوحةُ إلى القائد الجديد. */
 export async function appointCommitteeLead(
   actor: OrgActor | null,
   committeeId: string,
@@ -406,55 +421,63 @@ export async function appointCommitteeLead(
 ): Promise<OrgResult<{ handover: boolean; tasksMoved: number }>> {
   const c = await loadCommittee(prisma, committeeId);
   if (!c) return fail("اللجنة غير موجودة");
-  if (!canManageCommitteesOf(actor, c.parentId!)) return fail("تعيينُ قائد اللجنة لقائد قسمها ومن فُوِّض");
-  if (!canProposeCommitteesOf(actor, c.parentId!) && !(await departmentLeaderVacant(c.parentId!))) {
-    return fail("تعيينُ قائد اللجنة وتسليمُ قيادتها لقائد القسم — ويتدخّل الرئيسُ التنفيذي أو المؤسس حين يخلو مقعدُه وحده");
+  const proposal = c.committeeStatus === "draft" || c.committeeStatus === "rejected";
+  const working = LEAD_REQUIRED.includes(c.committeeStatus!);
+  if (!proposal && !working) return fail("لا يُعيَّن قائدٌ للجنةٍ بانتظار الاعتماد أو مغلقة — تُعاد مسودّةً أولاً");
+  if (working && c.leadActive) {
+    return fail("للجنة قائدٌ نشطٌ معتمد — لا يُغيَّر ولا يُستبدل حتى تنتهي قيادتُه (مغادرة، أو انتهاء عضوية، أو تعطيل حساب)");
   }
-  if (FROZEN.includes(c.committeeStatus!)) return fail("اللجنةُ مغلقة — لا يُعيَّن لها قائد");
+  if (proposal ? !canProposeCommitteesOf(actor, c.parentId!) : !canManageCommittee(actor, c)) {
+    return fail("تعيينُ قائد اللجنة لقائد قسمها ونائبه المفوَّض");
+  }
+  if (working && !canProposeCommitteesOf(actor, c.parentId!) && !(await departmentLeaderVacant(c.parentId!))) {
+    return fail("تعيينُ قائد اللجنة لقائد القسم — ويتدخّل الرئيسُ التنفيذي أو المؤسس حين يخلو مقعدُه وحده");
+  }
   if (c.leadMemberId === memberId) return fail("هذا العضوُ قائدُها بالفعل");
   const ok = await eligibleIds(prisma, c.parentId!, [memberId]);
   if (!ok.has(memberId)) return fail("قائدُ اللجنة يُختار من أعضاء القسم المعتمَدين");
   const person = await prisma.member.findUniqueOrThrow({ where: { id: memberId }, select: { fullName: true, email: true } });
-
-  // القائدُ السابق: هل غادر؟ — من صفّه الآن لا من الشاشة
-  const previous = c.leadMemberId
-    ? await prisma.member.findUnique({
-        where: { id: c.leadMemberId },
-        select: { id: true, fullName: true, isActive: true, terminatedAt: true, departmentId: true },
-      })
-    : null;
-  const departed =
-    !!previous && (!previous.isActive || !!previous.terminatedAt || !(await eligibleIds(prisma, c.parentId!, [previous.id])).has(previous.id));
-  const handover = !!previous;
+  const handover = !proposal;
 
   const result = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Department" WHERE "id" = ${committeeId} FOR UPDATE`;
     await tx.committeeMembership.upsert({
       where: { committeeId_memberId: { committeeId, memberId } },
       create: { committeeId, memberId, addedByName: actor!.name },
       update: { active: true, removedAt: null, removedByName: null },
     });
-    // الحرسُ في `where`: تعيينانِ متزامنان لا يمرّان على قائدٍ واحد
+    // الحرسُ في `where`: ما قرأناه من قيادةٍ هو ما نكتب عليه — والقائمُ بالخلافة يُرفع في الكتابة نفسها
     const w = await tx.department.updateMany({
-      where: { id: committeeId, leadMemberId: c.leadMemberId },
-      data: { leadMemberId: memberId },
+      where: { id: committeeId, leadMemberId: c.leadMemberId, actingLeadUserId: c.actingLeadUserId },
+      data: { leadMemberId: memberId, actingLeadUserId: null, actingLeadSince: null, actingLeadReason: null },
     });
-    if (!w.count) throw new Error("تغيّر قائدُ اللجنة للتوّ — أعِد فتح الصفحة");
-    if (previous && departed) {
+    if (!w.count) throw new Error("تغيّرت قيادةُ اللجنة للتوّ — أعِد فتح الصفحة");
+    // من بقي «قائداً» في الصفّ وقد غادر: تُغلق عضويتُه ولا تُحذف
+    if (c.leadMemberId && working) {
       await tx.committeeMembership.updateMany({
-        where: { committeeId, memberId: previous.id, active: true },
+        where: { committeeId, memberId: c.leadMemberId, active: true },
         data: { active: false, removedAt: new Date(), removedByName: actor!.name },
       });
     }
+    // مهامُّ من غادر من أعضائها (القائدُ السابق أو غيرُه) — تُنقل إلى القائد الجديد إن طُلب
     let moved: string[] = [];
-    if (previous && opts.reassignOpenTasks) {
+    if (working && opts.reassignOpenTasks) {
       const open = await tx.committeeTask.findMany({
-        where: { committeeId, assigneeMemberId: previous.id, status: { in: ["todo", "in_progress"] } },
+        where: {
+          committeeId,
+          status: { in: ["todo", "in_progress"] },
+          assigneeMemberId: { not: null },
+          OR: [
+            { assignee: { isActive: false } },
+            { assignee: { terminatedAt: { not: null } } },
+            { assignee: { suspendedAt: { not: null } } },
+            { assignee: { committeeMemberships: { none: { committeeId, active: true } } } },
+          ],
+        },
         select: { id: true },
       });
       moved = open.map((t) => t.id);
-      if (moved.length) {
-        await tx.committeeTask.updateMany({ where: { id: { in: moved } }, data: { assigneeMemberId: memberId } });
-      }
+      if (moved.length) await tx.committeeTask.updateMany({ where: { id: { in: moved } }, data: { assigneeMemberId: memberId } });
     }
     await recordOrgEvent(tx, {
       scope: "committee", entityId: committeeId, departmentId: c.parentId!,
@@ -463,47 +486,32 @@ export async function appointCommitteeLead(
       before: {
         leadMemberId: c.leadMemberId,
         leadName: c.leadMember?.fullName ?? null,
-        ...(previous ? { previousDeparted: departed } : {}),
+        actingLeadUserId: c.actingLeadUserId,
+        actingLeadName: c.actingLeadName,
       },
-      after: {
-        leadMemberId: memberId,
-        leadName: person.fullName,
-        ...(handover ? { previousMembershipClosed: departed, tasksMoved: moved } : {}),
-      },
+      after: { leadMemberId: memberId, leadName: person.fullName, source: "administrative", ...(handover ? { tasksMoved: moved } : {}) },
       note: text(note, LIMITS.short),
     });
     return { tasksMoved: moved.length };
   });
-  await sendCommitteeLeadAppointedEmail({
-    to: person.email,
-    fullName: person.fullName,
-    committeeName: c.name,
-    parentName: c.parent!.name,
-    appointedByName: actor!.name,
-    url: `${baseUrl()}/committees/${committeeId}`,
-  });
+  if (working) {
+    await sendCommitteeLeadAppointedEmail({
+      to: person.email,
+      fullName: person.fullName,
+      committeeName: c.name,
+      parentName: c.parent!.name,
+      appointedByName: actor!.name,
+      url: `${baseUrl()}/committees/${committeeId}`,
+    });
+  }
   return { ok: true, handover, tasksMoved: result.tasksMoved };
 }
 
-/** **مغادرةُ قائد لجنة تُسجَّل في لجنته** — حين يُنهى أو يتنحّى أو يُعطَّل.
- *  لا تُعيِّن بديلاً بنفسها (التعيينُ لقائد القسم)، لكنها تكتب الحدثَ في سجلّ اللجنة،
- *  فيظهر لقائد القسم تنبيهُ «لجنةٌ بلا قائدٍ نشط» ومسارُ التسليم. لا تُرمى أبداً. */
+/** **مغادرةُ قائد لجنة** — حين يُنهى أو يتنحّى أو يُعطَّل أو يُوقف: تنتقل قيادةُ لجانه العاملة **آلياً** إلى
+ *  الخَلَف (`committeeLeadership.succeedCommitteesLedBy`)، ويُكتب ذلك في سجلّ كلّ لجنة. لا تُرمى أبداً. */
 export async function noteCommitteeLeadDeparture(memberId: string, reason: string): Promise<number> {
   try {
-    // department-scope: all — كلُّ لجنةٍ يقودها، مهما كانت حالتُها
-    const led = await prisma.department.findMany({
-      where: { leadMemberId: memberId, parentId: { not: null } },
-      select: { id: true, parentId: true, leadMember: { select: { fullName: true } } },
-    });
-    for (const c of led) {
-      await recordOrgEvent(prisma, {
-        scope: "committee", entityId: c.id, departmentId: c.parentId!, action: "committee.lead_departed",
-        actor: { kind: "system", id: "system", name: "المنصة" },
-        before: { leadMemberId: memberId, leadName: c.leadMember?.fullName ?? null },
-        note: reason.slice(0, LIMITS.short),
-      });
-    }
-    return led.length;
+    return (await succeedCommitteesLedBy(memberId, reason)).committees;
   } catch {
     return 0;
   }
@@ -516,7 +524,7 @@ export async function addCommitteeMembers(
 ): Promise<OrgResult<{ added: number }>> {
   const c = await loadCommittee(prisma, committeeId);
   if (!c) return fail("اللجنة غير موجودة");
-  if (!canManageCommitteesOf(actor, c.parentId!)) return fail("إضافةُ الأعضاء لقائد القسم ومن فُوِّض — ولقائد اللجنة أن يقترح");
+  if (!canManageCommittee(actor, c)) return fail("إضافةُ الأعضاء لقائد القسم ومن فُوِّض — ولقائد اللجنة أن يقترح");
   if (FROZEN.includes(c.committeeStatus!)) return fail("اللجنةُ مغلقة — لا يُضاف إليها أحد");
   const ids = [...new Set(memberIds.filter(Boolean))];
   if (!ids.length) return fail("اختر عضواً واحداً على الأقل");
@@ -559,7 +567,7 @@ export async function removeCommitteeMember(
 ): Promise<OrgResult> {
   const c = await loadCommittee(prisma, committeeId);
   if (!c) return fail("اللجنة غير موجودة");
-  if (!canManageCommitteesOf(actor, c.parentId!)) return fail("إزالةُ الأعضاء لقائد القسم ومن فُوِّض");
+  if (!canManageCommittee(actor, c)) return fail("إزالةُ الأعضاء لقائد القسم ومن فُوِّض");
   if (FROZEN.includes(c.committeeStatus!)) return fail("اللجنةُ مغلقة — سجلُّ أعضائها يُقرأ ولا يُعدَّل");
   if (c.leadMemberId === memberId) return fail("هذا قائدُ اللجنة — عيّن قائداً غيرَه أولاً ثم أخرِجه");
   const m = await prisma.committeeMembership.findUnique({
@@ -594,7 +602,7 @@ export async function setCommitteeResponsibility(
 ): Promise<OrgResult> {
   const c = await loadCommittee(prisma, committeeId);
   if (!c) return fail("اللجنة غير موجودة");
-  if (!isCommitteeLead(actor, c) && !canManageCommitteesOf(actor, c.parentId!)) return fail("توزيعُ المسؤوليات لقائد اللجنة أو قائد قسمها");
+  if (!isCommitteeLead(actor, c) && !canManageCommittee(actor, c)) return fail("توزيعُ المسؤوليات لقائد اللجنة أو قائد قسمها");
   if (FROZEN.includes(c.committeeStatus!)) return fail("اللجنةُ مغلقة");
   const row = await prisma.committeeMembership.findUnique({
     where: { committeeId_memberId: { committeeId, memberId } },
@@ -676,7 +684,7 @@ export async function decideProposal(
   if (!p) return fail("الاقتراح غير موجود");
   const c = await loadCommittee(prisma, p.committeeId);
   if (!c) return fail("اللجنة غير موجودة");
-  if (!canManageCommitteesOf(actor, c.parentId!)) return fail("القرارُ في الاقتراح لقائد القسم ومن فُوِّض");
+  if (!canManageCommittee(actor, c)) return fail("القرارُ في الاقتراح لقائد القسم ومن فُوِّض");
   if (p.status !== "pending") return fail("قُرِّر هذا الاقتراحُ بالفعل");
   const why = text(note, LIMITS.short);
   if (!accept && !why) return fail("الردُّ لا يقع بلا سببٍ مكتوب");

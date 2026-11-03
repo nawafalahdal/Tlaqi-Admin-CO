@@ -9,6 +9,7 @@ import type {
 import { prisma } from "@/lib/prisma";
 import { isSafeHttpUrl } from "@/lib/calendar";
 import { committeeRoleFor, type CommitteeRole, type OrgActor } from "./actor";
+import { committeeLeadState } from "./committeeLeadership";
 import { fail, recordOrgEvent, type OrgResult } from "./audit";
 import { LIMITS } from "./committeeService";
 
@@ -30,6 +31,8 @@ export type CommitteeContext = {
     leadMemberId: string | null;
   };
   role: CommitteeRole;
+  /** للجنة قائدٌ عضوٌ نشطٌ معتمد؟ — وإلا فهي بيد القائم بالخلافة */
+  leadActive: boolean;
 };
 
 /** اللجنةُ وصلةُ صاحب الطلب بها — أو `null` إن لم تكن، أو لم يكن له أن يراها */
@@ -37,9 +40,11 @@ export async function committeeContext(actor: OrgActor | null, committeeId: stri
   if (!actor?.role || !committeeId) return null;
   const c = await prisma.department.findUnique({
     where: { id: committeeId },
-    select: { id: true, name: true, parentId: true, committeeStatus: true, leadMemberId: true },
+    select: { id: true, name: true, parentId: true, committeeStatus: true, leadMemberId: true, actingLeadUserId: true },
   });
   if (!c?.parentId || !c.committeeStatus) return null;
+  // حالةُ القائد الفعلية: تحدّد إن كان للمؤسس والرئيس اطّلاعٌ فقط أم إدارة، ومن يقود بالخلافة
+  const lead = await committeeLeadState(prisma, c);
   const membership =
     actor.kind === "member"
       ? await prisma.committeeMembership.findUnique({
@@ -47,11 +52,12 @@ export async function committeeContext(actor: OrgActor | null, committeeId: stri
           select: { active: true },
         })
       : null;
-  const role = committeeRoleFor(actor, c, !!membership?.active);
+  const role = committeeRoleFor(actor, { ...c, leadActive: lead.leadActive, actingLeadUserId: lead.actingLeadUserId }, !!membership?.active);
   if (!role.view) return null;
   return {
     committee: { id: c.id, name: c.name, parentId: c.parentId, committeeStatus: c.committeeStatus, leadMemberId: c.leadMemberId },
     role,
+    leadActive: lead.leadActive,
   };
 }
 

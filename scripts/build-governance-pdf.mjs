@@ -87,11 +87,18 @@ function render(md) {
       continue;
     }
     if (/^- /.test(line)) {
-      // قائمةٌ بمستوى فرعيٍّ واحد: «  - » تحت البند الذي قبلها (والأعمقُ يُسطَّح إليه)
+      // قائمةٌ بمستوى فرعيٍّ واحد: «  - » تحت البند الذي قبلها (والأعمقُ يُسطَّح إليه)،
+      // والسطرُ المُزاحُ بلا «- » تكملةٌ للبند الذي قبله — لا ينهي القائمة فيبتلعَ ما بعده فقرةً
       const items = [];
-      while (i < lines.length && (/^- /.test(lines[i]) || /^\s{2,}- /.test(lines[i]))) {
-        if (/^- /.test(lines[i])) items.push({ text: inline(lines[i].slice(2)), subs: [] });
-        else if (items.length) items[items.length - 1].subs.push(inline(lines[i].replace(/^\s+- /, "")));
+      while (i < lines.length && (/^- /.test(lines[i]) || /^\s{2,}\S/.test(lines[i]))) {
+        const l = lines[i];
+        if (/^- /.test(l)) items.push({ text: inline(l.slice(2)), subs: [] });
+        else if (/^\s{2,}- /.test(l)) { if (items.length) items[items.length - 1].subs.push(inline(l.replace(/^\s+- /, ""))); }
+        else if (items.length) {
+          const it = items[items.length - 1];
+          if (it.subs.length) it.subs[it.subs.length - 1] += " " + inline(l.trim());
+          else it.text += " " + inline(l.trim());
+        }
         i++;
       }
       out.push(`<ul>${items.map((it) => `<li>${it.text}${it.subs.length ? `<ul>${it.subs.map((x) => `<li>${x}</li>`).join("")}</ul>` : ""}</li>`).join("")}</ul>`);
