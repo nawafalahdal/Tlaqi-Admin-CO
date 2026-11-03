@@ -3,21 +3,20 @@ import {
   certificateFor,
   certificateBody,
   certificateHeading,
-  certificatePalette,
+  certificateFrame,
+  serviceDurationAr,
   verifyCertificateToken,
   type CertificateData,
   type CertificateSigner,
 } from "@/lib/certificate";
-import { BRAND, themeFromColor } from "@/lib/brand";
 import { PrintButton } from "./PrintButton";
 
 export const dynamic = "force-dynamic";
 
-/** الشهادتان — صفحةٌ تُطبع، بتصميمين معتمدين.
+/** الشهادتان — صفحةٌ تُطبع، بالقالب المعتمد «الإطار الكلاسيكي».
  *
- *  **شهادة الشكر والخبرة** (ختام المسيرة): لونُ القسم يملأ الورقة كلّها،
- *  والاسمُ في وسطها. **وشهادة التقدير** (ثلاثة أشهر): ورقٌ فاتح وشريطٌ
- *  جانبيٌّ بلون القسم — أخفّ، لأنها محطّةٌ في مسيرةٍ جارية لا ختامُها.
+ *  **شهادة الشكر والخبرة** (ختام المسيرة) و**شهادة التقدير** (ثلاثة أشهر)
+ *  بالقالب نفسه ولون القسم نفسه؛ يفرّق بينهما عنوانُهما ونصُّهما وبياناتُهما.
  *
  *  صفحةٌ لا صورة: تُفتح بلا تسجيل دخول (صاحبها قد خرج وحسابه مُعطَّل)،
  *  وتُطبع PDF بضغطة، وتبقى نصّاً يُقرأ ويُكبَّر.
@@ -42,12 +41,14 @@ export default async function CertificatePage({
 
   return (
     <main className="min-h-screen bg-[#1A1023] p-4 print:bg-white print:p-0">
+      {/* الورقة A4 عرضيّة بلا هوامش — مقاسُ القالب المعتمد. هنا لا في الأنماط العامة: يخصّ هذه الصفحة */}
+      <style>{"@page { size: A4 landscape; margin: 0; }"}</style>
       <PrintButton />
       <div
         className="mx-auto w-full max-w-[1123px] overflow-hidden rounded-[1.2cqw] print:max-w-none print:rounded-none"
         style={{ aspectRatio: "1123 / 794", containerType: "inline-size" }}
       >
-        {data.kind === "final" ? <FullColour data={data} /> : <PaperRibbon data={data} />}
+        <ClassicFrame data={data} />
       </div>
     </main>
   );
@@ -65,182 +66,103 @@ function longDate(d: Date) {
   }).format(d);
 }
 
-function shortDate(d: Date) {
-  return new Intl.DateTimeFormat("ar-u-ca-gregory-nu-arab", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(d);
-}
 
-/** المفهوم «أ» — لون القسم كاملاً، والاسمُ أولاً. لختام المسيرة. */
-function FullColour({ data }: { data: CertificateData }) {
-  const c = certificatePalette(data.colorHex);
+/** **الإطار الكلاسيكي** — القالب المعتمد لشهادتَي الشكر والخبرة وتقدير الثلاثة أشهر.
+ *
+ *  ورقٌ فاتح بإطارٍ مزدوج بلون القسم، والشعارُ المعتمد (TLAQI مع الاسم الكامل)
+ *  في أعلاها، والاسمُ بطلُ الورقة، ثم بياناتُها في سطرٍ واحد، ثم موقِّعان بينهما
+ *  ختمٌ بلون القسم. المقاساتُ ببكسل التصميم (١١٢٣ = ٢٩٧mm)، فالشعار بارتفاع
+ *  ٢٦mm في الطباعة — أقلُّ ما يبقى معه الاسمُ الكامل فوق ٦pt. */
+function ClassicFrame({ data }: { data: CertificateData }) {
+  const f = certificateFrame(data.colorHex);
   const heading = certificateHeading(data.kind);
   const dept = data.departmentName?.trim();
+  const hair = "rgba(52,29,43,0.22)";
+  const meta: Array<[string, string]> =
+    data.kind === "appreciation"
+      ? [
+          ["تاريخ الانضمام", longDate(data.period.start)],
+          ["مدة المشاركة", serviceDurationAr(data.period.start, data.period.end)],
+        ]
+      : [
+          ["الفترة", `${longDate(data.period.start)} — ${longDate(data.period.end)}`],
+          ["مدة المشاركة", serviceDurationAr(data.period.start, data.period.end)],
+        ];
 
   return (
-    <div className="relative h-full w-full overflow-hidden" style={{ background: c.background, color: c.ink }}>
-      <span className="absolute" style={{ left: u(-230), top: "50%", transform: "translateY(-50%)" }}>
-        <SymbolMark color={c.ink} size={u(620)} opacity={0.08} />
+    <div
+      className="relative h-full w-full overflow-hidden"
+      style={{ background: f.paper, color: f.ink, WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}
+    >
+      <div className="pointer-events-none absolute" style={{ inset: u(30.2), border: `${u(6.05)} solid ${f.frame}`, borderRadius: u(11.3) }} />
+      <div className="pointer-events-none absolute" style={{ inset: u(43.5), border: `${u(1.13)} solid ${hair}`, borderRadius: u(6.05) }} />
+      <span className="absolute" style={{ left: "50%", top: "50%", transform: "translate(-50%, -50%)" }}>
+        <SymbolMark color={f.ink} size={u(453.7)} opacity={0.035} />
       </span>
+
       <div
-        className="pointer-events-none absolute"
-        style={{ inset: u(22), border: `1.5px solid ${c.rule}`, borderRadius: u(26) }}
-      />
+        className="relative flex h-full flex-col items-center text-center"
+        style={{ padding: `${u(56.7)} ${u(90.7)} ${u(49.2)}` }}
+      >
+        {/* الشعار المعتمد كما هو: TLAQI والاسم الكامل تحته — نسخة الخلفية الفاتحة */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brand/logo-fullname-on-light.png"
+          alt="TLAQI — Talent Link Advancing Quality Innovation"
+          style={{ height: u(120.7), width: "auto" }}
+        />
 
-      <div className="relative flex h-full flex-col" style={{ padding: `${u(54)} ${u(80)} ${u(50)}` }}>
-        <div className="flex items-center justify-between">
-          <SymbolMark color={c.ink} size={u(46)} />
-          {dept && (
-            <span className="font-bold" style={{ fontSize: u(15), opacity: 0.78 }}>
-              {dept}
-            </span>
-          )}
-        </div>
-
-        <div className="flex flex-1 flex-col items-center justify-center text-center" style={{ marginTop: u(-20) }}>
-          <p className="font-bold" style={{ fontSize: u(24), opacity: 0.9 }}>
+        <div className="flex flex-1 flex-col items-center justify-center">
+          <p className="font-bold" style={{ fontSize: u(20), color: f.accent }}>
             {heading.ar}
           </p>
-          <p dir="ltr" style={{ fontSize: u(13), letterSpacing: "0.22em", opacity: 0.62, marginTop: u(6) }}>
+          <p dir="ltr" style={{ fontSize: u(10), letterSpacing: "0.32em", opacity: 0.55, marginTop: u(1.5) }}>
             {heading.en.toUpperCase()}
           </p>
-          <p style={{ fontSize: u(19), opacity: 0.85, marginTop: u(34) }}>
-            تتقدّم تَـــلاقِ بخالص الشكر والامتنان إلى
+          <p style={{ fontSize: u(15.3), opacity: 0.8, marginTop: u(18.9) }}>
+            {data.kind === "appreciation" ? "تتقدّم TLAQI بخالص الشكر والتقدير إلى" : "تتقدّم TLAQI بخالص الشكر والامتنان إلى"}
           </p>
-          <h1 className="font-extrabold" style={{ fontSize: u(76), lineHeight: 1.25, marginTop: u(4) }}>
+          <h1 className="font-extrabold" style={{ fontSize: u(56), lineHeight: 1.25, marginTop: u(3.8) }}>
             {data.fullName}
           </h1>
-          <p className="font-bold" style={{ fontSize: u(20), opacity: 0.9, marginTop: u(10) }}>
+          <p className="font-bold" style={{ fontSize: u(16), opacity: 0.85 }}>
             {data.personTitle}
             {dept ? ` — ${dept === "الإدارة العليا" ? dept : `قسم ${dept}`}` : ""}
           </p>
-          <p style={{ fontSize: u(19), lineHeight: 1.95, opacity: 0.92, maxWidth: u(820), marginTop: u(8) }}>
+          <p style={{ fontSize: u(14.67), lineHeight: 1.9, opacity: 0.85, maxWidth: u(718), marginTop: u(9.45) }}>
             {certificateBody(data)}
           </p>
-          <p style={{ fontSize: u(15), opacity: 0.72, marginTop: u(12) }}>
-            من {longDate(data.period.start)} إلى {longDate(data.period.end)}
-          </p>
+          <div className="flex" style={{ marginTop: u(17), fontSize: u(11.47) }}>
+            {meta.map(([k, v], i) => (
+              <div key={k} style={{ padding: `0 ${u(22.7)}`, borderInlineStart: i ? `${u(1.13)} solid rgba(52,29,43,0.2)` : undefined }}>
+                <span className="block" style={{ fontSize: u(9.33), opacity: 0.55 }}>
+                  {k}
+                </span>
+                {v}
+              </div>
+            ))}
+          </div>
         </div>
 
-        <footer className="flex items-end justify-between">
-          <Signer s={data.signers[0]} ink={c.ink} rule={c.rule} muted={c.muted} width={u(290)} />
-          <p className="text-center" style={{ fontSize: u(12), lineHeight: 1.8, opacity: 0.65 }}>
-            صدرت في {shortDate(new Date())}
-            <br />
-            صادرة من إدارة تَـــلاقِ
-          </p>
-          <Signer s={data.signers[1]} ink={c.ink} rule={c.rule} muted={c.muted} width={u(290)} />
+        <footer className="flex w-full items-end justify-between">
+          <Signer s={data.signers[0]} ink={f.signatureInk} />
+          <div>
+            <div
+              className="flex items-center justify-center rounded-full"
+              style={{
+                width: u(98.3),
+                height: u(98.3),
+                background: f.frame,
+                boxShadow: `0 0 0 ${u(4.5)} ${f.paper}, 0 0 0 ${u(5.67)} ${f.frame}`,
+              }}
+            >
+              <SymbolMark color={f.sealInk} size={u(41.6)} />
+            </div>
+            <p style={{ fontSize: u(10), opacity: 0.6, marginTop: u(9.45) }}>صدرت في {longDate(data.issuedAt)}</p>
+          </div>
+          <Signer s={data.signers[1]} ink={f.signatureInk} />
         </footer>
       </div>
-    </div>
-  );
-}
-
-/** المفهوم «ب» — ورقٌ فاتح وشريطٌ بلون القسم. لتقدير الثلاثة أشهر.
- *
- *  رُتِّب عن المقترح: كان بين مدّة التقدير والتوقيعين فراغٌ بلا قاعدة.
- *  فصارت الورقة ثلاث كتل بمسافاتٍ ثابتة — الشعار، ثم الاسم ونصّه
- *  ومدّته، ثم التوقيعان على خطٍّ واحد مع تاريخ الإصدار — والفراغ الباقي
- *  يتوزّع حول الكتلة الوسطى لا بعدها. */
-function PaperRibbon({ data }: { data: CertificateData }) {
-  const dept = data.departmentName?.trim();
-  const deptColor = data.colorHex?.trim() || BRAND.temptress;
-  // «فاتحٌ جداً» وحده يذوب في الورق (البيج) — أما الأخضر فيُكتب عليه
-  // بالداكن لكنه شريطٌ ظاهر، فيبقى بلونه
-  const h = deptColor.replace("#", "");
-  const lightDept =
-    (0.299 * parseInt(h.slice(0, 2), 16) + 0.587 * parseInt(h.slice(2, 4), 16) + 0.114 * parseInt(h.slice(4, 6), 16)) /
-      255 >
-    0.85;
-  // الشريط البيج على ورقٍ فاتح لا يُرى: فيأخذ لونَ الهوية الداكن
-  const band = lightDept ? BRAND.temptress : deptColor;
-  const bandInk = themeFromColor(band).text === BRAND.ink ? BRAND.temptress : BRAND.beige;
-  // لون العنوان الصغير: لونُ القسم إن قُرئ على الورق، وإلا المهوجني
-  const accent = lightDept || deptColor.toLowerCase() === BRAND.temptress.toLowerCase()
-    ? BRAND.mahogany
-    : deptColor.toLowerCase() === BRAND.greenSheen.toLowerCase()
-      ? "#2F7A52"
-      : deptColor;
-  const paper = "#FFFDF9";
-  const ink = BRAND.temptress;
-
-  return (
-    <div className="relative flex h-full w-full overflow-hidden" style={{ background: paper, color: ink }}>
-      <aside
-        className="relative flex flex-col items-center justify-between overflow-hidden text-center"
-        style={{ width: u(250), background: band, color: bandInk, padding: `${u(56)} ${u(20)}` }}
-      >
-        <span className="absolute" style={{ bottom: u(-150), right: u(-120) }}>
-          <SymbolMark color={bandInk} size={u(330)} opacity={0.12} />
-        </span>
-        <SymbolMark color={bandInk} size={u(80)} />
-        <div className="relative">
-          <p style={{ fontSize: u(14), opacity: 0.75 }}>القسم</p>
-          <p className="font-extrabold" style={{ fontSize: u(24), lineHeight: 1.5 }}>
-            {dept ?? "تَـــلاقِ"}
-          </p>
-        </div>
-        <p className="relative font-bold" style={{ fontSize: u(14), opacity: 0.82 }}>
-          نلتقي · نفكّر · نصنع
-        </p>
-      </aside>
-
-      <section className="relative flex flex-1 flex-col" style={{ padding: `${u(64)} ${u(70)} ${u(48)}` }}>
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage: `radial-gradient(${ink}0D 1.2px, transparent 1.4px)`,
-            backgroundSize: `${u(22)} ${u(22)}`,
-          }}
-        />
-        {/* الشعار الرسمي كما هو — نسخة الخلفية الفاتحة */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/brand/lockup-on-light.png" alt="تَـــلاقِ — TLAQI" className="relative" style={{ height: u(34), width: "auto", alignSelf: "flex-start" }} />
-
-        <div className="relative flex flex-1 flex-col justify-center" style={{ paddingBottom: u(34) }}>
-          <p className="font-bold" style={{ fontSize: u(16), color: accent, letterSpacing: "0.02em" }}>
-            {certificateHeading(data.kind).ar}
-          </p>
-          <h1 className="font-extrabold" style={{ fontSize: u(66), lineHeight: 1.25, marginTop: u(10) }}>
-            {data.fullName}
-          </h1>
-          <p className="font-bold" style={{ fontSize: u(19), color: "#5A4E56", marginTop: u(14) }}>
-            {data.personTitle}
-            {dept ? ` — ${dept === "الإدارة العليا" ? dept : `قسم ${dept}`}` : ""}
-          </p>
-          <p style={{ fontSize: u(18), lineHeight: 2, color: "#4A4048", maxWidth: u(660), marginTop: u(12) }}>
-            تتقدّم تَـــلاقِ بخالص الشكر إلى {data.fullName.trim().split(/\s+/)[0]}، {certificateBody(data)}
-          </p>
-          <span
-            className="inline-flex items-center"
-            style={{
-              alignSelf: "flex-start",
-              marginTop: u(16),
-              fontSize: u(14),
-              padding: `${u(7)} ${u(16)}`,
-              borderRadius: u(99),
-              background: BRAND.beige,
-              color: ink,
-            }}
-          >
-            {longDate(data.period.start)} ← {longDate(data.period.end)}
-          </span>
-        </div>
-
-        <footer className="relative flex items-end" style={{ gap: u(48) }}>
-          {data.signers.map((s, i) => (
-            <Signer key={i} s={s} ink={ink} rule="#D8CFC9" muted="#8A8088" width="auto" align="start" grow />
-          ))}
-          <p style={{ fontSize: u(11.5), lineHeight: 1.8, color: "#8A8088", whiteSpace: "nowrap" }}>
-            صدرت في {shortDate(new Date())}
-            <br />
-            صادرة من إدارة تَـــلاقِ
-          </p>
-        </footer>
-      </section>
     </div>
   );
 }
@@ -249,35 +171,19 @@ function PaperRibbon({ data }: { data: CertificateData }) {
  *
  *  ومن لا توقيع معتمَد له يبقى سطرُه فارغاً واسمُه تحته: نسبةٌ لا
  *  انتحال — ولا يُستعار توقيعُ من سبقه في المنصب. */
-function Signer({
-  s,
-  ink,
-  rule,
-  muted,
-  width,
-  align = "center",
-  grow,
-}: {
-  s: CertificateSigner;
-  ink: string;
-  rule: string;
-  muted: string;
-  width: string;
-  align?: "center" | "start";
-  grow?: boolean;
-}) {
+function Signer({ s, ink }: { s: CertificateSigner; ink: string }) {
   return (
-    <div style={{ width, flex: grow ? 1 : undefined, textAlign: align === "center" ? "center" : "start" }}>
-      <div className="flex items-end" style={{ height: u(46), justifyContent: align === "center" ? "center" : "flex-start" }}>
+    <div style={{ width: u(234.4), textAlign: "center" }}>
+      <div className="flex items-end justify-center" style={{ height: u(56.7) }}>
         {s.signatureImage && (
-          // التوقيع يُقنَّع ويُملأ بحبر الشهادة: خلفياتُ الشهادة مختلفة،
-          // وحبرُ التوقيع الأصلي يصحّ على بعضها ويختفي على بعض
+          // التوقيع يُقنَّع ويُملأ بحبر **منطقته**: يُختار من لونَي الهوية الأعلى
+          // تبايناً مع خلفية المنطقة (`inkForBackground`) — لا بلون الشهادة العام
           <span
             aria-hidden="true"
             style={{
               display: "block",
               width: "80%",
-              height: u(46),
+              height: u(56.7),
               background: ink,
               maskImage: `url(${s.signatureImage})`,
               WebkitMaskImage: `url(${s.signatureImage})`,
@@ -285,17 +191,17 @@ function Signer({
               WebkitMaskSize: "contain",
               maskRepeat: "no-repeat",
               WebkitMaskRepeat: "no-repeat",
-              maskPosition: align === "center" ? "center bottom" : "right bottom",
-              WebkitMaskPosition: align === "center" ? "center bottom" : "right bottom",
+              maskPosition: "center bottom",
+              WebkitMaskPosition: "center bottom",
             }}
           />
         )}
       </div>
-      <span className="block" style={{ height: "1px", background: rule, margin: `${u(6)} 0 ${u(9)}` }} />
-      <p className="font-bold" style={{ fontSize: u(15.5) }}>
+      <span className="block" style={{ height: u(1.13), background: "rgba(52,29,43,0.28)", margin: `${u(6)} 0 ${u(6.8)}` }} />
+      <p className="font-bold" style={{ fontSize: u(13.33), lineHeight: 1.35 }}>
         {s.title}
       </p>
-      <p style={{ fontSize: u(13.5), color: muted, marginTop: u(2) }}>{s.name}</p>
+      <p style={{ fontSize: u(11.47), opacity: 0.7, marginTop: u(2) }}>{s.name}</p>
     </div>
   );
 }
@@ -304,7 +210,7 @@ function Signer({
 const MARK_RATIO = 725 / 512;
 const MARK_SRC = "/brand/symbol-mark.png";
 
-/** رمز تَـــلاقِ الرسمي — الأصل نفسه، لا رسمٌ يحاكيه.
+/** رمز TLAQI الرسمي — الأصل نفسه، لا رسمٌ يحاكيه.
  *
  *  الأصل صورةٌ بيضاء على شفافية، فيُقنَّع ويُملأ بلون الحبر: اللون وحده
  *  يتبدّل، وهندسة الرمز تبقى كما وردت. */

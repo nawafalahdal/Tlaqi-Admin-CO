@@ -255,6 +255,15 @@ export type EmailContent = {
   after?: string[];
   /** سطرٌ صغير أخير: مهلة، أو تحذيرٌ من التصيّد */
   note?: string | null;
+  /** رأسُ تهنئةٍ عريضٌ بخلفية Beige تحت شريط القسم: الشارة، ثم التحية، ثم سطرٌ بلون الفعل.
+   *  يحلّ محلّ الشارة والعنوان في المتن. (رسالة تعيين قائد اللجنة — التصميم المعتمد) */
+  hero?: { greeting: string; subtitle?: string } | null;
+  /** خطواتٌ أولى مرقّمة بعد الحقول — نصٌّ يُهرَّب */
+  steps?: { title: string; items: string[] } | null;
+  /** الشعارُ المعتمد مع الاسم الكامل (Talent Link Advancing Quality Innovation) في التذييل،
+   *  و«TLAQI» وحدها في نصوص القالب. لا تُفعَّل إلا لرسالةٍ اعتُمد لها التصميم الجديد —
+   *  فتبقى الرسائل الأخرى كما هي حرفاً حرفاً. */
+  fullNameLockup?: boolean;
 };
 
 const FONT_STACK = "Tahoma,Arial,sans-serif";
@@ -286,13 +295,13 @@ function renderBody(c: EmailContent, theme?: EmailTheme): string {
   const a = accentOf(theme);
   const rows: string[] = [];
 
-  rows.push(
+  if (!c.hero) rows.push(
     block(
       `<span class="tq-badge-${c.tone ?? "info"}" style="display:inline-block;background-color:${tone.bg};color:${tone.fg};font-family:${FONT_STACK};font-size:12px;font-weight:bold;padding:5px 14px;border-radius:999px">${esc(c.badge ?? tone.badge)}</span>`,
       "0 0 12px"
     )
   );
-  rows.push(
+  if (!c.hero) rows.push(
     block(
       `<h1 class="tq-ink" style="margin:0;font-family:${FONT_STACK};font-size:22px;line-height:1.5;font-weight:bold;color:${BRAND.ink}">${esc(c.title)}</h1>`,
       "0 0 8px"
@@ -353,6 +362,23 @@ function renderBody(c: EmailContent, theme?: EmailTheme): string {
     );
   }
 
+  if (c.steps?.items.length) {
+    const items = c.steps.items
+      .map(
+        (it, i) => `<tr>
+          <td valign="top" style="padding:0 0 6px 10px;font-size:14px;line-height:1.9;font-weight:bold;color:${a.quote}">${(i + 1).toLocaleString("ar-u-nu-arab")}</td>
+          <td class="tq-body" style="padding:0 0 6px;font-size:14px;line-height:1.9;color:#3D3745">${esc(it)}</td>
+        </tr>`
+      )
+      .join("");
+    rows.push(
+      block(
+        `<p class="tq-ink" style="margin:0 0 6px;font-size:15px;font-weight:bold;color:${BRAND.ink}">${esc(c.steps.title)}</p><table role="presentation" cellpadding="0" cellspacing="0" border="0">${items}</table>`,
+        "2px 0 16px"
+      )
+    );
+  }
+
   if (c.cta || c.secondary) {
     const btn = c.cta
       ? `<a href="${c.cta.url}" class="tq-btn" style="display:inline-block;background-color:${a.button};color:${a.buttonInk};font-family:${FONT_STACK};font-size:15px;font-weight:bold;text-decoration:none;padding:13px 30px;border-radius:999px">${esc(c.cta.label)}</a>`
@@ -386,9 +412,15 @@ function keepLight(html: string): string {
 }
 
 /** أنماطُ السمة الداكنة — لمن يحترم `prefers-color-scheme` ولـOutlook (`data-ogsc`) */
-function darkStyles(a: ReturnType<typeof accentOf>): string {
+function darkStyles(a: ReturnType<typeof accentOf>, withHero = false): string {
   const btn = liftForDark(a.button, 3);
   const accentInk = liftForDark(a.quote, 4.5);
+  // رأسُ التهنئة لا يُضاف نمطُه إلا لرسالةٍ فيها رأس — فتبقى الرسائل الأخرى كما هي حرفاً حرفاً
+  const hero = withHero
+    ? `
+    .tq-hero { background-color:${DARK.panel} !important; }
+    .tq-hero-sub { color:${liftForDark(BRAND.mahogany, 4.5)} !important; }`
+    : "";
   const rules = `
     .tq-page { background-color:${DARK.page} !important; }
     .tq-card { background-color:${DARK.card} !important; border-color:${DARK.line} !important; }
@@ -403,9 +435,9 @@ function darkStyles(a: ReturnType<typeof accentOf>): string {
     .tq-fine { color:${DARK.muted} !important; }
     ${(Object.keys(TONE_DARK) as EmailTone[])
       .map((t) => `.tq-badge-${t} { background-color:${TONE_DARK[t].bg} !important; color:${TONE_DARK[t].fg} !important; }`)
-      .join("\n    ")}`;
+      .join("\n    ")}${hero}`;
   return `@media (prefers-color-scheme: dark) {${rules}
-  }
+  }${withHero ? `\n  [data-ogsb] .tq-hero { background-color:${DARK.panel} !important; }` : ""}
   [data-ogsc] .tq-ink { color:${DARK.ink} !important; }
   [data-ogsc] .tq-body { color:${DARK.body} !important; }
   [data-ogsc] .tq-muted { color:${DARK.muted} !important; }
@@ -432,6 +464,8 @@ export function renderEmail(opts: {
   const a = accentOf(opts.theme);
   const bodyHtml = renderBody(opts.content, opts.theme);
   const dept = opts.theme?.departmentName?.trim();
+  const hero = opts.content.hero;
+  const full = opts.content.fullNameLockup === true;
   const sameHandle =
     SOCIAL_LINKS.length > 0 && SOCIAL_LINKS.every((s) => s.handle === SOCIAL_LINKS[0].handle);
   const social = SOCIAL_LINKS.map(
@@ -448,7 +482,7 @@ export function renderEmail(opts: {
 <meta name="supported-color-schemes" content="light dark">
 <style>
   :root { color-scheme: light dark; supported-color-schemes: light dark; }
-  ${darkStyles(a)}
+  ${darkStyles(a, !!hero)}
 </style>
 <title>${esc(opts.subject)}</title>
 </head>
@@ -460,17 +494,30 @@ export function renderEmail(opts: {
     <tr>
       <td bgcolor="${BRAND.temptress}" style="background-color:${BRAND.temptress};${KEEP_DARK}padding:18px 26px">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-          <td align="right" style="font-size:0;line-height:0"><img src="${assetUrl("/brand/lockup-on-dark.png")}" width="118" height="35" alt="تَـــلاقِ — TLAQI" style="display:block;border:0;width:118px;height:35px"></td>
+          <td align="right" style="font-size:0;line-height:0"><img src="${assetUrl("/brand/lockup-on-dark.png")}" width="118" height="35" alt="${full ? "TLAQI" : "تَـــلاقِ — TLAQI"}" style="display:block;border:0;width:118px;height:35px"></td>
           <td align="left" style="font-family:${FONT_STACK};font-size:12px;font-weight:bold;color:rgba(238,246,223,0.72)">${dept ? keepLight(esc(dept)) : ""}</td>
         </tr></table>
       </td>
     </tr>
-    <tr><td bgcolor="${a.rule}" style="height:5px;background-color:${a.rule};font-size:0;line-height:0">&nbsp;</td></tr>
+    <tr><td bgcolor="${a.rule}" style="height:5px;background-color:${a.rule};font-size:0;line-height:0">&nbsp;</td></tr>${hero ? `
+    <tr><td class="tq-hero" bgcolor="${BRAND.beige}" style="background-color:${BRAND.beige};padding:28px 28px 24px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl"><tr>
+        <td style="font-family:${FONT_STACK}">
+          <span style="display:inline-block;background-color:${BRAND.temptress};color:${BRAND.beige};font-size:12px;font-weight:bold;padding:5px 14px;border-radius:999px">${esc(opts.content.badge ?? TONE[opts.content.tone ?? "info"].badge)}</span>
+          <h1 class="tq-ink" style="margin:14px 0 0;font-size:28px;line-height:1.4;font-weight:bold;color:${BRAND.temptress}">${esc(hero.greeting)}</h1>
+          ${hero.subtitle ? `<p class="tq-hero-sub" style="margin:4px 0 0;font-size:18px;line-height:1.6;font-weight:bold;color:${BRAND.mahogany}">${esc(hero.subtitle)}</p>` : ""}
+        </td>
+        <td width="86" align="left" valign="top" style="font-size:0;line-height:0"><img src="${assetUrl("/brand/symbol-faint-temptress.png")}" width="70" height="99" alt="" style="display:block;border:0;width:70px;height:99px"></td>
+      </tr></table>
+    </td></tr>` : ""}
     <tr><td class="tq-card" bgcolor="#ffffff" style="background-color:#ffffff;padding:26px 28px 24px">${bodyHtml}</td></tr>
     <tr>
       <td align="center" bgcolor="${BRAND.temptress}" style="background-color:${BRAND.temptress};${KEEP_DARK}padding:22px 24px 16px">
-        <img src="${assetUrl("/brand/lockup-on-dark.png")}" width="96" height="28" alt="TLAQI" style="display:block;border:0;width:96px;height:28px;margin:0 auto 10px">
-        <div style="font-family:${FONT_STACK};font-size:13px;font-weight:bold;color:${BRAND.beige};letter-spacing:0.5px">${keepLight(esc(TAGLINE))}</div>
+        ${full
+          ? // الشعار المعتمد مع الاسم الكامل: بعرض ٣٢٠px يكون الاسمُ ≈ ٨px فيُقرأ — ويحلّ محلّ الشعار الصغير والجملة القديمة
+            `<img src="${assetUrl("/brand/logo-fullname-on-dark.png")}" width="320" height="116" alt="TLAQI — Talent Link Advancing Quality Innovation" style="display:block;border:0;width:320px;max-width:100%;height:auto;margin:0 auto 4px">`
+          : `<img src="${assetUrl("/brand/lockup-on-dark.png")}" width="96" height="28" alt="TLAQI" style="display:block;border:0;width:96px;height:28px;margin:0 auto 10px">
+        <div style="font-family:${FONT_STACK};font-size:13px;font-weight:bold;color:${BRAND.beige};letter-spacing:0.5px">${keepLight(esc(TAGLINE))}</div>`}
         ${social ? `<div dir="ltr" style="font-family:${FONT_STACK};margin-top:10px">${keepLight(social)}</div>` : ""}
         ${sameHandle ? `<div dir="ltr" style="font-family:${FONT_STACK};font-size:11px;color:rgba(238,246,223,0.55);margin-top:4px">${keepLight("@" + esc(SOCIAL_LINKS[0].handle))}</div>` : ""}
       </td>
@@ -482,7 +529,7 @@ export function renderEmail(opts: {
     </tr></table></td></tr>
   </table>
   <div class="tq-fine" style="max-width:600px;margin:14px auto 0;font-family:${FONT_STACK};font-size:11px;line-height:1.8;color:rgba(0,0,0,0.45);text-align:center">
-    مُرسَلة من إدارة تَـــلاقِ — لأن لك حساباً في منصّتها الداخلية.
+    مُرسَلة من إدارة ${full ? "TLAQI" : "تَـــلاقِ"} — لأن لك حساباً في منصّتها الداخلية.
   </div>
 </td></tr>
 </table>

@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { formatDate } from "@/lib/format";
+import { ORG_TIME_ZONE } from "@/lib/anniversary";
 import { appendEmailLog } from "@/lib/googleSheets";
 import { prisma } from "@/lib/prisma";
 import {
@@ -1403,7 +1404,70 @@ export async function sendCommitteeDecisionEmail(opts: {
   );
 }
 
-/** تكليفٌ بقيادة لجنة — لصاحبه وحده. ولا يصير به قائدَ قسم: قيادةُ لجنةٍ داخل قسمه */
+/** محتوى رسالة تعيين قائد اللجنة بجنس صاحبها — دالةٌ خالصة تُرسَم وتُختبر بلا قاعدة ولا بريد */
+export function committeeLeadAppointedContent(
+  opts: { fullName: string; committeeName: string; parentName: string; appointedByName: string; url: string; appointedAt?: Date },
+  gender: MaybeGender
+): EmailContent {
+  const G = (m: string, f: string, n: string) => gx(gender, m, f, n);
+  const head = `${G("كُلِّفتَ", "كُلِّفتِ", "كُلِّفت")} بقيادة لجنة «${opts.committeeName}»`;
+  // «لجنة المحتوى الرقمي» تُكتب كما هي، و«المحتوى الرقمي» تُسبق بـ«لجنة» — فلا تتكرّر الكلمة
+  const named = /^لجنة\s/.test(opts.committeeName.trim()) ? opts.committeeName.trim() : `لجنة ${opts.committeeName.trim()}`;
+  const dept = departmentBrand(opts.parentName).copy.phrase;
+  const on = new Intl.DateTimeFormat("ar-u-ca-gregory-nu-arab", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: ORG_TIME_ZONE,
+  }).format(opts.appointedAt ?? new Date());
+  return {
+    tone: "celebrate",
+    badge: "تهنئة بالتعيين",
+    title: head,
+    hero: {
+      greeting: `مبارك يا ${firstName(opts.fullName)}!`,
+      subtitle: `${G("أنتَ الآن قائدُ", "أنتِ الآن قائدةُ", "أنت الآن قائدُ")} «${named}»`,
+    },
+    paragraphs: [
+      `يسعدنا في TLAQI أن ${G("نهنّئك بتعيينك قائداً", "نهنّئكِ بتعيينكِ قائدةً", "نهنّئك بالتعيين قائداً")} ل${esc(named)} في ${esc(dept)}. ` +
+        G(
+          "هذا الدور ثقةٌ ومسؤولية: تقود أعمالَ اللجنة واجتماعاتِها ومهامَّها، وتجمع أعضاءها على أهدافٍ واضحة، وترفع تقاريرَها إلى قائد القسم. والتعيينُ في عضويتها قرارُ قائد القسم، ولك أن تقترح.",
+          "هذا الدور ثقةٌ ومسؤولية: تقودين أعمالَ اللجنة واجتماعاتِها ومهامَّها، وتجمعين أعضاءها على أهدافٍ واضحة، وترفعين تقاريرَها إلى قائد القسم. والتعيينُ في عضويتها قرارُ قائد القسم، ولكِ أن تقترحي.",
+          "هذا الدور ثقةٌ ومسؤولية: قيادةُ أعمال اللجنة واجتماعاتِها ومهامِّها، وجمعُ أعضائها على أهدافٍ واضحة، ورفعُ تقاريرها إلى قائد القسم. والتعيينُ في عضويتها قرارُ قائد القسم، ويمكن اقتراحُ الأعضاء عليه."
+        ),
+    ],
+    facts: [
+      ["اللجنة", opts.committeeName],
+      ["القسم", opts.parentName],
+      ["المسمى القيادي", `${G("قائد", "قائدة", "قائد")} ${named}`],
+      ["تاريخ التعيين", on],
+      ["صدر التعيين من", opts.appointedByName],
+    ],
+    steps: {
+      title: G("خطواتك الأولى", "خطواتكِ الأولى", "الخطوات الأولى"),
+      items: [
+        G("افتح صفحة اللجنة وتعرّف على أعضائها.", "افتحي صفحة اللجنة وتعرّفي على أعضائها.", "فتحُ صفحة اللجنة والتعرّفُ على أعضائها."),
+        G("حدّد موعد الاجتماع الأول واكتب أهدافه.", "حدّدي موعد الاجتماع الأول واكتبي أهدافه.", "تحديدُ موعد الاجتماع الأول وكتابةُ أهدافه."),
+        G("وزّع أولى المهامّ، وتابعها من لوحة اللجنة.", "وزّعي أولى المهامّ، وتابعيها من لوحة اللجنة.", "توزيعُ أولى المهامّ ومتابعتُها من لوحة اللجنة."),
+      ],
+    },
+    cta: { label: "الدخول إلى المنصة", url: esc(opts.url) },
+    after: [
+      G(
+        "نثق أنك ستصنع مع فريقك أثراً يليق بك وبـ TLAQI.",
+        "نثق أنكِ ستصنعين مع فريقكِ أثراً يليق بكِ وبـ TLAQI.",
+        "نثق أن اللجنة ستصنع أثراً يليق بها وبـ TLAQI."
+      ),
+    ],
+    fullNameLockup: true,
+  };
+}
+
+/** تعيينٌ في قيادة لجنة — لصاحبه وحده. ولا يصير به قائدَ قسم: قيادةُ لجنةٍ داخل قسمه.
+ *
+ *  **بالتصميم المعتمد لهذه الرسالة وحدها:** رأسُ تهنئةٍ بخلفية Beige، ثم بياناتُ التعيين،
+ *  ثم الخطواتُ الأولى، والشعارُ المعتمد مع الاسم الكامل في التذييل. والرسائلُ الأخرى
+ *  باقيةٌ على القالب الموحَّد كما هي. ولا هاشتاق: رسالةٌ إدارية. */
 export async function sendCommitteeLeadAppointedEmail(opts: {
   to: string;
   fullName: string;
@@ -1411,26 +1475,18 @@ export async function sendCommitteeLeadAppointedEmail(opts: {
   parentName: string;
   appointedByName: string;
   url: string;
+  /** يومُ التعيين — الآن إن لم يُمرَّر */
+  appointedAt?: Date;
 }) {
   const subject = `كُلِّفتَ بقيادة لجنة «${opts.committeeName}»`;
   const blocked = await suppressed("committee.lead_appointed", opts.to, "تكليف لجنة", subject);
   if (blocked) return blocked;
   const r = await recipientOf(opts.to);
-  const head = `${gx(r.gender, "كُلِّفتَ", "كُلِّفتِ", "كُلِّفت")} بقيادة لجنة «${opts.committeeName}»`;
+  const content = committeeLeadAppointedContent(opts, r.gender);
   return send(
     opts.to,
-    head,
-    {
-      tone: "action",
-      badge: "تكليف",
-      title: head,
-      lead: `${esc(opts.fullName)}، ${gx(r.gender, "أنتَ", "أنتِ", "أنت")} الآن قائدُ لجنة <b>${esc(opts.committeeName)}</b> في ${esc(opts.parentName)}.`,
-      facts: [["التكليف من", opts.appointedByName]],
-      after: [
-        "تدير أعمالَ اللجنة: اجتماعاتِها وحضورَها وقراراتِها ومهامَّها وتقاريرَها إلى قائد القسم. والتعيينُ في عضويتها قرارُ قائد القسم، ولك أن تقترح.",
-      ],
-      cta: { label: "فتح اللجنة", url: esc(opts.url) },
-    },
+    content.title,
+    content,
     "تكليف لجنة",
     themeOf(r)
   );

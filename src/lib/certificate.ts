@@ -1,6 +1,8 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
-import { BRAND, themeFromColor } from "@/lib/brand";
+import { BRAND } from "@/lib/brand";
+import { contrastRatio } from "@/lib/colors";
+import { anniversaryDate, monthsCompleted } from "@/lib/anniversary";
 import { accountRoleLabel } from "@/lib/testTracks";
 import { gx, roleTitle, type MaybeGender } from "@/lib/gender";
 
@@ -75,6 +77,8 @@ export type CertificateData = {
   roleLabel: string;
   isLead: boolean;
   period: CertificatePeriod;
+  /** يومُ إصدارها المسجَّل — لا يومُ فتح الصفحة: الشهادة تُقرأ بعد سنةٍ بتاريخها */
+  issuedAt: Date;
   colorHex: string;
   /** يُوقّعها اثنان: صاحب الجهة التي عمل تحتها، ومن يمثّل المنصة */
   signers: [CertificateSigner, CertificateSigner];
@@ -160,11 +164,11 @@ export function certificateBody(data: CertificateData): string {
 
 /** عنوان الشهادة — المناسبة تُقرأ من أعلى الورقة لا من نصّها.
  *
- *  نوعان بتصميمين: شهادةُ الشكر والخبرة تختم المسيرة (لونُ القسم كاملاً)،
- *  وشهادةُ التقدير تُكرّم محطّةً في مسيرةٍ جارية (ورقٌ وشريطٌ بلون القسم). */
+ *  نوعان بقالبٍ معتمدٍ واحد («الإطار الكلاسيكي»): شهادةُ الشكر والخبرة تختم
+ *  المسيرة، وشهادةُ التقدير تُكرّم محطّةً في مسيرةٍ جارية. */
 export function certificateHeading(kind: CertificateKind): { ar: string; en: string } {
   return kind === "appreciation"
-    ? { ar: "شهادة تقدير — ثلاثة أشهر", en: "Certificate of Appreciation" }
+    ? { ar: "شهادة تقدير — ثلاثة أشهر", en: "Certificate of Appreciation · 3 Months" }
     : { ar: "شهادة شكر وخبرة", en: "Certificate of Appreciation & Experience" };
 }
 
@@ -254,27 +258,65 @@ export async function certificateFor(
       // يوم استحقاقها لا «اليوم»: من أُرسلت له متأخّرةً تبقى بتاريخها.
       end: kind === "appreciation" ? (member.appreciationDueAt ?? issuedAt) : servicePeriod(member).end,
     },
+    issuedAt,
     colorHex,
     signers,
     missingSignatures,
   };
 }
 
-/** ألوان الشهادة مشتقّة من لون القسم نفسه.
+/** ورقُ الشهادة — لونُها الحالي، لا لونٌ جديد */
+export const CERTIFICATE_PAPER = "#FFFDF9";
+
+const HEX6 = /^#[0-9a-f]{6}$/i;
+
+/** حبرُ ما يُكتب فوق خلفيةٍ ما: من لونَي الهوية (Temptress الداكن، Beige الفاتح)
+ *  الأعلى تبايناً معها (WCAG). به يُلوَّن التوقيع بحسب **خلفية منطقته** لا لون
+ *  الشهادة العام — وبه يُلوَّن الرمزُ فوق الختم. */
+export function inkForBackground(bg: string): string {
+  if (!HEX6.test(bg)) return BRAND.temptress;
+  return contrastRatio(BRAND.temptress, bg) >= contrastRatio(BRAND.beige, bg) ? BRAND.temptress : BRAND.beige;
+}
+
+/** ألوانُ «الإطار الكلاسيكي» المعتمد، مشتقّةً من لون القسم.
  *
- *  فلا تُكتب أربعة ألوان في الكود ثم يُضاف قسمٌ خامس بلا لون. والبيج
- *  فاتح فيُكتب عليه بالداكن، وغيره داكن فيُكتب عليه بالفاتح — يحسمها
- *  `themeFromColor` بالتباين لا بقائمة استثناءات. */
-export function certificatePalette(colorHex: string) {
-  const theme = themeFromColor(colorHex);
-  const onLight = theme.text === BRAND.ink;
+ *  الإطارُ والختمُ بلون القسم — إلا لوناً يذوب في الورق (بيجُ الموارد البشرية)
+ *  فيأخذ Temptress كما كانت الشهادة السابقة تفعل. وعنوانُ الشهادة بلون القسم
+ *  إن قُرئ على الورق (٣:١ فأكثر)، وإلا Temptress: الأخضرُ إطارٌ ظاهر لكنه
+ *  نصٌّ باهت. والتوقيعُ على الورق، فحبرُه حبرُ الورق. */
+export function certificateFrame(colorHex: string | null | undefined) {
+  const c = colorHex?.trim() && HEX6.test(colorHex.trim()) ? colorHex.trim() : BRAND.temptress;
+  const onPaper = contrastRatio(c, CERTIFICATE_PAPER);
+  const frame = onPaper < 1.5 ? BRAND.temptress : c;
   return {
-    background: colorHex,
-    ink: theme.text,
-    muted: onLight ? "rgba(26,16,35,0.70)" : "rgba(238,246,223,0.78)",
-    rule: onLight ? "rgba(26,16,35,0.35)" : "rgba(238,246,223,0.45)",
-    // الزخرفة العضوية: أفتح قليلاً من الخلفية على الداكن، وأغمق على الفاتح
-    ornament: onLight ? "rgba(26,16,35,0.07)" : "rgba(255,255,255,0.10)",
-    accent: onLight ? BRAND.mahogany : "rgba(238,246,223,0.92)",
+    paper: CERTIFICATE_PAPER,
+    ink: BRAND.temptress,
+    frame,
+    accent: onPaper < 3 ? BRAND.temptress : c,
+    sealInk: inkForBackground(frame),
+    signatureInk: inkForBackground(CERTIFICATE_PAPER),
   };
+}
+
+const AR_NUM = new Intl.NumberFormat("ar-u-nu-arab");
+
+/** عددٌ ومعدودُه بقواعد العربية: «شهر واحد»، «شهران»، «٤ أشهر»، «١٢ شهراً» */
+function counted(n: number, one: string, two: string, few: string, many: string): string {
+  if (n === 1) return one;
+  if (n === 2) return two;
+  return `${AR_NUM.format(n)} ${n >= 3 && n <= 10 ? few : many}`;
+}
+
+/** مدّةُ المشاركة كما تُكتب على الشهادة: أشهرٌ تقويمية مكتملة (بتوقيت المنظمة) ثم أيام.
+ *  «٣ أشهر»، «٤ أشهر و١٢ يوماً»، «١٨ يوماً». */
+export function serviceDurationAr(start: Date, end: Date): string {
+  if (end.getTime() <= start.getTime()) return "أقل من يوم";
+  const months = monthsCompleted(start, end);
+  const from = months > 0 ? anniversaryDate(start, months) : start;
+  const days = Math.max(0, Math.floor((end.getTime() - from.getTime()) / 86_400_000));
+  if (months === 0 && days === 0) return "أقل من يوم";
+  const parts: string[] = [];
+  if (months > 0) parts.push(counted(months, "شهر واحد", "شهران", "أشهر", "شهراً"));
+  if (days > 0) parts.push(counted(days, "يوم واحد", "يومان", "أيام", "يوماً"));
+  return parts.join(" و");
 }
