@@ -7,7 +7,7 @@ import { raiseTicket } from "@/lib/tickets";
 import { safeErrorMessage } from "@/lib/safeError";
 import { appBaseUrl } from "@/lib/emailBrand";
 import { canRequestWelcomeResend, resenderRoleFor, RESENDER_LABEL, WELCOME_MAX_SENDS } from "@/lib/welcomeResend";
-import { canIssueCertificates } from "@/lib/recognitionDesk";
+import { canIssueCertificates, mayIssueCertificateFor } from "@/lib/recognitionDesk";
 import { issueAppreciation } from "@/lib/appreciation";
 import { markCertificateShared } from "@/lib/offboarding";
 
@@ -125,8 +125,23 @@ export async function reportMissingWelcomeAction(): Promise<{ error: string | nu
   }
 }
 
-/** الشهادات من صفحة «الترحيب والتكريم» — لمسؤول المتابعة والتشغيل والرئيس
- *  التنفيذي والمؤسس (`canIssueCertificates`)، ويُفرَض هنا لا في الزرّ.
+/** السلسلة: لا يُصدر أحدٌ إلا لمن يليه مباشرة — المؤسس للرئيس التنفيذي،
+ *  والتنفيذي لمسؤول التشغيل، ومسؤول التشغيل للقادة والأعضاء. */
+async function chainRefusal(role: string, memberId: string, L: ReturnType<typeof getDictionary>["rRecognitionDesk"]) {
+  if (typeof memberId !== "string" || !memberId) return { refusal: L.notFound, member: null };
+  const member = await prisma.member.findUnique({
+    where: { id: memberId },
+    select: { stepDownAt: true, offboardingClosedAt: true, invite: { select: { targetRole: true } } },
+  });
+  if (!member) return { refusal: L.notFound, member: null };
+  if (!mayIssueCertificateFor(role, member.invite.targetRole)) {
+    return { refusal: fmt(L.notYourChain, RESENDER_LABEL[resenderRoleFor(member.invite.targetRole)]), member: null };
+  }
+  return { refusal: null, member };
+}
+
+/** الشهادات من صفحة «الترحيب والتكريم» — لمن يعلو صاحبَها في السلسلة
+ *  (`mayIssueCertificateFor`)، ويُفرَض هنا لا في الزرّ.
  *
  *  وكلٌّ يمرّ بمَخنَق نوعه: الختمُ مرّةً واحدة، والبريدُ يُعاد ما لم يصل،
  *  ومن أصدر ومتى ولمن يُكتب في السجل الحي. */
@@ -138,7 +153,8 @@ export async function issueAppreciationDeskAction(
   const session = await auth();
   if (!session) return { error: L.signInFirst };
   if (!canIssueCertificates(session.user.role)) return { error: L.notAllowed };
-  if (typeof memberId !== "string" || !memberId) return { error: L.notFound };
+  const { refusal } = await chainRefusal(session.user.role, memberId, L);
+  if (refusal) return { error: refusal };
   const reason = typeof earlyReason === "string" ? earlyReason.trim().slice(0, 300) : null;
   try {
     const res = await issueAppreciation(memberId, { name: session.user.name ?? "—", earlyReason: reason });
@@ -156,12 +172,8 @@ export async function issueFinalCertificateDeskAction(memberId: string): Promise
   const session = await auth();
   if (!session) return { error: L.signInFirst };
   if (!canIssueCertificates(session.user.role)) return { error: L.notAllowed };
-  if (typeof memberId !== "string" || !memberId) return { error: L.notFound };
-  const member = await prisma.member.findUnique({
-    where: { id: memberId },
-    select: { stepDownAt: true, offboardingClosedAt: true },
-  });
-  if (!member) return { error: L.notFound };
+  const { refusal, member } = await chainRefusal(session.user.role, memberId, L);
+  if (refusal || !member) return { error: refusal ?? L.notFound };
   if (!member.stepDownAt || member.offboardingClosedAt) return { error: L.finalOnlyAtClosing };
   try {
     const res = await markCertificateShared(memberId, session.user.name ?? "—");

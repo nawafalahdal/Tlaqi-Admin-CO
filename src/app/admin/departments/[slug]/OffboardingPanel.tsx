@@ -42,9 +42,12 @@ const MIN_DAYS = 14;
 export function OffboardingPanel({
   member,
   theme,
+  canIssueCertificate = false,
 }: {
   member: OffboardingMember;
   theme: ReturnType<typeof themeFromColor>;
+  /** يُصدر شهادته بالسلسلة؟ (مسؤول المتابعة والتشغيل لأعضاء الأقسام) — والخادمُ يفرضها */
+  canIssueCertificate?: boolean;
 }) {
   const { t: dict, locale } = useLocale();
   const t = dict.offboarding;
@@ -219,10 +222,14 @@ export function OffboardingPanel({
 
       {!member.closedAt && (
         <div className="mt-3 flex flex-wrap gap-2 border-t border-black/5 pt-3">
-          {!member.certificateAt && !noCertificate && (
+          {!member.certificateAt && !noCertificate && canIssueCertificate && (
             <Button theme={theme} variant="outline" disabled={pending} onClick={() => mark("certificate")}>
               {t.markCertificate}
             </Button>
+          )}
+          {!member.certificateAt && !noCertificate && !canIssueCertificate && (
+            // الشهادةُ تصدر بالسلسلة من «الترحيب والتكريم» — لا من هنا لغير صاحبها
+            <span className="self-center text-xs text-black/55">{t.certificateByChain}</span>
           )}
           {!member.farewellAt && (
             <Button theme={theme} variant="outline" disabled={pending} onClick={() => mark("farewell")}>

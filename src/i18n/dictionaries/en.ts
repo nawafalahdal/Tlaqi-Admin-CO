@@ -335,6 +335,7 @@ requestsHint: "What the platform creates on its own: the welcome banner on appro
   },
   memberRoster: {
     certificateIssued: "Certificate issued",
+    certificateFromDesk: "Issue certificate →",
     endMembership: "End membership",
     empty: "No active members in this department yet",
     warningsLabel: "Warnings",
@@ -1118,6 +1119,7 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
   },
 
   offboarding: {
+    certificateByChain: "The certificate of appreciation & experience is issued by the follow-up & operations officer from “Welcome & Recognition”",
     sectionTitle: "Member exits",
     sectionHint: "Stepping down stops the work and fixes the end date \u2014 it does not close the experience. That stays open until the certificate is handed over and the farewell is made, and then the final thank-you is sent.",
     empty: "Nobody is in an exit process.",
@@ -2210,7 +2212,9 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
   },
   rRecognitionDesk: {
     title: "Welcome & Recognition",
-    descIssuer: "Everything newcomers and honourees receive, in one place: a welcome card for anyone who lost theirs, the appreciation certificate on its date or earlier by an administrative decision, and the certificate of appreciation & experience at the close of the journey. Every issue is recorded under your name.",
+    descIssuer: "Everything newcomers and honourees receive, in one place: a welcome card for anyone who lost theirs, the appreciation certificate on its date or earlier by an administrative decision, and the certificate of appreciation & experience at the close of the journey. Each issues for the next in the chain, recorded under their name.",
+    chainNote: "The chain: the founder issues for the CEO, the CEO for the follow-up & operations officer, and the operations officer for leaders and members — only the certificates in your care appear here.",
+    notYourChain: "This certificate is issued by {0} — by the chain",
     tabCards: "Welcome cards",
     tabCertificates: "Certificates",
     statCardsNotSent: "Card not sent yet",
@@ -2223,7 +2227,7 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
     closingTitle: "Certificate of appreciation & experience — closing",
     closingHint: "For those who stepped down and began closing their journey. Issued on the approved template with the signature of whoever they worked under; not issued to anyone who left within the first two weeks.",
     appreciationTitle: "Appreciation certificate — three months",
-    appreciationHint: "Issued automatically the day a member completes three months since approval. From here you can issue it right away, or before its date with a written administrative decision — it is then issued as a “Certificate of Appreciation” with the real period, not “three months”.",
+    appreciationHint: "Issued automatically to members the day they complete three months since approval; for leaders and management, whoever is above them issues it. From here you can issue it right away, or before its date with a written administrative decision — it is then issued as a “Certificate of Appreciation” with the real period, not “three months”.",
     emptyAppreciation: "No active members yet",
     colStatus: "Status",
     leadTag: "Leadership",
@@ -2251,7 +2255,7 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
     dlgResendBody: "The certificate for {0} was issued but its email was not delivered. It is resent with the same certificate — no second certificate is issued.",
     done: "✓ Issued",
     signInFirst: "You need to sign in",
-    notAllowed: "Certificates are issued by the follow-up & operations officer, the CEO and the founder",
+    notAllowed: "Certificates follow the chain: the founder for the CEO, the CEO for the follow-up & operations officer, and the operations officer for leaders and members",
     notFound: "Record not found",
     finalOnlyAtClosing: "The certificate of appreciation & experience is only for someone closing their journey",
   },

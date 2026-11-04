@@ -44,11 +44,7 @@ import { scheduleDueSweeps } from "@/lib/sweepThrottle";
 import { WorkspaceOverview } from "@/components/dashboard/WorkspaceOverview";
 
 import { fmt } from "@/i18n/fmt";
-function isCertificateEligible(decidedAt: Date | null) {
-  if (!decidedAt) return false;
-  return Date.now() - decidedAt.getTime() >= 90 * 24 * 60 * 60 * 1000;
-}
-
+import { mayIssueCertificateFor } from "@/lib/recognitionDesk";
 /** أعضاءُ القسم في الصفحة الواحدة. كانوا مقصوصين عند ٢٠٠ بلا تنبيه — والعنوانُ يَعدّ المقصوص —
  *  ويُرسمون كلُّهم بطاقاتٍ تفاعلية دفعةً واحدة (٢٫٤ ميغابايت عند ٣٠٠ عضو). */
 const ROSTER_PAGE = 40;
@@ -477,6 +473,7 @@ export default async function DepartmentBoardPage({
           <MemberRoster
             theme={theme}
             canReset={session.user.role === "super_admin"}
+            canIssueCertificates={mayIssueCertificateFor(session.user.role, "member")}
             members={roster.rows.map((m) => ({
               id: m.id,
               fullName: m.fullName,
@@ -484,7 +481,6 @@ export default async function DepartmentBoardPage({
               jobTitle: m.jobTitle,
               warningsCount: m.warningsCount,
               certificateIssuedAt: m.certificateIssuedAt ? m.certificateIssuedAt.toISOString() : null,
-              certificateEligible: isCertificateEligible(m.decidedAt),
             }))}
           />
           {roster.pages > 1 && (
@@ -507,6 +503,7 @@ export default async function DepartmentBoardPage({
                 <OffboardingPanel
                   key={m.id}
                   theme={theme}
+                  canIssueCertificate={mayIssueCertificateFor(session.user.role, "member")}
                   member={{
                     id: m.id,
                     fullName: m.fullName,

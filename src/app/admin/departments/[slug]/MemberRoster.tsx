@@ -6,7 +6,6 @@ import {
   issueWarningAction,
   resetMemberCredentialsAction,
   markMemberExitedAction,
-  issueCertificateAction,
 } from "./actions";
 import { Card, Button } from "@/components/ui";
 import { CredentialsReveal } from "@/components/CredentialsReveal";
@@ -20,18 +19,20 @@ type RosterMember = {
   jobTitle: string | null;
   warningsCount: number;
   certificateIssuedAt: string | null;
-  certificateEligible: boolean;
 };
 
 export function MemberRoster({
   members,
   theme,
   canReset = false,
+  canIssueCertificates = false,
 }: {
   members: RosterMember[];
   theme: ReturnType<typeof themeFromColor>;
   /** صار العضو يستعيد كلمته بنفسه عبر بريده؛ التعيين اليدوي للفاوندر وحده */
   canReset?: boolean;
+  /** يُصدر شهادات الأعضاء في السلسلة (مسؤول المتابعة والتشغيل) — رابطٌ إلى «الترحيب والتكريم» */
+  canIssueCertificates?: boolean;
 }) {
   const [openFor, setOpenFor] = useState<string | null>(null);
   const t = useTranslations();
@@ -78,9 +79,15 @@ export function MemberRoster({
                 <span className="rounded-full bg-[#E3F3E8] px-2.5 py-1 text-xs font-semibold text-[#1F6B3A]">
                   {t.memberRoster.certificateIssued}
                 </span>
-              ) : (
-                <CertificateButton memberId={m.id} eligible={m.certificateEligible} theme={theme} />
-              )}
+              ) : canIssueCertificates ? (
+                // الشهادةُ تصدر من مكانٍ واحد بالسلسلة: «الترحيب والتكريم»
+                <Link
+                  href={`/admin/welcome-cards?tab=certificates&q=${encodeURIComponent(m.fullName)}`}
+                  className="inline-flex min-h-9 items-center rounded-xl px-3 text-xs font-semibold underline underline-offset-2"
+                >
+                  {t.memberRoster.certificateFromDesk}
+                </Link>
+              ) : null}
               <Button
                 theme={theme}
                 variant="ghost"
@@ -112,44 +119,6 @@ export function MemberRoster({
           )}
         </Card>
       ))}
-    </div>
-  );
-}
-
-function CertificateButton({
-  memberId,
-  eligible,
-  theme,
-}: {
-  memberId: string;
-  eligible: boolean;
-  theme: ReturnType<typeof themeFromColor>;
-}) {
-  const t = useTranslations();
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  return (
-    <div className="flex items-center gap-1.5">
-      <Button
-        theme={theme}
-        variant="ghost"
-        disabled={pending}
-        onClick={() =>
-          startTransition(async () => {
-            setError(null);
-            const res = await issueCertificateAction(memberId);
-            if (res.error) setError(res.error);
-          })
-        }
-      >
-        {pending
-          ? t.actions.issuing
-          : eligible
-            ? t.actions.issueCertificate
-            : t.actions.issueCertificateEarly}
-      </Button>
-      {error && <span className="text-xs text-red-700">{error}</span>}
     </div>
   );
 }

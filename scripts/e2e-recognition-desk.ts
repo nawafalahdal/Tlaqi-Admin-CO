@@ -3,16 +3,16 @@ import { hashPassword } from "@/lib/credentials";
 import { issueLoginCode } from "@/lib/loginCodes";
 import { issueAppreciation, appreciationState, sweepThreeMonthAppreciation } from "@/lib/appreciation";
 import { markCertificateShared } from "@/lib/offboarding";
-import { canIssueCertificates, finalState, loadCertificateDesk } from "@/lib/recognitionDesk";
+import { canIssueCertificates, mayIssueCertificateFor, finalState, loadCertificateDesk } from "@/lib/recognitionDesk";
 import { certificateFor, certificateBody, certificateHeading, appreciationFullTerm } from "@/lib/certificate";
 import { anniversaryDate } from "@/lib/anniversary";
 
 /** **الترحيب والتكريم** — الشهادات من صفحة بطاقات الانضمام.
  *
  *  على بياناتٍ اختباريةٍ تُنشأ وتُحذف، والقاعدةُ محليةٌ وحدها:
- *  - الصلاحية: مسؤول المتابعة والتشغيل والتنفيذي والمؤسس — لا قائد القسم ولا العضو.
+ *  - السلسلة: المؤسس للرئيس التنفيذي، والتنفيذي لمسؤول التشغيل، ومسؤول التشغيل للقادة والأعضاء.
  *  - التقدير في موعده، والمبكرُ بقرارٍ مكتوب وبمدّته الفعلية، ولا شهادةَ ثانية.
- *  - لا تقديرَ لصفِّ قيادة، والختامُ بحوكمة الأسبوعين.
+ *  - الكنسُ الآلي للأعضاء وحدهم، والقائدُ يُكرَّم بيد من يعلوه. والختامُ بحوكمة الأسبوعين.
  *  - (اختياري) عبر HTTP بدخولٍ حقيقي: مسؤول التشغيل يرى التبويب، وقائد القسم يُعاد.
  *
  *    npx tsx --tsconfig tsconfig.json scripts/e2e-recognition-desk.ts   (والخادمُ على :3000 للجزء الأخير) */
@@ -56,7 +56,7 @@ async function signIn(email: string) {
   const founder = await prisma.user.findFirstOrThrow({ where: { role: "super_admin" } });
 
   let n = 0;
-  async function mkMember(o: { role?: "member" | "department_admin"; decidedDaysAgo: number; stepDown?: boolean }) {
+  async function mkMember(o: { role?: "member" | "department_admin" | "operations_officer"; decidedDaysAgo: number; stepDown?: boolean }) {
     n += 1;
     const email = `${TAG}-${n}@example.test`;
     const invite = await prisma.invite.create({
@@ -72,16 +72,19 @@ async function signIn(email: string) {
     });
   }
 
-  // ١ — الصلاحية
-  chk("مسؤول المتابعة والتشغيل يُصدر", canIssueCertificates("operations_officer"));
-  chk("والرئيس التنفيذي والمؤسس", canIssueCertificates("executive") && canIssueCertificates("super_admin"));
-  chk("ولا قائد القسم ولا العضو", !canIssueCertificates("department_admin") && !canIssueCertificates("member") && !canIssueCertificates(undefined));
+  // ١ — السلسلة (قرار المؤسس): كلٌّ لمن يليه مباشرة
+  chk("مسؤول التشغيل يُصدر للأعضاء والقادة", mayIssueCertificateFor("operations_officer", "member") && mayIssueCertificateFor("operations_officer", "department_admin"));
+  chk("ولا يُصدر لنفسه ولا لمن فوقه", !mayIssueCertificateFor("operations_officer", "operations_officer") && !mayIssueCertificateFor("operations_officer", "executive"));
+  chk("الرئيس التنفيذي يُصدر لمسؤول التشغيل وحده", mayIssueCertificateFor("executive", "operations_officer") && !mayIssueCertificateFor("executive", "member") && !mayIssueCertificateFor("executive", "department_admin") && !mayIssueCertificateFor("executive", "executive"));
+  chk("المؤسس يُصدر للرئيس التنفيذي وحده", mayIssueCertificateFor("super_admin", "executive") && !mayIssueCertificateFor("super_admin", "member") && !mayIssueCertificateFor("super_admin", "operations_officer"));
+  chk("ولا يُصدر قائدُ القسم ولا العضو", !canIssueCertificates("department_admin") && !canIssueCertificates("member") && !canIssueCertificates(undefined) && !mayIssueCertificateFor("department_admin", "member"));
 
   const due = await mkMember({ decidedDaysAgo: 120 });
   const early = await mkMember({ decidedDaysAgo: 30 });
   const lead = await mkMember({ role: "department_admin", decidedDaysAgo: 120 });
   const closing = await mkMember({ decidedDaysAgo: 60, stepDown: true });
   const shortStay = await mkMember({ decidedDaysAgo: 5, stepDown: true });
+  const opsRow = await mkMember({ role: "operations_officer", decidedDaysAgo: 100 });
   const by = { name: "مسؤول التشغيل (فحص)" };
 
   // ٢ — الحالات قبل الإصدار
@@ -120,9 +123,11 @@ async function signIn(email: string) {
   await sweepThreeMonthAppreciation();
   chk("والكنسُ اليومي لا يختم ثانيةً", (await prisma.member.findUniqueOrThrow({ where: { id: early.id } })).appreciationIssuedAt?.getTime() === e2.appreciationIssuedAt?.getTime());
 
-  // ٥ — صفُّ القيادة لا يُكرَّم بشهادة الأعضاء
-  const r3 = await issueAppreciation(lead.id, { ...by, earlyReason: "قرارٌ إداريٌّ للفحص" });
-  chk("لا شهادةَ تقدير لصفِّ قيادة", r3.ok === false && r3.reason.includes("للأعضاء"), JSON.stringify(r3));
+  // ٥ — القائد: لا يُكرّمه الكنسُ الآلي، ويُكرّمه من يعلوه بيده
+  const r3 = await issueAppreciation(lead.id);
+  chk("الكنسُ الآلي لا يُصدر لقائد", r3.ok === false && r3.reason.includes("الآلي"), JSON.stringify(r3));
+  await issueAppreciation(lead.id, by);
+  chk("ويُصدرها له مسؤول التشغيل بيده", (await prisma.member.findUniqueOrThrow({ where: { id: lead.id } })).appreciationIssuedAt !== null);
 
   // ٦ — الختام وحوكمة الأسبوعين
   const fs = async (id: string) => finalState(await prisma.member.findUniqueOrThrow({ where: { id } }));
@@ -134,13 +139,19 @@ async function signIn(email: string) {
   const r4 = await markCertificateShared(shortStay.id, by.name);
   chk("وحوكمةُ الأسبوعين تمنع الأخرى", r4.ok === false && (await prisma.member.findUniqueOrThrow({ where: { id: shortStay.id } })).certificateIssuedAt === null);
 
-  // ٧ — ما تعرضه الصفحة
-  const desk = await loadCertificateDesk(TAG.slice(-5));
+  // ٧ — ما تعرضه الصفحة: كلٌّ يرى من في عهدته وحدهم
+  const desk = await loadCertificateDesk(TAG.slice(-5), "operations_officer");
   const ids = new Set(desk.appreciation.map((r) => r.id));
-  chk("تبويب الشهادات يعرض الأعضاء", ids.has(due.id) && ids.has(early.id));
-  chk("ولا يعرض صفَّ القيادة في التقدير", !ids.has(lead.id));
+  chk("مسؤول التشغيل يرى الأعضاء والقادة", ids.has(due.id) && ids.has(early.id) && ids.has(lead.id));
+  chk("ولا يرى صفَّ مسؤول التشغيل", !ids.has(opsRow.id));
   chk("وختامُ التجربة في قسمه", desk.final.some((r) => r.id === closing.id) && desk.final.some((r) => r.id === shortStay.id));
   chk("وما يحتاج يداً الآن أولاً", desk.appreciation[0]?.state.kind === "undelivered" || desk.appreciation[0]?.state.kind === "due");
+  const execDesk = await loadCertificateDesk(TAG.slice(-5), "executive");
+  const execIds = new Set(execDesk.appreciation.map((r) => r.id));
+  chk("الرئيس التنفيذي يرى مسؤول التشغيل وحده", execIds.has(opsRow.id) && !execIds.has(due.id) && !execIds.has(lead.id) && execDesk.final.length === 0);
+  const founderDesk = await loadCertificateDesk(TAG.slice(-5), "super_admin");
+  chk("والمؤسس لا يرى إلا الرئيس التنفيذي", founderDesk.appreciation.every((r) => r.targetRole === "executive") && founderDesk.final.length === 0);
+  chk("وقائدُ القسم لا يرى شيئاً", (await loadCertificateDesk(TAG.slice(-5), "department_admin")).appreciation.length === 0);
 
   // ٨ — عبر HTTP بدخولٍ حقيقي (إن كان الخادم يعمل)
   const up = await fetch(`${BASE}/login`).then((r) => r.ok).catch(() => false);
@@ -158,6 +169,11 @@ async function signIn(email: string) {
     const dlRes = await fetch(`${BASE}/admin/welcome-cards?tab=certificates`, { headers: { cookie: dlCookie }, redirect: "manual" });
     const dlHtml = dlRes.status === 200 ? await dlRes.text() : "";
     chk("وقائد القسم لا يصل الصفحة", dlRes.status !== 200 || !dlHtml.includes("شهادة التقدير — ثلاثة أشهر"), `status ${dlRes.status}`);
+    const ex = await prisma.user.create({ data: { fullName: "رئيس تنفيذي (فحص)", email: `${TAG}-ex@example.test`, passwordHash: hash, role: "executive", isActive: true } });
+    const exPage = (await (await fetch(`${BASE}/admin/welcome-cards?tab=certificates&q=${encodeURIComponent(TAG.slice(-5))}`, { headers: { cookie: await signIn(ex.email) } })).text()).replaceAll("<!-- -->", "");
+    chk("والرئيس التنفيذي يرى في الشهادات مسؤولَ التشغيل لا الأعضاء", exPage.includes(opsRow.fullName) && !exPage.includes(due.fullName) && !exPage.includes(lead.fullName));
+    const opsPage2 = page;
+    chk("ومسؤول التشغيل يرى القائد والأعضاء لا صفَّ مسؤول التشغيل", opsPage2.includes(lead.fullName) && opsPage2.includes(due.fullName) && !opsPage2.includes(opsRow.fullName));
   } else {
     checks.push("… الخادمُ لا يعمل على " + BASE + " — تُرك فحصُ HTTP");
   }

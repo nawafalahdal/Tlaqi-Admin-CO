@@ -22,9 +22,9 @@ export const dynamic = "force-dynamic";
 
 /** **الترحيب والتكريم** — بطاقاتُ الانضمام والشهادات في صفحةٍ واحدة.
  *
- *  **لمن الصفحة:** مسؤول المتابعة والتشغيل يُعيد منها البطاقات
- *  (`canResendWelcome`) ويُصدر الشهادات (`canIssueCertificates`)، ومعه
- *  الرئيس التنفيذي والمؤسس كلٌّ بحدّه. وقيادةُ التسويق تطلب منها إعادة
+ *  **لمن الصفحة:** السلسلةُ نفسُها للبطاقات والشهادات — المؤسس للرئيس التنفيذي،
+ *  والتنفيذي لمسؤول المتابعة والتشغيل، ومسؤول التشغيل للقادة والأعضاء
+ *  (`resendTargetsFor` و`certificateTargetsFor`). وقيادةُ التسويق تطلب منها إعادة
  *  البطاقة فيصله الطلب تذكرة — ولا ترى تبويب الشهادات. والشروطُ تُفرَض
  *  مرّةً ثانيةً في كل إجراء، فمن كتب العنوان بيده بلا صلاحية يُعاد، ومن
  *  نادى الإجراء مباشرةً يُرفَض.
@@ -81,7 +81,7 @@ export default async function WelcomeCardsPage({
         {tab === "cards" ? (
           <CardsTab session={session} canSend={canSend} q={q} theme={theme} L={L} R={R} locale={locale} />
         ) : (
-          <CertificatesTab q={q} theme={theme} R={R} L={L} />
+          <CertificatesTab q={q} role={session.user.role} theme={theme} R={R} L={L} locale={locale} />
         )}
       </main>
     </div>
@@ -249,16 +249,21 @@ async function CardsTab({
 /** تبويبُ الشهادات — ختامُ التجربة أولاً ثم التقدير، وكلٌّ مرتّبٌ بالحاجة */
 async function CertificatesTab({
   q,
+  role,
   theme,
   R,
   L,
+  locale,
 }: {
   q: string;
+  role: string;
   theme: Theme;
   R: Dict["rRecognitionDesk"];
   L: Dict["rWelcomePage"];
+  locale: Awaited<ReturnType<typeof getLocale>>;
 }) {
-  const desk = await loadCertificateDesk(q);
+  // كلٌّ يرى من في عهدته في السلسلة وحدهم
+  const desk = await loadCertificateDesk(q, role);
   const view = (memberId: string, kind: "final" | "appreciation") => (
     <a
       href={certificateUrl(memberId, "", kind)}
@@ -283,6 +288,7 @@ async function CertificatesTab({
       </section>
 
       <SearchBar q={q} tab="certificates" L={L} />
+      <p className="-mt-2 text-xs leading-relaxed text-black/55">{R.chainNote}</p>
 
       {desk.final.length > 0 && (
         <section className="flex flex-col gap-2">
@@ -292,6 +298,7 @@ async function CertificatesTab({
             emptyLabel={L.noOneWithThat}
             columns={[
               { key: "name", label: L.name, primary: true },
+              { key: "role", label: L.role },
               { key: "dept", label: L.department },
               { key: "status", label: R.colStatus },
               { key: "actions", label: "" },
@@ -299,12 +306,8 @@ async function CertificatesTab({
             rows={desk.final.map((r) => ({
               id: `final:${r.id}`,
               cells: {
-                name: (
-                  <span className="font-bold">
-                    {r.name}
-                    {r.isLead && <span className="ms-2 rounded-full bg-black/[0.05] px-2 py-0.5 text-[11px] font-semibold">{R.leadTag}</span>}
-                  </span>
-                ),
+                name: <span className="font-bold">{r.name}</span>,
+                role: accountRoleLabel(r.targetRole, locale),
                 dept: r.dept,
                 status:
                   r.state.kind === "sent"
@@ -338,6 +341,7 @@ async function CertificatesTab({
           emptyLabel={q ? L.noOneWithThat : R.emptyAppreciation}
           columns={[
             { key: "name", label: L.name, primary: true },
+            { key: "role", label: L.role },
             { key: "dept", label: L.department },
             { key: "status", label: R.colStatus },
             { key: "actions", label: "" },
@@ -346,6 +350,7 @@ async function CertificatesTab({
             id: `appr:${r.id}`,
             cells: {
               name: <span className="font-bold">{r.name}</span>,
+              role: accountRoleLabel(r.targetRole, locale),
               dept: r.dept,
               status:
                 r.state.kind === "sent"

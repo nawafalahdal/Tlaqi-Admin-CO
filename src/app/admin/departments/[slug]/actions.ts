@@ -7,12 +7,13 @@ import {
   issueWarning,
   resetMemberCredentials,
   markMemberExited,
-  issueCertificate,
 } from "@/lib/workflow";
 import { respondToTicket, withdrawTicket, canRespondToTicket } from "@/lib/tickets";
 import { getTrackForTarget } from "@/lib/testTracks";
 import type { Session } from "next-auth";
 import { safeErrorMessage } from "@/lib/safeError";
+import { mayIssueCertificateFor } from "@/lib/recognitionDesk";
+import { resenderRoleFor, RESENDER_LABEL } from "@/lib/welcomeResend";
 import {
   stepDownMember,
   markCertificateShared,
@@ -23,6 +24,7 @@ import { canInviteMemberTo } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 
 import { getLocale, getDictionary } from "@/i18n/server";
+import { fmt } from "@/i18n/fmt";
 /** حوكمة صارمة: إصدار دعوة عضو داخل قسم معيّن هو حصراً من صلاحية أدمن ذلك
  *  القسم — حتى المؤسس نفسه لا يملك هذا الإجراء مباشرة */
 export async function createMemberInviteAction(
@@ -151,28 +153,8 @@ export async function markMemberExitedAction(
   }
 }
 
-/** إصدار شهادة إتمام لعضو — قرار يدوي من أدمن القسم أو المؤسس/التنفيذي */
-export async function issueCertificateAction(memberId: string): Promise<{ error: string | null }> {
-  const L = getDictionary(await getLocale()).rDeptActions;
-  const session = await auth();
-  if (!session) return { error: L.youNeedToSign };
-
-  const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
-  const allowed =
-    session.user.role === "super_admin" ||
-    session.user.role === "executive" ||
-    (session.user.role === "department_admin" && session.user.departmentId === member.departmentId);
-  if (!allowed) return { error: L.youAreNotAllowed };
-
-  try {
-    const res = await issueCertificate(memberId);
-    revalidatePath(`/admin/departments`);
-    // صدرت الشهادة وتعذّر بريدها: يُقال صريحاً ليُعاد الضغط، لا يُقال «تمّ»
-    return { error: res.ok ? null : res.reason };
-  } catch (err) {
-    return { error: safeErrorMessage(err) };
-  }
-}
+/** إصدارُ الشهادات انتقل إلى «الترحيب والتكريم» بالسلسلة (`recognitionDesk`):
+ *  كان هنا بابٌ ثانٍ يُصدر لكل عضوٍ بيد المؤسس والتنفيذي وقائد القسم معاً. */
 
 /** يرد أدمن القسم (المستهدف أصلاً أو قائد قسم العضو بعد التصعيد) على تذكرة —
  *  المؤسس/التنفيذي مصرَّح لهما دائماً */
@@ -317,6 +299,12 @@ export async function markOffboardingStepAction(
     const byName = session.user.name ?? "—";
     // جوابُ الإصدار يُعاد لصاحب الزرّ — كان يُهمَل فيبدو الرفضُ نجاحاً
     if (step === "certificate") {
+      // والشهادةُ بالسلسلة وحدها: لا يُصدرها إلا من يعلو صاحبَها مباشرة
+      const target = await prisma.member.findUnique({ where: { id: memberId }, select: { invite: { select: { targetRole: true } } } });
+      if (!target || !mayIssueCertificateFor(session.user.role, target.invite.targetRole)) {
+        const R = getDictionary(await getLocale()).rRecognitionDesk;
+        return { error: fmt(R.notYourChain, RESENDER_LABEL[resenderRoleFor(target?.invite.targetRole ?? "member")]) };
+      }
       const res = await markCertificateShared(memberId, byName);
       if (!res.ok) return { error: res.reason };
     } else await markFarewellDesigned(memberId, byName);

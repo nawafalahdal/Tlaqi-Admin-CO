@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { appreciationState, type AppreciationState } from "@/lib/appreciation";
 import { earnsFinalCertificate, serviceDays } from "@/lib/certificate";
-import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
+import { resendTargetsFor } from "@/lib/welcomeResend";
 
 /** **الترحيب والتكريم** — صفحةٌ واحدة لبطاقات الانضمام والشهادات.
  *
@@ -9,19 +9,39 @@ import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
  *  وقائدُ القسم، فلم يجد مسؤولُ المتابعة والتشغيل للشهادات باباً أصلاً. فصار
  *  لها مكانٌ واحد بجانب بطاقات الانضمام: من يُرحِّب بالقادمين يُكرِّمهم.
  *
- *  **من يُصدر:** مسؤول المتابعة والتشغيل (قرار المؤسس)، والرئيس التنفيذي
- *  والمؤسس. ولا تُمنح لغيرهم. والشرطُ يُفرَض في كل إجراءٍ في الخادم؛ والصفحةُ
- *  تبعٌ له.
+ *  **من يُصدر لمن — السلسلةُ نفسُها في بطاقات الانضمام** (قرار المؤسس):
+ *
+ *  | صاحبُ الشهادة             | يُصدرها                  |
+ *  |---------------------------|--------------------------|
+ *  | العضو وقائد القسم         | مسؤول المتابعة والتشغيل  |
+ *  | مسؤول المتابعة والتشغيل   | الرئيس التنفيذي          |
+ *  | الرئيس التنفيذي           | المؤسس                   |
+ *
+ *  فلا يُصدر أحدٌ لنفسه ولا لمن فوقه ولا لمن ليس تحته مباشرة. والشرطُ يُفرَض في
+ *  كل إجراءٍ في الخادم (`mayIssueCertificateFor`)؛ والصفحةُ تعرض لكلٍّ من في
+ *  عهدته وحدهم.
  *
  *  **ما يُصدَر هنا:**
- *  - شهادة التقدير (ثلاثة أشهر) للأعضاء: في موعدها، أو قبله بقرارٍ إداريٍّ مكتوب.
+ *  - شهادة التقدير (ثلاثة أشهر): في موعدها، أو قبله بقرارٍ إداريٍّ مكتوب. والكنسُ
+ *    اليوميُّ يُصدرها للأعضاء وحدهم؛ وللقادة والإدارة يُصدرها من يعلوهم بيده.
  *  - شهادة الشكر والخبرة لمن بدأ ختام تجربته (تنحّى ولم يُغلَق ختامه).
  *  وكلاهما يمرّ بمَخنَقه الوحيد (`issueAppreciation` و`markCertificateShared`)،
  *  فحمايةُ التكرار وحوكمةُ الأسبوعين وسجلُّ من أصدر ومتى لا تُعاد كتابتها هنا. */
-export const CERTIFICATE_ISSUERS = ["operations_officer", "executive", "super_admin"] as const;
+type TargetRole = "member" | "department_admin" | "operations_officer" | "executive";
 
+/** لمن يُصدر صاحبُ هذا الدور — `resendTargetsFor` نفسُه، فلا تفترق السلسلتان */
+export function certificateTargetsFor(role: string | null | undefined): TargetRole[] {
+  return resendTargetsFor(role ?? "") as TargetRole[];
+}
+
+/** أله في السلسلة من يُصدر له؟ (مسؤول التشغيل والتنفيذي والمؤسس) */
 export function canIssueCertificates(role: string | null | undefined): boolean {
-  return (CERTIFICATE_ISSUERS as readonly string[]).includes(role ?? "");
+  return certificateTargetsFor(role).length > 0;
+}
+
+/** أيُصدر صاحبُ هذا الدور شهادةَ صاحب هذه الصفة؟ */
+export function mayIssueCertificateFor(role: string | null | undefined, targetRole: string): boolean {
+  return (certificateTargetsFor(role) as string[]).includes(targetRole);
 }
 
 export type FinalState =
@@ -66,14 +86,17 @@ const DATES = {
 } as const;
 
 /** ما تعرضه الصفحة في تبويب الشهادات — مقيّدٌ بسقفٍ، ومرتّبٌ بالحاجة */
-export async function loadCertificateDesk(q: string, now = new Date()) {
+export async function loadCertificateDesk(q: string, role: string, now = new Date()) {
   const nameFilter = q ? { fullName: { contains: q, mode: "insensitive" as const } } : {};
+  // كلٌّ يرى من في عهدته وحدهم — والسلسلةُ تُفرَض ثانيةً في كل إجراء
+  const inChain = { invite: { targetRole: { in: certificateTargetsFor(role) } } };
   const [members, closing] = await Promise.all([
     prisma.member.findMany({
       where: {
-        ...ROSTER_MEMBER_WHERE,
+        ...inChain,
         ...nameFilter,
-        convertedAt: null,
+        isActive: true,
+        approvalStatus: "approved",
         noFurtherEmail: false,
         stepDownAt: null,
         offboardingClosedAt: null,
@@ -81,6 +104,7 @@ export async function loadCertificateDesk(q: string, now = new Date()) {
       select: {
         id: true,
         fullName: true,
+        invite: { select: { targetRole: true } },
         isActive: true,
         noFurtherEmail: true,
         stepDownAt: true,
@@ -95,7 +119,7 @@ export async function loadCertificateDesk(q: string, now = new Date()) {
       take: 500,
     }),
     prisma.member.findMany({
-      where: { ...nameFilter, stepDownAt: { not: null }, offboardingClosedAt: null },
+      where: { ...inChain, ...nameFilter, stepDownAt: { not: null }, offboardingClosedAt: null },
       select: {
         id: true,
         fullName: true,
@@ -115,6 +139,7 @@ export async function loadCertificateDesk(q: string, now = new Date()) {
       id: m.id,
       name: m.fullName,
       dept: m.department?.name ?? "—",
+      targetRole: m.invite.targetRole,
       state: appreciationState(m, now),
     }))
     .sort(
@@ -129,7 +154,7 @@ export async function loadCertificateDesk(q: string, now = new Date()) {
       id: m.id,
       name: m.fullName,
       dept: m.department?.name ?? "—",
-      isLead: m.invite.targetRole !== "member",
+      targetRole: m.invite.targetRole,
       stepDownAt: m.stepDownAt!,
       state: finalState(m),
     }))
@@ -137,8 +162,8 @@ export async function loadCertificateDesk(q: string, now = new Date()) {
 
   const monthAgo = new Date(now.getTime() - 30 * 86_400_000);
   const [issuedAppreciation, issuedFinal] = await Promise.all([
-    prisma.member.count({ where: { appreciationIssuedAt: { gte: monthAgo } } }),
-    prisma.member.count({ where: { certificateIssuedAt: { gte: monthAgo } } }),
+    prisma.member.count({ where: { ...inChain, appreciationIssuedAt: { gte: monthAgo } } }),
+    prisma.member.count({ where: { ...inChain, certificateIssuedAt: { gte: monthAgo } } }),
   ]);
 
   return {
