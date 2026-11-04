@@ -155,6 +155,10 @@ export function certificateUrl(
  *  فيها، واختراعُ إنجازٍ يُفرغ التقدير من صدقه. */
 export function certificateBody(data: CertificateData): string {
   const G = (m: string, f: string, n: string) => gx(data.gender, m, f, n);
+  if (data.kind === "appreciation" && !appreciationFullTerm(data.period)) {
+    // صدرت مبكرةً بقرارٍ إداري: لا تقول «ثلاثة أشهر» عن مدّةٍ أقصر
+    return `تقديراً ${G("لعطائه", "لعطائها", "للعطاء")} خلال ${G("مسيرته", "مسيرتها", "المسيرة")} معنا، ${G("وإسهامه", "وإسهامها", "والإسهام")} في بناء ما نطمح إليه معاً.`;
+  }
   if (data.kind === "appreciation") {
     return `تقديراً ${G("لعطائه", "لعطائها", "للعطاء")} خلال ثلاثة أشهرٍ من العمل والتعلّم، ${G("وإسهامه", "وإسهامها", "والإسهام")} في بناء ما نطمح إليه معاً.`;
   }
@@ -166,10 +170,17 @@ export function certificateBody(data: CertificateData): string {
  *
  *  نوعان بقالبٍ معتمدٍ واحد («الإطار الكلاسيكي»): شهادةُ الشكر والخبرة تختم
  *  المسيرة، وشهادةُ التقدير تُكرّم محطّةً في مسيرةٍ جارية. */
-export function certificateHeading(kind: CertificateKind): { ar: string; en: string } {
+export function certificateHeading(kind: CertificateKind, fullTerm = true): { ar: string; en: string } {
+  if (kind === "appreciation" && !fullTerm) return { ar: "شهادة تقدير", en: "Certificate of Appreciation" };
   return kind === "appreciation"
     ? { ar: "شهادة تقدير — ثلاثة أشهر", en: "Certificate of Appreciation · 3 Months" }
     : { ar: "شهادة شكر وخبرة", en: "Certificate of Appreciation & Experience" };
+}
+
+/** أتمّت شهادةُ التقدير ثلاثةَ أشهر؟ تُقرأ من مدّتها نفسها: الكنسُ يُصدرها
+ *  في موعدها فتكتمل، والإصدارُ المبكر بقرارٍ إداري يختم مدّتها بيومه فلا تكتمل. */
+export function appreciationFullTerm(period: CertificatePeriod): boolean {
+  return monthsCompleted(period.start, period.end) >= 3;
 }
 
 /** يجمع كل ما تحتاجه الشهادة من القاعدة.

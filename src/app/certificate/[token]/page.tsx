@@ -3,6 +3,7 @@ import {
   certificateFor,
   certificateBody,
   certificateHeading,
+  appreciationFullTerm,
   certificateFrame,
   serviceDurationAr,
   verifyCertificateToken,
@@ -79,7 +80,7 @@ function longDate(d: Date) {
  *  ٢٦mm في الطباعة — أقلُّ ما يبقى معه الاسمُ الكامل فوق ٦pt. */
 function ClassicFrame({ data }: { data: CertificateData }) {
   const f = certificateFrame(data.colorHex);
-  const heading = certificateHeading(data.kind);
+  const heading = certificateHeading(data.kind, data.kind !== "appreciation" || appreciationFullTerm(data.period));
   const dept = data.departmentName?.trim();
   const hair = "rgba(52,29,43,0.22)";
   const meta: Array<[string, string]> =

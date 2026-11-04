@@ -47,34 +47,104 @@ function ineligibleReason(member: {
   return null;
 }
 
+/** حالُ شهادة التقدير لعضوٍ واحد — تُقرأ لصفحة «الترحيب والتكريم».
+ *
+ *  - `sent`: صدرت ووصلت.
+ *  - `undelivered`: صدرت ولم يصل بريدها — تُعاد بلا شهادةٍ ثانية.
+ *  - `due`: أكمل ثلاثة أشهر ولم تصدر بعد (الكنس اليومي لم يمرّ عليه) — تُصدَر الآن.
+ *  - `upcoming`: لم يحن موعدها — لا تُصدَر قبله إلا بقرارٍ إداريٍّ مكتوب.
+ *  - `blocked`: لا تُصدَر له، والسببُ مكتوب. */
+export type AppreciationState =
+  | { kind: "sent"; at: Date }
+  | { kind: "undelivered"; at: Date }
+  | { kind: "due"; dueAt: Date }
+  | { kind: "upcoming"; dueAt: Date }
+  | { kind: "blocked"; reason: string };
+
+export function appreciationState(
+  m: {
+    isActive: boolean;
+    noFurtherEmail: boolean;
+    stepDownAt: Date | null;
+    offboardingClosedAt: Date | null;
+    appreciationIssuedAt: Date | null;
+    appreciationSentAt: Date | null;
+    decidedAt: Date | null;
+    joinDate: Date;
+  },
+  now = new Date()
+): AppreciationState {
+  if (m.appreciationSentAt) return { kind: "sent", at: m.appreciationSentAt };
+  if (m.appreciationIssuedAt) return { kind: "undelivered", at: m.appreciationIssuedAt };
+  const blocked = ineligibleReason(m);
+  if (blocked) return { kind: "blocked", reason: blocked };
+  const start = assignmentStart(m);
+  const dueAt = anniversaryDate(start, 3);
+  return completedThreeMonths(start, now) ? { kind: "due", dueAt } : { kind: "upcoming", dueAt };
+}
+
+/** أقصرُ قرارٍ إداريٍّ يُقبل سبباً للإصدار المبكر — لا يُكتفى بكلمة */
+export const EARLY_REASON_MIN = 5;
+
 /** يُصدر شهادة التقدير لعضوٍ واحد ويُسلّمها.
  *
  *  والإصدار والتسليم ختمان كشهادة الإنهاء: يُصدَر مرّةً واحدة لهذه
- *  المناسبة، ويُعاد البريد ما لم يصل. */
+ *  المناسبة، ويُعاد البريد ما لم يصل.
+ *
+ *  **ويدوياً** (`by`): يُصدرها مسؤولُ المتابعة والتشغيل أو الرئيس التنفيذي
+ *  أو المؤسس من صفحة «الترحيب والتكريم» دون انتظار الكنس اليومي. و**قبل
+ *  موعدها** لا تصدر إلا بقرارٍ إداريٍّ مكتوب (`earlyReason`) يُسجَّل بنصّه
+ *  واسم صاحبه. والمبكرةُ تُختم مدّتُها بيوم إصدارها لا بموعدٍ لم يأتِ —
+ *  فلا تقول الشهادة «ثلاثة أشهر» عن مدّةٍ أقصر (`certificateHeading`). */
 export async function issueAppreciation(
-  memberId: string
+  memberId: string,
+  by?: { name: string; earlyReason?: string | null }
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
   const member = await prisma.member.findUnique({
     where: { id: memberId },
-    include: { department: true },
+    include: { department: true, invite: { select: { targetRole: true } } },
   });
   if (!member) return { ok: false, reason: "السجل غير موجود" };
   if (member.appreciationSentAt) return { ok: true };
+  // شهادةُ «ثلاثة أشهر عضواً» للعضو وحده — الحكمُ نفسُه في الكنس أدناه
+  if (member.invite.targetRole !== "member" || member.convertedAt) {
+    return { ok: false, reason: "شهادة التقدير للأعضاء وحدهم — والقادة تُختم مسيرتهم بشهادة الشكر والخبرة" };
+  }
 
   const start = assignmentStart(member);
-  if (!completedThreeMonths(start)) return { ok: false, reason: "لم يُكمل ثلاثة أشهر بعد" };
+  const earlyReason = by?.earlyReason?.trim() || null;
+  const early = !member.appreciationIssuedAt && !completedThreeMonths(start);
+  if (early && !earlyReason) return { ok: false, reason: "لم يُكمل ثلاثة أشهر بعد" };
+  if (early && earlyReason!.length < EARLY_REASON_MIN) {
+    return { ok: false, reason: "اكتب القرار الإداري الذي يُصدِر الشهادة قبل موعدها" };
+  }
 
   // «كُرِّم سابقاً» ليس منعاً هنا: الختم موجودٌ وبريده لم يصل، فيُعاد
   const blocked = ineligibleReason(member);
   if (blocked && blocked !== "كُرِّم سابقاً") return { ok: false, reason: blocked };
 
   const at = new Date();
-  const dueAt = member.appreciationDueAt ?? anniversaryDate(start, 3);
+  const dueAt = member.appreciationDueAt ?? (early ? at : anniversaryDate(start, 3));
   if (!member.appreciationIssuedAt) {
-    await prisma.member.update({
-      where: { id: memberId },
+    // الختمُ شرطيّ: ضغطتان متسابقتان لا تُصدران شهادتين
+    const stamped = await prisma.member.updateMany({
+      where: { id: memberId, appreciationIssuedAt: null },
       data: { appreciationIssuedAt: at, appreciationDueAt: dueAt },
     });
+    if (stamped.count === 0) return { ok: false, reason: "صدرت للتوّ من نافذةٍ أخرى — حدّث الصفحة" };
+    if (by) {
+      // من أصدرها ومتى ولمن — يُسجَّل عند الإصدار ولو تعذّر البريد بعده
+      await appendMemberEvent({
+        fullName: member.fullName,
+        email: member.email,
+        event: early ? "إصدار شهادة تقدير مبكرة" : "إصدار شهادة تقدير",
+        roleOrDepartment: member.department?.name ?? member.jobTitle ?? "—",
+        details: early
+          ? `قبل موعدها (${anniversaryDate(start, 3).toISOString().slice(0, 10)}) بقرارٍ إداري: «${earlyReason}» — أصدرها ${by.name}`
+          : `أصدرها ${by.name} يدوياً`,
+        at,
+      });
+    }
   }
 
   const sent = await sendAppreciationEmail({
@@ -83,6 +153,7 @@ export async function issueAppreciation(
     jobTitle: member.jobTitle,
     departmentName: member.department?.name ?? null,
     certificateUrl: certificateUrl(memberId, appBaseUrl(), "appreciation"),
+    fullTerm: completedThreeMonths(start, dueAt),
   });
 
   if (sent.skipped) {
@@ -96,9 +167,11 @@ export async function issueAppreciation(
   await appendMemberEvent({
     fullName: member.fullName,
     email: member.email,
-    event: "شهادة تقدير ثلاثة أشهر",
+    event: completedThreeMonths(start, dueAt) ? "شهادة تقدير ثلاثة أشهر" : "تسليم شهادة تقدير مبكرة",
     roleOrDepartment: member.department?.name ?? member.jobTitle ?? "—",
-    details: `استحقّها ${dueAt.toISOString().slice(0, 10)} بتوقيت ${ORG_TIME_ZONE} — وصلت برابطها`,
+    details:
+      `استحقّها ${dueAt.toISOString().slice(0, 10)} بتوقيت ${ORG_TIME_ZONE} — وصلت برابطها` +
+      (by ? ` — سلّمها ${by.name}` : ""),
     at,
   });
   const { syncMemberLifecycleRow } = await import("@/lib/workflow");

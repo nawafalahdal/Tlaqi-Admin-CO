@@ -7,6 +7,9 @@ import { raiseTicket } from "@/lib/tickets";
 import { safeErrorMessage } from "@/lib/safeError";
 import { appBaseUrl } from "@/lib/emailBrand";
 import { canRequestWelcomeResend, resenderRoleFor, RESENDER_LABEL, WELCOME_MAX_SENDS } from "@/lib/welcomeResend";
+import { canIssueCertificates } from "@/lib/recognitionDesk";
+import { issueAppreciation } from "@/lib/appreciation";
+import { markCertificateShared } from "@/lib/offboarding";
 
 import { getLocale, getDictionary } from "@/i18n/server";
 import { fmt } from "@/i18n/fmt";
@@ -71,7 +74,7 @@ async function raiseResendRequest(opts: {
     description:
       `${opts.why(target.fullName)} ` +
       `أُرسلت له حتى الآن ${target.welcomeEmailCount} بطاقة، ويبقى له إعادةٌ واحدة. ` +
-      `تأكّد من بريده ثم أعِدها من صفحة «بطاقات الانضمام» (الإعادة لـ${resenderLabel}).`,
+      `تأكّد من بريده ثم أعِدها من صفحة «الترحيب والتكريم» (الإعادة لـ${resenderLabel}).`,
     linkUrl: `${appBaseUrl()}/admin/welcome-cards?q=${encodeURIComponent(target.fullName)}`,
   });
   revalidatePath("/admin/tickets");
@@ -117,6 +120,54 @@ export async function reportMissingWelcomeAction(): Promise<{ error: string | nu
       subject: (name) => `لم تصلني بطاقة الانضمام — ${name}`,
       why: (name) => `يُبلغ ${name} أن بطاقة الانضمام لم تصله.`,
     });
+  } catch (err) {
+    return { error: safeErrorMessage(err) };
+  }
+}
+
+/** الشهادات من صفحة «الترحيب والتكريم» — لمسؤول المتابعة والتشغيل والرئيس
+ *  التنفيذي والمؤسس (`canIssueCertificates`)، ويُفرَض هنا لا في الزرّ.
+ *
+ *  وكلٌّ يمرّ بمَخنَق نوعه: الختمُ مرّةً واحدة، والبريدُ يُعاد ما لم يصل،
+ *  ومن أصدر ومتى ولمن يُكتب في السجل الحي. */
+export async function issueAppreciationDeskAction(
+  memberId: string,
+  earlyReason?: string | null
+): Promise<{ error: string | null }> {
+  const L = getDictionary(await getLocale()).rRecognitionDesk;
+  const session = await auth();
+  if (!session) return { error: L.signInFirst };
+  if (!canIssueCertificates(session.user.role)) return { error: L.notAllowed };
+  if (typeof memberId !== "string" || !memberId) return { error: L.notFound };
+  const reason = typeof earlyReason === "string" ? earlyReason.trim().slice(0, 300) : null;
+  try {
+    const res = await issueAppreciation(memberId, { name: session.user.name ?? "—", earlyReason: reason });
+    revalidatePath("/admin/welcome-cards");
+    return { error: res.ok ? null : res.reason };
+  } catch (err) {
+    return { error: safeErrorMessage(err) };
+  }
+}
+
+/** شهادة الشكر والخبرة — لمن بدأ ختام تجربته وحده: من تنحّى ولم يُغلَق ختامه.
+ *  وحوكمةُ الأسبوعين وحمايةُ التكرار في `markCertificateShared` نفسه. */
+export async function issueFinalCertificateDeskAction(memberId: string): Promise<{ error: string | null }> {
+  const L = getDictionary(await getLocale()).rRecognitionDesk;
+  const session = await auth();
+  if (!session) return { error: L.signInFirst };
+  if (!canIssueCertificates(session.user.role)) return { error: L.notAllowed };
+  if (typeof memberId !== "string" || !memberId) return { error: L.notFound };
+  const member = await prisma.member.findUnique({
+    where: { id: memberId },
+    select: { stepDownAt: true, offboardingClosedAt: true },
+  });
+  if (!member) return { error: L.notFound };
+  if (!member.stepDownAt || member.offboardingClosedAt) return { error: L.finalOnlyAtClosing };
+  try {
+    const res = await markCertificateShared(memberId, session.user.name ?? "—");
+    revalidatePath("/admin/welcome-cards");
+    revalidatePath("/admin/departments");
+    return { error: res.ok ? null : res.reason };
   } catch (err) {
     return { error: safeErrorMessage(err) };
   }
