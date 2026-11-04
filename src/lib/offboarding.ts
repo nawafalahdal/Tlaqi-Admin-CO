@@ -148,6 +148,9 @@ export async function markCertificateShared(
 
   // الشهادة تُقرأ من السجل بعد الختم: الختم هو ما يجعلها موجودة أصلاً
   const data = await certificateFor(memberId);
+  // وتُسجَّل في «سجل الشهادات الصادرة» برقمٍ ولقطة — وإن تعذّر بقي الرابطُ القديم
+  const { registerAutomatic, markRegistrySent } = await import("@/lib/certificateRegistry");
+  const registered = await registerAutomatic(memberId, "final", byName);
   const sent = await sendCertificateEmail({
     to: member.email,
     fullName: member.fullName,
@@ -155,7 +158,7 @@ export async function markCertificateShared(
     departmentName: member.department?.name ?? null,
     mission: member.jobTitle,
     period: data?.period ?? null,
-    certificateUrl: certificateUrl(memberId, appBaseUrl()),
+    certificateUrl: registered?.url ?? certificateUrl(memberId, appBaseUrl()),
   });
 
   if (sent.skipped) {
@@ -173,6 +176,7 @@ export async function markCertificateShared(
   }
 
   await prisma.member.update({ where: { id: memberId }, data: { certificateSentAt: at } });
+  if (registered) await markRegistrySent(registered.id, at);
 
   // الشهادة تصدر بتوقيعٍ ناقص إن لم يُعتمد توقيع مُوقّعها — ولا تصدر
   // **صامتةً**: الاسم والصفة عليها نسبةٌ لا انتحال، لكن النقص يُكتب في

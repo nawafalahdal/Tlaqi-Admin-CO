@@ -628,8 +628,47 @@ model Member {
   committeeProposalsAbout       CommitteeProposal[]   @relation("CommitteeProposalTarget")
   committeeProposalsReplacement CommitteeProposal[]   @relation("CommitteeProposalReplacement")
 
+  // ── الشهادات الصادرة بأرقامها — انظر `IssuedCertificate`
+  issuedCertificates            IssuedCertificate[]
+
   // الكنس اليومي يسأل: من لم تصله شهادة تقديره؟ فيُجاب رخيصاً
   @@index([appreciationSentAt])
+}
+
+/// **سجلُّ الشهادات الصادرة** — لكل شهادةٍ رقمُها وصورتُها كما طُبعت.
+///
+/// الأنواع الستة المعتمدة (`kind`): `appreciation` (شكر وتقدير — ٣ أشهر)، `final`
+/// (شكر وخبرة — ختام)، `achievement` (إنجاز)، `appointment` (تعيين، «الترويسة
+/// التحريرية»)، `leadership` (قيادة)، `membership` (عضوية ومشاركة).
+///
+/// - `number`: TLAQI-{القسم}-{السنة}-[حرف النوع-]{تسلسل} — فريد.
+/// - `occasion`: المناسبة؛ و(`memberId`, `occasion`) فريدان معاً، فلا تصدر شهادتان
+///   لمناسبةٍ واحدة ولو ضُغط الزرّ مرّتين.
+/// - `data`: الصورة المطبوعة (الاسم والمسمى والنص والبيانات والموقّعان) — تُقرأ
+///   الشهادة منها لا من الملف الحيّ، فلا تتغيّر بعد صدورها.
+/// - الإصدار المبكر بسببه ومرجعه؛ ومن أصدر (أو «آلياً») ومتى؛ ومتى وصل البريد.
+model IssuedCertificate {
+  id             String    @id @default(cuid())
+  number         String    @unique
+  kind           String
+  occasion       String
+  memberId       String
+  /// الحذفُ النهائيُّ لصاحبها (قرار المؤسس) يمحوها معه — بعد كتابة ما فيها في الشيت
+  member         Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  data           Json
+  /// ما عُدِّل يدوياً عن الأصل (الحقلُ: قبل ← بعد) — يُسجَّل ولا يُخفى
+  edits          Json?
+  early          Boolean   @default(false)
+  earlyReason    String?
+  earlyReference String?
+  issuedById     String?
+  issuedByName   String
+  issuedAt       DateTime  @default(now())
+  sentAt         DateTime?
+
+  @@unique([memberId, occasion])
+  @@index([issuedAt])
+  @@index([kind])
 }
 
 model TestAttempt {

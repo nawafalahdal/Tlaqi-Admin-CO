@@ -12,9 +12,13 @@ import { formatDate } from "@/lib/format";
 import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 import { certificateUrl } from "@/lib/certificate";
 import { canResendWelcome, canRequestWelcomeResend, resendTargetsFor, WELCOME_MAX_SENDS } from "@/lib/welcomeResend";
-import { canIssueCertificates, loadCertificateDesk } from "@/lib/recognitionDesk";
+import { canIssueCertificates, certificateTargetsFor, loadCertificateDesk } from "@/lib/recognitionDesk";
+import { listIssued } from "@/lib/certificateRegistry";
+import { isCertificateType, type CertificateType } from "@/lib/certificateTypes";
 import { ResendWelcomeButton } from "./ResendWelcomeButton";
 import { CertificateAction } from "./CertificateAction";
+import { IssueWorkspace } from "./IssueWorkspace";
+import { ResendIssuedButton } from "./ResendIssuedButton";
 
 import { getLocale, getDictionary } from "@/i18n/server";
 import { fmt } from "@/i18n/fmt";
@@ -34,7 +38,7 @@ export const dynamic = "force-dynamic";
 export default async function WelcomeCardsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; tab?: string }>;
+  searchParams: Promise<{ q?: string; tab?: string; m?: string; t?: string }>;
 }) {
   const locale = await getLocale();
   const dict = getDictionary(locale);
@@ -55,7 +59,9 @@ export default async function WelcomeCardsPage({
 
   return (
     <div className="min-h-screen bg-page">
-      <main className="mx-auto flex max-w-5xl flex-col gap-5 px-4 py-6 sm:px-5 sm:py-8">
+      <main
+        className={`mx-auto flex flex-col gap-5 px-4 py-6 sm:px-5 sm:py-8 ${tab === "certificates" ? "max-w-6xl" : "max-w-5xl"}`}
+      >
         <PageHeader
           title={R.title}
           description={canCertify ? R.descIssuer : canSend ? L.resendTheWelcomeCard : L.requestAWelcomeCard}
@@ -81,7 +87,16 @@ export default async function WelcomeCardsPage({
         {tab === "cards" ? (
           <CardsTab session={session} canSend={canSend} q={q} theme={theme} L={L} R={R} locale={locale} />
         ) : (
-          <CertificatesTab q={q} role={session.user.role} theme={theme} R={R} L={L} locale={locale} />
+          <CertificatesTab
+            q={q}
+            role={session.user.role}
+            theme={theme}
+            R={R}
+            L={L}
+            locale={locale}
+            initialMemberId={typeof sp.m === "string" && sp.m ? sp.m.slice(0, 40) : undefined}
+            initialType={isCertificateType(sp.t) ? sp.t : undefined}
+          />
         )}
       </main>
     </div>
@@ -120,6 +135,16 @@ function StatTile({ label, value, theme, accent }: { label: string; value: numbe
       <p className="mt-1.5 text-xs leading-snug text-black/55">{label}</p>
     </Card>
   );
+}
+
+function Pill({ tone, children }: { tone: "ok" | "warn" | "muted"; children: React.ReactNode }) {
+  const cls =
+    tone === "ok"
+      ? "bg-green-700/10 text-green-800"
+      : tone === "warn"
+        ? "bg-[#C34900]/10 text-[#C34900]"
+        : "bg-black/[0.06] text-black/60";
+  return <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold ${cls}`}>{children}</span>;
 }
 
 /** تبويبُ البطاقات — كما كان: يرى كلٌّ من يُعيد بطاقاتِهم في السلسلة */
@@ -254,6 +279,8 @@ async function CertificatesTab({
   R,
   L,
   locale,
+  initialMemberId,
+  initialType,
 }: {
   q: string;
   role: string;
@@ -261,9 +288,43 @@ async function CertificatesTab({
   R: Dict["rRecognitionDesk"];
   L: Dict["rWelcomePage"];
   locale: Awaited<ReturnType<typeof getLocale>>;
+  initialMemberId?: string;
+  initialType?: CertificateType;
 }) {
-  // كلٌّ يرى من في عهدته في السلسلة وحدهم
-  const desk = await loadCertificateDesk(q, role);
+  const T = getDictionary(locale).rIssueDesk;
+  // كلٌّ يرى من في عهدته في السلسلة وحدهم — في النموذج والسجل وقوائم الانتظار
+  const targets = certificateTargetsFor(role);
+  const [desk, issued, recipients] = await Promise.all([
+    loadCertificateDesk(q, role),
+    listIssued(targets, q, 30),
+    prisma.member.findMany({
+      where: {
+        invite: { targetRole: { in: targets } },
+        approvalStatus: "approved",
+        offboardingClosedAt: null,
+        noFurtherEmail: false,
+      },
+      select: { id: true, fullName: true, department: { select: { name: true } }, invite: { select: { targetRole: true } } },
+      orderBy: { fullName: "asc" },
+      take: 500,
+    }),
+  ]);
+  const prepare = (memberId: string, type: CertificateType) => (
+    <Link
+      href={`/admin/welcome-cards?${new URLSearchParams({ tab: "certificates", m: memberId, t: type })}#issue`}
+      className="wizard-btn-2 !min-h-9 !px-3 !text-xs"
+    >
+      {R.prepare}
+    </Link>
+  );
+  const typeLabel: Record<CertificateType, string> = {
+    appreciation: T.typeAppreciation,
+    achievement: T.typeAchievement,
+    appointment: T.typeAppointment,
+    leadership: T.typeLeadership,
+    membership: T.typeMembership,
+    final: T.typeFinal,
+  };
   const view = (memberId: string, kind: "final" | "appreciation") => (
     <a
       href={certificateUrl(memberId, "", kind)}
@@ -287,6 +348,72 @@ async function CertificatesTab({
         <StatTile label={R.statIssued} value={desk.stats.issuedThisMonth} theme={theme} />
       </section>
 
+      <IssueWorkspace
+        key={`${initialMemberId ?? ""}:${initialType ?? ""}`}
+        role={role}
+        initialMemberId={initialMemberId}
+        initialType={initialType}
+        recipients={recipients.map((m) => ({
+          id: m.id,
+          name: m.fullName,
+          dept: m.department?.name ?? "",
+          role: accountRoleLabel(m.invite.targetRole, locale),
+        }))}
+      />
+
+      <section className="flex flex-col gap-2">
+        <h2 className="text-base font-bold">{T.logTitle}</h2>
+        <DataTable
+          emptyLabel={T.logEmpty}
+          columns={[
+            { key: "number", label: T.colNumber },
+            { key: "name", label: T.colRecipient, primary: true },
+            { key: "type", label: T.colType },
+            { key: "by", label: T.colBy },
+            { key: "date", label: T.colDate },
+            { key: "status", label: "" },
+            { key: "actions", label: "" },
+          ]}
+          rows={issued.map((r) => ({
+            id: `issued:${r.id}`,
+            cells: {
+              number: (
+                <bdi dir="ltr" className="text-xs">
+                  {r.number}
+                </bdi>
+              ),
+              name: <span className="font-bold">{r.member.fullName}</span>,
+              type: r.type ? typeLabel[r.type] : r.kind,
+              by: r.issuedById ? r.issuedByName : r.issuedByName === "آلياً" ? T.byAuto : r.issuedByName,
+              date: formatDate(r.issuedAt),
+              status: (
+                <span className="flex flex-wrap gap-1">
+                  {r.sentAt ? <Pill tone="ok">{T.pSent}</Pill> : <Pill tone="warn">{T.pUndelivered}</Pill>}
+                  {r.early && (
+                    <span title={[r.earlyReason, r.earlyReference].filter(Boolean).join(" — ")}>
+                      <Pill tone="warn">{T.pEarly}</Pill>
+                    </span>
+                  )}
+                  {r.editsCount > 0 && <Pill tone="muted">{T.pEdited}</Pill>}
+                </span>
+              ),
+              actions: (
+                <div className="flex items-center justify-end gap-3">
+                  <a href={r.url} target="_blank" rel="noopener" className="text-xs font-bold underline underline-offset-2">
+                    {R.aView}
+                  </a>
+                  {!r.sentAt && <ResendIssuedButton id={r.id} number={r.number} name={r.member.fullName} />}
+                </div>
+              ),
+            },
+          }))}
+        />
+      </section>
+
+      <div className="mt-2 flex flex-col gap-1">
+        <h2 className="text-base font-bold">{R.queueTitle}</h2>
+        <p className="text-xs leading-relaxed text-black/55">{R.queueHint}</p>
+      </div>
       <SearchBar q={q} tab="certificates" L={L} />
       <p className="-mt-2 text-xs leading-relaxed text-black/55">{R.chainNote}</p>
 
@@ -326,7 +453,7 @@ async function CertificatesTab({
                       )}
                     </div>
                   ) : r.state.kind === "ready" ? (
-                    <CertificateAction type="final" mode="issue" memberId={r.id} name={r.name} />
+                    <div className="flex justify-end">{prepare(r.id, "final")}</div>
                   ) : null,
               },
             }))}
@@ -370,16 +497,8 @@ async function CertificatesTab({
                     {view(r.id, "appreciation")}
                     <CertificateAction type="appreciation" mode="resend" memberId={r.id} name={r.name} />
                   </div>
-                ) : r.state.kind === "due" ? (
-                  <CertificateAction type="appreciation" mode="issue" memberId={r.id} name={r.name} />
-                ) : r.state.kind === "upcoming" ? (
-                  <CertificateAction
-                    type="appreciation"
-                    mode="early"
-                    memberId={r.id}
-                    name={r.name}
-                    dueLabel={formatDate(r.state.dueAt)}
-                  />
+                ) : r.state.kind === "due" || r.state.kind === "upcoming" ? (
+                  <div className="flex justify-end">{prepare(r.id, "appreciation")}</div>
                 ) : null,
             },
           }))}

@@ -522,6 +522,43 @@ export async function sendAppreciationEmail(opts: {
   );
 }
 
+/** شهادةٌ صدرت من «الترحيب والتكريم» — إنجاز، تعيين، قيادة، عضوية ومشاركة.
+ *
+ *  تحمل نصَّ الشهادة نفسه كما طُبع عليها، ورقمَها، ورابطَها الموقَّع. ولا
+ *  مرفق PDF: الصفحةُ تُحفظ PDF بضغطة، وهي النسخةُ التي يُتحقَّق منها برقمها. */
+export async function sendIssuedCertificateEmail(opts: {
+  to: string;
+  fullName: string;
+  /** عنوان الشهادة بالعربية: «شهادة إنجاز»، «شهادة تعيين»… */
+  heading: string;
+  /** جملةُ الشهادة كما طُبعت */
+  sentence: string;
+  number: string;
+  departmentName?: string | null;
+  certificateUrl: string;
+}) {
+  const r = await recipientOf(opts.to);
+  const f = forms(r.gender);
+  return send(
+    opts.to,
+    `${opts.heading} — تَـــلاقِ`,
+    {
+      tone: "celebrate",
+      badge: opts.heading,
+      title: `صدرت ${f.toYou} ${opts.heading}، ${firstName(opts.fullName)}`,
+      lead: esc(opts.sentence),
+      facts: [
+        ["رقم الشهادة", opts.number],
+        ["القسم", opts.departmentName],
+      ],
+      cta: { label: "عرض الشهادة وحفظها PDF", url: esc(opts.certificateUrl) },
+      note: `الرابط خاصٌّ ${f.you} ويعمل بلا تسجيل دخول — فالأفضل حفظ الشهادة عندك.`,
+    },
+    "شهادة صادرة",
+    { departmentName: opts.departmentName ?? r.departmentName, colorHex: r.colorHex }
+  );
+}
+
 /** رسالةُ تحفيزٍ وتكريمٍ على إنجاز — يُرسلها المؤسس أو التنفيذي بيده.
  *
  *  **وليست تلقائية.** لا كنسٌ يُطلقها ولا قاعدةٌ تستنتج الإنجاز: من

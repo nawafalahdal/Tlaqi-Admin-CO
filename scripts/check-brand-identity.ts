@@ -95,8 +95,16 @@ for (const tone of ["light", "dark"]) {
   const w = buf.readUInt32BE(16), h = buf.readUInt32BE(20), colorType = buf[25];
   check(`logo-fullname-on-${tone}.png: PNG شفاف ٨٨٠×٣١٨`, png && w === 880 && h === 318 && colorType === 6, `png=${png} ${w}×${h} type=${colorType}`);
 }
+// الورقةُ نفسُها في مكوّنٍ مشترك (الصفحة والمعاينة) — فيُفحص الملفّان معاً
 const page = readFileSync("src/app/certificate/[token]/page.tsx", "utf8");
-check("الشهادة: الشعار المعتمد، ولا الاسم العربي، ولا تاريخ «اليوم»", page.includes("/brand/logo-fullname-on-light.png") && !page.includes("تَـــلاقِ") && !page.includes("new Date()"));
+const sheet = readFileSync("src/components/certificates/CertificateSheet.tsx", "utf8");
+check(
+  "الشهادة: الشعار المعتمد، ولا الاسم العربي، ولا تاريخ «اليوم»",
+  page.includes("<CertificateSheet") &&
+    sheet.includes("/brand/logo-fullname-on-light.png") &&
+    ![page, sheet].some((f) => f.includes("تَـــلاقِ") || f.includes("new Date()"))
+);
+check("الترويسة التحريرية (التعيين): نسخة الشعار المعتمدة للخلفية الداكنة", sheet.includes("/brand/logo-fullname-on-dark.png"));
 
 console.log(failed ? `\n✗ ${failed} فحصاً فشل` : "\n✓ الهوية المعتمدة سليمة");
 process.exit(failed ? 1 : 0);

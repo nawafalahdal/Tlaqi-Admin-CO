@@ -148,12 +148,18 @@ export async function issueAppreciation(
     }
   }
 
+  // تُسجَّل في «سجل الشهادات الصادرة» برقمٍ ولقطة — ومن صدرت له يدوياً من
+  // نموذج الإصدار فصفُّها موجود ويُعاد إرساله هو. وإن تعذّر التسجيل بقي الرابطُ
+  // القديم بمعرّف العضو صالحاً، فلا يُحبس التكريم على السجل.
+  const { registerAutomatic, markRegistrySent } = await import("@/lib/certificateRegistry");
+  const registered = await registerAutomatic(memberId, "appreciation", by?.name ?? "آلياً");
+
   const sent = await sendAppreciationEmail({
     to: member.email,
     fullName: member.fullName,
     jobTitle: member.jobTitle,
     departmentName: member.department?.name ?? null,
-    certificateUrl: certificateUrl(memberId, appBaseUrl(), "appreciation"),
+    certificateUrl: registered?.url ?? certificateUrl(memberId, appBaseUrl(), "appreciation"),
     fullTerm: completedThreeMonths(start, dueAt),
   });
 
@@ -165,6 +171,7 @@ export async function issueAppreciation(
     where: { id: memberId },
     data: { appreciationSentAt: at },
   });
+  if (registered) await markRegistrySent(registered.id, at);
   await appendMemberEvent({
     fullName: member.fullName,
     email: member.email,

@@ -28,6 +28,7 @@ export const OFFICIAL_NOTICE_KINDS: Record<string, NoticeCategory> = {
   "تفويض نائب": "membership",
   "شهادة إتمام": "recognition",
   "تقدير ثلاثة أشهر": "recognition",
+  "شهادة صادرة": "recognition",
   "تكريم إنجاز": "recognition",
 };
 
