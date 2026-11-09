@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { loginAction, requestLoginCodeAction, type LoginStep1 } from "./actions";
+import { useActionState, useEffect, useState, useTransition } from "react";
+import { loginAction, requestLoginCodeAction, resendLoginCodeAction, type LoginStep1 } from "./actions";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import { NavGlyph } from "@/components/icons";
 
@@ -22,10 +22,6 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
     requestLoginCodeAction,
     { error: null, codeSent: false, needsTotp: false, maskedEmail: null }
   );
-  const [step2, submitLogin, submitting] = useActionState(loginAction, { error: null });
-  // من يملك تطبيق المصادقة يختار طريقه؛ الافتراض رمز البريد لأنه وصل للتوّ
-  const [useTotp, setUseTotp] = useState(false);
-
   const atSecondStep = step1.codeSent || step1.needsTotp;
 
   if (!atSecondStep) {
@@ -97,6 +93,63 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
     );
   }
 
+  return <CodeStep step1={step1} creds={creds} callbackUrl={callbackUrl} />;
+}
+
+/** «م:ث» — لعدّادَي الصلاحية والإعادة */
+function clock(ms: number) {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/** الخطوة الثانية: رمز البريد (أو تطبيق المصادقة)، ومعه **إعادة إرسال رمز التحقق**.
+ *
+ *  الزرّ ظاهرٌ دائماً ومعطّلٌ بعدّادٍ حتى تنقضي مهلة الإعادة؛ والخادمُ يفرض المهلة
+ *  والسقف ثانيةً ويتحقّق من كلمة المرور، فلا يكفي تعطيلُ الزرّ ولا إظهارُه. */
+function CodeStep({
+  step1,
+  creds,
+  callbackUrl,
+}: {
+  step1: LoginStep1;
+  creds: { email: string; password: string };
+  callbackUrl: string;
+}) {
+  const t = useTranslations();
+  const [step2, submitLogin, submitting] = useActionState(loginAction, { error: null });
+  // من يملك تطبيق المصادقة يختار طريقه؛ الافتراض رمز البريد لأنه وصل للتوّ
+  const [useTotp, setUseTotp] = useState(false);
+  const [timers, setTimers] = useState({
+    expiresAt: step1.codeExpiresAt ?? null,
+    resendAt: step1.resendAt ?? null,
+    masked: step1.maskedEmail ?? "",
+  });
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  const [resending, startResend] = useTransition();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const waitMs = timers.resendAt ? timers.resendAt - now : 0;
+  const expired = timers.expiresAt !== null && timers.expiresAt <= now;
+  const canResend = waitMs <= 0 && !resending;
+
+  function resend() {
+    setNotice(null);
+    startResend(async () => {
+      const res = await resendLoginCodeAction({ email: creds.email, password: creds.password });
+      if (res.ok) {
+        setTimers({ expiresAt: res.codeExpiresAt, resendAt: res.resendAt, masked: res.maskedEmail });
+        setNotice({ ok: true, text: t.login.resendSent.replace("{email}", res.maskedEmail).replace("{0}", res.maskedEmail) });
+      } else {
+        if (res.retryAt) setTimers((x) => ({ ...x, resendAt: res.retryAt! }));
+        setNotice({ ok: false, text: res.error });
+      }
+    });
+  }
+
   return (
     <form action={submitLogin} className="flex flex-col gap-4">
       {/* بيانات الخطوة الأولى تُمرَّر مخفيةً: الخادم يتحقّق منها مرة أخرى
@@ -112,7 +165,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         <p className="mt-1 text-xs text-black/55">
           {useTotp
             ? t.login.totpHint
-            : t.login.codeHint.replace("{email}", step1.maskedEmail ?? "")}
+            : t.login.codeHint.replace("{email}", timers.masked)}
         </p>
       </div>
 
@@ -159,6 +212,44 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
           className={`${FIELD} text-center font-mono text-2xl tracking-[0.5em]`}
         />
       </label>
+
+      {!useTotp && (
+        <div className="flex flex-col gap-2 rounded-xl border border-black/10 px-3.5 py-3 text-sm">
+          {timers.expiresAt !== null && (
+            <p className={`text-xs font-semibold ${expired ? "text-red-700" : "text-black/55"}`}>
+              {expired ? t.login.codeExpired : t.login.codeExpiresIn.replace("{0}", clock(timers.expiresAt - now))}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={resend}
+            disabled={!canResend}
+            aria-describedby="resend-policy"
+            className="wizard-btn-2 min-h-11 w-full justify-center disabled:opacity-50 sm:w-auto"
+          >
+            {resending
+              ? t.login.resending
+              : waitMs > 0
+                ? `${t.login.resendCode} (${clock(waitMs)})`
+                : t.login.resendCode}
+          </button>
+          {waitMs > 0 && !resending && (
+            <p className="text-xs text-black/50">{t.login.resendIn.replace("{0}", clock(waitMs))}</p>
+          )}
+          <p id="resend-policy" className="text-xs leading-relaxed text-black/45">
+            {t.login.resendPolicy}
+          </p>
+          <p role="status" aria-live="polite" className="empty:hidden">
+            {notice && (
+              <span
+                className={`block rounded-lg px-3 py-2 text-sm ${notice.ok ? "bg-green-50 text-green-800" : "bg-red-50 text-red-700"}`}
+              >
+                {notice.text}
+              </span>
+            )}
+          </p>
+        </div>
+      )}
 
       {/* الاختيار في الخطوة الثانية لا الأولى: هنا يكتمل الدخول فعلاً،
           ووضعه في الأولى يجعله يُنسى بين الخطوتين */}

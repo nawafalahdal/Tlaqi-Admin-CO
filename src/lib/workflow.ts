@@ -196,6 +196,9 @@ export async function syncAdminAccountRow(
 
 /** يرفّع أي طلب تجاوز مهلته الزمنية ولم يُنجز إلى حالة "متأخر" — تُستدعى عند كل قراءة للوحة */
 export async function sweepOverdueRequests(targetDepartmentId?: string) {
+  // ما انتهت مناسبتُه يُغلَق أولاً (بنرٌ وصل، مرشّحٌ بُتّ فيه) — فلا يُعلَّم متأخّراً ما تمّ
+  const { sweepSettledRequests } = await import("@/lib/requests");
+  await sweepSettledRequests();
   await prisma.request.updateMany({
     where: {
       status: { in: ["new", "in_progress"] },
@@ -275,18 +278,22 @@ export async function submitTestAttempt(opts: { memberId: string; answers: Recor
     }
   } else if (updated.departmentId) {
     // الرسوب ليس نهاية الطريق: يُفتح طلب اجتماع شرح للقسم، ويُبلَّغ الطرفان
-    // — المرشّح ليعرف خطوته التالية، والقسم لأنه من ينفّذ الاجتماع
+    // — المرشّح ليعرف خطوته التالية، والقسم لأنه من ينفّذ الاجتماع.
+    // ولا يُكرَّر: طلبٌ مفتوحٌ للمرشّح نفسه يكفي
     const dueDate = addDays(new Date(), 3);
-    await prisma.request.create({
-      data: {
-        type: "meeting",
-        targetDepartmentId: updated.departmentId,
-        linkedMemberId: updated.id,
-        status: "new",
-        dueDate,
-        note: `جدولة اجتماع شرح لـ ${updated.fullName} (النتيجة: ${score}%)`,
-      },
-    });
+    const { hasOpenRequest } = await import("@/lib/requests");
+    if (!(await hasOpenRequest(updated.id, "meeting"))) {
+      await prisma.request.create({
+        data: {
+          type: "meeting",
+          targetDepartmentId: updated.departmentId,
+          linkedMemberId: updated.id,
+          status: "new",
+          dueDate,
+          note: `جدولة اجتماع شرح لـ ${updated.fullName} (النتيجة: ${score}%)`,
+        },
+      });
+    }
 
     const departmentName = updated.department?.name ?? "قسمك";
     await sendTestFailedEmail({
@@ -352,8 +359,15 @@ export async function approveMember(memberId: string) {
     approvedAt: member.decidedAt ?? new Date(),
   });
 
+  // الاعتمادُ النهائي يُطلق استبيانَ الانضمام الإلزامي عند أول دخولٍ بعده
+  await prisma.member.update({ where: { id: member.id }, data: { onboardingSurveyRequiredAt: new Date() } });
+
+  // واجتماعُ الشرح إن كان مفتوحاً انتهت الحاجةُ إليه
+  const { autoCloseRequests, hasOpenRequest } = await import("@/lib/requests");
+  await autoCloseRequests({ memberId: member.id, type: "meeting", note: "اعتُمد المرشّح — انتهت الحاجة إلى الاجتماع" });
+
   const marketing = await prisma.department.findUnique({ where: { slug: "marketing" } });
-  if (marketing) {
+  if (marketing && !(await hasOpenRequest(member.id, "welcome_banner"))) {
     await prisma.request.create({
       data: {
         type: "welcome_banner",
@@ -576,6 +590,8 @@ export async function rejectMember(memberId: string) {
     where: { id: memberId },
     data: { approvalStatus: "rejected", decidedAt: new Date() },
   });
+  const { autoCloseRequests } = await import("@/lib/requests");
+  await autoCloseRequests({ memberId, type: "meeting", note: "رُفض المرشّح — انتهت الحاجة إلى الاجتماع" });
   await appendMemberEvent({
     fullName: member.fullName,
     email: member.email,
@@ -591,10 +607,14 @@ export async function rejectMember(memberId: string) {
 /** يعيد فتح الدعوة لنفس الشخص بعد اجتماع الشرح إذا رآه أدمن القسم مناسباً */
 export async function reopenInviteForMember(memberId: string) {
   const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
-  return prisma.invite.update({
+  const invite = await prisma.invite.update({
     where: { id: member.inviteId },
     data: { status: "open" },
   });
+  // إعادةُ فتح الدعوة هي قرارُ ما بعد اجتماع الشرح — فيُغلَق طلبُه بهذه النتيجة
+  const { autoCloseRequests } = await import("@/lib/requests");
+  await autoCloseRequests({ memberId, type: "meeting", note: "أُعيد فتحُ دعوة المرشّح بعد اجتماع الشرح" });
+  return invite;
 }
 
 /** يصدر تنبيهاً لعضو معتمد — عند بلوغ 3 تنبيهات يُستبعد تلقائياً */
@@ -1222,6 +1242,14 @@ export async function reopenCandidateTest(opts: {
 
   // الدعوة تعود صالحة أيضاً، وإلا بقي الحساب مفتوحاً ودعوته منتهية
   await prisma.invite.update({ where: { id: member.inviteId }, data: { status: "used" } });
+
+  // انعقد اجتماعُ الشرح وأُعيد الفتح — فيُغلَق طلبُ الاجتماع بنتيجته، بمن نفّذ
+  const { autoCloseRequests } = await import("@/lib/requests");
+  await autoCloseRequests({
+    memberId: member.id,
+    type: "meeting",
+    note: `عُقد اجتماع الشرح وأُعيد فتح الاختبار — ${member.testReopenNote} — نفّذه: ${opts.performedByName}`,
+  });
 
   await sendTestReopenedEmail({
     to: member.email,

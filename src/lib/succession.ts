@@ -186,7 +186,7 @@ export async function transferResponsibilities(opts: {
 export async function handOver(opts: {
   user: { id: string; fullName: string; email: string; role: string; departmentId: string | null };
   byName: string;
-  occasion: "تنحية" | "حذف نهائي";
+  occasion: "تنحية" | "حذف نهائي" | "أرشفة القسم";
 }): Promise<{ successor: Successor; counts: TransferCounts; summary: string }> {
   const successor = await successorFor(opts.user);
   if (!successor) {

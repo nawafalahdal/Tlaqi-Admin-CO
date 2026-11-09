@@ -77,7 +77,8 @@ async function raiseResendRequest(opts: {
       `${opts.why(target.fullName)} ` +
       `أُرسلت له حتى الآن ${target.welcomeEmailCount} بطاقة، ويبقى له إعادةٌ واحدة. ` +
       `تأكّد من بريده ثم أعِدها من صفحة «الترحيب والتكريم» (الإعادة لـ${resenderLabel}).`,
-    linkUrl: `${appBaseUrl()}/admin/welcome-cards?q=${encodeURIComponent(target.fullName)}`,
+    // الوسمُ (`for=`) يربط التذكرة بصاحب البطاقة: تُغلَق آلياً حين تصله (`closeWelcomeWork`)
+    linkUrl: `${appBaseUrl()}/admin/welcome-cards?q=${encodeURIComponent(target.fullName)}&for=${opts.target.kind}:${opts.target.id}`,
   });
   revalidatePath("/admin/tickets");
   revalidatePath("/admin");

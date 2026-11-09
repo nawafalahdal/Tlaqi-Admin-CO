@@ -74,15 +74,16 @@ export async function newCommitteeSlug(name: string) {
 }
 
 /** معتمِدُ اللجان الآن: التنفيذي، وإلا فالمؤسس — ولا يُترك الطلبُ بلا مُرسَلٍ إليه */
-export async function committeeApprover() {
+export async function committeeApprover(excludeUserId?: string) {
+  const notSelf = excludeUserId ? { id: { not: excludeUserId } } : {};
   const exec = await prisma.user.findFirst({
-    where: { role: "executive", isActive: true },
+    where: { role: "executive", isActive: true, ...notSelf },
     select: { id: true, fullName: true, email: true },
     orderBy: { createdAt: "asc" },
   });
   if (exec) return { ...exec, label: "الرئيس التنفيذي" };
   const founder = await prisma.user.findFirst({
-    where: { role: "super_admin", isActive: true },
+    where: { role: "super_admin", isActive: true, ...notSelf },
     select: { id: true, fullName: true, email: true },
     orderBy: { createdAt: "asc" },
   });
@@ -128,6 +129,11 @@ export async function decideCommittee(opts: {
   // وطلبُ القسم الأصيل يحمل الحالةَ نفسَها — لكن اعتمادَه للمؤسس وحده
   // (`decideDepartmentRequest`)، فلا يمرّ من باب اللجان
   if (!committee.committeeStatus || !committee.parentId) return { ok: false, reason: "هذا قسمٌ أصيل لا لجنة" };
+  // **من اقترح لا يعتمد اقتراحَه** — يقع حين يقترح الرئيسُ التنفيذي أو المؤسس لجنةً في الإدارة
+  // العليا: فيقرّر فيها الآخرُ منهما
+  if (committee.requestedById && committee.requestedById === opts.session.user.id) {
+    return { ok: false, reason: "لا يعتمد أحدٌ لجنةً اقترحها — يقرّر فيها الآخرُ من الرئيس التنفيذي والمؤسس" };
+  }
 
   // **ولا تُعتمد لجنةٌ ناقصة** — غرضٌ ونوعٌ وقائدٌ نشطٌ من القسم وعضوٌ آخر (وتاريخُ نهايةٍ
   // للمؤقّتة)، من القاعدة لحظةَ القرار. والردُّ يبقى ممكناً: هو ما يُعيدها لتُستكمَل
@@ -248,6 +254,7 @@ export async function pendingCommittees() {
       startDate: true,
       endDate: true,
       requestedByName: true,
+      requestedById: true,
       requestedAt: true,
       leadMember: { select: { fullName: true } },
       parent: { select: { id: true, name: true, colorHex: true } },

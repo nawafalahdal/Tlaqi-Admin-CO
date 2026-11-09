@@ -10,6 +10,8 @@ import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { Card, StatusBadge } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import { ReminderButton } from "./ReminderButton";
+import { RequestCard } from "../departments/[slug]/RequestCard";
+import { canWorkOnRequest } from "@/lib/requests";
 import { getLocale, getDictionary } from "@/i18n/server";
 import {
   announcementsForSession,
@@ -178,24 +180,29 @@ export default async function OperationsPage() {
           ) : (
             <div className="flex flex-col gap-3">
               {requests.map((r) => (
-                <Card key={r.id} className="p-4">
-                  <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <StatusBadge status={r.status} />
-                    <span className="inline-flex items-center gap-1.5 text-xs text-black/60">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: r.targetDepartment.colorHex }} />
-                      {r.targetDepartment.name}
-                    </span>
-                  </div>
-                  <p className="text-sm font-bold">{dict.requestType[r.type] ?? r.type}</p>
-                  {r.note && <p className="mt-1 text-sm text-black/60">{r.note}</p>}
-                  <p className="mt-2 text-xs text-black/40">
-                    {r.linkedMember ? `${tOps.relatedTo}: ${r.linkedMember.fullName} — ` : ""}
-                    {r.dueDate ? `${tOps.dueOn}: ${formatDate(r.dueDate)}` : tOps.noDue}
-                  </p>
-                  <div className="mt-3 border-t border-black/5 pt-3">
+                // البطاقةُ نفسُها التي في صفحة القسم: يبدأ العملَ ويُغلق بسببٍ مكتوب من يملكه
+                // (ومنهم مسؤولُ التشغيل) — والخادمُ يفرض الصلاحية وشرطَ كل نوع
+                <div key={r.id} className="flex flex-col gap-2">
+                  <RequestCard
+                    theme={theme}
+                    canAct={canWorkOnRequest(
+                      { role: session.user.role, departmentId: session.user.departmentId ?? null },
+                      r.targetDepartmentId
+                    )}
+                    request={{
+                      id: r.id,
+                      type: r.type,
+                      status: r.status,
+                      note: r.note,
+                      dueDate: r.dueDate ? r.dueDate.toISOString() : null,
+                      linkedMemberName: r.linkedMember?.fullName ?? null,
+                      targetDepartmentName: r.targetDepartment.name,
+                    }}
+                  />
+                  <div className="px-1">
                     <ReminderButton target={{ type: "request", id: r.id }} theme={theme} />
                   </div>
-                </Card>
+                </div>
               ))}
             </div>
           )}

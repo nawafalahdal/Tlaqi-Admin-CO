@@ -630,6 +630,10 @@ model Member {
 
   // ── الشهادات الصادرة بأرقامها — انظر `IssuedCertificate`
   issuedCertificates            IssuedCertificate[]
+  /// متى صار استبيانُ الانضمام مطلوباً منه — يُختم عند الاعتماد النهائي (`approveMember`)،
+  /// ويُعاد ختمُه حين يُعيد فتحَه مسؤولٌ مخوَّل. و`null` لمن اعتُمد قبل الاستبيان
+  onboardingSurveyRequiredAt    DateTime?
+  onboardingSurveys             OnboardingSurveyResponse[]
 
   // الكنس اليومي يسأل: من لم تصله شهادة تقديره؟ فيُجاب رخيصاً
   @@index([appreciationSentAt])
@@ -647,6 +651,50 @@ model Member {
 /// - `data`: الصورة المطبوعة (الاسم والمسمى والنص والبيانات والموقّعان) — تُقرأ
 ///   الشهادة منها لا من الملف الحيّ، فلا تتغيّر بعد صدورها.
 /// - الإصدار المبكر بسببه ومرجعه؛ ومن أصدر (أو «آلياً») ومتى؛ ومتى وصل البريد.
+/// **استبيانُ الانضمام** — إلزاميٌّ بعد الاعتماد النهائي، قبل واجهة العضو.
+/// كلُّ إرسالٍ صفّ: إعادةُ الفتح (بصلاحيةٍ إدارية موثّقة) تُبقي السابقَ محفوظاً
+/// (`supersededAt`) وتطلب إجابةً جديدة — فلا تُفقد إجابة. والتقييمُ مؤشّرٌ لتحسين
+/// التجربة: لا يمسّ اعتمادَ العضو ولا صلاحياته.
+model OnboardingSurveyResponse {
+  id                String    @id @default(cuid())
+  memberId          String
+  member            Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  /// سهولةُ رحلة الانضمام ووضوحُها — 1 إلى 5 (قيدٌ في القاعدة)
+  journeyRating     Int
+  /// وضوحُ المسمّى والمهام — 1 إلى 5
+  roleClarityRating Int
+  /// تأكيدُ العضو أنه استلم البنر — **إفادتُه** لا دليلُ تسليم (التسليمُ الفعلي `welcomeEmailSentAt`)
+  bannerReceived    Boolean
+  gender            Gender
+  submittedAt       DateTime  @default(now())
+
+  /// أُعيد فتحُه بقرارٍ إداري — هذه إجابةٌ سابقةٌ محفوظة
+  supersededAt      DateTime?
+  reopenedByName    String?
+  reopenReason      String?
+
+  /// متابعةُ مسؤول التشغيل لما يستدعي إجراءً (بنرٌ لم يصل، تقييمٌ منخفض)
+  followUpResolvedAt     DateTime?
+  followUpResolvedByName String?
+  followUpNote           String?
+
+  @@index([memberId, submittedAt])
+  @@index([submittedAt])
+}
+
+/// سجلُّ تصدير البيانات — من صدّر ماذا ومتى وكم صفّاً (يُكتب مع كل ملف)
+model DataExportLog {
+  id        String   @id @default(cuid())
+  kind      String
+  actorId   String
+  actorName String
+  actorRole String
+  rowCount  Int
+  createdAt DateTime @default(now())
+
+  @@index([kind, createdAt])
+}
+
 model IssuedCertificate {
   id             String    @id @default(cuid())
   number         String    @unique
@@ -731,6 +779,13 @@ model Request {
   note               String?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
+
+  /// **الإغلاق يُسجَّل:** متى، ومن (أو «آلياً» بإجراءٍ وقع فعلاً)، ولماذا — فلا يضيع تاريخُ الطلب
+  closedAt            DateTime?
+  closedById          String?
+  closedByName        String?
+  closeNote           String?
+  closedAutomatically Boolean   @default(false)
 }
 
 /// تذكرة يرفعها عضو (مثال: لم يصله البانر الترحيبي). تصعيد تلقائي صارم إذا لم

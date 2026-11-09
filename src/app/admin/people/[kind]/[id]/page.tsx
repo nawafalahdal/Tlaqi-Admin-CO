@@ -16,6 +16,8 @@ import { AccountRow } from "../../AccountRow";
 import { MemberAccountRow } from "../../MemberAccountRow";
 import { MyAccountCard } from "../../MyAccountCard";
 import { FounderMemberControls } from "@/components/FounderMemberControls";
+import { surveyStatus } from "@/lib/onboardingSurvey";
+import { StatusChip } from "../../../onboarding/StatusChip";
 
 import { getLocale, getDictionary } from "@/i18n/server";
 import { fmt } from "@/i18n/fmt";
@@ -128,6 +130,17 @@ export default async function PersonPage({
       : Promise.resolve(undefined),
   ]);
 
+  const TS = getDictionary(locale).onboarding;
+  const survey =
+    top && member
+      ? await prisma.onboardingSurveyResponse
+          .findFirst({ where: { memberId: member.id, supersededAt: null } })
+          .then((current) => {
+            const status = surveyStatus(current);
+            const labels = { not_completed: TS.kNotCompleted, completed: TS.kCompleted, banner_missing: TS.kBannerMissing, needs_follow_up: TS.kFollowUp };
+            return { current, status, label: labels[status] };
+          })
+      : null;
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
   const accountRole = user ? user.role : member!.invite.targetRole;
   // المؤسس والتنفيذي ومسؤول التشغيل من الإدارة العليا بدورهم — `seniorAffiliation`
@@ -268,6 +281,33 @@ export default async function PersonPage({
             <p className="mt-2 text-[11px] text-black/45">{L.fromTheMessageLog}</p>
           </Card>
         </div>
+
+        {/* استبيانُ الانضمام — للمؤسس والرئيس التنفيذي (وقائدُ القسم لا يراه: إجاباتٌ شخصيةٌ للمتابعة) */}
+        {top && member && survey && (
+          <Card className="p-4 sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-base font-bold">{TS.profileCard}</h2>
+              {member.onboardingSurveyRequiredAt && (
+                <Link href={`/admin/onboarding/${member.id}`} className="text-sm font-semibold text-[var(--brand-temptress)] hover:underline">
+                  {TS.open}
+                </Link>
+              )}
+            </div>
+            {!member.onboardingSurveyRequiredAt ? (
+              <p className="mt-2 text-sm text-black/50">{TS.profileCardNone}</p>
+            ) : (
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-black/70">
+                <StatusChip status={survey.status} label={survey.label} />
+                {survey.current && (
+                  <span>
+                    {TS.journeyShort} {survey.current.journeyRating}/5 · {TS.roleShort} {survey.current.roleClarityRating}/5 ·{" "}
+                    {survey.current.bannerReceived ? TS.statedYes : TS.statedNo} · {formatDate(survey.current.submittedAt)}
+                  </span>
+                )}
+              </div>
+            )}
+          </Card>
+        )}
 
         {member && member.warnings.length > 0 && (
           <Card className="p-4 sm:p-5">

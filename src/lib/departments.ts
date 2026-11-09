@@ -179,27 +179,128 @@ export function canDeleteDepartment(role: string) {
   return role === "super_admin";
 }
 
-/** يحذف قسماً — وللمؤسس وحده، ولا يحذف قسماً يحمل أحداً.
+/** **خطةُ حذف القسم الأصيل** — ما يمنعه، ومن يبقى فيه، وما يُحفظ من سجلّه.
  *
- *  **ولا يُهدَر سجلٌّ ليُفرَّغ قسم.** القسم تُشير إليه سبعة جداول: قادته
- *  وأعضاؤه ودعواته وبنك أسئلته وتوقيعاته وتذاكره وإعلاناته وطلباته.
- *  فحذفُه وهو يحملها إمّا يفشل بخطأ قيدٍ أجنبيٍّ غامض، أو — لو فُكّت
- *  القيود — يُنتج سجلّاتٍ يتيمة: عضوٌ بلا قسم لا يعرف أحدٌ من أين جاء،
- *  وتذكرةٌ وُجِّهت إلى لا شيء.
+ *  **قرارُ المؤسس:** يُحذف القسمُ حين يخلو من أعضائه — ويبقى قائدُه وحده فلا يمنع ذلك.
+ *  وكان الحذفُ يَعُدّ كلَّ سجلٍّ مانعاً: القائدَ نفسَه، وسجلَّ ترشّحه، وكلَّ دعوةٍ صدرت
+ *  يوماً، وكلَّ تذكرةٍ أُغلقت — فلا يُحذف قسمٌ عمل يوماً (ومنه الموارد البشرية). فصار
+ *  المانعُ هو **الحيُّ وحده**: من في القسم اليوم، وما ينتظر عملاً.
  *
- *  فالقاعدة: يُفرَّغ القسم أولاً بيد صاحب القرار في كل سجلّ — يُنحّى
- *  قائده، وتُنهى عضوية أعضائه أو يُنقلوا، وتُغلق تذاكره — ثم يُحذف.
- *  والرفض يُسمّي ما يمنعه بالعدد، فلا يُترك المؤسس يُخمّن.
+ *  **ولا يُهدَر سجلٌّ ليُحذف قسم:** الحذفُ النهائيُّ كان يمحو أهدافَ القسم وخططَه
+ *  الأسبوعية معه (Cascade)، ويَفُكّ أعضاءَه السابقين وتذاكرَه ودعواته عنه. فإن كان للقسم
+ *  تاريخ **أُرشف** (`committeeStatus = archived` — الحالةُ نفسُها التي تُغلق بها اللجان):
+ *  يغيب من كل قائمةٍ وهيكلٍ ودعوة (`OPEN_DEPARTMENT_WHERE`)، ويبقى كلُّ ما يُشير إليه
+ *  صحيحاً. ولا يُحذف حذفاً نهائياً إلا قسمٌ بلا تاريخٍ أصلاً. */
+export type DeletionPlan = {
+  mode: "delete" | "archive";
+  /** ما يمنع الحذف الآن — مسمّىً بعدده. فارغٌ = يُحذف */
+  blockers: string[];
+  /** القائدُ الباقي وحده — تُسحب قيادتُه ويُسلَّم عملُه المعلَّق لخلفه */
+  lead: { id: string; fullName: string } | null;
+  /** ما يبقى من سجلّه عند الأرشفة */
+  preserved: string[];
+};
+
+const OPEN_PLAN_STATES = ["not_started", "in_progress", "submitted", "returned"] as const;
+const CLOSED_OBJECTIVES = ["done", "missed", "rejected", "cancelled"] as const;
+const LIVE_COMMITTEE = ["pending_review", "draft", "approved", "suspended", "completed"] as const;
+
+export async function departmentDeletionPlan(departmentId: string): Promise<DeletionPlan | null> {
+  const dept = await prisma.department.findUnique({
+    where: { id: departmentId },
+    select: { id: true, slug: true, parentId: true, committeeStatus: true },
+  });
+  if (!dept || dept.parentId) return null;
+
+  const users = await prisma.user.findMany({
+    where: { departmentId, isActive: true },
+    select: { id: true, fullName: true, email: true, role: true },
+    orderBy: { createdAt: "asc" },
+  });
+  const lead = users.find((u) => u.role === "department_admin") ?? null;
+  const otherUsers = users.filter((u) => u.id !== lead?.id);
+  // سجلُّ ترشّح القائد نفسه (`approveMember` يُبقيه مع حسابه الإداري) ليس عضواً ثانياً
+  const leadEmails = users.map((u) => u.email.toLowerCase());
+  const memberWhere = { departmentId, email: { notIn: leadEmails } };
+
+  const [
+    activeMembers, candidates, closing, liveCommittees, openTickets, openRequests, openTasks, openObjectives,
+    seniorPeople, marketingTeam,
+    allMembers, invites, tickets, requests, signatures, committees, objectives, weekPlans, planTasks,
+  ] = await Promise.all([
+    // member-roster: all — مانعُ الحذف يعدّ كلَّ صفٍّ حيٍّ في القسم (أحوطُ من قائمة العرض): صفٌّ واحدٌ قائمٌ يمنع
+    prisma.member.count({
+      where: { ...memberWhere, isActive: true, terminatedAt: null, approvalStatus: "approved", stepDownAt: null, offboardingClosedAt: null },
+    }),
+    prisma.member.findMany({
+      where: { ...memberWhere, isActive: true, terminatedAt: null, approvalStatus: "pending_review" },
+      select: { firstLoginAt: true, credentialsIssuedAt: true, approvalStatus: true },
+    }),
+    prisma.member.count({ where: { ...memberWhere, stepDownAt: { not: null }, offboardingClosedAt: null } }),
+    prisma.department.count({ where: { parentId: departmentId, committeeStatus: { in: [...LIVE_COMMITTEE] } } }),
+    prisma.ticket.count({ where: { targetDepartmentId: departmentId, status: { not: "resolved" } } }),
+    prisma.request.count({ where: { targetDepartmentId: departmentId, status: { not: "done" } } }),
+    prisma.planTask.count({ where: { departmentId, execState: { in: [...OPEN_PLAN_STATES] } } }),
+    prisma.departmentObjective.count({ where: { departmentId, status: { notIn: [...CLOSED_OBJECTIVES] } } }),
+    seniorPeopleIn(departmentId),
+    dept.slug === "marketing" ? prisma.marketingMember.count({ where: { active: true } }) : Promise.resolve(0),
+    prisma.member.count({ where: { departmentId } }),
+    prisma.invite.count({ where: { departmentId } }),
+    prisma.ticket.count({ where: { targetDepartmentId: departmentId } }),
+    prisma.request.count({ where: { targetDepartmentId: departmentId } }),
+    prisma.leaderSignature.count({ where: { departmentId } }),
+    prisma.department.count({ where: { parentId: departmentId } }),
+    prisma.departmentObjective.count({ where: { departmentId } }),
+    prisma.weekPlan.count({ where: { departmentId } }),
+    prisma.planTask.count({ where: { departmentId } }),
+  ]);
+  // المرشّحُ الذي سقطت مهلتُه دون دخول سجلٌّ لا شخص — `candidateWindowExpired`
+  const { candidateWindowExpired } = await import("@/lib/workflow");
+  const liveCandidates = candidates.filter((c) => !candidateWindowExpired(c)).length;
+
+  const blockers: string[] = [];
+  if (seniorPeople > 0) blockers.push(`${seniorPeople} من الإدارة العليا (المؤسس والتنفيذي والتشغيل)`);
+  if (otherUsers.length > 0) blockers.push(`${otherUsers.length} حساب إداري نشط غير القائد`);
+  if (activeMembers > 0) blockers.push(`${activeMembers} عضو نشط غير القائد — تُنهى عضويتُهم أو يُنقلون أولاً`);
+  if (liveCandidates > 0) blockers.push(`${liveCandidates} مرشّح قيد الانضمام`);
+  if (closing > 0) blockers.push(`${closing} ختام تجربةٍ لم يُغلَق`);
+  if (liveCommittees > 0) blockers.push(`${liveCommittees} لجنة قائمة — تُغلَق أو تُؤرشف أولاً`);
+  if (openTickets > 0) blockers.push(`${openTickets} تذكرة مفتوحة موجّهة إليه`);
+  if (openRequests > 0) blockers.push(`${openRequests} طلب لم يُنجَز`);
+  if (openTasks > 0) blockers.push(`${openTasks} مهمة خطةٍ مفتوحة`);
+  if (openObjectives > 0) blockers.push(`${openObjectives} هدف لم يُغلَق`);
+  if (marketingTeam > 0) blockers.push(`وكيل التسويق يعمل بهذا القسم (${marketingTeam} في فريقه)`);
+
+  const preserved: string[] = [];
+  if (allMembers > 0) preserved.push(`${allMembers} سجلّ عضوية سابق`);
+  if (invites > 0) preserved.push(`${invites} دعوة`);
+  if (tickets > 0) preserved.push(`${tickets} تذكرة`);
+  if (requests > 0) preserved.push(`${requests} طلب`);
+  if (signatures > 0) preserved.push(`${signatures} توقيع`);
+  if (committees > 0) preserved.push(`${committees} لجنة سابقة`);
+  if (objectives > 0) preserved.push(`${objectives} هدف`);
+  if (weekPlans > 0) preserved.push(`${weekPlans} خطة أسبوعية`);
+  if (planTasks > 0) preserved.push(`${planTasks} مهمة خطة`);
+
+  // بلا تاريخٍ ولا قائد: يُحذف نهائياً. وإلا يُؤرشف فيبقى كلُّ ما يُشير إليه صحيحاً
+  const mode: DeletionPlan["mode"] = preserved.length === 0 && !lead ? "delete" : "archive";
+  return { mode, blockers, lead: lead ? { id: lead.id, fullName: lead.fullName } : null, preserved };
+}
+
+/** يحذف قسماً — وللمؤسس وحده، ولا يحذف قسماً فيه أحدٌ غير قائده.
  *
- *  وما يُحذف معه: بنك أسئلته (فارغٌ أو مملوء، هو بنكُه لا بنكُ غيره)
- *  وإعلاناته التي تخصّه وحده. وهذان لا يعنيان أحداً بعده. */
+ *  - **القسمُ الأصيل:** بخطّته (`departmentDeletionPlan`) — يُرفض بما يمنعه مسمّىً، أو
+ *    يُؤرشف حافظاً سجلّه، أو يُحذف نهائياً إن لم يكن له تاريخ.
+ *  - **اللجنة:** بقاعدتها القديمة كما هي — لها دورةُ حياتها في وحدة اللجان (إغلاقٌ ثم
+ *    أرشفة)، ولا تُحذف إلا فارغةً تماماً. */
 export async function deleteDepartment(opts: {
   departmentId: string;
   /** يُكتب اسم القسم كاملاً: الحذف لا يقع بنقرةٍ في المكان الخطأ */
   confirmName: string;
   actorRole: string;
   actorName: string;
-}): Promise<{ ok: true; name: string } | { ok: false; reason: string }> {
+  actorId?: string;
+}): Promise<{ ok: true; name: string; mode: "delete" | "archive" } | { ok: false; reason: string }> {
   if (!canDeleteDepartment(opts.actorRole)) {
     return { ok: false, reason: "حذف الأقسام للمؤسس وحده" };
   }
@@ -221,40 +322,177 @@ export async function deleteDepartment(opts: {
     },
   });
   if (!dept) return { ok: false, reason: "القسم غير موجود" };
+  if (dept.committeeStatus === "archived") return { ok: false, reason: "القسم مؤرشفٌ من قبل" };
 
   if (opts.confirmName.trim() !== dept.name.trim()) {
     return { ok: false, reason: "الاسم المكتوب لا يطابق اسم القسم — لم يُحذف شيء" };
   }
 
-  // ما يمنع الحذف يُسمّى بعدده، لا يُقال «لا يمكن» فحسب — وهو نفسُه ما
-  // يُخفي زرَّ الحذف في الصفحة (`deleteBlockers`)
-  const blockers = deleteBlockers(dept._count, await seniorPeopleIn(dept.id));
-  if (blockers.length > 0) {
-    return {
-      ok: false,
-      reason: `القسم ما زال يحمل: ${blockers.join("، ")}. فرّغه أولاً — ولا يُهدَر سجلٌّ ليُفرَّغ قسم.`,
-    };
+  // ── اللجنة: القاعدةُ القديمة كما هي
+  if (dept.parentId) {
+    const blockers = deleteBlockers(dept._count, 0);
+    if (blockers.length > 0) {
+      return {
+        ok: false,
+        reason: `القسم ما زال يحمل: ${blockers.join("، ")}. فرّغه أولاً — ولا يُهدَر سجلٌّ ليُفرَّغ قسم.`,
+      };
+    }
+    await appendMemberEvent({
+      fullName: opts.actorName,
+      email: "",
+      roleOrDepartment: dept.name,
+      event: "حذف قسم نهائياً",
+      details: `المعرّف: ${dept.slug} — اللون: ${dept.colorHex} — كان فارغاً عند الحذف`,
+      at: new Date(),
+    });
+    await prisma.$transaction(async (tx) => {
+      await tx.announcement.deleteMany({ where: { departmentId: dept.id } });
+      await tx.testTrack.deleteMany({ where: { departmentId: dept.id } });
+      await tx.department.delete({ where: { id: dept.id } });
+    });
+    return { ok: true, name: dept.name, mode: "delete" };
   }
 
-  // السجل يُختم قبل الحذف: بعده لا يبقى ما يُكتب
+  // ── القسمُ الأصيل: بخطّته
+  const plan = await departmentDeletionPlan(dept.id);
+  if (!plan) return { ok: false, reason: "القسم غير موجود" };
+  if (plan.blockers.length > 0) {
+    return { ok: false, reason: `لا يُحذف القسم وفيه: ${plan.blockers.join("، ")}.` };
+  }
+
+  if (plan.mode === "delete") {
+    // بلا تاريخٍ ولا قائد: لا يُشير إليه شيءٌ يُهدَر — بنكُ أسئلته وإعلاناتُه تخصّه وحده
+    await appendMemberEvent({
+      fullName: opts.actorName,
+      email: "",
+      roleOrDepartment: dept.name,
+      event: "حذف قسم نهائياً",
+      details: `المعرّف: ${dept.slug} — اللون: ${dept.colorHex} — لا سجلّ له عند الحذف`,
+      at: new Date(),
+    });
+    await prisma.$transaction(async (tx) => {
+      await tx.announcement.deleteMany({ where: { departmentId: dept.id } });
+      await tx.testTrack.deleteMany({ where: { departmentId: dept.id } });
+      await tx.department.delete({ where: { id: dept.id } });
+    });
+    return { ok: true, name: dept.name, mode: "delete" };
+  }
+
+  return archiveDepartment(dept, plan, { id: opts.actorId ?? null, name: opts.actorName });
+}
+
+/** **أرشفةُ القسم** — «حذفٌ» يحفظ السجلّ.
+ *
+ *  - الحالة `archived`: يغيب من كل قائمةٍ وهيكلٍ ودعوةٍ ووجهةِ تذكرة.
+ *  - اسمُه ومعرّفُه يُوسَمان «مؤرشف» بتاريخه: فيُنشأ غيرُه بالاسم نفسه إن شاء المؤسس،
+ *    ويُقرأ اسمُه في السجلات القديمة على حقيقته.
+ *  - قائدُه الباقي وحده: تُسحب قيادتُه (حسابُه الإداريُّ يُعطَّل بسببٍ مكتوب، وجلساتُه
+ *    تُبطَل)، ويُسلَّم عملُه المعلَّق لخلفه في السلسلة (`handOver`)، ويُبطَل توقيعُه
+ *    للمستقبل — والصادرُ به يبقى صحيحاً.
+ *  - لا يُحذف صفٌّ واحد: أعضاؤه السابقون ودعواته وتذاكره وأهدافه وخططه تبقى تُشير إليه. */
+async function archiveDepartment(
+  dept: { id: string; name: string; slug: string; colorHex: string },
+  plan: DeletionPlan,
+  actor: { id: string | null; name: string }
+): Promise<{ ok: true; name: string; mode: "archive" } | { ok: false; reason: string }> {
+  const now = new Date();
+  const stamp = now.toISOString().slice(0, 10);
+  const { revokeAccess } = await import("@/lib/accessRevocation");
+  const { recordOrgEvent } = await import("@/lib/org/audit");
+
+  let archivedName = `${dept.name} — مؤرشف ${stamp}`;
+  for (let n = 2; await prisma.department.findUnique({ where: { name: archivedName }, select: { id: true } }); n++) {
+    archivedName = `${dept.name} — مؤرشف ${stamp} (${n})`;
+  }
+  const archivedSlug = await uniqueSlug(`${dept.slug}-archived-${stamp.replace(/-/g, "")}`);
+  const leadUser = plan.lead
+    ? await prisma.user.findUnique({
+        where: { id: plan.lead.id },
+        select: { id: true, fullName: true, email: true, role: true, departmentId: true },
+      })
+    : null;
+
+  const done = await prisma.$transaction(async (tx) => {
+    // الحالةُ شرطُ الكتابة نفسها: ضغطتان متسابقتان لا تؤرشفان مرّتين
+    const flipped = await tx.department.updateMany({
+      where: { id: dept.id, OR: [{ committeeStatus: null }, { committeeStatus: "approved" }] },
+      data: {
+        committeeStatus: "archived",
+        statusChangedAt: now,
+        statusNote: `أرشفه ${actor.name} — حُذف من الأقسام العاملة مع حفظ سجلّه (الاسم الأصلي: ${dept.name})`,
+        name: archivedName,
+        slug: archivedSlug,
+        deputyMemberId: null,
+        deputyPermissions: [],
+      },
+    });
+    if (flipped.count === 0) return false;
+    if (leadUser) {
+      await tx.user.update({
+        where: { id: leadUser.id },
+        data: { isActive: false, removedAt: now, removalReason: `أُرشف قسمُه (${dept.name}) بقرار المؤسس — انتهت قيادته` },
+      });
+      await revokeAccess(tx, { accountKind: "user", accountId: leadUser.id, reason: "أرشفة القسم", byName: actor.name });
+    }
+    await recordOrgEvent(tx, {
+      scope: "department",
+      entityId: dept.id,
+      departmentId: dept.id,
+      action: "department.archived",
+      actor: { id: actor.id ?? "system", name: actor.name, kind: actor.id ? "user" : "system" },
+      before: { name: dept.name, slug: dept.slug, lead: leadUser ? { userId: leadUser.id, name: leadUser.fullName } : null },
+      after: { name: archivedName, slug: archivedSlug, status: "archived", preserved: plan.preserved },
+      note: "حذفٌ مع حفظ السجلّ — لا يُحذف صفٌّ يُشير إليه",
+    });
+    return true;
+  });
+  if (!done) return { ok: false, reason: "القسم أُرشف أو تغيّرت حالتُه للتوّ — حدّث الصفحة" };
+
+  // ── ما بعد المعاملة: العملُ المعلَّق والتوقيعُ والشيت — لا يُبطل القرارَ إن تعثّر
+  let handover = "لا قائد له";
+  if (leadUser) {
+    try {
+      const { handOver } = await import("@/lib/succession");
+      const h = await handOver({ user: leadUser, byName: actor.name, occasion: "أرشفة القسم" });
+      handover = h.summary;
+    } catch {
+      handover = "تعذّر تسليم العمل المعلَّق آلياً — يُراجَع من صفحة الحساب";
+    }
+    try {
+      const { supersedeSignatures } = await import("@/lib/signatures");
+      await supersedeSignatures(leadUser.id, `أُرشف قسمُه (${dept.name})`);
+    } catch {
+      /* يُبطَل من صفحة التوقيعات */
+    }
+    try {
+      const { syncAdminAccountRow } = await import("@/lib/workflow");
+      await syncAdminAccountRow(leadUser.id);
+    } catch {
+      /* يُزامَن في الكنس التالي */
+    }
+  }
   await appendMemberEvent({
-    fullName: opts.actorName,
+    fullName: actor.name,
     email: "",
     roleOrDepartment: dept.name,
-    event: "حذف قسم نهائياً",
-    details: `المعرّف: ${dept.slug} — اللون: ${dept.colorHex} — كان فارغاً عند الحذف`,
-    at: new Date(),
+    event: "أرشفة قسم (حذف مع حفظ السجل)",
+    details:
+      `المعرّف: ${dept.slug} ← ${archivedSlug} — يُحفظ: ${plan.preserved.join("، ") || "لا شيء"}` +
+      (leadUser ? ` — القائد ${leadUser.fullName}: انتهت قيادته — ${handover}` : ""),
+    at: now,
   });
+  return { ok: true, name: dept.name, mode: "archive" };
+}
 
-  // بنك أسئلته وإعلاناته يخصّانه وحده، فيزولان معه. وأسئلة البنك
-  // مرتبطةٌ به بـcascade في القاعدة.
-  await prisma.$transaction(async (tx) => {
-    await tx.announcement.deleteMany({ where: { departmentId: dept.id } });
-    await tx.testTrack.deleteMany({ where: { departmentId: dept.id } });
-    await tx.department.delete({ where: { id: dept.id } });
+/** الأقسامُ المؤرشفة — لصفحة الأقسام (للمؤسس): أسماؤها وتاريخُ أرشفتها وسببُها */
+export async function archivedDepartments() {
+  // department-scope: all — قائمةُ المؤرشفة نفسها: هي ما يستبعده OPEN_DEPARTMENT_WHERE عمداً
+  return prisma.department.findMany({
+    where: { parentId: null, committeeStatus: "archived" },
+    select: { id: true, name: true, colorHex: true, statusChangedAt: true, statusNote: true },
+    orderBy: { statusChangedAt: "desc" },
+    take: 50,
   });
-
-  return { ok: true, name: dept.name };
 }
 
 /** يُصنّف عضواً غير مصنّف في قسم — وللمؤسس وحده.

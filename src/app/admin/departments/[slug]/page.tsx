@@ -83,6 +83,8 @@ export default async function DepartmentBoardPage({
 
   const department = await prisma.department.findUnique({ where: { slug } });
   if (!department) notFound();
+  // القسمُ المؤرشف حُذف من الأقسام العاملة: لا صفحةَ عملٍ له — سجلُّه يُقرأ في السجلات
+  if (!department.parentId && department.committeeStatus === "archived") notFound();
 
   // لجانُه بحالاتها — عدٌّ للبطاقة فقط؛ والإدارةُ كلُّها في صفحة اللجان
   const committeeCounts = await prisma.department.groupBy({
@@ -587,6 +589,10 @@ export default async function DepartmentBoardPage({
                           note: r.note,
                           dueDate: r.dueDate ? r.dueDate.toISOString() : null,
                           linkedMemberName: r.linkedMember?.fullName ?? null,
+                          closedAt: r.closedAt ? r.closedAt.toISOString() : null,
+                          closedByName: r.closedByName,
+                          closeNote: r.closeNote,
+                          closedAutomatically: r.closedAutomatically,
                         }}
                       />
                     ))}

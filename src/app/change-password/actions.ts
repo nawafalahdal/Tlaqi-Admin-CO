@@ -26,6 +26,10 @@ export async function changePasswordAction(
     return { error: L.thePasswordsDoNot };
   }
 
+  // **كلمةُ المرور الدائمة تُلغي المؤقتة:** فلا تُقبل «جديدةٌ» هي الحاليةُ نفسها — وإلا بقي
+  // الرمزُ المؤقتُ للدعوة صالحاً بعد التفعيل وهو مكتوبٌ في بريدٍ أو رسالة
+  if (newPassword === currentPassword) return { error: L.sameAsCurrent };
+
   const isMember = session.user.role === "member";
   const newHash = await bcrypt.hash(newPassword, 10);
 

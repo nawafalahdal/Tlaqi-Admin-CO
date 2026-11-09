@@ -206,7 +206,8 @@ export async function createCommittee(
   });
   if (!dept) return fail("القسم غير موجود");
   if (dept.parentId || dept.committeeStatus) return fail("اللجانُ تُنشأ في قسمٍ أصيل — لا لجنةَ داخل لجنة");
-  if (dept.leadershipOnly) return fail("القسمُ الاستثنائي لا تُنشأ فيه لجان");
+  // والإدارةُ العليا (القسمُ الاستثنائي) تُنشأ فيها لجانٌ بالنظام نفسه — يقترحها الرئيسُ التنفيذي
+  // والمؤسس (`canProposeCommitteesOf`)، وأعضاؤها من أهلها المسجَّلين فيها كأيّ قسم
 
   const details = cleanDetails(input);
   if (!details.ok) return details;
@@ -261,12 +262,13 @@ export async function createCommittee(
     });
     return row;
   });
-  if (input.submit) await notifyApprover(details.data.name, dept.name, actor.name);
+  if (input.submit) await notifyApprover(details.data.name, dept.name, actor.name, actor.id);
   return { ok: true, id: created.id, status };
 }
 
-async function notifyApprover(committeeName: string, parentName: string, byName: string) {
-  const approver = await committeeApprover();
+async function notifyApprover(committeeName: string, parentName: string, byName: string, proposerId?: string) {
+  // من اقترح لا يعتمد اقتراحَه — فيُبلَّغ الآخرُ من الرئيس التنفيذي والمؤسس
+  const approver = await committeeApprover(proposerId);
   await appendMemberEvent({
     fullName: byName,
     email: "",

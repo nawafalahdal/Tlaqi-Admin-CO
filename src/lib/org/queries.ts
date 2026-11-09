@@ -155,14 +155,16 @@ export async function listCommittees(
 /** الأقسامُ التي يُنشئ فيها صاحبُ الطلب لجاناً — ليُعرض له زرُّ الإنشاء حيث يملكه وحده */
 export async function departmentsForCreation(actor: OrgActor | null) {
   if (!actor?.role) return [];
-  // الاقتراحُ لقائد القسم ونائبه المفوَّض وحدهما — والرئيسُ والمؤسس يعتمدان ولا يقترحان
-  const ids = [actor.leadsDepartmentId, actor.deputy?.permissions.includes("committees_manage") ? actor.deputy.departmentId : null].filter(
-    (x): x is string => !!x
-  );
+  // الاقتراحُ لقائد القسم ونائبه المفوَّض — وللرئيس التنفيذي والمؤسس في الإدارة العليا وحدها
+  const ids = [
+    actor.leadsDepartmentId,
+    actor.deputy?.permissions.includes("committees_manage") ? actor.deputy.departmentId : null,
+    actor.isTop ? actor.seniorDepartmentId ?? null : null,
+  ].filter((x): x is string => !!x);
   if (!ids.length) return [];
-  // department-scope: all — أقسامٌ أصيلةٌ عاملة (لا لجان، ولا القسم الاستثنائي)
+  // department-scope: all — أقسامٌ أصيلةٌ عاملة (لا لجان) ممّا يملك الاقتراحَ فيه وحده
   return prisma.department.findMany({
-    where: { parentId: null, committeeStatus: null, leadershipOnly: false, id: { in: ids } },
+    where: { parentId: null, committeeStatus: null, id: { in: ids } },
     select: { id: true, name: true, colorHex: true },
     orderBy: { name: "asc" },
   });

@@ -20,27 +20,97 @@ function generateCode() {
   return crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
 }
 
-/** يُصدر رمز دخول جديداً ويُبطل ما سبقه.
+/** **سياسة إصدار الرموز** — تمنع إغراق البريد وتخمين الرموز بالتكرار.
  *
- *  الإبطال مقصود: لو بقيت الرموز القديمة صالحة، لصار كل طلب جديد يوسّع
- *  مجال ما يُقبل بدل أن يستبدله — ومن طلب الرمز مرتين لا ينتظر إلا الأخير. */
+ *  - **مهلة بين رمزين** (`RESEND_COOLDOWN_SECONDS`): لا يُطلب رمزٌ جديد قبل دقيقة من سابقه.
+ *  - **سقفٌ في النافذة** (`MAX_CODES_PER_WINDOW` في `CODE_WINDOW_MINUTES`): خمسة رموز
+ *    في نصف ساعة لكل بريد، ثم يُنتظر حتى يخرج أقدمها من النافذة.
+ *
+ *  والإصدار كلُّه يمرّ بإعادة التحقق من كلمة المرور قبله (`login/actions.ts`)، فمن يعرف
+ *  البريد وحده لا يستطيع أن يُرسل لصاحبه رمزاً واحداً. والعدّ من صفوف `LoginCode`
+ *  نفسها — لا جدول جديد — والكنسُ لا يمحو إلا ما مضى عليه يوم. */
+export const RESEND_COOLDOWN_SECONDS = 60;
+export const MAX_CODES_PER_WINDOW = 5;
+export const CODE_WINDOW_MINUTES = 30;
+
+export type IssuedCode =
+  | {
+      ok: true;
+      /** الرمز الجديد — أو `null` إن أُعيد استعمال رمزٍ صالحٍ أُرسل للتوّ (لا بريد ثانٍ) */
+      code: string | null;
+      expiresAt: Date;
+      /** متى يُسمح بطلب رمزٍ آخر */
+      resendAt: Date;
+    }
+  | { ok: false; reason: "cooldown" | "limit"; retryAt: Date };
+
+/** يُصدر رمز دخول جديداً ويُبطل ما سبقه — في معاملةٍ مقفلةٍ بالبريد.
+ *
+ *  الإبطال مقصود: لو بقيت الرموز القديمة صالحة، لصار كل طلب جديد يوسّع مجال ما
+ *  يُقبل بدل أن يستبدله. والقفلُ (`pg_advisory_xact_lock`) يجعل طلبين متزامنين لبريدٍ
+ *  واحد يمرّان واحداً بعد الآخر — فلا يُنشئ كلٌّ منهما رمزاً بعد أن أبطل الآخرُ ما
+ *  قبله، فيبقى رمزان صالحان معاً.
+ *
+ *  - `login`: الخطوة الأولى من الدخول. إن وُجد رمزٌ صالح أُرسل قبل أقلّ من دقيقة لم
+ *    يُصدَر غيره (من أعاد الصفحة لا يُغرَق بريده) — ويُكمل بالرمز الذي وصله.
+ *  - `resend`: زرّ «إعادة إرسال رمز التحقق». المهلة تُفرض دائماً، والرمز الجديد يُبطل
+ *    السابق ولو كان صالحاً.
+ *
+ *  ولا يمسّ كلمة المرور ولا الرمز المؤقت للدعوة: رمز البريد شيءٌ آخر تماماً. */
+export async function issueLoginCodeGuarded(
+  rawEmail: string,
+  mode: "login" | "resend",
+  now = new Date()
+): Promise<IssuedCode> {
+  const email = rawEmail.trim().toLowerCase();
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`login-code:${email}`}))`;
+    const since = new Date(now.getTime() - CODE_WINDOW_MINUTES * 60_000);
+    const recent = await tx.loginCode.findMany({
+      where: { email, createdAt: { gte: since } },
+      orderBy: { createdAt: "asc" },
+      select: { createdAt: true, expiresAt: true, usedAt: true },
+    });
+    const last = recent.at(-1);
+    const cooldownEnds = last ? new Date(last.createdAt.getTime() + RESEND_COOLDOWN_SECONDS * 1000) : null;
+    const inCooldown = !!cooldownEnds && cooldownEnds.getTime() > now.getTime();
+
+    if (mode === "login" && inCooldown && last && !last.usedAt && last.expiresAt.getTime() > now.getTime()) {
+      return { ok: true as const, code: null, expiresAt: last.expiresAt, resendAt: cooldownEnds! };
+    }
+    if (mode === "resend" && inCooldown) {
+      return { ok: false as const, reason: "cooldown" as const, retryAt: cooldownEnds! };
+    }
+    if (recent.length >= MAX_CODES_PER_WINDOW) {
+      const oldest = recent[0].createdAt.getTime();
+      return { ok: false as const, reason: "limit" as const, retryAt: new Date(oldest + CODE_WINDOW_MINUTES * 60_000) };
+    }
+
+    const code = generateCode();
+    const expiresAt = new Date(now.getTime() + LOGIN_CODE_MINUTES * 60_000);
+    await tx.loginCode.updateMany({ where: { email, usedAt: null }, data: { usedAt: now } });
+    await tx.loginCode.create({ data: { email, codeHash: hashCode(email, code), expiresAt, createdAt: now } });
+    return {
+      ok: true as const,
+      code,
+      expiresAt,
+      resendAt: new Date(now.getTime() + RESEND_COOLDOWN_SECONDS * 1000),
+    };
+  });
+}
+
+/** يُصدر رمز دخول بلا سياسة الإصدار — للفحوص الآلية وحدها (تدخل بحسابٍ تجريبيّ عبر
+ *  مسار الدخول نفسه). والمنصةُ لا تناديه: الدخولُ وإعادةُ الإرسال يمرّان بـ`issueLoginCodeGuarded`. */
 export async function issueLoginCode(rawEmail: string) {
   const email = rawEmail.trim().toLowerCase();
   const code = generateCode();
-
-  await prisma.loginCode.updateMany({
-    where: { email, usedAt: null },
-    data: { usedAt: new Date() },
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`login-code:${email}`}))`;
+    await tx.loginCode.updateMany({ where: { email, usedAt: null }, data: { usedAt: new Date() } });
+    await tx.loginCode.create({
+      data: { email, codeHash: hashCode(email, code), expiresAt: new Date(Date.now() + LOGIN_CODE_MINUTES * 60_000) },
+    });
   });
-
-  await prisma.loginCode.create({
-    data: {
-      email,
-      codeHash: hashCode(email, code),
-      expiresAt: new Date(Date.now() + LOGIN_CODE_MINUTES * 60_000),
-    },
-  });
-
   return code;
 }
 

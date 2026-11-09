@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { surveyPendingFrom } from "@/lib/onboardingSurvey";
 import { auth, signOut } from "@/auth";
 import { canResendWelcome, canRequestWelcomeResend } from "@/lib/welcomeResend";
 import { portraitTone, portraitColorFor } from "@/lib/portraitTone";
@@ -46,7 +48,20 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
   const [canWelcomeCards, stamp, badges, canMarketing] = await Promise.all([
     canResendWelcome(session).then((ok) => ok || canRequestWelcomeResend(session)),
     isMember
-      ? prisma.member.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true, gender: true, department: { select: { name: true, colorHex: true } } } })
+      ? prisma.member.findUnique({
+          where: { id: session.user.id },
+          select: {
+            avatarVersion: true,
+            gender: true,
+            department: { select: { name: true, colorHex: true } },
+            // حارسُ استبيان الانضمام — في القراءة نفسها، بلا رحلةٍ إضافية
+            approvalStatus: true,
+            isActive: true,
+            terminatedAt: true,
+            onboardingSurveyRequiredAt: true,
+            _count: { select: { onboardingSurveys: { where: { supersededAt: null } } } },
+          },
+        })
       : prisma.user.findUnique({ where: { id: session.user.id }, select: { avatarVersion: true, gender: true, department: { select: { name: true, colorHex: true } } } }),
     badgesFor(session, s),
     // بندٌ لا شرطٌ للصفحة: إن تعذّرت القراءة (جدولٌ لم يُرحَّل بعد مثلاً) سقط البندُ وبقيت القائمة
@@ -55,6 +70,12 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
       return false;
     }),
   ]);
+  // **استبيانُ الانضمام الإلزامي:** العضوُ المعتمَدُ الذي طُلب منه ولم يُجب لا تُفتح له مساحةُ العمل —
+  // كلُّ تخطيطٍ فيها يمرّ من هنا (البوابة، والتذاكر، واللجان، ووكيل التسويق، والتقويم، والتنبيهات)
+  if (isMember && stamp && "onboardingSurveyRequiredAt" in stamp) {
+    const m = stamp;
+    if (surveyPendingFrom({ ...m, currentResponses: m._count.onboardingSurveys })) redirect("/onboarding-survey");
+  }
   const viewer = {
     role: session.user.role,
     departmentSlug: session.user.departmentSlug,

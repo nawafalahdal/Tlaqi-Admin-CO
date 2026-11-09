@@ -56,7 +56,7 @@ export type NavGroup = (typeof NAV_GROUPS)[number];
 /** أسماءُ البنود — من القاموس (`shell.nav`)، لا مكتوبةً هنا */
 export type NavLabels = Record<
   "home" | "opsHome" | "members" | "myDeptMembers" | "approvals" | "departments" | "execution" | "calendar" |
-  "reports" | "plans" | "tickets" | "structure" | "committees" | "invites" | "messages" | "terminations" | "signature" | "welcomeCards" | "sheet" | "marketing",
+  "reports" | "plans" | "tickets" | "structure" | "committees" | "invites" | "messages" | "terminations" | "signature" | "welcomeCards" | "onboarding" | "sheet" | "marketing",
   string
 >;
 
@@ -149,6 +149,10 @@ export function navFor(v: NavViewer, L: NavLabels): NavItem[] {
   }
   if (v.canWelcomeCards) {
     items.push({ id: "welcomeCards", label: L.welcomeCards, href: "/admin/welcome-cards", icon: "invites", match: ["/admin/welcome-cards"], group: "people" });
+  }
+  // استبيانُ الانضمام: لوحةُ المتابعة وتصديرُها — للمؤسس والرئيس التنفيذي ومسؤول التشغيل (`canManageOnboardingSurvey`)
+  if (top || r === "operations_officer") {
+    items.push({ id: "onboarding", label: L.onboarding, href: "/admin/onboarding", icon: "members", match: ["/admin/onboarding"], group: "people" });
   }
   if (top || v.canSign) {
     items.push({ id: "signature", label: L.signature, href: "/admin/signature", icon: "signature", match: ["/admin/signature"], group: "people" });

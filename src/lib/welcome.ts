@@ -222,6 +222,48 @@ async function stampWelcomeAccepted(subject: WelcomeSubject, at: Date) {
   const data = { welcomeEmailSentAt: at, welcomeClaimedAt: null };
   if (subject.kind === "user") await prisma.user.updateMany({ where, data });
   else await prisma.member.updateMany({ where, data });
+  // **وصل البنر:** يُغلَق ما كان ينتظره — طلبُ البنر الترحيبي، وتذاكرُ «أعيدوا البطاقة» و«لم
+  // تصلني» — بإجراءٍ وقع فعلاً لا بنقرة. ولا يُبطل الختمَ إن تعثّر الإغلاق
+  try {
+    await closeWelcomeWork(subject, at);
+  } catch (e) {
+    console.error("[welcome] closeWelcomeWork", e);
+  }
+}
+
+/** ما يُغلَق حين تصل بطاقةُ الانضمام صاحبَها — الطلبُ والتذاكر المرتبطة به */
+async function closeWelcomeWork(subject: WelcomeSubject, at: Date) {
+  const note = `وصلت بطاقة الانضمام (البنر الترحيبي) إلى مزوّد البريد في ${at.toISOString().slice(0, 10)}`;
+  if (subject.kind === "member") {
+    const { autoCloseRequests } = await import("@/lib/requests");
+    await autoCloseRequests({ memberId: subject.id, type: "welcome_banner", note, at });
+  }
+  const person =
+    subject.kind === "user"
+      ? await prisma.user.findUnique({ where: { id: subject.id }, select: { fullName: true } })
+      : await prisma.member.findUnique({ where: { id: subject.id }, select: { fullName: true } });
+  if (!person) return;
+  const marker = `for=${subject.kind}:${subject.id}`;
+  const open = await prisma.ticket.findMany({
+    where: {
+      status: { not: "resolved" },
+      OR: [
+        { linkUrl: { contains: marker } },
+        // تذاكرُ قبل الوسم: بموضوعها الذي يكتبه الكود حرفياً — ولصاحبها وحده
+        {
+          subject: { in: [`طلب إعادة بطاقة الانضمام — ${person.fullName}`, `لم تصلني بطاقة الانضمام — ${person.fullName}`] },
+          linkUrl: { contains: "/admin/welcome-cards" },
+        },
+      ],
+    },
+    select: { id: true },
+    take: 20,
+  });
+  if (open.length === 0) return;
+  const { respondToTicket } = await import("@/lib/tickets");
+  for (const t of open) {
+    await respondToTicket({ ticketId: t.id, status: "resolved", resolutionNote: `${note} — أُغلقت آلياً`, actorUserId: null });
+  }
 }
 
 /** يُفَكّ الحجز إن لم تَقبل الرسالةُ — فلا يُحرَم صاحبها من بطاقته

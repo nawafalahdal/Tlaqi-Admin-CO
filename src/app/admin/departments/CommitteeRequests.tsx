@@ -27,6 +27,8 @@ export type PendingCommittee = {
   kind: "permanent" | "temporary" | null;
   leadName: string | null;
   memberCount: number;
+  /** اقترحها صاحبُ الصفحة نفسه — فلا يعتمدها (يقرّر فيها الآخرُ من الرئيس والمؤسس) */
+  ownProposal?: boolean;
 };
 
 export function CommitteeRequests({
@@ -130,6 +132,9 @@ function RequestRow({
 
       {error && <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
 
+      {r.ownProposal ? (
+        <p className="mt-3 border-t border-black/5 pt-3 text-xs font-semibold text-black/55">{L.ownProposalWaits}</p>
+      ) : (
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-black/5 pt-3">
         {!rejecting ? (
           <>
@@ -151,6 +156,7 @@ function RequestRow({
           </>
         )}
       </div>
+      )}
     </div>
   );
 }

@@ -13,6 +13,7 @@ import {
   departmentNeedsApproval,
   deleteBlockers,
   pendingDepartmentRequests,
+  archivedDepartments,
 } from "@/lib/departments";
 import { NewDepartmentForm } from "./NewDepartmentForm";
 import { DepartmentColor } from "./DepartmentColor";
@@ -110,6 +111,8 @@ export default async function DepartmentsIndexPage() {
       : Promise.resolve([]),
   ]);
   const holdingsOf = new Map(holdings.map((h) => [h.id, h._count]));
+  void seniorPeople;
+  const archived = canDelete ? await archivedDepartments() : [];
 
   /** الأقسامُ الأصيلة أولاً، وكلُّ لجنةٍ تحت أبيها مباشرةً — فتُقرأ
    *  الصفحةُ شجرةً كالهيكل. والإدارة العليا أولُ الأقسام كما في الهيكل.
@@ -117,8 +120,9 @@ export default async function DepartmentsIndexPage() {
    *  والمقترحةُ والمردودةُ تُعرضان هنا أيضاً لمن يملك الهيكل: هذه صفحةُ
    *  الحوكمة لا قائمةَ وجهات — وإخفاءُ المردودة يجعل طلباً مُعاداً يبدو
    *  جديداً. */
+  // المؤرشفُ لا يدخل الشجرة: له قسمُه أسفل الصفحة (للمؤسس)
   const roots = departments
-    .filter((d) => !d.parentId)
+    .filter((d) => !d.parentId && d.committeeStatus !== "archived")
     .sort((a, b) => Number(b.id === senior?.id) - Number(a.id === senior?.id));
   const childrenOf = (id: string) => departments.filter((d) => d.parentId === id);
   const ordered = roots.flatMap((root) => {
@@ -203,6 +207,7 @@ export default async function DepartmentsIndexPage() {
                     kind: p.committeeKind,
                     leadName: p.leadMember?.fullName ?? null,
                     memberCount: p._count.committeeMemberships,
+                    ownProposal: p.requestedById === session.user.id,
                   }))}
                 />
               </Card>
@@ -225,8 +230,12 @@ export default async function DepartmentsIndexPage() {
             const isSenior = d.id === senior?.id;
             const leadNames = isSenior ? (ceo ? [ceo.fullName] : []) : d.admins.map((a) => a.fullName);
             const held = holdingsOf.get(d.id);
+            // القسمُ الأصيل: الزرُّ ظاهرٌ للمؤسس دائماً، والنافذةُ تقول ما يمنعه أو ما يُحفظ منه.
+            // واللجنةُ بقاعدتها: لا يظهر الزرُّ إلا فارغةً تماماً
+            const rootDeletable = canDelete && !isCommittee && isOpen(d);
             const deletable =
-              canDelete && held !== undefined && deleteBlockers(held, isSenior ? seniorPeople : 0).length === 0;
+              rootDeletable ||
+              (canDelete && isCommittee && held !== undefined && deleteBlockers(held, 0).length === 0);
             const leaderChange = canChangeLeader && !isCommittee && !d.leadershipOnly && d.committeeStatus === null;
             return (
               <Card
@@ -336,13 +345,33 @@ export default async function DepartmentsIndexPage() {
                       </Link>
                     )}
                     {/* الحذف للمؤسس وحده، ولقسمٍ فارغٍ تماماً — والخادم يفرضهما */}
-                    {deletable && <DeleteDepartment departmentId={d.id} departmentName={d.name} theme={theme} />}
+                    {deletable && (
+                      <DeleteDepartment departmentId={d.id} departmentName={d.name} theme={theme} withPlan={rootDeletable} />
+                    )}
                   </div>
                 )}
               </Card>
             );
           })}
         </section>
+
+        {archived.length > 0 && (
+          <section className="flex flex-col gap-2">
+            <h2 className="text-base font-bold">{td.archivedSection}</h2>
+            <p className="text-xs leading-relaxed text-black/50">{td.archivedHint}</p>
+            <Card className="divide-y divide-black/5 p-0">
+              {archived.map((a) => (
+                <div key={a.id} className="flex flex-col gap-0.5 px-4 py-3 text-sm">
+                  <span className="font-bold text-black/70">{a.name}</span>
+                  <span className="text-xs leading-relaxed text-black/50">
+                    {a.statusChangedAt ? formatDate(a.statusChangedAt) : "—"}
+                    {a.statusNote ? ` · ${a.statusNote}` : ""}
+                  </span>
+                </div>
+              ))}
+            </Card>
+          </section>
+        )}
       </main>
     </div>
   );

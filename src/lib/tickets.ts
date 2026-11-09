@@ -766,6 +766,11 @@ export function canRespondToTicket(
   // صاحب التذكرة لا يردّ على نفسه مهما علت رتبته
   if (ticket.raisedByUserId === id) return false;
 
+  // **ومن وُجِّهت إليه بعينه يُغلقها في كل مرحلة.** التصعيدُ يُضيف من يتابع ولا يسلب صاحبَ
+  // العمل حقَّه: مسؤولُ التشغيل الذي أعاد بطاقة الانضمام بعد يومين كان لا يستطيع إغلاق
+  // تذكرتها لأنها صُعِّدت — فتبقى مفتوحةً بعد تمام ما طُلب
+  if (ticket.targetUserId && ticket.targetUserId === id) return true;
+
   switch (ticket.stage) {
     case "department":
       // الموجَّهة لشخص بعينه: هو وحده. والموجَّهة لقسم: قادته.

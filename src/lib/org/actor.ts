@@ -30,6 +30,10 @@ export type OrgActor = {
   leadsDepartmentId: string | null;
   /** نائبُ قائد قسم — وما فُوِّض إليه وحده */
   deputy: { departmentId: string; permissions: DeputyPermission[] } | null;
+  /** **الإدارةُ العليا** (للمؤسس والرئيس التنفيذي وحدهما): لا قائدَ قسمٍ لها — يقودها الرئيسُ
+   *  التنفيذي ومعه المؤسس — فيقترحان لجانَها كما يقترح قائدُ القسم لجانَ قسمه. ولا يمنح هذا
+   *  شيئاً غير اللجان: لا نائبَ ولا توزيعَ مسؤوليات (`canProposeCommitteesOf` وحده يقرؤه). */
+  seniorDepartmentId?: string | null;
 };
 
 type Db = Prisma.TransactionClient | typeof prisma;
@@ -81,16 +85,25 @@ export async function orgActor(session: Session | null, db: Db = prisma): Promis
   const live = !!u && u.isActive && !isCommitteeScopedLeader(u);
   const role = live ? u!.role : null;
   const isLead = role === "department_admin" && !!u!.departmentId && !u!.department?.parentId;
+  const isTop = role === "super_admin" || role === "executive";
+  const senior = isTop
+    ? await db.department.findFirst({
+        where: { leadershipOnly: true, parentId: null, OR: [{ committeeStatus: null }, { committeeStatus: "approved" }] },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      })
+    : null;
   return {
     kind: "user",
     id: session.user.id,
     name: u?.fullName ?? session.user.name ?? "—",
     role,
     departmentId: live ? u!.departmentId : null,
-    isTop: role === "super_admin" || role === "executive",
+    isTop,
     isOps: role === "operations_officer",
     leadsDepartmentId: isLead ? u!.departmentId : null,
     deputy: null,
+    seniorDepartmentId: senior?.id ?? null,
   };
 }
 
@@ -108,9 +121,14 @@ export function canManageCommitteesOf(a: OrgActor | null, departmentId: string):
 
 /** **اقتراحُ لجنةٍ جديدة وإرسالُها للاعتماد** — لقائد القسم ولنائبه المفوَّض وحدهما.
  *  والرئيسُ التنفيذي والمؤسس يعتمدان أو يردّان ولا يقترحان: الاعتمادُ لا يتمّ إلا بعد
- *  اقتراح قائد القسم وإرساله (ملاحظةُ المؤسس الخامسة)، ومن يعتمد لا يعتمد اقتراحَه. */
+ *  اقتراح قائد القسم وإرساله (ملاحظةُ المؤسس الخامسة)، ومن يعتمد لا يعتمد اقتراحَه.
+ *
+ *  **والإدارةُ العليا وحدها** يقترح لجانَها الرئيسُ التنفيذي والمؤسس: لا قائدَ قسمٍ لها
+ *  غيرُهما. والقاعدةُ نفسها تبقى: من اقترح لا يعتمد اقتراحَه (`decideCommittee`) — فما
+ *  يقترحه الرئيسُ يعتمده المؤسس، وما يقترحه المؤسسُ يعتمده الرئيس. */
 export function canProposeCommitteesOf(a: OrgActor | null, departmentId: string): boolean {
   if (!a?.role) return false;
+  if (a.isTop && !!a.seniorDepartmentId && a.seniorDepartmentId === departmentId) return true;
   return a.leadsDepartmentId === departmentId || deputyHas(a, departmentId, "committees_manage");
 }
 

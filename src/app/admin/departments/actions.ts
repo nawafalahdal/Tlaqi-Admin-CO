@@ -6,6 +6,8 @@ import {
   canCreateDepartment,
   createDepartment,
   deleteDepartment,
+  canDeleteDepartment,
+  departmentDeletionPlan,
   assignMemberDepartment,
   departmentNeedsApproval,
   decideDepartmentRequest,
@@ -96,11 +98,21 @@ export async function updateDepartmentColorAction(
   }
 }
 
+/** خطةُ حذف القسم — تُقرأ حين يفتح المؤسسُ نافذة الحذف: ما يمنعه، ومصيرُ قائده، وما
+ *  يُحفظ من سجلّه. للمؤسس وحده (والحذفُ نفسه يُعيد الفحص كاملاً في الخادم). */
+export async function departmentDeletionPlanAction(departmentId: string) {
+  const session = await auth();
+  if (!session || !canDeleteDepartment(session.user.role)) return { ok: false as const };
+  if (typeof departmentId !== "string" || !departmentId) return { ok: false as const };
+  const plan = await departmentDeletionPlan(departmentId);
+  return plan ? { ok: true as const, plan } : { ok: false as const };
+}
+
 /** حذف قسم — للمؤسس وحده، والتصريح يُفرض في `deleteDepartment` نفسها */
 export async function deleteDepartmentAction(
   departmentId: string,
   confirmName: string
-): Promise<{ error: string | null; done?: boolean; name?: string }> {
+): Promise<{ error: string | null; done?: boolean; name?: string; mode?: "delete" | "archive" }> {
   const L = getDictionary(await getLocale()).rDepartmentsActions;
   const session = await auth();
   if (!session) return { error: L.youNeedToSign };
@@ -111,11 +123,12 @@ export async function deleteDepartmentAction(
       confirmName,
       actorRole: session.user.role,
       actorName: session.user.name ?? "—",
+      actorId: session.user.id,
     });
     if (!res.ok) return { error: res.reason };
     revalidatePath("/admin/departments");
     revalidatePath("/admin");
-    return { error: null, done: true, name: res.name };
+    return { error: null, done: true, name: res.name, mode: res.mode };
   } catch (err) {
     return { error: safeErrorMessage(err) };
   }

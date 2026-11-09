@@ -28,11 +28,6 @@ async function requireSession() {
 
 /** يتحقق أن الجلسة الحالية تملك صلاحية إدارة قسم معيّن (الإدارة العليا والتنفيذي
  *  يديران كل الأقسام، أدمن القسم يدير قسمه فقط) */
-function canManageDepartment(session: Session, departmentId: string | null) {
-  if (session.user.role === "super_admin" || session.user.role === "executive") return true;
-  return session.user.role === "department_admin" && session.user.departmentId === departmentId;
-}
-
 /** يَحسم أمرَ مرشّحٍ من يملك منحَ منصبه — انظر `canDecideCandidate` */
 function mayDecide(
   session: Session,
@@ -222,24 +217,44 @@ export async function reopenInviteAction(memberId: string) {
   revalidatePath("/admin/departments");
 }
 
+/** العملُ على طلبٍ موجَّهٍ لقسم: بدءُه أو إغلاقُه — بدورة حياة نوعه (`lib/requests`).
+ *
+ *  ويملكه قائدُ القسم الموجَّه إليه، ومسؤولُ المتابعة والتشغيل، والرئيسُ التنفيذي، والمؤسس
+ *  (`canWorkOnRequest`) — يُفرَض في الخادم. والإغلاقُ يُسجَّل باسم صاحبه ووقته وسببه، ولا
+ *  يقع قبل تنفيذ ما طُلب (البنرُ قبل وصوله، والاجتماعُ بلا نتيجةٍ مكتوبة). */
 export async function updateRequestStatusAction(
   requestId: string,
-  status: "new" | "in_progress" | "done"
-) {
+  status: "new" | "in_progress" | "done",
+  note?: string | null
+): Promise<{ error: string | null }> {
   const L = getDictionary(await getLocale()).rAdminActions;
   const session = await requireSession();
-  const request = await prisma.request.findUniqueOrThrow({ where: { id: requestId } });
-  if (!canManageDepartment(session, request.targetDepartmentId)) {
-    throw new Error(L.youAreNotAllowed);
+  const actor = {
+    id: session.user.id,
+    name: session.user.name ?? "—",
+    role: session.user.role,
+    departmentId: session.user.departmentId ?? null,
+  };
+  const { startRequest, closeRequest } = await import("@/lib/requests");
+  try {
+    const res =
+      status === "done"
+        ? await closeRequest(actor, requestId, note)
+        : status === "in_progress"
+          ? await startRequest(actor, requestId)
+          : { ok: false as const, reason: L.youAreNotAllowed };
+    if (!res.ok) return { error: res.reason };
+    const r = await prisma.request.findUnique({ where: { id: requestId }, select: { type: true, linkedMemberId: true } });
+    if (r?.type === "welcome_banner" && status === "done" && r.linkedMemberId) {
+      await syncMemberLifecycleRow(r.linkedMemberId);
+    }
+    revalidatePath("/admin");
+    revalidatePath("/admin/departments");
+    revalidatePath("/admin/operations");
+    return { error: null };
+  } catch (err) {
+    return { error: safeErrorMessage(err) };
   }
-  await prisma.request.update({ where: { id: requestId }, data: { status } });
-
-  if (request.type === "welcome_banner" && status === "done" && request.linkedMemberId) {
-    await syncMemberLifecycleRow(request.linkedMemberId);
-  }
-
-  revalidatePath("/admin");
-  revalidatePath("/admin/departments");
 }
 
 /** تصحيح تاريخ الانضمام التنظيمي — للمؤسس وحده.

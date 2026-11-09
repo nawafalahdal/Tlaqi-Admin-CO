@@ -71,8 +71,12 @@ const STAMP = Date.now();
 
   const blocked = await deleteDepartment({ departmentId: held.id, confirmName: held.name, ...F });
   chk("القسم المأهول لا يُحذف", blocked.ok === false);
+  // **سياسةُ الحذف الجديدة (طلب المؤسس):** يمنع الحذفَ ما بقي حيّاً — عضوٌ نشطٌ غيرُ القائد وأمثالُه —
+  // لا السجلُّ التاريخي (دعوةٌ مستعملة، عضويةٌ منتهية): ذاك يُحفَظ بالأرشفة. فكان شرطُ «دعوة» هنا هو
+  // السببَ الجذريَّ لتعذّر حذف «الموارد البشرية»، وصار المانعُ يُسمّى بعدده هكذا — والسياسةُ كلُّها في
+  // `scripts/e2e-department-delete.ts`
   chk("**والمانع يُسمّى بعدده**",
-      blocked.ok === false && blocked.reason.includes("سجلّ عضوية") && blocked.reason.includes("دعوة"),
+      blocked.ok === false && /\b1 عضو نشط غير القائد/.test(blocked.reason),
       blocked.ok === false ? blocked.reason : "");
   chk("ولم يُحذف عضوُه ليُفرَّغ القسم",
       (await prisma.member.findUnique({ where: { id: heldMember.id } })) !== null);
