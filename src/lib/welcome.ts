@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import { WELCOME_MAX_SENDS } from "@/lib/welcomeResend";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { sendWelcomeEmail } from "@/lib/email";
@@ -244,17 +245,25 @@ async function closeWelcomeWork(subject: WelcomeSubject, at: Date) {
       : await prisma.member.findUnique({ where: { id: subject.id }, select: { fullName: true } });
   if (!person) return;
   const marker = `for=${subject.kind}:${subject.id}`;
+  const legacyLink = { contains: "/admin/welcome-cards" };
+  // **تذاكرُ ما قبل الوسم** — بموضوعها الذي يكتبه الكود حرفياً، ولصاحبها وحده:
+  //  - «لم تصلني» يرفعها صاحبُ البطاقة نفسُه، فتُعرَف بمعرّف رافعها لا باسمه.
+  //  - «طلب إعادة» يرفعها غيرُه ولا تحمل إلا الاسم — فلا تُغلَق آلياً إلا إن كان الاسمُ لشخصٍ واحد.
+  //    اسمان متطابقان لشخصين يتركانها مفتوحةً لمن يُغلقها بيده، ولا تُغلَق تذكرةُ أحدهما بوصول بطاقة الآخر.
+  const legacy: Prisma.TicketWhereInput[] = [
+    {
+      subject: `لم تصلني بطاقة الانضمام — ${person.fullName}`,
+      linkUrl: legacyLink,
+      ...(subject.kind === "member" ? { memberId: subject.id } : { raisedByUserId: subject.id }),
+    },
+  ];
+  if (await nameBelongsToOnePerson(person.fullName)) {
+    legacy.push({ subject: `طلب إعادة بطاقة الانضمام — ${person.fullName}`, linkUrl: legacyLink });
+  }
   const open = await prisma.ticket.findMany({
     where: {
       status: { not: "resolved" },
-      OR: [
-        { linkUrl: { contains: marker } },
-        // تذاكرُ قبل الوسم: بموضوعها الذي يكتبه الكود حرفياً — ولصاحبها وحده
-        {
-          subject: { in: [`طلب إعادة بطاقة الانضمام — ${person.fullName}`, `لم تصلني بطاقة الانضمام — ${person.fullName}`] },
-          linkUrl: { contains: "/admin/welcome-cards" },
-        },
-      ],
+      OR: [{ linkUrl: { contains: marker } }, ...legacy],
     },
     select: { id: true },
     take: 20,
@@ -264,6 +273,15 @@ async function closeWelcomeWork(subject: WelcomeSubject, at: Date) {
   for (const t of open) {
     await respondToTicket({ ticketId: t.id, status: "resolved", resolutionNote: `${note} — أُغلقت آلياً`, actorUserId: null });
   }
+}
+
+/** هل يحمل هذا الاسمَ شخصٌ واحد؟ — الشخصُ ببريده: القائدُ له حسابٌ إداريٌّ وسجلُّ ترشّحٍ بالبريد نفسه */
+async function nameBelongsToOnePerson(fullName: string): Promise<boolean> {
+  const [users, members] = await Promise.all([
+    prisma.user.findMany({ where: { fullName }, select: { email: true }, take: 10 }),
+    prisma.member.findMany({ where: { fullName }, select: { email: true }, take: 10 }),
+  ]);
+  return new Set([...users, ...members].map((x) => x.email.trim().toLowerCase())).size === 1;
 }
 
 /** يُفَكّ الحجز إن لم تَقبل الرسالةُ — فلا يُحرَم صاحبها من بطاقته

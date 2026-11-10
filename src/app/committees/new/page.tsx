@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { requireOnboardingSurveyDone } from "@/lib/onboardingGate";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui";
 import { themeFromColor } from "@/lib/brand";
@@ -19,6 +20,7 @@ export const dynamic = "force-dynamic";
 export default async function NewCommitteePage({ searchParams }: { searchParams: Promise<{ dept?: string }> }) {
   const session = await auth();
   if (!session) redirect("/login");
+  await requireOnboardingSurveyDone(session);
   const actor = await orgActor(session);
   const depts = await departmentsForCreation(actor);
   if (!depts.length) redirect("/committees");

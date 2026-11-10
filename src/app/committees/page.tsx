@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { requireOnboardingSurveyDone } from "@/lib/onboardingGate";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable } from "@/components/DataTable";
@@ -30,6 +31,7 @@ export default async function CommitteesPage({
 }) {
   const session = await auth();
   if (!session) redirect("/login");
+  await requireOnboardingSurveyDone(session);
   const actor = await orgActor(session);
   if (!actor?.role) redirect("/login");
   const sp = await searchParams;

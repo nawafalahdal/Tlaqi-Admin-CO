@@ -1,7 +1,7 @@
 // كما يفعل `prisma.config.ts`: القرارُ يُبنى على القاعدة نفسها التي سيصلها Prisma
 import "dotenv/config";
 import { spawnSync } from "node:child_process";
-import { migrationDecision } from "./migrationPolicy";
+import { migrationDecision, migrationDatabaseUrl } from "./migrationPolicy";
 
 /** `prisma migrate deploy` مع إعادةٍ محدودة على فشل قفل الترحيل وحده.
  *
@@ -54,10 +54,15 @@ if (decision.action === "refuse") {
 }
 console.log(`✓ الترحيل مسموح: ${decision.reason}`);
 
+// **الاتصالُ المباشر للترحيل وحده** — قفلُ Prisma لا يصمد خلف مجمِّع الاتصالات (`migrationDatabaseUrl`)
+const target = migrationDatabaseUrl(process.env);
+console.log(`${target.direct ? "✓" : "·"} ${target.note}`);
+const migrateEnv = target.direct ? { ...process.env, DATABASE_URL: target.url } : process.env;
+
 for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
   const run = spawnSync("npx", ["prisma", "migrate", "deploy"], {
     encoding: "utf8",
-    env: process.env,
+    env: migrateEnv,
   });
   const output = `${run.stdout ?? ""}${run.stderr ?? ""}`;
   process.stdout.write(output);

@@ -217,6 +217,20 @@ const chk = (n: string, ok: boolean, extra = "") => checks.push(`${ok ? "✓" : 
     subject: `طلب إعادة بطاقة الانضمام — ${c6.fullName}`, description: "شخصٌ آخر",
     linkUrl: `http://localhost:3000/admin/welcome-cards?q=y&for=member:${c6.id}`,
   });
+  // **سميٌّ بالاسم نفسه حرفياً:** تذكرةُ «طلب إعادة» القديمة (بالاسم وحده) لا تُغلَق آلياً — قد تكون له —
+  // وتذكرةُ «لم تصلني» التي رفعها السميُّ لنفسه لا تُغلَق بوصول بطاقة غيره
+  const twin = await mkCandidate("مرشّح ب");
+  chk("(تهيئة) سميٌّ بالاسم نفسه", twin.fullName === c2.fullName && twin.id !== c2.id);
+  const tAmbiguous = await raiseTicket({
+    raisedByUserId: founder.id, targetUserId: ops.id,
+    subject: `طلب إعادة بطاقة الانضمام — ${c2.fullName}`, description: "قديمة بلا وسم",
+    linkUrl: `http://localhost:3000/admin/welcome-cards?q=${encodeURIComponent(c2.fullName)}`,
+  });
+  const tTwinOwn = await raiseTicket({
+    memberId: twin.id, targetUserId: ops.id,
+    subject: `لم تصلني بطاقة الانضمام — ${twin.fullName}`, description: "السميُّ نفسه",
+    linkUrl: `http://localhost:3000/admin/welcome-cards?q=${encodeURIComponent(twin.fullName)}`,
+  });
   // التصعيد لا يسلب من وُجِّهت إليه حقَّ الإغلاق
   await prisma.ticket.update({ where: { id: tMarked.id }, data: { stage: "ceo_escalation" } });
   const esc = await prisma.ticket.findUniqueOrThrow({ where: { id: tMarked.id } });
@@ -240,6 +254,24 @@ const chk = (n: string, ok: boolean, extra = "") => checks.push(`${ok ? "✓" : 
   chk("وتُغلَق تذكرةُ «أعيدوا البطاقة» بوسمها", tm.status === "resolved" && !!tm.resolvedAt && (tm.resolutionNote ?? "").includes("آلياً"));
   chk("وتذكرةُ «لم تصلني» القديمة بموضوعها", tl.status === "resolved");
   chk("ولا تُمَسّ تذكرةُ شخصٍ آخر", to.status !== "resolved");
+  const [ta, tt] = await Promise.all([tAmbiguous, tTwinOwn].map((t) => prisma.ticket.findUniqueOrThrow({ where: { id: t.id } })));
+  chk("وتذكرةُ «طلب إعادة» القديمة باسمٍ يحمله شخصان تبقى مفتوحةً (لا تُغلَق تذكرةُ أحدهما بوصول بطاقة الآخر)", ta.status !== "resolved");
+  chk("وتذكرةُ «لم تصلني» التي رفعها السميُّ لنفسه تبقى مفتوحة", tt.status !== "resolved");
+
+  // وباسمٍ لا يحمله غيرُ صاحبه: «طلب إعادة» القديمة تُغلَق بوصول بطاقته
+  const solo = await mkCandidate("مرشّح منفرد");
+  await W.submitTestAttempt({ memberId: solo.id, answers: right });
+  accept = false;
+  await W.approveMember(solo.id);
+  const tSolo = await raiseTicket({
+    raisedByUserId: founder.id, targetUserId: ops.id,
+    subject: `طلب إعادة بطاقة الانضمام — ${solo.fullName}`, description: "قديمة بلا وسم",
+    linkUrl: `http://localhost:3000/admin/welcome-cards?q=${encodeURIComponent(solo.fullName)}`,
+  });
+  accept = true;
+  const soloSent = await sendWelcomePack({ kind: "member", id: solo.id }, "resend", true);
+  const tSoloR = await prisma.ticket.findUniqueOrThrow({ where: { id: tSolo.id } });
+  chk("وتذكرةُ «طلب إعادة» القديمة باسمٍ فريد تُغلَق آلياً بوصول بطاقته", soloSent.ok && tSoloR.status === "resolved", JSON.stringify(soloSent));
   const lateManual = await R.closeRequest(actor(ops), b1[0].id, "تم");
   chk("والإغلاقُ اليدوي بعده يُرفض (مغلقٌ من قبل)", !lateManual.ok);
 

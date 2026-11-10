@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { requireOnboardingSurveyDone } from "@/lib/onboardingGate";
 import { getDictionary, getLocale } from "@/i18n/server";
 import { canEnterMarketing, hasCapability, marketingActor, type MkActor } from "./access";
 import { canReadArchive } from "./archive";
@@ -14,6 +15,7 @@ import { unseenNotices } from "./postArchive";
 export async function marketingPage(path: string) {
   const session = await auth();
   if (!session) redirect(`/login?callbackUrl=${encodeURIComponent(path)}`);
+  await requireOnboardingSurveyDone(session);
   const actor = await marketingActor(session);
   if (!actor || !canEnterMarketing(actor)) notFound();
   const locale = await getLocale();

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { requireOnboardingSurveyDone } from "@/lib/onboardingGate";
 import { prisma } from "@/lib/prisma";
 import { TICKET_STAGE_DAYS } from "@/lib/tickets";
 import { PageHeader } from "@/components/PageHeader";
@@ -13,6 +14,7 @@ import { getLocale, getDictionary } from "@/i18n/server";
 export default async function NewMemberTicketPage() {
   const session = await auth();
   if (!session) redirect("/login");
+  await requireOnboardingSurveyDone(session);
   if (session.user.role !== "member") redirect("/admin");
 
   const member = await prisma.member.findUniqueOrThrow({

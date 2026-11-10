@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { avatarUrl } from "@/lib/avatarUrl";
 import { auth } from "@/auth";
+import { requireOnboardingSurveyDone } from "@/lib/onboardingGate";
 import { prisma } from "@/lib/prisma";
 import { themeFromColor, BRAND } from "@/lib/brand";
 import { Card } from "@/components/ui";
@@ -45,6 +46,7 @@ export default async function MemberPortalPage() {
   if (member.approvalStatus !== "approved") {
     redirect(member.testStatus === "not_started" ? "/member/test" : "/member/pending");
   }
+  await requireOnboardingSurveyDone(session);
 
   const theme = themeFromColor(member.department?.colorHex ?? BRAND.temptress);
   const t = getDictionary(await getLocale());

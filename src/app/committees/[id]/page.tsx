@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { requireOnboardingSurveyDone } from "@/lib/onboardingGate";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui";
 import { themeFromColor } from "@/lib/brand";
@@ -39,6 +40,7 @@ export default async function CommitteePage({
 }) {
   const session = await auth();
   if (!session) redirect("/login");
+  await requireOnboardingSurveyDone(session);
   const actor = await orgActor(session);
   const { id } = await params;
   const d = await committeeDetail(actor, id);

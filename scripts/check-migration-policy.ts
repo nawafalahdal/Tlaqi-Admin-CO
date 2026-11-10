@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { parse } from "dotenv";
-import { migrationDecision } from "./migrationPolicy";
+import { migrationDecision, migrationDatabaseUrl } from "./migrationPolicy";
 
 /** سياسةُ الترحيل — على الدالّة ثم على `migrate-deploy.ts` نفسه.
  *
@@ -57,6 +57,31 @@ chk("السببُ لا يحمل عنوان القاعدة ولا كلمة مرو
   return !r.includes("db.invalid") && !r.includes(FAKE_PASS) && !r.includes("localhost:");
 }));
 
+// ١ب — **اتصالُ الترحيل المباشر** (قفلُ Prisma لا يصمد خلف مجمِّع Neon) — بشرط أن يكون القاعدةَ نفسها
+const NEON_POOLED = `postgresql://app:${FAKE_PASS}@ep-quiet-sky-123456-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require`;
+const NEON_DIRECT = `postgresql://app:${FAKE_PASS}@ep-quiet-sky-123456.eu-central-1.aws.neon.tech/neondb?sslmode=require`;
+const pick = (env: Record<string, string | undefined>) => migrationDatabaseUrl(env);
+const neon = pick({ DATABASE_URL: NEON_POOLED, DATABASE_URL_UNPOOLED: NEON_DIRECT });
+chk("اتصالُ الترحيل: زوجُ Neon (مجمَّع/مباشر) لنفس القاعدة → المباشر", neon.direct && neon.url === NEON_DIRECT);
+const viaNonPooling = pick({ DATABASE_URL: NEON_POOLED, POSTGRES_URL_NON_POOLING: NEON_DIRECT });
+chk("اتصالُ الترحيل: POSTGRES_URL_NON_POOLING بديلاً", viaNonPooling.direct && viaNonPooling.url === NEON_DIRECT);
+const refuseCases: [string, string][] = [
+  ["نقطةُ نهايةٍ أخرى", NEON_DIRECT.replace("ep-quiet-sky-123456", "ep-other-999")],
+  ["قاعدةٌ أخرى", NEON_DIRECT.replace("/neondb", "/otherdb")],
+  ["مستخدمٌ آخر", NEON_DIRECT.replace("app:", "admin:")],
+  ["منفذٌ آخر", NEON_DIRECT.replace(".neon.tech/", ".neon.tech:6543/")],
+  ["عنوانٌ لا يُقرأ", "not a url"],
+];
+for (const [name, direct] of refuseCases) {
+  const r = pick({ DATABASE_URL: NEON_POOLED, DATABASE_URL_UNPOOLED: direct });
+  chk(`اتصالُ الترحيل: ${name} → يبقى DATABASE_URL`, !r.direct && r.url === NEON_POOLED);
+}
+const none = pick({ DATABASE_URL: NEON_POOLED });
+chk("اتصالُ الترحيل: بلا متغيّرٍ مباشر → DATABASE_URL كما كان", !none.direct && none.url === NEON_POOLED);
+chk("اتصالُ الترحيل: الملاحظةُ لا تحمل عنواناً ولا كلمة مرور",
+    [neon, viaNonPooling, none, ...refuseCases.map(([, d]) => pick({ DATABASE_URL: NEON_POOLED, DATABASE_URL_UNPOOLED: d }))]
+      .every((r) => !r.note.includes(FAKE_PASS) && !r.note.includes("neon.tech") && !r.note.includes("not a url")));
+
 // ٢ — السكربت نفسه، ببيئةٍ مضبوطة لا تَرث شيئاً
 function run(env: Record<string, string>) {
   const r = spawnSync("node_modules/.bin/tsx", ["scripts/migrate-deploy.ts"], {
@@ -101,6 +126,21 @@ chk("سكربت: محلياً يُرحّل على القاعدة المحلية"
 const prod = run({ VERCEL: "1", VERCEL_ENV: "production", DATABASE_URL: LOCAL });
 chk("سكربت: production يستدعي Prisma فعلاً (على القاعدة المحلية هنا)",
     prod.status === 0 && prod.out.includes("Vercel production") && prismaRan(prod.out), `exit ${prod.status}`);
+
+// ٣ — السكربت يرحّل فعلاً بالاتصال المباشر: كلمةُ مرور DATABASE_URL خاطئة عمداً، فلا ينجح إلا إن استعمل المباشر
+const lu = new URL(LOCAL);
+const wrongPass = new URL(LOCAL);
+wrongPass.password = "wrong-pass-0000";
+wrongPass.searchParams.set("pgbouncer", "true");
+const viaDirect = run({ VERCEL: "1", VERCEL_ENV: "production", DATABASE_URL: wrongPass.toString(), DATABASE_URL_UNPOOLED: LOCAL });
+chk("سكربت: production يرحّل بالاتصال المباشر (DATABASE_URL_UNPOOLED)",
+    viaDirect.status === 0 && viaDirect.out.includes("اتصالٌ مباشر للترحيل (DATABASE_URL_UNPOOLED)") && viaDirect.out.includes("No pending migrations"),
+    `exit ${viaDirect.status}`);
+chk("سكربت: ولا يطبع كلمة المرور", !viaDirect.out.includes("wrong-pass-0000") && !viaDirect.out.includes(decodeURIComponent(lu.password) || "\u0000"));
+const mismatch = run({ VERCEL: "1", VERCEL_ENV: "production", DATABASE_URL: LOCAL, DATABASE_URL_UNPOOLED: REMOTE });
+chk("سكربت: مباشرٌ لقاعدةٍ أخرى يُتجاهَل ويُرحَّل بـDATABASE_URL (ولا يُتّصل بالأخرى)",
+    mismatch.status === 0 && mismatch.out.includes("لا يطابق DATABASE_URL") && mismatch.out.includes("No pending migrations") && !leaks(mismatch.out),
+    `exit ${mismatch.status}`);
 
 console.log(checks.join("\n"));
 const failed = checks.some((c) => c.startsWith("✗"));
