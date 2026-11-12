@@ -26,6 +26,7 @@ export const SENIOR_CAPABILITIES: { key: SeniorCapability; label: string; can: s
   { key: "governance_log_view", label: "سجل الحوكمة", can: "يقرأ سجلَّ العمليات الإدارية الحساسة (قراءةً فقط)" },
   { key: "agreements_view", label: "الاتفاقيات (اطّلاع)", can: "يرى الاتفاقياتِ ومن وقّع ومن لم يوقّع" },
   { key: "agreements_manage", label: "الاتفاقيات (إدارة)", can: "يُصدر إصداراً جديداً ويطلب التوقيع وإعادتَه ويراجع البلاغات" },
+  { key: "brand_prepare", label: "إعداد عناصر الهوية", can: "يُعدّ عناصر الهوية البصرية ويرسلها للمراجعة — لا يعتمدها ولا ينشرها (للمؤسس وحده)" },
 ];
 const CAP_KEYS = new Set<SeniorCapability>(SENIOR_CAPABILITIES.map((c) => c.key));
 export const INVITE_DAYS = 7;

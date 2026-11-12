@@ -18,6 +18,7 @@ import { departmentBrand } from "@/lib/departmentBrand";
 import { forms, gx, positionTitle, roleTitle, type MaybeGender } from "@/lib/gender";
 import { emailAllowed, policyReason, type EmailEvent } from "@/lib/emailPolicy";
 import { resultOf, type SendResult } from "@/lib/emailOutcome";
+import { capturingEmails } from "@/lib/emailCapture";
 import { deploymentEnv, emailRecipientsAllowed } from "@/lib/deploymentEnv";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -112,6 +113,8 @@ async function suppressed(
   kind: string,
   subject: string
 ): Promise<(SendResult & { suppressed: true }) | null> {
+  // المعاينةُ تعرض الرسالةَ ولو كانت مكتومةً بالسياسة — فلا يُراجَع قالبٌ دون أخرى
+  if (capturingEmails()) return null;
   if (emailAllowed(event)) return null;
   const all = (Array.isArray(to) ? to : [to]).filter(Boolean);
   const why = policyReason(event);
@@ -211,6 +214,12 @@ async function send(
   theme?: EmailTheme
 ) {
   const all = Array.isArray(to) ? to.filter(Boolean) : [to].filter(Boolean);
+  // معاينةُ مركز الهوية: تُلتقط الرسالةُ ولا تُرسَل ولا تُسجَّل
+  const capture = capturingEmails();
+  if (capture) {
+    capture.push({ to: all, subject, content, kind, theme });
+    return resultOf({ state: "provider_disabled" });
+  }
   if (all.length === 0) return resultOf({ state: "no_recipient" });
 
   // رسالة الوداع نفسها تمرّ قبل أن يُرفع العلم، فلا تحجب نفسها

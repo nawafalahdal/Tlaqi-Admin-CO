@@ -1,0 +1,78 @@
+{
+  "brand": "TLAQI",
+  "identity": "هوية تلاق 2026",
+  "colors": [
+    {
+      "name": "Beige",
+      "hex": "#EEF6DF",
+      "rgb": [
+        238,
+        246,
+        223
+      ],
+      "role_ar": "الخلفية الأساسية",
+      "role_en": "Primary background"
+    },
+    {
+      "name": "Temptress",
+      "hex": "#341D2B",
+      "rgb": [
+        52,
+        29,
+        43
+      ],
+      "role_ar": "النص والخلفيات الداكنة",
+      "role_en": "Text and dark backgrounds"
+    },
+    {
+      "name": "Mahogany",
+      "hex": "#C34900",
+      "rgb": [
+        195,
+        73,
+        0
+      ],
+      "role_ar": "العناوين والنمط على الفاتح",
+      "role_en": "Headings and pattern on light"
+    },
+    {
+      "name": "Green Sheen",
+      "hex": "#67C090",
+      "rgb": [
+        103,
+        192,
+        144
+      ],
+      "role_ar": "أغلفة كاملة مع Temptress",
+      "role_en": "Full covers paired with Temptress"
+    }
+  ],
+  "pairs": [
+    {
+      "pair": "Beige / Temptress",
+      "ratio": 13.9,
+      "note_ar": "أعلى تباين في الحزمة؛ مناسب لكل النصوص"
+    },
+    {
+      "pair": "Temptress / Green Sheen",
+      "ratio": 7.0,
+      "note_ar": "مناسب للنصوص"
+    },
+    {
+      "pair": "Mahogany / Beige",
+      "ratio": 4.4,
+      "note_ar": "للعناوين الكبيرة والعناصر غير النصية فقط؛ دون 4.5:1 للنص الصغير"
+    },
+    {
+      "pair": "Green Sheen / Beige",
+      "ratio": 2.0,
+      "note_ar": "لا للنص؛ للكتل والأنماط الزخرفية فقط"
+    }
+  ],
+  "rules_ar": [
+    "أربعة ألوان فقط",
+    "لا أزرق",
+    "لا شفافية تصنع لوناً خامساً"
+  ],
+  "note": "قيم CMYK وPantone غير واردة في ملف الهوية؛ تحددها المطبعة بعد اختبار الطباعة."
+}

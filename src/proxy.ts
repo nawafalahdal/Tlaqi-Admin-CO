@@ -13,7 +13,8 @@ export default auth((req) => {
     pathname === "/onboarding-survey" ||
     // الإدارةُ العليا بجلسة — إلا صفحةَ قبول الدعوة: المدعوُّ قد لا يكون له حسابٌ بعد
     (pathname.startsWith("/senior") && !pathname.startsWith("/senior/invite/")) ||
-    pathname.startsWith("/agreements");
+    pathname.startsWith("/agreements") ||
+    pathname.startsWith("/brand-review");
 
   if (needsSession && !session) {
     const url = new URL("/login", req.nextUrl.origin);
@@ -49,5 +50,5 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/admin/:path*", "/member/:path*", "/marketing/:path*", "/marketing", "/committees/:path*", "/committees", "/senior/:path*", "/senior", "/agreements/:path*", "/agreements", "/change-password", "/onboarding-survey"],
+  matcher: ["/admin/:path*", "/member/:path*", "/marketing/:path*", "/marketing", "/committees/:path*", "/committees", "/senior/:path*", "/senior", "/agreements/:path*", "/agreements", "/brand-review/:path*", "/brand-review", "/change-password", "/onboarding-survey"],
 };

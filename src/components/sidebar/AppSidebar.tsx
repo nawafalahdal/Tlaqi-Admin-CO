@@ -90,6 +90,7 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
     canSenior: seniorCaps.has("board_view"),
     canGovernanceLog: seniorCaps.has("governance_log_view"),
     canAgreementsAdmin: seniorCaps.has("agreements_view") || seniorCaps.has("agreements_manage"),
+    canBrandReview: seniorCaps.has("brand_prepare"),
   };
   const avatar = avatarUrl(isMember ? "member" : "user", session.user.id, stamp?.avatarVersion);
   // خلفيةُ الصورة بلون انتمائه كما في الهيكل والسجلّ — لا برتقاليٌّ ثابت
