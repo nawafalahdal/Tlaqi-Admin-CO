@@ -2,6 +2,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import sharp from "sharp";
 import { BRAND, themeFromColor } from "@/lib/brand";
+import { contrastRatio } from "@/lib/colors";
 import { ensureFonts } from "@/lib/welcomeBanner";
 
 /** صورتا المشاركة: ملصقُ الدعوة، وبطاقةُ العضوية.
@@ -97,9 +98,9 @@ async function tintedMark(color: string, width: number): Promise<string> {
  *
  *  الاسم أكبرُ ما في البطاقة، والتقديرُ يُخطئ في العربية (الحروف
  *  المتّصلة أعرض من المنفصلة بكثير). فيُرسم مرّةً وحده ويُقاس. */
-async function textWidth(text: string, size: number): Promise<number> {
+async function textWidth(text: string, size: number, weight = 700): Promise<number> {
   const w = Math.ceil(text.length * size * 0.9) + 40;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${Math.ceil(size * 2)}"><text x="${w - 10}" y="${Math.ceil(size * 1.4)}" font-family="${FONT}" font-size="${size}" font-weight="700" fill="#000" direction="rtl" text-anchor="start">${escapeXml(text)}</text></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${Math.ceil(size * 2)}"><text x="${w - 10}" y="${Math.ceil(size * 1.4)}" font-family="${FONT}" font-size="${size}" font-weight="${weight}" fill="#000" direction="rtl" text-anchor="start">${escapeXml(text)}</text></svg>`;
   try {
     const { info } = await sharp(Buffer.from(svg)).trim().toBuffer({ resolveWithObject: true });
     return info.width;
@@ -109,8 +110,8 @@ async function textWidth(text: string, size: number): Promise<number> {
 }
 
 /** أكبرُ حجمٍ يتّسع به النصّ — ثم لا يصغُر دون حدٍّ يُقرأ */
-async function fit(text: string, size: number, maxWidth: number, min: number): Promise<number> {
-  const w = await textWidth(text, size);
+async function fit(text: string, size: number, maxWidth: number, min: number, weight = 700): Promise<number> {
+  const w = await textWidth(text, size, weight);
   if (w <= maxWidth) return size;
   return Math.max(min, Math.floor((size * maxWidth) / w));
 }
@@ -135,27 +136,39 @@ function t(
   return `<text x="${x}" y="${y}" font-family="${FONT}" font-size="${size}" font-weight="${opts.weight ?? 400}" fill="${fill}"${opts.opacity !== undefined ? ` fill-opacity="${opts.opacity}"` : ""} direction="${dir}" text-anchor="${anchor}" xml:space="preserve">${escapeXml(text)}</text>`;
 }
 
-/** ألوانُ البطاقة من لون القسم — والحبرُ بالتباين لا بقائمة استثناءات */
+/** ألوانُ البطاقة من لون القسم — والحبرُ بالتباين لا بقائمة استثناءات.
+ *
+ *  **نظامٌ واحد للبطاقتين (ملاحظة المؤسس: «كل لجنة بلونها الكامل»):** الخلفيةُ لونُ القسم كاملاً — واللجنةُ
+ *  بلون قسمها — والشعارُ **دائماً** في لوحة Beige بالحجم والموضع نفسيهما. فالشعارُ لا يُرسم مباشرةً على لونٍ لم
+ *  تُعتمد له نسخةٌ منه (دليل الهوية)، ورمزُه بلون Mahogany يذوب على خلفية Mahogany. وحين يكون القسمُ نفسُه
+ *  بلونٍ قريبٍ من Beige تُحدَّد اللوحةُ بإطارٍ رفيع فلا تختفي. */
 function palette(colorHex: string | null | undefined) {
   const bg = colorHex?.trim() || BRAND.temptress;
   const onLight = themeFromColor(bg).text === BRAND.ink;
-  // **الشعارُ على لون قسمٍ غير Temptress وغير الفاتح (Green Sheen وغيره) يُوضع في لوحة Beige** (قرار المؤسس ودليل
-  // الهوية): لا يُرسم الشعارُ مباشرةً على لونٍ لم تُعتمد له نسخةٌ منه
-  const panel = !onLight && bg.toUpperCase() !== BRAND.temptress.toUpperCase();
-  const greenLike = onLight && bg.toUpperCase() !== BRAND.beige.toUpperCase() && !/^#F/i.test(bg);
+  const ink = onLight ? BRAND.temptress : BRAND.beige;
   return {
     bg,
     onLight,
-    ink: onLight ? BRAND.temptress : BRAND.beige,
-    logoPanel: panel || greenLike,
-    lockup: onLight || panel || greenLike ? "lockLight" : ("lockDark" as "lockLight" | "lockDark"),
+    ink,
+    panelStroke: contrastRatio(BRAND.beige, bg) < 1.4 ? ink : null,
   };
 }
 
-/** الشعارُ في موضعه — وفي لوحة Beige حين يكون لونُ القسم غيرَ معتمدٍ للشعار */
-function lockupSvg(p: ReturnType<typeof palette>, href: string, x: number, y: number, w: number, h: number): string {
-  const pad = 22;
-  return `${p.logoPanel ? `<rect x="${x - pad}" y="${y - pad}" width="${w + pad * 2}" height="${h + pad * 2}" rx="22" fill="${BRAND.beige}"/>` : ""}<image href="${href}" x="${x}" y="${y}" width="${w}" height="${h}"/>`;
+/** وزنُ الاسم البطل: ملفُّ ExtraBold من خطّ الهوية */
+const HERO = 900;
+
+/** الشعارُ في لوحة Beige — موضعٌ واحدٌ وحجمٌ واحد في البطاقتين */
+const LOGO = { w: 300, h: 88, top: 86, pad: 22 };
+function lockupSvg(p: ReturnType<typeof palette>, right: number): string {
+  const a = assets();
+  const x = right - LOGO.w;
+  return `<rect x="${x - LOGO.pad}" y="${LOGO.top - LOGO.pad}" width="${LOGO.w + LOGO.pad * 2}" height="${LOGO.h + LOGO.pad * 2}" rx="22" fill="${BRAND.beige}"${p.panelStroke ? ` stroke="${p.panelStroke}" stroke-opacity="0.22" stroke-width="2"` : ""}/><image href="${a.lockLight}" x="${x}" y="${LOGO.top}" width="${LOGO.w}" height="${LOGO.h}"/>`;
+}
+
+/** شارةُ القسم أعلى اليسار — مشتركةٌ بين البطاقتين */
+async function deptChip(p: ReturnType<typeof palette>, dept: string, left: number): Promise<string> {
+  const w = Math.min(420, (await textWidth(dept, 26)) + 56);
+  return `<rect x="${left}" y="100" width="${w}" height="58" rx="29" fill="none" stroke="${p.ink}" stroke-opacity="0.45" stroke-width="2"/>${t(dept, left + w / 2, 138, 26, p.ink, { weight: 700, anchor: "middle" })}`;
 }
 
 async function toPng(svg: string): Promise<Buffer> {
@@ -188,23 +201,23 @@ export async function renderInviteCard(d: InviteCardData): Promise<Buffer> {
   const mark = await tintedMark(p.ink, 900);
   const first = d.fullName.trim().split(/\s+/)[0] || d.fullName;
   const R = CARD_W - 90;
-  const firstSize = await fit(first, 210, 880, 120);
+  // الاسمُ بطلُ البطاقة: بالوزن الأعرض من خطّ الهوية (ExtraBold = 900 في pango) — وBold فيه خفيفٌ بطبعه
+  const firstSize = await fit(first, 210, 880, 120, HERO);
   const fullSize = await fit(d.fullName, 34, 430, 24);
   const byName = d.invitedByName?.trim() || "إدارة تلاق";
   const bySize = await fit(byName, 34, 400, 24);
   const dept = d.departmentName?.trim() || "تلاق";
-  const deptW = Math.min(420, (await textWidth(dept, 26)) + 56);
+  const chip = await deptChip(p, dept, 90);
   const role = d.jobTitle?.trim() ? `${d.position} · ${d.jobTitle.trim()}` : d.position;
   const roleSize = await fit(role, 38, 900, 26);
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${CARD_W}" height="${CARD_H}">
   <rect width="100%" height="100%" fill="${p.bg}"/>
   <image href="${mark}" x="-230" y="300" width="900" height="${Math.round((900 * a.markH) / a.markW)}" opacity="${p.onLight ? 0.1 : 0.14}"/>
-  ${lockupSvg(p, a[p.lockup], R - 300, 86, 300, 88)}
-  <rect x="90" y="100" width="${deptW}" height="58" rx="29" fill="none" stroke="${p.ink}" stroke-opacity="0.45" stroke-width="2"/>
-  ${t(dept, 90 + deptW / 2, 138, 26, p.ink, { weight: 700, anchor: "middle" })}
+  ${lockupSvg(p, R)}
+  ${chip}
   ${t("دعوة خاصّة", R, 560, 40, p.ink, { weight: 700, opacity: 0.85 })}
-  ${t(first, R, 560 + firstSize * 1.05, firstSize, p.ink, { weight: 700 })}
+  ${t(first, R, 560 + firstSize * 1.05, firstSize, p.ink, { weight: HERO })}
   ${t("للانضمام إلى فريق تلاق", R, 560 + firstSize * 1.05 + 86, 44, p.ink, { weight: 400, opacity: 0.92 })}
   ${t(role, R, 560 + firstSize * 1.05 + 150, roleSize, p.ink, { weight: 700, opacity: 0.9 })}
   <line x1="90" y1="1140" x2="${R}" y2="1140" stroke="${p.ink}" stroke-opacity="0.25" stroke-width="2"/>
@@ -232,54 +245,39 @@ export type WelcomeCardData = {
   colorHex: string | null;
 };
 
-/** بطاقةُ العضوية — المفهوم «أ»: بطاقةٌ بلون القسم على خلفية الهوية.
+/** بطاقةُ العضوية — بلون القسم كاملاً، بنظام ملصق الدعوة نفسه (الشعار في لوحته، وشارةُ القسم، والرمز خلفيةً).
  *
  *  تصل مع رسالة الاعتماد وحدها: هي الإعلان أنّ صاحبها صار منّا. */
 export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   ensureFonts();
   const a = assets();
-  const deptColor = d.colorHex?.trim() || BRAND.mahogany;
-  const p = palette(deptColor);
-  // بطاقةُ الإدارة العليا بلون الخلفية نفسها — فيُرسم لها حدٌّ يُفرِدها
-  const sameAsBg = deptColor.toLowerCase() === BRAND.temptress.toLowerCase();
-  const cardFill = sameAsBg ? "#3E2535" : deptColor;
-  const bgMark = await tintedMark(sameAsBg ? "#5A3A4D" : deptColor, 620);
-  const cardMark = await tintedMark(p.ink, 76);
-
-  const L = 70;
-  const W = CARD_W - 2 * L;
-  const R = L + W - 64;
-  const IL = L + 64;
-  const nameSize = await fit(d.fullName, 104, W - 128, 60);
-  const titleSize = await fit(d.title, 42, W - 128, 28);
-  const roleSize = await fit(d.roleTitle, 32, 420, 22);
+  const p = palette(d.colorHex);
+  const mark = await tintedMark(p.ink, 900);
+  const R = CARD_W - 90;
+  const L = 90;
+  const nameSize = await fit(d.fullName, 104, R - L, 60, HERO);
+  const titleSize = await fit(d.title, 42, R - L, 28);
+  const roleSize = await fit(d.roleTitle, 34, 440, 22);
   const dept = d.departmentName?.trim() || "تلاق";
+  const chip = await deptChip(p, dept, L);
+  const nameY = 560 + 70 + nameSize;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${CARD_W}" height="${CARD_H}">
-  <defs>
-    <pattern id="dots" width="34" height="34" patternUnits="userSpaceOnUse"><circle cx="17" cy="17" r="2.2" fill="${BRAND.beige}" fill-opacity="0.08"/></pattern>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feGaussianBlur in="SourceAlpha" stdDeviation="28"/><feOffset dy="34"/><feComponentTransfer><feFuncA type="linear" slope="0.42"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  </defs>
-  <rect width="100%" height="100%" fill="${BRAND.temptress}"/>
-  <rect width="100%" height="100%" fill="url(#dots)"/>
-  <image href="${bgMark}" x="-200" y="760" width="620" height="${Math.round((620 * a.markH) / a.markW)}" opacity="${sameAsBg ? 0.9 : 0.24}"/>
-  <image href="${a.lockDark}" x="${CARD_W - L - 280}" y="78" width="280" height="82"/>
-  ${t("بطاقة انضمام", L, 132, 26, BRAND.beige, { opacity: 0.7, anchor: "left" })}
-  ${t(`${d.greeting} في العائلة`, CARD_W - L, 300, 50, BRAND.beige, { weight: 700, opacity: 0.95 })}
-  <g filter="url(#shadow)">
-    <rect x="${L}" y="370" width="${W}" height="660" rx="56" fill="${cardFill}"${sameAsBg ? ` stroke="${BRAND.beige}" stroke-opacity="0.16" stroke-width="2"` : ""}/>
-  </g>
-  ${t(dept, R, 470, 30, p.ink, { weight: 700, opacity: 0.85 })}
-  <image href="${cardMark}" x="${IL}" y="420" width="76" height="${Math.round((76 * a.markH) / a.markW)}"/>
-  ${t(d.fullName, R, 720, nameSize, p.ink, { weight: 700 })}
-  ${t(d.title, R, 800, titleSize, p.ink, { opacity: 0.9 })}
-  <line x1="${IL}" y1="870" x2="${R}" y2="870" stroke="${p.ink}" stroke-opacity="0.22" stroke-width="2"/>
-  ${t(d.joinedLabel, R, 928, 24, p.ink, { opacity: 0.65 })}
-  ${t(cardDate(d.joinedAt), R, 978, 34, p.ink, { weight: 700 })}
-  ${t("الصفة", IL, 928, 24, p.ink, { opacity: 0.65, anchor: "left" })}
-  ${t(d.roleTitle, IL, 978, roleSize, p.ink, { weight: 700, anchor: "left" })}
-  ${t("تحوّل رقمي، برؤية طموحة.", CARD_W - L, 1190, 34, BRAND.beige, { opacity: 0.78 })}
-  ${t("@tlaqisa", L, 1190, 32, BRAND.beige, { opacity: 0.78, ltr: true })}
+  <rect width="100%" height="100%" fill="${p.bg}"/>
+  <image href="${mark}" x="-230" y="300" width="900" height="${Math.round((900 * a.markH) / a.markW)}" opacity="${p.onLight ? 0.1 : 0.14}"/>
+  ${lockupSvg(p, R)}
+  ${chip}
+  ${t("بطاقة انضمام", R, 560, 40, p.ink, { weight: 700, opacity: 0.85 })}
+  ${t(`${d.greeting} في العائلة`, R, 630, 44, p.ink, { opacity: 0.92 })}
+  ${t(d.fullName, R, nameY, nameSize, p.ink, { weight: HERO })}
+  ${t(d.title, R, nameY + 74, titleSize, p.ink, { opacity: 0.9 })}
+  <line x1="${L}" y1="1080" x2="${R}" y2="1080" stroke="${p.ink}" stroke-opacity="0.25" stroke-width="2"/>
+  ${t(d.joinedLabel, R, 1136, 24, p.ink, { opacity: 0.6 })}
+  ${t(cardDate(d.joinedAt), R, 1186, 34, p.ink, { weight: 700 })}
+  ${t("الصفة", L, 1136, 24, p.ink, { opacity: 0.6, anchor: "left" })}
+  ${t(d.roleTitle, L, 1186, roleSize, p.ink, { weight: 700, anchor: "left" })}
+  ${t("تحوّل رقمي، برؤية طموحة.", R, 1276, 26, p.ink, { opacity: 0.7 })}
+  ${t("@tlaqisa", L, 1276, 26, p.ink, { opacity: 0.7, ltr: true })}
 </svg>`;
   return toPng(svg);
 }

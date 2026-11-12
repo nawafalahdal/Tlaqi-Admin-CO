@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyBannerToken } from "@/lib/bannerToken";
 import { renderInviteCard, renderWelcomeCard } from "@/lib/shareCards";
+import { departmentColor } from "@/lib/departmentColor";
 import { forms, gx, positionTitle, roleTitle } from "@/lib/gender";
 
 /** sharp يحتاج Node لا Edge */
@@ -36,7 +37,7 @@ export async function GET(
           jobTitle: true,
           credentialsIssuedAt: true,
           createdAt: true,
-          department: { select: { name: true, colorHex: true } },
+          department: { select: { name: true, colorHex: true, parent: { select: { colorHex: true } } } },
           invite: { select: { targetRole: true, invitedBy: { select: { fullName: true } } } },
         },
       });
@@ -46,7 +47,7 @@ export async function GET(
         position: positionTitle(m.invite.targetRole, m.department?.name),
         jobTitle: m.jobTitle,
         departmentName: m.department?.name ?? null,
-        colorHex: m.department?.colorHex ?? null,
+        colorHex: m.department ? departmentColor(m.department) : null,
         invitedByName: m.invite.invitedBy?.fullName ?? null,
         issuedAt: m.credentialsIssuedAt ?? m.createdAt,
       });
@@ -61,7 +62,7 @@ export async function GET(
                 gender: true,
                 decidedAt: true,
                 joinDate: true,
-                department: { select: { name: true, colorHex: true } },
+                department: { select: { name: true, colorHex: true, parent: { select: { colorHex: true } } } },
                 invite: { select: { targetRole: true } },
               },
             })
@@ -76,7 +77,7 @@ export async function GET(
                 gender: true,
                 role: true,
                 createdAt: true,
-                department: { select: { name: true, colorHex: true } },
+                department: { select: { name: true, colorHex: true, parent: { select: { colorHex: true } } } },
               },
             })
           : null;
@@ -92,7 +93,7 @@ export async function GET(
         joinedLabel: gx(s.gender, "انضمّ في", "انضمّت في", "تاريخ الانضمام"),
         joinedAt: row ? (row.decidedAt ?? row.joinDate) : user!.createdAt,
         departmentName: s.department?.name ?? null,
-        colorHex: s.department?.colorHex ?? null,
+        colorHex: s.department ? departmentColor(s.department) : null,
       });
     }
     return new NextResponse(new Uint8Array(png), {

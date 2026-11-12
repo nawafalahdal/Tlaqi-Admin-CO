@@ -4,6 +4,7 @@ import { join } from "path";
 import { prisma } from "@/lib/prisma";
 import { verifyBannerToken } from "@/lib/bannerToken";
 import { renderWelcomeBanner, STATIC_BANNER_PATH } from "@/lib/welcomeBanner";
+import { departmentColor } from "@/lib/departmentColor";
 
 /** sharp يحتاج Node لا Edge: الأخير بلا وصولٍ للملفات ولا مكتباتٍ أصلية */
 export const runtime = "nodejs";
@@ -31,14 +32,14 @@ export async function GET(
     verified.kind === "member"
       ? await prisma.member.findUnique({
           where: { id: verified.id },
-          include: { department: true },
+          include: { department: { include: { parent: { select: { colorHex: true } } } } },
         })
       : null;
   const user =
     verified.kind === "user"
       ? await prisma.user.findUnique({
           where: { id: verified.id },
-          include: { department: true },
+          include: { department: { include: { parent: { select: { colorHex: true } } } } },
         })
       : null;
 
@@ -49,7 +50,8 @@ export async function GET(
     fullName: subject.fullName,
     role: subject.jobTitle ?? null,
     team: subject.department?.name ?? null,
-    colorHex: subject.department?.colorHex ?? null,
+    // لونُ اللجنة لونُ قسمها — من مصدرٍ واحد
+    colorHex: subject.department ? departmentColor(subject.department) : null,
   };
 
   try {
