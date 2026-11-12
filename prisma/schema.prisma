@@ -2993,8 +2993,6 @@ enum SeniorCapability {
   governance_log_view
   agreements_view
   agreements_manage
-  /// إعدادُ عناصر الهوية وإرسالُها للمراجعة — لا اعتمادُها ولا نشرُها (للمؤسس وحده)
-  brand_prepare
 }
 
 enum SeniorInviteState {
@@ -3229,95 +3227,3 @@ model GovernanceSyncRun {
   @@index([startedAt])
 }
 
-// ═════════════════════════════════════════════════════════════════════
-//  مركزُ مراجعة واعتماد الهوية — إصداراتُ الهوية وعناصرُها وسجلُّ قراراتها
-//  (`lib/brandReview`). لا يُنشر عنصرٌ ولا يُفعَّل إصدارٌ إلا باعتماد المؤسس.
-// ═════════════════════════════════════════════════════════════════════
-
-/// حالةُ عنصرٍ في المراجعة: مسودّة ← جاهز للمراجعة ← بانتظار الاعتماد ← (يحتاج تعديلات ↺) ← معتمد ← منشور
-enum BrandItemStatus {
-  draft
-  ready_for_review
-  pending_approval
-  changes_requested
-  approved
-  published
-}
-
-/// إصدارُ الهوية: مسودّةٌ تُراجَع عناصرُها، ثم سارٍ (المرجعُ الرسمي)، ثم متقاعدٌ يبقى للرجوع
-enum BrandVersionStatus {
-  draft
-  active
-  retired
-}
-
-model BrandVersion {
-  id              String             @id @default(cuid())
-  version         Int                @unique
-  name            String
-  summary         String?
-  status          BrandVersionStatus @default(draft)
-  createdByName   String
-  createdAt       DateTime           @default(now())
-  activatedAt     DateTime?
-  activatedByName String?
-  retiredAt       DateTime?
-
-  items  BrandItem[]
-  events BrandReviewEvent[]
-}
-
-model BrandItem {
-  id               String          @id @default(cuid())
-  versionId        String
-  version          BrandVersion    @relation(fields: [versionId], references: [id], onDelete: Restrict)
-  /// معرّفُ العنصر في سجلّ المعاينات (`lib/brandReview/registry`) — مثل `email.login-code`
-  key              String
-  /// identity | component | email | document
-  kind             String
-  titleAr          String
-  /// أين يُستعمل في المنصة
-  usage            String
-  /// رقمُ مراجعة العنصر — يزيد كلما أُعيد إعدادُه بعد طلب تعديل
-  revision         Int             @default(1)
-  status           BrandItemStatus @default(draft)
-  /// بصمةُ المعاينة كما هي الآن (SHA-256) — والمعتمدُ يُقارَن بها قبل النشر فلا يُنشر ما تغيّر بعد اعتماده
-  contentHash      String
-  createdByName    String
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  submittedByName  String?
-  submittedAt      DateTime?
-  approvedByName   String?
-  approvedAt       DateTime?
-  approvedRevision Int?
-  approvedHash     String?
-  publishedByName  String?
-  publishedAt      DateTime?
-
-  events BrandReviewEvent[]
-
-  @@unique([versionId, key])
-  @@index([status])
-}
-
-/// سجلُّ قرارات المراجعة والملاحظات — لا يُعدَّل ولا يُحذف (`APPEND_ONLY`)
-model BrandReviewEvent {
-  id         String        @id @default(cuid())
-  versionId  String
-  version    BrandVersion  @relation(fields: [versionId], references: [id], onDelete: Restrict)
-  itemId     String?
-  item       BrandItem?    @relation(fields: [itemId], references: [id], onDelete: Restrict)
-  action     String
-  fromStatus String?
-  toStatus   String?
-  revision   Int?
-  actorId    String
-  actorName  String
-  actorRole  String?
-  note       String?
-  createdAt  DateTime      @default(now())
-
-  @@index([itemId, createdAt])
-  @@index([versionId, createdAt])
-}

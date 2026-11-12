@@ -25,9 +25,6 @@ const nextConfig: NextConfig = {
    *  خطّ عربي في بيئة التنفيذ. */
   outputFileTracingIncludes: {
     "/api/welcome-banner/[token]": ["./public/brand/banner/**", "./assets/fonts/**"],
-    // أصولُ هوية 2026 تُقرأ من القرص في مسارٍ محميّ (لا من `public`) حتى يعتمدها المؤسس
-    "/brand-review/asset/[...path]": ["./brand-assets/2026/**"],
-    "/brand-review/[key]": ["./brand-assets/2026/**"],
   },
 
   /** حدُّ حجم طلب Server Action — صورةُ وجهٍ من جوّالٍ حديث تتجاوز

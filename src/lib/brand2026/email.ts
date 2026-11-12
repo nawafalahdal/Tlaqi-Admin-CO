@@ -1,19 +1,19 @@
 import type { EmailContent, EmailTheme } from "@/lib/emailBrand";
-import { HEX, TYPEFACE } from "./tokens";
+import { HEX, TYPEFACE, BACKGROUNDS } from "./tokens";
 
 /** **قالبُ البريد — هوية تلاق 2026 (معاينة).** يرسم المحتوى نفسَه الذي تبنيه دوالُّ الرسائل (`EmailContent`)
  *  — فلا تتغيّر روابطُها ولا متغيّراتُها ولا معناها — بتصميمٍ جديد من الحزمة وحدها:
  *
- *  - **أربعة ألوان فقط** (لا أبيض ولا رمادي ولا شفافية): الورقُ Beige، والنصُّ Temptress (13.9:1)،
- *    والعنوانُ الكبير Mahogany، والشارةُ Green Sheen بنص Temptress (7.0:1)، والحدودُ Temptress صلبة.
+ *  - **الخلفيةُ بيضاء كما هي اليوم (قرار المؤسس)**، وفي العناصر الألوانُ الأربعة وحدها: النصُّ Temptress، والعنوانُ
+ *    الكبير Mahogany، والشارةُ Green Sheen بنص Temptress (7.0:1)، والحدودُ Temptress رفيعة.
  *  - **الترويسة:** Temptress بالشعار الرسمي «على الداكن» (صورةٌ من ملفه، لا رسم)، ثم **شريطُ النمط**
- *    «موهبة» مستقلاً (لا نمطَ خلف نص).
+ *    «موهبة» بلون Mahogany على الأبيض مستقلاً (لا نمطَ خلف نص).
  *  - **الأزرار (ق9):** الأساسي Temptress بنص Beige، والثانوي حدٌّ Temptress.
  *  - **الخط (ق1، ق8):** The Year of The Camel أولاً، وTahoma/Arial احتياطاً — أغلبُ العملاء لا يحمّلون الخط.
  *  - **التذييل:** العلامة، والسطرُ الرسمي «Talent Link Advancing Quality Innovation» (ق7)، والتوقيعُ «إدارة تلاق» (ق6).
  *  - **الجوال:** عرضٌ أقصى 600 ومرونةٌ دونه، وأزرارٌ بعرضٍ كامل على الشاشات الصغيرة.
  *
- *  **لا يُستعمل في الإرسال** قبل اعتماد المؤسس للعنصر ثم تطبيقه — هو للمعاينة في مركز المراجعة. */
+ *  **لا يُستعمل في الإرسال** قبل اعتماد المؤسس (في المحادثة) ثم تطبيقه — هو للمعاينة حتى ذلك. */
 
 const B = HEX;
 const FONT = `'${TYPEFACE.family}',${TYPEFACE.fallback.replace(/, /g, ",")}`;
@@ -101,9 +101,9 @@ export function renderEmail2026(opts: {
   subject: string;
   content: EmailContent;
   theme?: EmailTheme;
-  /** مسارُ الأصول: في المعاينة المسارُ المحميّ `/brand-review/asset`، وبعد التفعيل عنوانُ المنصة العام */
+  /** مسارُ الأصول: في المعاينة مجلّدُ الحزمة محلياً، وبعد الاعتماد عنوانُ المنصة العام */
   assetBase: string;
-  /** في المعاينة وحدها: تحميلُ الخط المعتمد من المسار المحميّ لرؤية القصد (أغلبُ العملاء لا يحمّلونه) */
+  /** في المعاينة وحدها: تحميلُ الخط المعتمد لرؤية القصد (أغلبُ العملاء لا يحمّلونه — ق1، ق8) */
   fontFaceBase?: string | null;
 }): string {
   const a = (p: string) => `${opts.assetBase}/${p}`;
@@ -124,18 +124,18 @@ ${fontFace}
 @media (max-width:620px){ .b26-card{border-radius:0!important;border-left:0!important;border-right:0!important} .b26-pad{padding:22px 18px!important} .b26-btn{display:block!important;text-align:center!important} }
 </style>
 </head>
-<body style="margin:0;padding:0;background-color:${B.beige}" bgcolor="${B.beige}">
+<body style="margin:0;padding:0;background-color:${BACKGROUNDS.emailPage}" bgcolor="${BACKGROUNDS.emailPage}">
 <div style="display:none;max-height:0;overflow:hidden">${esc(opts.subject)}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${B.beige}" style="background-color:${B.beige};padding:24px 0">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BACKGROUNDS.emailPage}" style="background-color:${BACKGROUNDS.emailPage};padding:24px 0">
 <tr><td align="center" style="padding:0 10px">
-  <table role="presentation" class="b26-card" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${B.beige}" style="max-width:600px;background-color:${B.beige};border:1px solid ${B.temptress};border-radius:20px;overflow:hidden">
+  <table role="presentation" class="b26-card" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BACKGROUNDS.emailCard}" style="max-width:600px;background-color:${BACKGROUNDS.emailCard};border:1px solid ${B.temptress};border-radius:20px;overflow:hidden">
     <tr><td bgcolor="${B.temptress}" style="background-color:${B.temptress};padding:22px 26px">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
         <td align="right"><img src="${a("email/logo-on-temptress.png")}" width="200" height="59" alt="TLAQI — Talent Link Advancing Quality Innovation" style="display:block;border:0;width:200px;height:auto"></td>
         <td align="left" style="font-family:${FONT};font-size:12px;font-weight:bold;color:${B.beige}">${dept ? esc(dept) : ""}</td>
       </tr></table>
     </td></tr>
-    <tr><td style="font-size:0;line-height:0;padding:0"><img src="${a("email/pattern-talent-on-beige.png")}" width="600" height="48" alt="" style="display:block;border:0;width:100%;height:auto"></td></tr>
+    <tr><td style="font-size:0;line-height:0;padding:0"><img src="${a("email/pattern-talent-on-white.png")}" width="600" height="48" alt="" style="display:block;border:0;width:100%;height:auto"></td></tr>
     <tr><td style="height:1px;background-color:${B.temptress};font-size:0;line-height:0">&nbsp;</td></tr>
     <tr><td class="b26-pad" style="padding:28px 30px 24px">${body(opts.content)}</td></tr>
     <tr><td bgcolor="${B.temptress}" align="center" style="background-color:${B.temptress};padding:22px 24px 18px">

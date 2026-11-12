@@ -99,6 +99,7 @@ const KIND_VARIANT: Record<string, EmailVariant> = {
   دعوة: "default",
   "دعوة الإدارة العليا": "celebration",
   "طلب توقيع اتفاقية": "ticket",
+  "تأكيد توقيع اتفاقية": "security",
   "بيانات الدخول": "default",
   "استعادة كلمة المرور": "default",
   "إعلان عام": "default",

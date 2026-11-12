@@ -84,11 +84,20 @@ export const ICONS = [
   "file-check", "piggy-bank", "arrow-left", "award", "users", "layers", "bell", "trophy", "megaphone", "lightbulb",
 ] as const;
 
+/** **قرارُ المؤسس (12 نوفمبر 2026): الخلفياتُ بيضاء كما هي الآن** — في المنصة والبريد؛ ويتغيّر التصميمُ وحده
+ *  (الشعار، الخط، الألوان الأربعة في العناصر، الأنماط، الأزرار، الحالات). فهذه القيمُ قيمُ اليوم نفسُها. */
+export const BACKGROUNDS = {
+  platformPage: "#F7F5F2",
+  surface: "#FFFFFF",
+  emailPage: "#FAF8F4",
+  emailCard: "#FFFFFF",
+} as const;
+
 /** **أدوارُ الألوان في الواجهة** — كلُّ مكوّنٍ يقرأ دوراً لا لوناً. والمقترحاتُ (ق2، ق9، ق10) موسومة. */
 export const ROLE = {
   light: {
-    page: HEX.beige,
-    surface: HEX.beige,
+    page: BACKGROUNDS.platformPage,
+    surface: BACKGROUNDS.surface,
     ink: HEX.temptress,
     heading: HEX.mahogany, // العناوين الكبيرة وحدها (4.4:1)
     border: HEX.temptress, // حدٌّ رفيعٌ صلب كما في ملف الهوية (ق10)
@@ -115,9 +124,9 @@ export const ROLE = {
 /** ق2: حالاتُ الواجهة بالألوان الأربعة — والمعنى بالأيقونة والكلمة لا باللون وحده */
 export const STATES = {
   success: { label: "نجاح", icon: "check", bg: HEX.greenSheen, ink: HEX.temptress, border: HEX.greenSheen, borderStyle: "solid" },
-  error: { label: "خطأ", icon: "shield-check", bg: HEX.beige, ink: HEX.temptress, border: HEX.mahogany, borderStyle: "solid" },
-  warning: { label: "تنبيه", icon: "bell", bg: HEX.beige, ink: HEX.temptress, border: HEX.mahogany, borderStyle: "dashed" },
-  info: { label: "معلومة", icon: "lightbulb", bg: HEX.beige, ink: HEX.temptress, border: HEX.temptress, borderStyle: "solid" },
+  error: { label: "خطأ", icon: "shield-check", bg: BACKGROUNDS.surface, ink: HEX.temptress, border: HEX.mahogany, borderStyle: "solid" },
+  warning: { label: "تنبيه", icon: "bell", bg: BACKGROUNDS.surface, ink: HEX.temptress, border: HEX.mahogany, borderStyle: "dashed" },
+  info: { label: "معلومة", icon: "lightbulb", bg: BACKGROUNDS.surface, ink: HEX.temptress, border: HEX.temptress, borderStyle: "solid" },
 } as const;
 
 /** متغيّراتُ CSS لنطاق المعاينة — تُلصق على حاويةٍ واحدة فلا تمسّ بقية الصفحة */

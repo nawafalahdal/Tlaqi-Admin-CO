@@ -1214,6 +1214,39 @@ export async function sendAgreementOtpEmail(opts: { to: string; fullName: string
   );
 }
 
+/** **تأكيدُ التوقيع** — إيصالٌ لصاحبه ببصمة الوثيقة ورابط نسخته الموقّعة */
+export async function sendAgreementSignedEmail(opts: {
+  to: string;
+  fullName: string;
+  agreementTitle: string;
+  version: number;
+  signedAt: Date;
+  documentHash: string;
+  copyUrl: string;
+}) {
+  const subject = `تأكيد توقيعك: ${opts.agreementTitle} — تَـــلاقِ`;
+  const blocked = await suppressed("agreement.signed", opts.to, "تأكيد توقيع اتفاقية", subject);
+  if (blocked) return blocked;
+  return send(
+    opts.to,
+    subject,
+    {
+      tone: "security",
+      badge: "توقيعٌ إلكتروني",
+      title: "وُقِّعت الاتفاقية",
+      lead: `${esc(opts.fullName)}، سُجّل توقيعُك الإلكتروني على <b>${esc(opts.agreementTitle)}</b>.`,
+      facts: [
+        ["الإصدار", String(opts.version)],
+        ["وقت التوقيع", `${formatDate(opts.signedAt)} ${new Intl.DateTimeFormat("en-GB", { timeZone: ORG_TIME_ZONE, hour: "2-digit", minute: "2-digit" }).format(opts.signedAt)} (الرياض)`],
+        ["بصمة الوثيقة (SHA-256)", `${opts.documentHash.slice(0, 16)}…${opts.documentHash.slice(-8)}`],
+      ],
+      cta: { label: "عرض نسختي الموقّعة", url: esc(opts.copyUrl) },
+      note: "إن لم توقّع أنت هذه الاتفاقية فأبلغ الإدارة فوراً.",
+    },
+    "تأكيد توقيع اتفاقية"
+  );
+}
+
 /** طلبُ توقيع اتفاقية قبل منح الوصول */
 export async function sendAgreementRequestEmail(opts: { to: string; fullName: string; agreementTitle: string; signUrl: string }) {
   const subject = `مطلوبٌ توقيعك: ${opts.agreementTitle} — تَـــلاقِ`;

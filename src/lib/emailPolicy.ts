@@ -44,6 +44,7 @@ export type EmailEvent =
   | "senior.invitation"
   | "agreement.otp"
   | "agreement.request"
+  | "agreement.signed"
   // ── ما يُكتم
   | "committee.member_added"
   | "ticket.escalated"
@@ -77,6 +78,7 @@ export const EMAIL_POLICY: Record<EmailEvent, { send: boolean; why: string }> = 
   "senior.invitation": { send: true, why: "دعوةٌ إلى الإدارة العليا لا تصل صاحبَها إلا بالبريد — ورابطُها لمرّةٍ واحدة" },
   "agreement.otp": { send: true, why: "رمزُ التحقّق قبل التوقيع — جزءٌ من إثبات أن صاحبَ الحساب هو الموقِّع" },
   "agreement.request": { send: true, why: "اتفاقيةٌ تنتظر توقيعاً قبل منح الوصول — يُبلَّغ صاحبُها مرّةً" },
+  "agreement.signed": { send: true, why: "إيصالُ التوقيع لصاحبه: بصمةُ الوثيقة ورابطُ نسخته الموقّعة — دليلُه هو لا المنصة وحدها" },
   "auth.password_reset": { send: true, why: "طلبه صاحبه، والرابط لا يصل بغيره" },
   "member.credentials": {
     send: true,

@@ -379,6 +379,12 @@ export async function signAgreement(
       return { wrong: false as const, id: created.id };
     });
     if (sig.wrong) return fail("رمز التحقّق غير صحيح");
+    // إيصالُ التوقيع لصاحبه — فشلُ البريد لا يُبطل توقيعاً وقع
+    const { sendAgreementSignedEmail } = await import("@/lib/email");
+    await sendAgreementSignedEmail({
+      to: acc.email, fullName: acc.name, agreementTitle: t.titleAr, version: t.version, signedAt: new Date(),
+      documentHash: t.bodyHash, copyUrl: `${appBaseUrl()}/agreements/signed/${sig.id}`,
+    }).catch((err) => console.error("تعذّر إرسالُ تأكيد التوقيع:", err instanceof Error ? err.name : typeof err));
     return { ok: true, signatureId: sig.id };
   } catch (e) {
     const s = String(e);

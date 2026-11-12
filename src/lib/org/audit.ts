@@ -20,7 +20,7 @@ export const fail = (reason: string): { ok: false; reason: string } => ({ ok: fa
 export async function recordOrgEvent(
   db: Db,
   e: {
-    scope: "committee" | "department" | "member" | "senior" | "agreement" | "account" | "brand";
+    scope: "committee" | "department" | "member" | "senior" | "agreement" | "account";
     entityId: string;
     departmentId: string;
     action: string;

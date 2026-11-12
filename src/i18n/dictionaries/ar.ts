@@ -29,7 +29,6 @@ export const ar = {
       senior: "الإدارة العليا",
       governanceLog: "سجل الحوكمة",
       agreements: "الاتفاقيات",
-      brandReview: "مراجعة الهوية واعتمادها",
     },
     groups: {
       overview: "نظرة عامة",

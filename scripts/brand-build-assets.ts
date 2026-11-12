@@ -41,6 +41,8 @@ async function strip(tileFile: string, bg: string, out: string, tilePx = 96, wid
     "logo-on-beige.png": await logo("logos/full/TLAQI-logo-full_on-beige.png", 480, "logo-on-beige.png"),
     "mark-mahogany.png": await logo("logos/mark/TLAQI-mark_mahogany.png", 112, "mark-mahogany.png"),
     "pattern-talent-on-beige.png": await strip("pattern-talent_M_mahogany.svg", BEIGE, "pattern-talent-on-beige.png"),
+    // قرار المؤسس: خلفيةُ البريد بيضاء — فالشريطُ Mahogany على الأبيض
+    "pattern-talent-on-white.png": await strip("pattern-talent_M_mahogany.svg", "#FFFFFF", "pattern-talent-on-white.png"),
     "pattern-talent-on-temptress.png": await strip("pattern-talent_M_beige.svg", TEMPTRESS, "pattern-talent-on-temptress.png"),
   };
   for (const [k, v] of Object.entries(sizes)) console.log(`${k}\t${Math.round(v / 1024)} KB`);
