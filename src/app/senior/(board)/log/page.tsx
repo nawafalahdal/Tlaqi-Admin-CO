@@ -96,6 +96,7 @@ export default async function GovernanceLogPage({
   const entityIds = [...new Set(rows.map((r) => r.entityId))];
   const [depts, positions] = entityIds.length
     ? await Promise.all([
+        // department-scope: all — أسماءُ أهداف أحداث السجل، وفيها المؤرشفُ والمغلق: السجلُّ يسمّي ما وقع عليه الحدث أياً كانت حاله
         prisma.department.findMany({ where: { id: { in: entityIds } }, select: { id: true, name: true, parentId: true } }),
         prisma.seniorPosition.findMany({ where: { id: { in: entityIds } }, select: { id: true, titleAr: true } }),
       ])

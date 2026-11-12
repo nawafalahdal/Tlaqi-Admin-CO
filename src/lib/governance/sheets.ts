@@ -49,6 +49,7 @@ export async function governanceTables(): Promise<GovernanceTables> {
       include: { holderMember: { select: { fullName: true, email: true } }, holderUser: { select: { fullName: true, email: true } } },
       orderBy: { createdAt: "asc" },
     }),
+    // department-scope: all — تبويبُ «اللجان» سجلٌّ كامل: المؤرشفةُ والمغلقةُ والمقترحةُ صفوفٌ بحالتها، لا يُحذف شيء
     prisma.department.findMany({
       where: { parentId: { not: null }, committeeStatus: { not: null } },
       orderBy: { createdAt: "asc" },
