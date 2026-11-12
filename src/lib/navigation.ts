@@ -56,7 +56,7 @@ export type NavGroup = (typeof NAV_GROUPS)[number];
 /** أسماءُ البنود — من القاموس (`shell.nav`)، لا مكتوبةً هنا */
 export type NavLabels = Record<
   "home" | "opsHome" | "members" | "myDeptMembers" | "approvals" | "departments" | "execution" | "calendar" |
-  "reports" | "plans" | "tickets" | "structure" | "committees" | "invites" | "messages" | "terminations" | "signature" | "welcomeCards" | "onboarding" | "sheet" | "marketing",
+  "reports" | "plans" | "tickets" | "structure" | "committees" | "invites" | "messages" | "terminations" | "signature" | "welcomeCards" | "onboarding" | "sheet" | "marketing" | "senior" | "governanceLog" | "agreements",
   string
 >;
 
@@ -70,6 +70,12 @@ export type NavViewer = {
   canWelcomeCards?: boolean;
   /** يُحسب على الخادم (`canEnterMarketing`) — عضويةٌ صريحةٌ في فريق التسويق، لا الدورُ ولا القسم */
   canMarketing?: boolean;
+  /** يُحسب على الخادم (`seniorContext`) — لوحةُ الإدارة العليا لقيادتها وأصحاب التكليفات النشطة */
+  canSenior?: boolean;
+  /** سجلُّ الحوكمة — قراءةً لمن له «governance_log_view» */
+  canGovernanceLog?: boolean;
+  /** الاتفاقيات: صفحةُ «اتفاقياتي» لكل حساب، وإدارتُها لمن له «agreements_view» */
+  canAgreementsAdmin?: boolean;
 };
 
 /** صفحةُ رفع التذكرة لكل دور — تحت مساره المحروس (`/admin` أو `/member`) */
@@ -139,6 +145,16 @@ export function navFor(v: NavViewer, L: NavLabels): NavItem[] {
   items.push({ id: "structure", label: L.structure, href: "/structure", icon: "structure", match: ["/structure"], group: "org" });
   // اللجان لكل الأدوار: كلٌّ يرى منها ما يخصّه (والقائمةُ تقول ذلك حين تكون فارغة)
   items.push({ id: "committees", label: L.committees, href: "/committees", icon: "departments", match: ["/committees"], group: "org" });
+  if (v.canSenior) items.push({ id: "senior", label: L.senior, href: "/senior", icon: "structure", match: ["/senior"], group: "org" });
+  if (v.canGovernanceLog) items.push({ id: "governanceLog", label: L.governanceLog, href: "/senior/log", icon: "reports", match: ["/senior/log"], group: "reports" });
+  items.push({
+    id: "agreements",
+    label: L.agreements,
+    href: v.canAgreementsAdmin ? "/agreements/manage" : "/agreements",
+    icon: "signature",
+    match: ["/agreements"],
+    group: "people",
+  });
   if (top) {
     items.push({ id: "invites", label: L.invites, href: "/admin/invites", icon: "invites", match: ["/admin/invites", "/admin/tests"], group: "people" });
   }

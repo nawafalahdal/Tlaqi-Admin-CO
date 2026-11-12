@@ -102,6 +102,8 @@ export async function decideCommittee(opts: {
   decision: "approved" | "rejected";
   note?: string | null;
   session: Session;
+  /** المرجعيةُ الوحيدة: قائدُ الإدارة العليا يعتمد ما اقترحه حين لا معتمِدَ آخر نشطاً — يُتحقَّق منه هنا لا يُصدَّق */
+  soleAuthority?: boolean;
 }): Promise<
   { ok: true; name: string; parentName: string; decision: "approved" | "rejected" } | { ok: false; reason: string }
 > {
@@ -132,15 +134,26 @@ export async function decideCommittee(opts: {
   // **من اقترح لا يعتمد اقتراحَه** — يقع حين يقترح الرئيسُ التنفيذي أو المؤسس لجنةً في الإدارة
   // العليا: فيقرّر فيها الآخرُ منهما
   if (committee.requestedById && committee.requestedById === opts.session.user.id) {
-    return { ok: false, reason: "لا يعتمد أحدٌ لجنةً اقترحها — يقرّر فيها الآخرُ من الرئيس التنفيذي والمؤسس" };
+    // الاستثناءُ الوحيد: قائدُ الإدارة العليا، في لجنةٍ منها، ولا معتمِدَ آخرَ نشطاً — يُتحقَّق من الثلاثة هنا
+    let sole = false;
+    if (opts.soleAuthority && opts.decision === "approved") {
+      const parent = await prisma.department.findUnique({ where: { id: committee.parentId! }, select: { leadershipOnly: true, seniorLeaderUserId: true } });
+      sole = !!parent?.leadershipOnly && parent.seniorLeaderUserId === opts.session.user.id && !(await committeeApprover(opts.session.user.id));
+    }
+    if (!sole) return { ok: false, reason: "لا يعتمد أحدٌ لجنةً اقترحها — يقرّر فيها الآخرُ من الرئيس التنفيذي والمؤسس" };
   }
 
   // **ولا تُعتمد لجنةٌ ناقصة** — غرضٌ ونوعٌ وقائدٌ نشطٌ من القسم وعضوٌ آخر (وتاريخُ نهايةٍ
   // للمؤقّتة)، من القاعدة لحظةَ القرار. والردُّ يبقى ممكناً: هو ما يُعيدها لتُستكمَل
+  // **بلا قائد ⇐ «بانتظار تعيين قائد»** لا رفض: تُعتمد بغرضها ونوعها، ويُعيَّن قائدُها لاحقاً فتبدأ العمل.
+  // ولها قائدٌ نشط ⇐ عاملةٌ بشروطها كاملةً (ومنها عضوٌ غيرُ القائد)
+  let approvedAs: "approved" | "awaiting_lead" = "approved";
   if (opts.decision === "approved" && committee.committeeStatus === "pending_review") {
-    const gaps = await committeeGaps(prisma, committee.id);
-    if (gaps?.length) {
-      return { ok: false, reason: `لا تُعتمد لجنةٌ ناقصة — ينقصها: ${gaps.map((g) => GAP_LABELS[g]).join("، ")}. رُدَّها ليستكملها قائدُ القسم` };
+    const gaps = (await committeeGaps(prisma, committee.id)) ?? [];
+    if (gaps.includes("lead")) approvedAs = "awaiting_lead";
+    const blocking = approvedAs === "awaiting_lead" ? gaps.filter((g) => g !== "lead" && g !== "members") : gaps;
+    if (blocking.length) {
+      return { ok: false, reason: `لا تُعتمد لجنةٌ ناقصة — ينقصها: ${blocking.map((g) => GAP_LABELS[g]).join("، ")}. رُدَّها ليستكملها قائدُ القسم` };
     }
   }
 
@@ -152,7 +165,9 @@ export async function decideCommittee(opts: {
     const w = await tx.department.updateMany({
       where: { id: committee.id, parentId: { not: null }, committeeStatus: "pending_review" },
       data: {
-        committeeStatus: opts.decision,
+        committeeStatus: opts.decision === "approved" ? approvedAs : "rejected",
+        // من يقوم بقيادتها بالخلافة لا يُحمَل إلى لجنةٍ بلا قائد
+        ...(approvedAs === "awaiting_lead" ? { leadMemberId: null } : {}),
         decidedAt: now,
         decidedByName: opts.session.user.name ?? "—",
         decisionNote: note,
@@ -166,9 +181,9 @@ export async function decideCommittee(opts: {
         entityId: committee.id,
         departmentId: committee.parentId!,
         action: "committee.decided",
-        actor: { kind: "user", id: opts.session.user.id, name: opts.session.user.name ?? "—" },
+        actor: { kind: "user", id: opts.session.user.id, name: opts.session.user.name ?? "—", role: opts.session.user.role },
         before: { status: "pending_review" },
-        after: { status: opts.decision },
+        after: { status: opts.decision === "approved" ? approvedAs : "rejected", ...(opts.soleAuthority ? { soleAuthority: true } : {}) },
         note,
       });
     }

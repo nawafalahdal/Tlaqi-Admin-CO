@@ -11,20 +11,26 @@ export const fail = (reason: string): { ok: false; reason: string } => ({ ok: fa
 
 /** يكتب حدثاً في سجلّ التدقيق — داخل معاملة الإجراء نفسِه.
  *
+ *  **والسجلُّ إلحاقٌ فقط:** لا يُعدَّل صفٌّ فيه ولا يُحذف — قادحٌ في القاعدة (`OrgAuditEvent_append_only`)
+ *  يرفض ذلك من أي طريق، ولو من شيفرة المنصة نفسها.
+ *
  *  **ولا يُكتب الحدثُ بعد المعاملة:** إجراءٌ نجح ولم يُسجَّل يُخفي من فعل،
  *  وسجلٌّ كُتب لإجراءٍ فشل يكذب. فكلاهما في المعاملة نفسِها: يقعان معاً أو
  *  لا يقعان. والقيمُ قبل وبعد ما تغيّر وحده — لا الصفُّ كلُّه. */
 export async function recordOrgEvent(
   db: Db,
   e: {
-    scope: "committee" | "department" | "member";
+    scope: "committee" | "department" | "member" | "senior" | "agreement" | "account";
     entityId: string;
     departmentId: string;
     action: string;
-    actor: Pick<OrgActor, "id" | "name"> & { kind: OrgActor["kind"] | "system" };
+    /** ومعه دورُه **وقتَ التنفيذ** — يُحفَظ في الحدث فلا يتبدّل بتبدّل دوره لاحقاً */
+    actor: Pick<OrgActor, "id" | "name"> & { kind: OrgActor["kind"] | "system"; role?: string | null };
     before?: Prisma.InputJsonValue | null;
     after?: Prisma.InputJsonValue | null;
     note?: string | null;
+    /** `denied` لمحاولةٍ مرفوضة في إجراءٍ حساس — تُسجَّل كما يُسجَّل النجاح */
+    result?: "success" | "denied";
   }
 ) {
   await db.orgAuditEvent.create({
@@ -36,6 +42,8 @@ export async function recordOrgEvent(
       actorKind: e.actor.kind,
       actorId: e.actor.id,
       actorName: e.actor.name,
+      actorRole: e.actor.role ?? (e.actor.kind === "system" ? "system" : null),
+      result: e.result ?? "success",
       before: e.before ?? undefined,
       after: e.after ?? undefined,
       note: e.note ?? null,

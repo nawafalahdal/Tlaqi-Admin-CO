@@ -30,9 +30,9 @@ export type OrgActor = {
   leadsDepartmentId: string | null;
   /** نائبُ قائد قسم — وما فُوِّض إليه وحده */
   deputy: { departmentId: string; permissions: DeputyPermission[] } | null;
-  /** **الإدارةُ العليا** (للمؤسس والرئيس التنفيذي وحدهما): لا قائدَ قسمٍ لها — يقودها الرئيسُ
-   *  التنفيذي ومعه المؤسس — فيقترحان لجانَها كما يقترح قائدُ القسم لجانَ قسمه. ولا يمنح هذا
-   *  شيئاً غير اللجان: لا نائبَ ولا توزيعَ مسؤوليات (`canProposeCommitteesOf` وحده يقرؤه). */
+  /** **الإدارةُ العليا — لقائدها الفعلي وحده** (`lib/governance/leadership`): الرئيسُ التنفيذي النشط،
+   *  وإلا المؤسس. فيقترح لجانَها كما يقترح قائدُ القسم لجانَ قسمه، والآخرُ (المؤسس حين يقود الرئيس)
+   *  يعتمد. ولا يمنح هذا شيئاً غير اللجان (`canProposeCommitteesOf` وحده يقرؤه). */
   seniorDepartmentId?: string | null;
 };
 
@@ -86,13 +86,26 @@ export async function orgActor(session: Session | null, db: Db = prisma): Promis
   const role = live ? u!.role : null;
   const isLead = role === "department_admin" && !!u!.departmentId && !u!.department?.parentId;
   const isTop = role === "super_admin" || role === "executive";
-  const senior = isTop
-    ? await db.department.findFirst({
-        where: { leadershipOnly: true, parentId: null, OR: [{ committeeStatus: null }, { committeeStatus: "approved" }] },
-        orderBy: { createdAt: "asc" },
-        select: { id: true },
-      })
-    : null;
+  // **الإدارةُ العليا يقودها قائدٌ فعليٌّ واحد** (`lib/governance/leadership`): الرئيسُ التنفيذي النشط، وإلا
+  // المؤسس. فصلاحيةُ اقتراح لجانها لمن يقودها الآن وحده — لا للمؤسس والرئيس معاً. والقائدُ يُقرأ ويُطابَق هنا
+  // (فإن تغيّر من يجب أن يقود سُجِّل الانتقالُ قبل أن تُمنح صلاحية)
+  let senior: { id: string } | null = null;
+  if (isTop) {
+    const dept = await db.department.findFirst({
+      where: { leadershipOnly: true, parentId: null, OR: [{ committeeStatus: null }, { committeeStatus: "approved" }] },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, seniorLeaderUserId: true, seniorLeaderBasis: true },
+    });
+    if (dept) {
+      const { expectedSeniorLeader, reconcileSeniorLeadership } = await import("@/lib/governance/leadership");
+      const want = await expectedSeniorLeader(db);
+      let leaderId = dept.seniorLeaderUserId;
+      if ((want?.id ?? null) !== leaderId || (want?.basis ?? null) !== (dept.seniorLeaderBasis ?? null)) {
+        leaderId = (await reconcileSeniorLeadership("قراءة صلاحيات القيادة"))?.leader?.id ?? null;
+      }
+      if (leaderId === u!.id) senior = { id: dept.id };
+    }
+  }
   return {
     kind: "user",
     id: session.user.id,
@@ -197,7 +210,8 @@ export function canManageCommittee(a: OrgActor | null, c: CommitteeRow): boolean
   if (canProposeCommitteesOf(a, c.parentId)) return true;
   if (!a.isTop) return false;
   const leadActive = c.leadActive ?? true;
-  return !leadActive && (c.committeeStatus === "approved" || c.committeeStatus === "suspended");
+  // وللجنةٍ بلا قائدٍ نشط: العاملةُ والمعلّقةُ (بالخلافة)، و«بانتظار تعيين قائد»، والمؤرشفةُ (للاسترجاع وتعيين القائد)
+  return !leadActive && ["approved", "suspended", "awaiting_lead", "archived"].includes(c.committeeStatus ?? "");
 }
 
 export function committeeRoleFor(a: OrgActor | null, c: CommitteeRow, isActiveMember: boolean): CommitteeRole {

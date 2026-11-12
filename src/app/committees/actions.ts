@@ -12,6 +12,7 @@ import {
   updateCommitteeDetails,
   submitCommittee,
   changeCommitteeStatus,
+  restoreCommittee,
   appointCommitteeLead,
   addCommitteeMembers,
   removeCommitteeMember,
@@ -36,6 +37,7 @@ import {
   reviewCommitteeReport,
 } from "@/lib/org/committeeWork";
 import type { CommitteeStatus } from "@prisma/client";
+import { queueGovernanceSync } from "@/lib/governance/sheets";
 
 /** أبوابُ صفحات اللجان.
  *
@@ -64,6 +66,7 @@ async function run(paths: string[], fn: () => Promise<OrgResult>): Promise<FormS
     const res = await fn();
     if (!res.ok) return { error: res.reason, success: false };
     for (const p of paths) revalidatePath(p);
+    await queueGovernanceSync("إجراءٌ على لجنة");
     const L = getDictionary(await getLocale()).org;
     return { error: null, success: true, message: L.done };
   } catch (err) {
@@ -102,6 +105,7 @@ export async function createCommitteeAction(_p: FormState, fd: FormData): Promis
     });
     if (!res.ok) return { error: res.reason, success: false };
     id = res.id;
+    await queueGovernanceSync("إنشاء لجنة");
     revalidatePath("/committees");
     revalidatePath("/admin/departments");
   } catch (err) {
@@ -118,6 +122,12 @@ export async function updateCommitteeAction(_p: FormState, fd: FormData): Promis
 export async function submitCommitteeAction(_p: FormState, fd: FormData): Promise<FormState> {
   const id = s(fd, "committeeId");
   return run([...committeePaths(id), "/admin/departments"], async () => submitCommittee(await actor(), id));
+}
+
+/** استرجاعُ لجنةٍ مؤرشفة — بسببٍ مكتوب، وبلا فقدٍ لشيءٍ من سجلّها */
+export async function restoreCommitteeAction(_p: FormState, fd: FormData): Promise<FormState> {
+  const id = s(fd, "committeeId");
+  return run([...committeePaths(id), "/admin/departments"], async () => restoreCommittee(await actor(), id, opt(fd, "note")));
 }
 
 export async function changeCommitteeStatusAction(_p: FormState, fd: FormData): Promise<FormState> {

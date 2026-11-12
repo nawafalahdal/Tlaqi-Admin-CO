@@ -10,6 +10,7 @@ export const textareaCls =
 
 const STATUS_CLS: Record<CommitteeStatus, string> = {
   draft: "bg-black/[0.06] text-black/70",
+  awaiting_lead: "bg-violet-100 text-violet-900",
   pending_review: "bg-amber-100 text-amber-900",
   approved: "bg-emerald-100 text-emerald-900",
   suspended: "bg-orange-100 text-orange-900",

@@ -13,6 +13,7 @@ import { canEnterMarketing, marketingActor } from "@/lib/marketing/access";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { roleTitle } from "@/lib/gender";
 import { halfApprovedLeaders } from "@/lib/workflow";
+import { seniorNavCapabilities } from "@/lib/governance/senior";
 import { NavGlyph } from "../icons";
 import { SidebarProvider } from "./SidebarRail";
 import { GenderPrompt } from "../account/GenderPrompt";
@@ -45,7 +46,7 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
   // صورةُ صاحب الحساب في ذيل القائمة: ختمُها وحده (لا الصورة) — والصورةُ
   // نفسُها موردٌ يُخزَّن في المتصفّح سنةً (`/api/avatar`)، فلا تُعاد مع كل
   // صفحة.
-  const [canWelcomeCards, stamp, badges, canMarketing] = await Promise.all([
+  const [canWelcomeCards, stamp, badges, canMarketing, seniorCaps] = await Promise.all([
     canResendWelcome(session).then((ok) => ok || canRequestWelcomeResend(session)),
     isMember
       ? prisma.member.findUnique({
@@ -69,6 +70,10 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
       console.error("تعذّر حسابُ دخول وكيل التسويق:", err instanceof Error ? err.name : typeof err);
       return false;
     }),
+    seniorNavCapabilities(session).catch((err) => {
+      console.error("تعذّر حسابُ بنود الإدارة العليا:", err instanceof Error ? err.name : typeof err);
+      return new Set<string>();
+    }),
   ]);
   // **استبيانُ الانضمام الإلزامي:** العضوُ المعتمَدُ الذي طُلب منه ولم يُجب لا تُفتح له مساحةُ العمل —
   // كلُّ تخطيطٍ فيها يمرّ من هنا (البوابة، والتذاكر، واللجان، ووكيل التسويق، والتقويم، والتنبيهات)
@@ -82,6 +87,9 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
     canSign: isSigningRole(session.user.role),
     canWelcomeCards,
     canMarketing,
+    canSenior: seniorCaps.has("board_view"),
+    canGovernanceLog: seniorCaps.has("governance_log_view"),
+    canAgreementsAdmin: seniorCaps.has("agreements_view") || seniorCaps.has("agreements_manage"),
   };
   const avatar = avatarUrl(isMember ? "member" : "user", session.user.id, stamp?.avatarVersion);
   // خلفيةُ الصورة بلون انتمائه كما في الهيكل والسجلّ — لا برتقاليٌّ ثابت

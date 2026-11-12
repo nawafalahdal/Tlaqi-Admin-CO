@@ -20,10 +20,10 @@ import { departmentPeopleWhere, STATUS_TRANSITIONS } from "./committeeService";
 
 export const COMMITTEE_PAGE = 20;
 export const COMMITTEE_STATUSES: CommitteeStatus[] = [
-  "draft", "pending_review", "approved", "suspended", "completed", "closed", "archived", "rejected",
+  "draft", "pending_review", "awaiting_lead", "approved", "suspended", "completed", "closed", "archived", "rejected",
 ];
 /** ما يراه عضوُ اللجنة غيرُ المدير: ما اعتُمد وما بعده — لا المسودّةُ ولا الطلب */
-const MEMBER_VISIBLE: CommitteeStatus[] = ["approved", "suspended", "completed", "closed", "archived"];
+const MEMBER_VISIBLE: CommitteeStatus[] = ["awaiting_lead", "approved", "suspended", "completed", "closed", "archived"];
 const OPEN_TASK: Prisma.EnumCommitteeTaskStatusFilter = { in: ["todo", "in_progress"] };
 
 /** اللجانُ التي يراها صاحبُ الطلب — أو `null` إن لم يكن له شيءٌ منها */
@@ -196,7 +196,7 @@ export async function committeeDetail(actor: OrgActor | null, committeeId: strin
     select: {
       id: true, name: true, description: true, purpose: true, scope: true, responsibilities: true,
       expectedOutputs: true, kpis: true, committeeKind: true, startDate: true, endDate: true,
-      committeeStatus: true, statusChangedAt: true, statusNote: true, createdAt: true,
+      committeeStatus: true, statusChangedAt: true, statusNote: true, createdAt: true, archivedFromStatus: true, leadAssignedAt: true, leadAssignedByName: true,
       requestedAt: true, requestedByName: true, decidedAt: true, decidedByName: true, decisionNote: true,
       leadMemberId: true,
       leadMember: { select: { id: true, fullName: true, jobTitle: true, isActive: true } },
@@ -288,8 +288,10 @@ export async function committeeDetail(actor: OrgActor | null, committeeId: strin
     // قائدها وحده: لقائد القسم ونائبه، وللرئيس والمؤسس حين يخلو مقعدُ قائد القسم (والخادمُ يفحصها ثانيةً)
     canAppointLead:
       ((c.committeeStatus === "draft" || c.committeeStatus === "rejected") && ctx.role.propose) ||
-      ((c.committeeStatus === "approved" || c.committeeStatus === "suspended") &&
-        !ctx.leadActive &&
+      ((((c.committeeStatus === "approved" || c.committeeStatus === "suspended") && !ctx.leadActive) ||
+        // تعيينُ قائدٍ لاحقاً: «بانتظار تعيين قائد»، أو مؤرشفةٌ بلا قائدٍ نشط (ثم تُسترجَع بقائدها)
+        c.committeeStatus === "awaiting_lead" ||
+        (c.committeeStatus === "archived" && !(c.leadMemberId && ctx.leadActive))) &&
         ctx.role.manage &&
         (ctx.role.propose ||
           !(await prisma.user.findFirst({ where: { isActive: true, role: "department_admin", departmentId: c.parent!.id }, select: { id: true } })))),

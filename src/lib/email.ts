@@ -1157,6 +1157,73 @@ export async function sendTestReopenedEmail(opts: {
   );
 }
 
+/** **دعوةٌ إلى الإدارة العليا** — بالمسمّى الذي حدّده القائد، ورابطٍ لمرّةٍ واحدة ينتهي في موعده */
+export async function sendSeniorInvitationEmail(opts: {
+  to: string;
+  fullName: string;
+  titleAr: string;
+  inviterName: string;
+  acceptUrl: string;
+  expiresAt: Date;
+}) {
+  const subject = `دعوةٌ إلى الإدارة العليا — ${opts.titleAr} — تَـــلاقِ`;
+  const blocked = await suppressed("senior.invitation", opts.to, "دعوة الإدارة العليا", subject);
+  if (blocked) return blocked;
+  return send(
+    opts.to,
+    subject,
+    {
+      badge: "الإدارة العليا",
+      title: "دعوةٌ للانضمام إلى الإدارة العليا",
+      lead: `${esc(opts.fullName)}، يدعوك <b>${esc(opts.inviterName)}</b> إلى الإدارة العليا في تلاق بمسمّى <b>${esc(opts.titleAr)}</b>.`,
+      paragraphs: ["افتح الرابط لتقرأ المسمّى والمسؤوليات والصلاحيات قبل القبول. الرابط لك وحدك ولمرّةٍ واحدة."],
+      facts: [["صالحةٌ حتى", opts.expiresAt.toISOString().slice(0, 10)]],
+      cta: { label: "عرض الدعوة", url: esc(opts.acceptUrl) },
+      note: "إن لم تكن تتوقّع هذه الدعوة فتجاهلها — لا يُنشأ شيءٌ ما لم تقبلها.",
+    },
+    "دعوة الإدارة العليا"
+  );
+}
+
+/** رمزُ التحقّق قبل توقيع اتفاقية — إلى بريد الحساب نفسه */
+export async function sendAgreementOtpEmail(opts: { to: string; fullName: string; agreementTitle: string; code: string; minutesValid: number }) {
+  const subject = `رمز توقيع «${opts.agreementTitle}» — تَـــلاقِ`;
+  const blocked = await suppressed("agreement.otp", opts.to, "رمز توقيع الاتفاقية", subject);
+  if (blocked) return blocked;
+  return send(
+    opts.to,
+    subject,
+    {
+      badge: "تحقّقٌ قبل التوقيع",
+      title: "رمز التحقّق",
+      lead: `${esc(opts.fullName)}، هذا رمزُ تأكيد توقيعك على <b>${esc(opts.agreementTitle)}</b>.`,
+      paragraphs: [`<span style="font-size:28px;letter-spacing:6px;font-weight:700" dir="ltr">${esc(opts.code)}</span>`],
+      facts: [["صالحٌ لمدّة", `${opts.minutesValid} دقائق`]],
+      note: "لا تشارك هذا الرمز مع أحد. إن لم تطلبه فتجاهل الرسالة — لا يُوقَّع شيءٌ بدونه.",
+    },
+    "رمز توقيع الاتفاقية"
+  );
+}
+
+/** طلبُ توقيع اتفاقية قبل منح الوصول */
+export async function sendAgreementRequestEmail(opts: { to: string; fullName: string; agreementTitle: string; signUrl: string }) {
+  const subject = `مطلوبٌ توقيعك: ${opts.agreementTitle} — تَـــلاقِ`;
+  const blocked = await suppressed("agreement.request", opts.to, "طلب توقيع اتفاقية", subject);
+  if (blocked) return blocked;
+  return send(
+    opts.to,
+    subject,
+    {
+      badge: "اتفاقية",
+      title: "اتفاقيةٌ تنتظر توقيعك",
+      lead: `${esc(opts.fullName)}، قبل منحك الوصول إلى أصول تلاق المرتبطة بعملك، اقرأ <b>${esc(opts.agreementTitle)}</b> ووقّعها إلكترونياً من المنصة.`,
+      paragraphs: ["تُحفَظ نسخةٌ موقّعةٌ لك تستطيع عرضها وتحميلها في أي وقت."],
+      cta: { label: "قراءة الاتفاقية", url: esc(opts.signUrl) },
+    },
+    "طلب توقيع اتفاقية"
+  );
+}
+
 /** يبثّ إعلاناً إلى بريد جمهوره.
  *
  *  يُرسَل نسخةً واحدةً لكل مستلم (لا دفعة واحدة في حقل "إلى") حتى لا يرى

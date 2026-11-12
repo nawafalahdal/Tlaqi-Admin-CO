@@ -160,6 +160,8 @@ enum TicketStage {
 /// و`null` ليست حالةً ناقصة: هي علامةُ القسم الأصيل. الأقسام لا تُعتمَد
 /// — تُنشَأ بقرار من يملك الهيكل. واللجنة وحدها تمرّ باعتماد.
 enum CommitteeStatus {
+  /// معتمدةٌ أو منشأةٌ بلا قائد — تُحفَظ بياناتُها ويُضاف أعضاؤها، ولا تعمل حتى يُعيَّن قائدُها
+  awaiting_lead
   /// اقترحها قائد القسم وتنتظر قرار المدير التنفيذي
   pending_review
   /// اعتُمدت فانفتحت: لها بنك أسئلة، وتُدعى لها قيادة، وتظهر في الهيكل
@@ -318,6 +320,21 @@ model Department {
   /// ولا تخلو لجنةٌ نشطةٌ أو معلّقةٌ منهما (`Department_active_committee_has_lead`)
   actingLeadUserId String?
   actingLeadUser   User?     @relation("CommitteeActingLead", fields: [actingLeadUserId], references: [id], onDelete: Restrict)
+
+  // ── قيادةُ الإدارة العليا (للقسم الاستثنائي وحده): قائدٌ فعليٌّ واحد — الرئيسُ التنفيذي النشط، وإلا
+  //    المؤسس. يُحفَظ هنا ليُسجَّل كلُّ انتقالٍ له (`lib/governance/leadership`)، ولا يُكتب يدوياً
+  seniorLeaderUserId String?
+  seniorLeaderUser   User?     @relation("SeniorLeader", fields: [seniorLeaderUserId], references: [id], onDelete: Restrict)
+  seniorLeaderSince  DateTime?
+  /// `ceo` أو `founder_fallback`
+  seniorLeaderBasis  String?
+
+  // ── دورةُ حياة اللجنة: من أين أُرشِفت (لتُسترجَع إليها)، ومتى عُيِّن قائدُها ومن عيّنه
+  archivedFromStatus CommitteeStatus?
+  leadAssignedAt     DateTime?
+  leadAssignedByName String?
+
+  seniorPositions  SeniorPosition[]
   actingLeadSince  DateTime?
   actingLeadReason String?
 
@@ -449,6 +466,8 @@ model User {
   marketingProfile MarketingMember?
 
   committeesActingLead Department[] @relation("CommitteeActingLead")
+  seniorLeaderOf       Department[]     @relation("SeniorLeader")
+  seniorPositions      SeniorPosition[] @relation("SeniorPositionUser")
 }
 
 /// دعوة مقفلة بالاسم والإيميل — لا تسجيل عام. targetRole يحدد المسار:
@@ -634,6 +653,7 @@ model Member {
   /// ويُعاد ختمُه حين يُعيد فتحَه مسؤولٌ مخوَّل. و`null` لمن اعتُمد قبل الاستبيان
   onboardingSurveyRequiredAt    DateTime?
   onboardingSurveys             OnboardingSurveyResponse[]
+  seniorPositions            SeniorPosition[]           @relation("SeniorPositionMember")
 
   // الكنس اليومي يسأل: من لم تصله شهادة تقديره؟ فيُجاب رخيصاً
   @@index([appreciationSentAt])
@@ -2762,7 +2782,6 @@ model MarketingNotice {
   @@index([memberId, seenAt])
 }
 
-
 // ═════════════════════════════════════════════════════════════════════
 //  اللجان — أعمالُها وسجلُّها
 //
@@ -2935,6 +2954,10 @@ model OrgAuditEvent {
   actorKind    String
   actorId      String
   actorName    String
+  /// دورُه وقتَ التنفيذ — لا دورُه اليوم
+  actorRole    String?
+  /// `success` أو `denied` — المحاولاتُ المرفوضة للإجراءات الحساسة تُسجَّل أيضاً
+  result       String   @default("success")
   before       Json?
   after        Json?
   note         String?
@@ -2956,4 +2979,250 @@ model AccessRevocation {
 
   @@index([revokedAt])
   @@index([accountId])
+}
+
+// ═════════════════════════════════════════════════════════════════════
+//  الإدارة العليا — مناصبُ ديناميكية بدعوات (`lib/governance/senior`)
+// ═════════════════════════════════════════════════════════════════════
+
+/// ما يُمنح لعضو الإدارة العليا — قائمةٌ مضبوطةٌ في الشيفرة (لا تُخترَع صلاحيةٌ وقتَ التشغيل)،
+/// ولا تشمل شيئاً من صلاحيات القيادة (الدعوات والمناصب والتعيينات لقائد الإدارة العليا وحده)
+enum SeniorCapability {
+  board_view
+  committees_view
+  governance_log_view
+  agreements_view
+  agreements_manage
+}
+
+enum SeniorInviteState {
+  draft
+  sent
+  opened
+  accepted
+  expired
+  cancelled
+}
+
+enum SeniorPositionStatus {
+  pending
+  active
+  suspended
+  ended
+}
+
+/// تكليفٌ في الإدارة العليا: مسمّى يحدّده القائد، ومسؤوليات، وصلاحياتٌ محدّدة، ودعوةٌ بحالاتها.
+/// صفٌّ لكل تكليف — انتهاؤه لا يحذفه (سجلٌّ تاريخي)، والدعوةُ الجديدة صفٌّ جديد
+model SeniorPosition {
+  id               String               @id @default(cuid())
+  departmentId     String
+  department       Department           @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  titleAr          String
+  titleEn          String?
+  description      String?
+  responsibilities String?
+  capabilities     SeniorCapability[]   @default([])
+  startDate        DateTime?
+  status           SeniorPositionStatus @default(pending)
+  notes            String?
+
+  /// صاحبُه بعد القبول — عضوٌ أو حسابٌ إداري (لا الاثنان — قيدٌ في القاعدة)
+  holderMemberId String?
+  holderMember   Member? @relation("SeniorPositionMember", fields: [holderMemberId], references: [id], onDelete: Restrict)
+  holderUserId   String?
+  holderUser     User?   @relation("SeniorPositionUser", fields: [holderUserId], references: [id], onDelete: Restrict)
+
+  inviteName      String
+  inviteEmail     String
+  inviteState     SeniorInviteState @default(draft)
+  /// بصمةُ رمز الدعوة (SHA-256) — الرمزُ نفسه لا يُخزَّن
+  inviteTokenHash String?           @unique
+  inviteExpiresAt DateTime?
+  invitedById     String
+  invitedByName   String
+  sentAt          DateTime?
+  openedAt        DateTime?
+  acceptedAt      DateTime?
+  cancelledAt     DateTime?
+  cancelledByName String?
+  cancelReason    String?
+  endedAt         DateTime?
+  endedByName     String?
+  endReason       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([inviteEmail])
+  @@index([status])
+  @@index([holderMemberId])
+  @@index([holderUserId])
+}
+
+// ═════════════════════════════════════════════════════════════════════
+//  اتفاقياتُ السرية وحمايةُ الأصول (`lib/governance/agreements`)
+// ═════════════════════════════════════════════════════════════════════
+
+enum AgreementKind {
+  marketing
+  technical
+}
+
+enum AgreementTemplateStatus {
+  draft
+  active
+  retired
+}
+
+/// إصدارٌ من اتفاقية — نصُّه وبصمتُه لا يتغيّران بعد نشره (قيدٌ في القاعدة)
+model AgreementTemplate {
+  id              String                  @id @default(cuid())
+  kind            AgreementKind
+  version         Int
+  titleAr         String
+  titleEn         String?
+  issuer          String
+  body            String
+  /// SHA-256 للنص (النوع والإصدار والعنوان والجهة والنص) — ما يُوقَّع عليه فعلاً
+  bodyHash        String
+  status          AgreementTemplateStatus @default(draft)
+  changeNote      String?
+  createdAt       DateTime                @default(now())
+  createdByName   String
+  publishedAt     DateTime?
+  publishedByName String?
+  retiredAt       DateTime?
+
+  signatures AgreementSignature[]
+
+  @@unique([kind, version])
+  @@index([kind, status])
+}
+
+/// من عليه توقيعُ أيّ اتفاقية — طلبٌ واحدٌ لكل شخصٍ ونوع، وحالتُه تُشتقّ من التوقيعات
+model AgreementRequirement {
+  id              String        @id @default(cuid())
+  kind            AgreementKind
+  subjectKind     String
+  subjectId       String
+  subjectName     String
+  subjectEmail    String
+  reason          String
+  requiredAt      DateTime      @default(now())
+  requiredByName  String
+  sentAt          DateTime?
+  cancelledAt     DateTime?
+  cancelledByName String?
+  cancelReason    String?
+  endedAt         DateTime?
+  endReason       String?
+
+  @@unique([kind, subjectKind, subjectId])
+  @@index([kind])
+}
+
+/// **توقيعٌ لا يُعدَّل ولا يُحذف** (قيدٌ في القاعدة): يثبت أيّ نصٍّ وافق عليه من، ومتى، وبأيّ تحقّق
+model AgreementSignature {
+  id                String            @id @default(cuid())
+  templateId        String
+  template          AgreementTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  kind              AgreementKind
+  version           Int
+  /// بصمةُ النص الموقَّع وقتَ التوقيع — تُطابَق ببصمة الإصدار للتحقّق
+  documentHash      String
+  signerKind        String
+  signerId          String
+  signerAccountName String
+  signerEmail       String
+  /// الاسمُ الكامل كما كتبه الموقِّع
+  typedName         String
+  roleLabel         String
+  signedAt          DateTime          @default(now())
+  /// وسيلةُ الإثبات: الاسمُ المكتوب + رمزٌ لمرّةٍ واحدة إلى بريد الحساب
+  method            String
+  otpVerifiedAt     DateTime
+  userAgent         String?
+  /// بصمةُ سجلّ الإثبات كلّه (SHA-256) — أيّ تغييرٍ في حقلٍ منه يكسرها
+  evidenceHash      String
+  /// بصمةُ الدليل للتوقيع الذي سبقه — سلسلةٌ تكشف حذفَ توقيعٍ أو تعديلَه ولو تجاوز أحدٌ قيدَ القاعدة
+  prevEvidenceHash  String?
+
+  @@unique([templateId, signerKind, signerId])
+  @@index([signerKind, signerId, kind])
+  @@index([kind, version])
+}
+
+/// رمزُ تحقّقٍ لمرّةٍ واحدة قبل التوقيع — إلى بريد الحساب نفسه
+model AgreementOtp {
+  id         String    @id @default(cuid())
+  signerKind String
+  signerId   String
+  templateId String
+  codeHash   String
+  expiresAt  DateTime
+  usedAt     DateTime?
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([signerKind, signerId, templateId])
+}
+
+/// سجلُّ منح الوصول إلى أصول تلاق الحساسة (حساباتٌ ومستودعاتٌ وخوادم…) وسحبه — لا يُمنح بلا اتفاقيةٍ موقّعة
+model AssetAccessGrant {
+  id            String        @id @default(cuid())
+  category      AgreementKind
+  assetKind     String
+  assetLabel    String
+  holderKind    String
+  holderId      String
+  holderName    String
+  signatureId   String
+  grantedAt     DateTime      @default(now())
+  grantedByName String
+  revokedAt     DateTime?
+  revokedByName String?
+  revokeReason  String?
+
+  @@index([holderKind, holderId])
+  @@index([category, revokedAt])
+}
+
+enum AgreementIncidentStatus {
+  reported
+  under_review
+  closed
+}
+
+/// بلاغُ مخالفة — يُوثَّق ويُراجَع بشرياً، ولا حكمَ آلياً بمجرد البلاغ
+model AgreementIncident {
+  id             String                  @id @default(cuid())
+  kind           AgreementKind
+  subjectKind    String
+  subjectId      String
+  subjectName    String
+  description    String
+  evidence       String?
+  reportedByName String
+  reportedAt     DateTime                @default(now())
+  status         AgreementIncidentStatus @default(reported)
+  reviewNote     String?
+  reviewedByName String?
+  outcome        String?
+  closedAt       DateTime?
+
+  @@index([status])
+  @@index([subjectKind, subjectId])
+}
+
+/// تشغيلاتُ مزامنة تبويبات الحوكمة في السجل الحي — متى، وبكم صف، وبأيّ نتيجة
+model GovernanceSyncRun {
+  id         String    @id @default(cuid())
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  ok         Boolean   @default(false)
+  rows       Int       @default(0)
+  trigger    String
+  error      String?
+
+  @@index([startedAt])
 }

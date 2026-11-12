@@ -1,4 +1,5 @@
 import type { Session } from "next-auth";
+import { agreementPending as agreementGate } from "@/lib/governance/agreements";
 import type { MarketingCampaignRole, MarketingCapability, MarketingPlanStage, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { abort } from "./result";
@@ -46,6 +47,8 @@ export type MkActor = {
   isOverseer: boolean;
   /** عضويتُه الفعّالة في الفريق — `null` لمن ليس عضواً أو أُوقف هو أو حسابُه */
   member: { id: string; capabilities: MarketingCapability[] } | null;
+  /** **اتفاقيةُ التسويق:** له إصدارٌ سارٍ لم يوقّعه — فلا وصولَ حساساً حتى يوقّع (`lib/governance/agreements`) */
+  agreementPending: boolean;
 };
 
 export const MARKETING_DEPARTMENT_SLUG = "marketing";
@@ -94,6 +97,11 @@ export async function marketingActor(session: Session | null, db: Db = prisma): 
       : isMarketingLead || row.active
         ? { id: row.id, capabilities }
         : null;
+  // البوابةُ تُسأل لمن يدخل الوكيلَ أصلاً — فلا قراءةَ زائدة لغيره
+  const wouldEnter = !isFounder && (isMarketingLead || !!planStage || isOverseer || (!!member && member.capabilities.length > 0));
+  const agreementPending = wouldEnter
+    ? await agreementGate({ kind: isMember ? "member" : "user", id: session.user.id }, orgRole, "marketing", db)
+    : false;
   return {
     kind: isMember ? "member" : "user",
     principalId: session.user.id,
@@ -104,11 +112,12 @@ export async function marketingActor(session: Session | null, db: Db = prisma): 
     planStage,
     isOverseer,
     member,
+    agreementPending,
   };
 }
 
 export function hasCapability(actor: MkActor | null, cap: MarketingCapability): boolean {
-  if (!actor || actor.isFounder) return false;
+  if (!actor || actor.isFounder || actor.agreementPending) return false;
   if (cap === "manager") return actor.isMarketingLead;
   if (cap === "coordinator" && actor.isMarketingLead) return true;
   return !!actor.member && actor.member.capabilities.includes(cap);
@@ -116,7 +125,7 @@ export function hasCapability(actor: MkActor | null, cap: MarketingCapability): 
 
 /** هل يُرسَم له الوكيلُ أصلاً — القائمةُ والصفحاتُ تسأل هذا، والخادمُ يسأله قبلها */
 export function canEnterMarketing(actor: MkActor | null): boolean {
-  if (!actor || actor.isFounder) return false;
+  if (!actor || actor.isFounder || actor.agreementPending) return false;
   if (actor.isMarketingLead || actor.planStage || actor.isOverseer) return true;
   return !!actor.member && actor.member.capabilities.length > 0;
 }

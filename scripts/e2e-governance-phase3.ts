@@ -36,7 +36,7 @@ async function purge() {
   const uids = users.map((u) => u.id);
   const members = await prisma.member.findMany({ where: { email: { contains: "@g3-" } }, select: { id: true } });
   const mids = members.map((m) => m.id);
-  await prisma.orgAuditEvent.deleteMany({ where: { OR: [{ entityId: { in: [...ids, ...mids] } }, { departmentId: { in: ids } }] } });
+  // سجلُّ الحوكمة لا يُحذف (قيدُ APPEND_ONLY في القاعدة) — تبقى أحداثُ الفحص سجلاً في القاعدة المؤقتة
   await prisma.accessRevocation.deleteMany({ where: { accountId: { in: [...uids, ...mids] } } });
   await prisma.approvalDecision.deleteMany({ where: { ticket: { subject: { startsWith: "g3-" } } } });
   await prisma.ticket.deleteMany({ where: { subject: { startsWith: "g3-" } } });

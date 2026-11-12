@@ -93,9 +93,12 @@ const KIND_VARIANT: Record<string, EmailVariant> = {
 
   // الأمن
   "رمز الدخول": "security",
+  "رمز توقيع الاتفاقية": "security",
 
   // العام: الدعوة والدخول والاستعادة والإعلانات
   دعوة: "default",
+  "دعوة الإدارة العليا": "celebration",
+  "طلب توقيع اتفاقية": "ticket",
   "بيانات الدخول": "default",
   "استعادة كلمة المرور": "default",
   "إعلان عام": "default",

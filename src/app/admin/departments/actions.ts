@@ -173,6 +173,8 @@ export async function decideCommitteeAction(
   try {
     const res = await decideCommittee({ committeeId, decision, note, session });
     if (!res.ok) return { error: res.reason };
+    const { queueGovernanceSync } = await import("@/lib/governance/sheets");
+    await queueGovernanceSync("قرار اعتماد لجنة");
     revalidatePath("/admin/departments");
     revalidatePath("/admin");
     revalidatePath("/structure");

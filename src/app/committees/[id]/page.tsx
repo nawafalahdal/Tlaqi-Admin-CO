@@ -97,6 +97,17 @@ export default async function CommitteePage({
           }
         />
 
+        {status === "archived" && (
+          <p role="status" className="rounded-xl bg-black/[0.04] px-4 py-3 text-sm leading-relaxed text-black/70">
+            {fmt(L.detail.archivedBanner, c.archivedFromStatus ? L.statuses[c.archivedFromStatus] : L.statuses.archived)}
+          </p>
+        )}
+        {status === "awaiting_lead" && (
+          <p role="status" className="rounded-xl bg-violet-50 px-4 py-3 text-sm leading-relaxed text-violet-900">
+            {L.detail.awaitingLeadBanner}
+          </p>
+        )}
+
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Stat label={L.detail.members} value={d.stats.members} />
           <Stat label={L.detail.progress} value={d.stats.progress === null ? L.notSet : `${d.stats.progress}%`} />

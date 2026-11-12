@@ -8,6 +8,7 @@ import { fmt } from "@/i18n/fmt";
 import {
   submitCommitteeAction,
   changeCommitteeStatusAction,
+  restoreCommitteeAction,
   updateCommitteeAction,
   appointLeadAction,
   addMembersAction,
@@ -917,6 +918,17 @@ export function SettingsTab({ d, L, theme }: Ctx) {
             </Field>
             <Field label={T.statusNote} hint={T.statusNoteHint}>
               <input name="note" maxLength={200} className={inputCls} />
+            </Field>
+          </ActionForm>
+        </Section>
+      )}
+      {c.committeeStatus === "archived" && d.role.manage && (
+        <Section title={T.restore}>
+          <ActionForm action={restoreCommitteeAction} submits={[{ label: T.restore }]} pendingLabel={L.overview.saving} theme={theme} className="flex flex-col gap-3">
+            <Hidden d={d} />
+            <p className="text-xs leading-relaxed text-black/55">{T.restoreHint}</p>
+            <Field label={T.restoreNote} required>
+              <input name="note" required minLength={3} maxLength={200} className={inputCls} />
             </Field>
           </ActionForm>
         </Section>

@@ -489,6 +489,11 @@ async function finishLeadershipPromotion(member: CandidateRecord, userId: string
   // وصف المرشّح في تبويب الأعضاء يُغلق على حالته الأخيرة
   await syncAdminAccountRow(userId);
   await syncMemberLifecycleRow(member.id);
+  // اعتمادُ رئيسٍ تنفيذي يعيد إليه قيادةَ الإدارة العليا — إجراءُ المؤسس المصرَّح، ومسجَّلاً
+  if (member.invite.targetRole === "executive") {
+    const { reconcileSeniorLeadership } = await import("@/lib/governance/leadership");
+    await reconcileSeniorLeadership(`${event}: ${member.fullName} رئيساً تنفيذياً`);
+  }
 
   // قائدٌ جديد يُطلب توقيعه فوراً: الشهادات تصدر باسمه، ولا يُستعار
   // توقيع من سبقه. والطلب هنا لا عند أول شهادة — حتى لا يُكتشَف
@@ -1187,6 +1192,14 @@ export async function removeLeadershipUser(opts: {
   });
 
   await syncAdminAccountRow(user.id);
+
+  // أصولُ الاتفاقيات الممنوحة له تُسحب، وطلباتُ توقيعه «منتهية» — والموقَّعُ باقٍ (`lib/governance/agreements`)
+  const { revokeAccessOnExit } = await import("@/lib/governance/agreements");
+  await revokeAccessOnExit({ kind: "user", id: user.id }, { reason: `تنحية: ${opts.reason}`, byName: opts.performedByName, ended: true });
+
+  // تنحيةُ رئيسٍ تنفيذي تنقل قيادةَ الإدارة العليا إلى المؤسس — في اللحظة، ومسجَّلةً (`lib/governance/leadership`)
+  const { reconcileSeniorLeadership } = await import("@/lib/governance/leadership");
+  await reconcileSeniorLeadership(`تنحية ${accountRoleLabel(user.role)}: ${user.fullName} — نفّذه ${opts.performedByName}`);
 
   return { ...user, handover: handover.summary };
 }

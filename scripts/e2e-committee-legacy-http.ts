@@ -74,7 +74,7 @@ const toLogin = (p: { status: number; location: string | null }) => p.status ===
 
 async function cleanup() {
   const depts = (await prisma.department.findMany({ where: { slug: { startsWith: MARK } }, select: { id: true } })).map((d) => d.id);
-  await prisma.orgAuditEvent.deleteMany({ where: { OR: [{ entityId: { in: depts } }, { departmentId: { in: depts } }] } });
+  // سجلُّ الحوكمة لا يُحذف (قيدُ APPEND_ONLY في القاعدة) — تبقى أحداثُ الفحص سجلاً في القاعدة المؤقتة
   await prisma.committeeMembership.deleteMany({ where: { committeeId: { in: depts } } });
   // تُغلق اللجانُ أولاً ثم تُرفع القيادة — قيدُ القاعدة لا يقبل لجنةً عاملةً بلا قائد
   await prisma.department.updateMany({ where: { id: { in: depts }, parentId: { not: null } }, data: { committeeStatus: "closed" } });

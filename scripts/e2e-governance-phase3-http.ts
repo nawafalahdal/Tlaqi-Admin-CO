@@ -93,7 +93,7 @@ async function cleanup() {
   const depts = (await prisma.department.findMany({ where: { slug: { startsWith: MARK } }, select: { id: true } })).map((d) => d.id);
   const mids = (await prisma.member.findMany({ where: { email: { endsWith: DOMAIN } }, select: { id: true } })).map((m) => m.id);
   const uids = (await prisma.user.findMany({ where: { email: { endsWith: DOMAIN } }, select: { id: true } })).map((u) => u.id);
-  await prisma.orgAuditEvent.deleteMany({ where: { OR: [{ entityId: { in: [...depts, ...mids] } }, { departmentId: { in: depts } }] } });
+  // سجلُّ الحوكمة لا يُحذف (قيدُ APPEND_ONLY في القاعدة) — تبقى أحداثُ الفحص سجلاً في القاعدة المؤقتة
   await prisma.accessRevocation.deleteMany({ where: { accountId: { in: [...mids, ...uids] } } });
   await prisma.planTask.deleteMany({ where: { departmentId: { in: depts } } });
   await prisma.committeeTask.deleteMany({ where: { committeeId: { in: depts } } });

@@ -26,6 +26,9 @@ export const ar = {
       onboarding: "استبيان الانضمام",
       sheet: "السجل الحي",
       marketing: "وكيل التسويق",
+      senior: "الإدارة العليا",
+      governanceLog: "سجل الحوكمة",
+      agreements: "الاتفاقيات",
     },
     groups: {
       overview: "نظرة عامة",

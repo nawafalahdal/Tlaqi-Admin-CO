@@ -17,6 +17,12 @@ export async function marketingPage(path: string) {
   if (!session) redirect(`/login?callbackUrl=${encodeURIComponent(path)}`);
   await requireOnboardingSurveyDone(session);
   const actor = await marketingActor(session);
+  // عضوُ الفريق الذي لم يوقّع إصدارَ اتفاقية التسويق السارى: إلى صفحة التوقيع (لا «غير موجود» — هو من الفريق)
+  if (actor?.agreementPending && canEnterMarketing({ ...actor, agreementPending: false })) {
+    const { ensureRequirement } = await import("@/lib/governance/agreements");
+    await ensureRequirement({ kind: actor.kind, id: actor.principalId }, "marketing", "عضوٌ في فريق وكيل التسويق", "المنصة — آلياً").catch(() => null);
+    redirect(`/agreements/marketing?next=${encodeURIComponent(path)}`);
+  }
   if (!actor || !canEnterMarketing(actor)) notFound();
   const locale = await getLocale();
   const t = getDictionary(locale);

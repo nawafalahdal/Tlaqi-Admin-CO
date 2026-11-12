@@ -71,8 +71,11 @@ export async function removeLeadershipUserAction(
       performedById: session.user.id,
       performedByName: session.user.name ?? "المؤسس",
     });
+    const { queueGovernanceSync } = await import("@/lib/governance/sheets");
+    await queueGovernanceSync("تنحية حسابٍ قياديّ");
     revalidatePath("/admin/people");
     revalidatePath("/admin/invites");
+    revalidatePath("/senior");
     return { error: null, success: true };
   } catch (err) {
     return { error: safeErrorMessage(err), success: false };

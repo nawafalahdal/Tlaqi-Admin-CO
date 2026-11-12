@@ -69,8 +69,20 @@ export async function GET(request: Request) {
   // ── وكيلُ التسويق: فتحُ التخطيط في موعده، والردودُ والأرشفةُ المعلّقة — معزولٌ بكامله
   const marketing = await sweepMarketing();
 
+  // ── قيادةُ الإدارة العليا: احتياطاً لأي مسارٍ لم يُطابِقها لحظتَه — يسجّل الانتقالَ إن وقع
+  const { reconcileSeniorLeadership } = await import("@/lib/governance/leadership");
+  const seniorLeadership = await reconcileSeniorLeadership("الكنس الدوري").catch((err) => {
+    console.error("[cron/sweep] seniorLeadership", err instanceof Error ? err.name : typeof err);
+    return null;
+  });
+  // ── تبويباتُ الحوكمة في السجل الحي: لقطةٌ كاملة من القاعدة (لا ترمي — نتيجتُها في سجل المزامنة)
+  const { syncGovernanceSheets } = await import("@/lib/governance/sheets");
+  const governanceSheets = await syncGovernanceSheets("الكنس الدوري").catch(() => ({ ok: false }));
+
   return NextResponse.json({
     marketing,
+    governanceSheetsOk: governanceSheets.ok,
+    seniorLeaderBasis: seniorLeadership?.basis ?? null,
     ok: true,
     committeeSuccessions,
     carried: carry?.carried ?? 0,

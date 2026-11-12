@@ -1,6 +1,6 @@
 import { deflateRawSync } from "node:zlib";
 
-/** **كاتبُ ملف Excel (.xlsx) صغير** — بلا اعتمادٍ جديد: ملفُّ OOXML حدُّه الأدنى (ورقةٌ واحدة)
+/** **كاتبُ ملف Excel (.xlsx) صغير** — بلا اعتمادٍ جديد: ملفُّ OOXML حدُّه الأدنى (ورقةٌ أو عدّة أوراق)
  *  داخل ZIP يُبنى هنا بـ`zlib` المدمجة.
  *
  *  - **عربيٌّ من اليمين:** الورقةُ `rightToLeft`، والنصوصُ UTF-8.
@@ -97,51 +97,68 @@ function excelSerial(d: Date, tzOffsetMinutes: number): number {
 
 const SHEET_NAME_BAD = /[\[\]:*?/\\]/g;
 
-export function buildXlsx(opts: {
-  sheetName: string;
-  columns: XlsxColumn[];
-  rows: XlsxCell[][];
-  rtl?: boolean;
-  tzOffsetMinutes?: number;
-}): Buffer {
+export type XlsxSheet = { sheetName: string; columns: XlsxColumn[]; rows: XlsxCell[][] };
+
+/** ورقةٌ واحدة — الواجهةُ القديمة كما هي */
+export function buildXlsx(opts: XlsxSheet & { rtl?: boolean; tzOffsetMinutes?: number }): Buffer {
+  return buildXlsxWorkbook({ sheets: [opts], rtl: opts.rtl, tzOffsetMinutes: opts.tzOffsetMinutes });
+}
+
+/** **مصنَّفٌ بعدّة أوراق** — لكلٍّ عناوينُها المثبَّتة ومرشّحُها التلقائي، والأسماءُ فريدة (Excel يرفض
+ *  ورقتين بالاسم نفسه، فيُضاف رقمٌ للمكرّر). */
+export function buildXlsxWorkbook(opts: { sheets: XlsxSheet[]; rtl?: boolean; tzOffsetMinutes?: number }): Buffer {
   const tz = opts.tzOffsetMinutes ?? 180;
-  const sheetName = xmlText(opts.sheetName.replace(SHEET_NAME_BAD, " ").slice(0, 31) || "Sheet1");
-  const lastCol = colName(Math.max(opts.columns.length, 1) - 1);
-  const lastRow = opts.rows.length + 1;
-  const ref = `A1:${lastCol}${lastRow}`;
+  const rtl = opts.rtl !== false;
+  const used = new Set<string>();
+  const sheets = (opts.sheets.length ? opts.sheets : [{ sheetName: "Sheet1", columns: [], rows: [] }]).map((sh, idx) => {
+    const base = sh.sheetName.replace(SHEET_NAME_BAD, " ").trim().slice(0, 28) || `Sheet${idx + 1}`;
+    let name = base;
+    for (let k = 2; used.has(name.toLowerCase()); k++) name = `${base} ${k}`;
+    used.add(name.toLowerCase());
+    return { ...sh, name };
+  });
 
-  const cell = (v: XlsxCell, r: number, c: number, header = false): string => {
-    const at = `${colName(c)}${r}`;
-    if (v === null || v === undefined || v === "") return "";
-    if (v instanceof Date) return Number.isNaN(v.getTime()) ? "" : `<c r="${at}" s="2"><v>${excelSerial(v, tz)}</v></c>`;
-    if (typeof v === "number") return Number.isFinite(v) ? `<c r="${at}"><v>${v}</v></c>` : "";
-    return `<c r="${at}" t="inlineStr"${header ? ' s="1"' : ""}><is><t xml:space="preserve">${xmlText(String(v))}</t></is></c>`;
-  };
-  const rowsXml = [
-    `<row r="1">${opts.columns.map((col, c) => cell(col.header, 1, c, true)).join("")}</row>`,
-    ...opts.rows.map((row, i) => `<row r="${i + 2}">${row.map((v, c) => cell(v, i + 2, c)).join("")}</row>`),
-  ].join("");
-  const cols = opts.columns.map((col, i) => `<col min="${i + 1}" max="${i + 1}" width="${col.width ?? 18}" customWidth="1"/>`).join("");
-
-  const sheet =
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n` +
-    `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">` +
-    `<dimension ref="${ref}"/>` +
-    `<sheetViews><sheetView workbookViewId="0"${opts.rtl === false ? "" : ' rightToLeft="1"'}>` +
-    `<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/>` +
-    `</sheetView></sheetViews>` +
-    `<sheetFormatPr defaultRowHeight="18"/>` +
-    `<cols>${cols}</cols>` +
-    `<sheetData>${rowsXml}</sheetData>` +
-    `<autoFilter ref="${ref}"/>` +
-    `</worksheet>`;
+  const built = sheets.map((sh) => {
+    const lastCol = colName(Math.max(sh.columns.length, 1) - 1);
+    const lastRow = sh.rows.length + 1;
+    const ref = `A1:${lastCol}${lastRow}`;
+    const cell = (v: XlsxCell, r: number, c: number, header = false): string => {
+      const at = `${colName(c)}${r}`;
+      if (v === null || v === undefined || v === "") return "";
+      if (v instanceof Date) return Number.isNaN(v.getTime()) ? "" : `<c r="${at}" s="2"><v>${excelSerial(v, tz)}</v></c>`;
+      if (typeof v === "number") return Number.isFinite(v) ? `<c r="${at}"><v>${v}</v></c>` : "";
+      return `<c r="${at}" t="inlineStr"${header ? ' s="1"' : ""}><is><t xml:space="preserve">${xmlText(String(v))}</t></is></c>`;
+    };
+    const rowsXml = [
+      `<row r="1">${sh.columns.map((col, c) => cell(col.header, 1, c, true)).join("")}</row>`,
+      ...sh.rows.map((row, i) => `<row r="${i + 2}">${row.map((v, c) => cell(v, i + 2, c)).join("")}</row>`),
+    ].join("");
+    const cols = sh.columns.map((col, i) => `<col min="${i + 1}" max="${i + 1}" width="${col.width ?? 18}" customWidth="1"/>`).join("");
+    return {
+      filterRef: `$A$1:$${lastCol}$${lastRow}`,
+      xml:
+        `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n` +
+        `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">` +
+        `<dimension ref="${ref}"/>` +
+        `<sheetViews><sheetView workbookViewId="0"${rtl ? ' rightToLeft="1"' : ""}>` +
+        `<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/>` +
+        `</sheetView></sheetViews>` +
+        `<sheetFormatPr defaultRowHeight="18"/>` +
+        (cols ? `<cols>${cols}</cols>` : "") +
+        `<sheetData>${rowsXml}</sheetData>` +
+        `<autoFilter ref="${ref}"/>` +
+        `</worksheet>`,
+    };
+  });
 
   const workbook =
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n` +
     `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">` +
-    `<bookViews><workbookView${opts.rtl === false ? "" : ' rightToLeft="1"'}/></bookViews>` +
-    `<sheets><sheet name="${sheetName}" sheetId="1" r:id="rId1"/></sheets>` +
-    `<definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">'${sheetName.replace(/'/g, "''")}'!$A$1:$${lastCol}$${lastRow}</definedName></definedNames>` +
+    `<bookViews><workbookView${rtl ? ' rightToLeft="1"' : ""}/></bookViews>` +
+    `<sheets>${sheets.map((sh, i) => `<sheet name="${xmlText(sh.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets>` +
+    `<definedNames>${sheets
+      .map((sh, i) => `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${xmlText(sh.name).replace(/'/g, "''")}'!${built[i].filterRef}</definedName>`)
+      .join("")}</definedNames>` +
     `</workbook>`;
 
   const styles =
@@ -165,7 +182,7 @@ export function buildXlsx(opts: {
     `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
     `<Default Extension="xml" ContentType="application/xml"/>` +
     `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>` +
-    `<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>` +
+    sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("") +
     `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>` +
     `</Types>`;
   const rels =
@@ -176,17 +193,17 @@ export function buildXlsx(opts: {
   const wbRels =
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n` +
     `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
-    `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>` +
-    `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
+    sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("") +
+    `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>` +
     `</Relationships>`;
 
-  const b = (s: string) => Buffer.from(s, "utf8");
+  const b = (x: string) => Buffer.from(x, "utf8");
   return zip([
     { name: "[Content_Types].xml", data: b(contentTypes) },
     { name: "_rels/.rels", data: b(rels) },
     { name: "xl/workbook.xml", data: b(workbook) },
     { name: "xl/_rels/workbook.xml.rels", data: b(wbRels) },
-    { name: "xl/worksheets/sheet1.xml", data: b(sheet) },
+    ...built.map((x, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: b(x.xml) })),
     { name: "xl/styles.xml", data: b(styles) },
   ]);
 }

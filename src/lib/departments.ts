@@ -203,7 +203,7 @@ export type DeletionPlan = {
 
 const OPEN_PLAN_STATES = ["not_started", "in_progress", "submitted", "returned"] as const;
 const CLOSED_OBJECTIVES = ["done", "missed", "rejected", "cancelled"] as const;
-const LIVE_COMMITTEE = ["pending_review", "draft", "approved", "suspended", "completed"] as const;
+const LIVE_COMMITTEE = ["pending_review", "draft", "awaiting_lead", "approved", "suspended", "completed"] as const;
 
 export async function departmentDeletionPlan(departmentId: string): Promise<DeletionPlan | null> {
   const dept = await prisma.department.findUnique({

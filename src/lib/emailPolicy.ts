@@ -41,6 +41,9 @@ export type EmailEvent =
   | "execution.work_returned"
   | "committee.lead_appointed"
   | "org.deputy_appointed"
+  | "senior.invitation"
+  | "agreement.otp"
+  | "agreement.request"
   // ── ما يُكتم
   | "committee.member_added"
   | "ticket.escalated"
@@ -71,6 +74,9 @@ export const EMAIL_POLICY: Record<EmailEvent, { send: boolean; why: string }> = 
     why: "تفويضٌ بصلاحياتٍ محدّدة في القسم — صاحبُه يجب أن يعرفه ويعرف حدودَه",
   },
   "auth.login_code": { send: true, why: "العامل الثاني نفسه — لا دخول بدونه" },
+  "senior.invitation": { send: true, why: "دعوةٌ إلى الإدارة العليا لا تصل صاحبَها إلا بالبريد — ورابطُها لمرّةٍ واحدة" },
+  "agreement.otp": { send: true, why: "رمزُ التحقّق قبل التوقيع — جزءٌ من إثبات أن صاحبَ الحساب هو الموقِّع" },
+  "agreement.request": { send: true, why: "اتفاقيةٌ تنتظر توقيعاً قبل منح الوصول — يُبلَّغ صاحبُها مرّةً" },
   "auth.password_reset": { send: true, why: "طلبه صاحبه، والرابط لا يصل بغيره" },
   "member.credentials": {
     send: true,

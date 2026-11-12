@@ -401,7 +401,7 @@ function sess(role: string, departmentId: string | null, id: string, name = "ا�
     // ── تنظيف: ما أُنشئ هنا وحده، الأعمقُ أولاً (القيودُ Restrict عن قصد)
     const cids = (await prisma.department.findMany({ where: { parentId: { in: [deptA.id, deptB.id] } }, select: { id: true } })).map((c) => c.id);
     const memberIds = [a1, a2, a3, a4, a5, a6, b1].map((m) => m.id);
-    await prisma.orgAuditEvent.deleteMany({ where: { OR: [{ entityId: { in: [...cids, deptA.id, deptB.id] } }, { departmentId: { in: [deptA.id, deptB.id] } }] } });
+    // سجلُّ الحوكمة لا يُحذف (قيدُ APPEND_ONLY في القاعدة) — تبقى أحداثُ الفحص سجلاً في القاعدة المؤقتة
     await prisma.committeeTask.deleteMany({ where: { committeeId: { in: cids } } });
     await prisma.committeeDecision.deleteMany({ where: { committeeId: { in: cids } } });
     await prisma.committeeAttendance.deleteMany({ where: { meeting: { committeeId: { in: cids } } } });

@@ -397,7 +397,71 @@ const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: numb
     ],
     widths: [160, 220, 150, 140, 190, 130, 150, 160, 170, 180, 170, 180, 160, 110, 110, 160, 140, 160, 150, 200, 110, 160, 220, 100, 180, 160, 160, 160, 170, 200],
   },
+  // ── تبويباتُ الحوكمة: لقطةٌ كاملة تُعاد كتابتُها من القاعدة (مصدرِ الحقيقة) — لا صفوفَ تُلحَق فتتكرّر
+  //    (`lib/governance/sheets.ts`). والمعرّفُ في العمود الأول معرّفُ القاعدة نفسه.
+  "الإدارة العليا": {
+    title: "تَـــلاقِ — الإدارة العليا: القيادة والمناصب والدعوات",
+    headers: ["المعرّف", "الاسم", "البريد الإلكتروني", "المسمّى (عربي)", "المسمّى (إنجليزي)", "الصفة", "المسؤوليات", "الصلاحيات", "تاريخ الانضمام / البدء", "حالة التكليف", "حالة الدعوة", "دعاه", "ملاحظات"],
+    widths: [200, 170, 220, 170, 160, 170, 280, 240, 150, 120, 130, 150, 220],
+  },
+  "اللجان": {
+    title: "تَـــلاقِ — اللجان: كلُّها بما فيها المؤرشفة (لا يُحذف شيء)",
+    headers: ["المعرّف", "اسم اللجنة", "القسم", "الوصف", "الأهداف", "القائد", "الأعضاء", "تاريخ الإنشاء", "تاريخ تعيين القائد", "عيّنه", "الحالة", "مؤرشفة؟", "تاريخ الأرشفة", "المهام (مفتوحة / الكل)", "الاجتماعات", "القرارات", "ملاحظات"],
+    widths: [200, 180, 140, 260, 240, 150, 260, 140, 150, 140, 130, 90, 140, 130, 100, 100, 220],
+  },
+  "سجل الحوكمة": {
+    title: "تَـــلاقِ — سجل الحوكمة: العمليات الإدارية الحساسة (للقراءة — لا يُعدَّل)",
+    headers: ["المعرّف", "التاريخ", "النطاق", "الإجراء", "الفاعل", "دوره وقتها", "الهدف", "قبل", "بعد", "السبب", "النتيجة"],
+    widths: [200, 150, 110, 190, 160, 120, 200, 280, 280, 240, 90],
+  },
 };
+
+/** **لقطةٌ كاملة لتبويب** — تُكتب الصفوفُ أولاً ثم يُمسح ما بعدها (فلا لحظةَ يكون فيها التبويبُ فارغاً إن تعثّر
+ *  الطلب)، ثم سطرُ العنوان بختم «آخر تحديث / المصدر»، ثم مرشّحٌ للفرز والتصفية. والكتابةُ `RAW`: لا يُنفَّذ نصٌّ
+ *  يبدأ بـ`=` صيغةً (حقن الصيغ). يُرمى الخطأ لمن استدعى — فيُسجَّل في سجل المزامنة ولا يُبتلَع. */
+export async function writeTabSnapshot(tabName: string, rows: (string | number)[][], stamp: string): Promise<{ skipped: boolean }> {
+  const sheets = getClient();
+  if (!sheets) return { skipped: true };
+  const spec = TAB_SPECS[tabName];
+  if (!spec) throw new Error(`تبويبٌ غير معرَّف: ${tabName}`);
+  await ensureTab(sheets, tabName);
+  const lastCol = columnLetter(spec.headers.length);
+  const id = SPREADSHEET_ID!;
+  if (rows.length) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: id,
+      range: `'${tabName}'!A3:${lastCol}${rows.length + 2}`,
+      valueInputOption: "RAW",
+      requestBody: { values: rows },
+    });
+  }
+  await sheets.spreadsheets.values.clear({ spreadsheetId: id, range: `'${tabName}'!A${rows.length + 3}:${lastCol}` });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: id,
+    range: `'${tabName}'!A1`,
+    valueInputOption: "RAW",
+    requestBody: { values: [[`${spec.title} — ${stamp}`]] },
+  });
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: id, fields: "sheets.properties" });
+  const sheetId = meta.data.sheets?.find((x) => x.properties?.title === tabName)?.properties?.sheetId;
+  if (sheetId !== undefined && sheetId !== null) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: id,
+      requestBody: {
+        requests: [
+          {
+            setBasicFilter: {
+              filter: { range: { sheetId, startRowIndex: 1, endRowIndex: rows.length + 2, startColumnIndex: 0, endColumnIndex: spec.headers.length } },
+            },
+          },
+        ],
+      },
+    });
+  }
+  return { skipped: false };
+}
+
+export { formatSheetDate };
 
 async function appendRow(tabName: string, values: (string | number)[]) {
   const sheets = getClient();

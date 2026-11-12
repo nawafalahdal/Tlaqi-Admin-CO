@@ -42,7 +42,7 @@ async function purge() {
   const ids = depts.map((d) => d.id);
   const users = await prisma.user.findMany({ where: { email: { contains: "@lg-" } }, select: { id: true } });
   const uids = users.map((u) => u.id);
-  await prisma.orgAuditEvent.deleteMany({ where: { OR: [{ entityId: { in: ids } }, { departmentId: { in: ids } }] } });
+  // سجلُّ الحوكمة لا يُحذف (قيدُ APPEND_ONLY في القاعدة) — تبقى أحداثُ الفحص سجلاً في القاعدة المؤقتة
   await prisma.approvalDecision.deleteMany({ where: { ticket: { subject: { startsWith: "lg-" } } } });
   await prisma.ticket.deleteMany({ where: { subject: { startsWith: "lg-" } } });
   await prisma.committeeTask.deleteMany({ where: { committeeId: { in: ids } } });

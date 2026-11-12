@@ -28,6 +28,9 @@ export const en: Dictionary = {
       onboarding: "Onboarding survey",
       sheet: "Live sheet",
       marketing: "Marketing agent",
+      senior: "Senior administration",
+      governanceLog: "Governance log",
+      agreements: "Agreements",
     },
     groups: {
       overview: "Overview",

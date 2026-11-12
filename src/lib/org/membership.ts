@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { revokeAccessOnExit } from "@/lib/governance/agreements";
 import { prisma } from "@/lib/prisma";
 import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 import { appendMemberEvent } from "@/lib/googleSheets";
@@ -209,6 +210,8 @@ export async function terminateMembership(actorId: string, memberId: string, inp
       (await tx.loginCode.updateMany({ where: { email: m.email, usedAt: null }, data: { usedAt: now } })).count +
       (await tx.passwordResetToken.updateMany({ where: { email: m.email, usedAt: null }, data: { usedAt: now } })).count;
     await revokeAccess(tx, { accountKind: "member", accountId: m.id, reason: `إنهاء العضوية — ${why}`, byName: actor.name });
+    // الأصولُ الممنوحة بالاتفاقيات تُسحب، وطلباتُ التوقيع «منتهية» — والاتفاقيةُ الموقّعة باقية
+    await revokeAccessOnExit({ kind: "member", id: m.id }, { reason: `إنهاء العضوية — ${why}`, byName: actor.name, ended: true }, tx);
 
     await recordOrgEvent(tx, {
       scope: "member", entityId: m.id, departmentId: m.departmentId ?? "—", action: "member.terminated", actor,
@@ -258,6 +261,7 @@ export async function suspendMember(actorId: string, memberId: string, reason: s
     await tx.loginCode.updateMany({ where: { email: m.email, usedAt: null }, data: { usedAt: now } });
     await tx.passwordResetToken.updateMany({ where: { email: m.email, usedAt: null }, data: { usedAt: now } });
     await revokeAccess(tx, { accountKind: "member", accountId: m.id, reason: `إيقاف مؤقت — ${why}`, byName: actor.name });
+    await revokeAccessOnExit({ kind: "member", id: m.id }, { reason: `إيقاف مؤقت — ${why}`, byName: actor.name, ended: false }, tx);
     await recordOrgEvent(tx, {
       scope: "member", entityId: m.id, departmentId: m.departmentId ?? "—", action: "member.suspended", actor,
       before: { state: "active" }, after: { state: "suspended", committeesSucceeded: led.map((c) => c.id) }, note: why,

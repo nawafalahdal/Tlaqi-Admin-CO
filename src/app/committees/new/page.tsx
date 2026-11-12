@@ -78,11 +78,9 @@ export default async function NewCommitteePage({ searchParams }: { searchParams:
               {F.department}: <strong>{current.name}</strong>
             </p>
             <CommitteeFields L={L} />
-            <Field label={F.lead} required>
-              <select name="leadMemberId" required defaultValue="" className={inputCls}>
-                <option value="" disabled>
-                  {F.leadChoose}
-                </option>
+            <Field label={F.lead} hint={F.leadOptionalHint}>
+              <select name="leadMemberId" defaultValue="" className={inputCls}>
+                <option value="">{F.noLeadYet}</option>
                 {people.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.fullName}
@@ -94,7 +92,6 @@ export default async function NewCommitteePage({ searchParams }: { searchParams:
             <div className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium text-black/70">
                 {F.members}
-                <span className="text-red-600" aria-hidden> *</span>
               </span>
               <span className="text-xs text-black/45">{F.membersHint}</span>
               <PeoplePicker name="memberIds" people={people} searchLabel={F.searchPeople} emptyLabel={F.noPeople} />

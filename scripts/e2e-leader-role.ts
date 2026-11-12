@@ -133,7 +133,7 @@ async function cleanup() {
   await prisma.request.deleteMany({ where: { linkedMemberId: { in: members.map((m) => m.id) } } });
   // اللجانُ التجريبية وما تعلّق بها (العضويةُ مقيّدةٌ بلجنتها — Restrict — عن قصد)
   const cmts = (await prisma.department.findMany({ where: { OR: [{ slug: { startsWith: MARK } }, { name: { startsWith: MARK } }], parentId: { not: null } }, select: { id: true } })).map((c) => c.id);
-  await prisma.orgAuditEvent.deleteMany({ where: { entityId: { in: cmts } } });
+  // سجلُّ الحوكمة لا يُحذف (قيدُ APPEND_ONLY في القاعدة) — تبقى أحداثُ الفحص سجلاً في القاعدة المؤقتة
   await prisma.committeeMembership.deleteMany({ where: { committeeId: { in: cmts } } });
   await prisma.department.deleteMany({ where: { slug: { startsWith: MARK }, parentId: { not: null } } });
   await prisma.department.deleteMany({ where: { name: { startsWith: MARK }, parentId: { not: null } } });

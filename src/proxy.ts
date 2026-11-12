@@ -7,7 +7,13 @@ export default auth((req) => {
   const isProtected = pathname.startsWith("/admin") || pathname.startsWith("/member");
   // وكيلُ التسويق واللجانُ للإداري والعضو معاً — فلا تحويلَ بالدور، وحرسُهما في صفحاتهما
   const needsSession =
-    isProtected || pathname.startsWith("/marketing") || pathname.startsWith("/committees") || pathname === "/onboarding-survey";
+    isProtected ||
+    pathname.startsWith("/marketing") ||
+    pathname.startsWith("/committees") ||
+    pathname === "/onboarding-survey" ||
+    // الإدارةُ العليا بجلسة — إلا صفحةَ قبول الدعوة: المدعوُّ قد لا يكون له حسابٌ بعد
+    (pathname.startsWith("/senior") && !pathname.startsWith("/senior/invite/")) ||
+    pathname.startsWith("/agreements");
 
   if (needsSession && !session) {
     const url = new URL("/login", req.nextUrl.origin);
@@ -43,5 +49,5 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/admin/:path*", "/member/:path*", "/marketing/:path*", "/marketing", "/committees/:path*", "/committees", "/change-password", "/onboarding-survey"],
+  matcher: ["/admin/:path*", "/member/:path*", "/marketing/:path*", "/marketing", "/committees/:path*", "/committees", "/senior/:path*", "/senior", "/agreements/:path*", "/agreements", "/change-password", "/onboarding-survey"],
 };
