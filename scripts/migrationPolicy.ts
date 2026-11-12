@@ -10,6 +10,7 @@
  *  |-------------------------------------------------|---------|
  *  | `VERCEL=1` و`VERCEL_ENV=production`             | يُرحَّل  |
  *  | `VERCEL_ENV=preview` — أيّاً كانت القاعدة       | يُتخطّى  |
+ *  | …إلا قاعدة `tlaqi_preview` مع `PREVIEW_DATABASE_ISOLATED=1` | يُرحَّل  |
  *  | خارج Vercel، أو `development`، وقاعدةٌ محلية    | يُرحَّل  |
  *  | خارج Vercel، أو `development`، وقاعدةٌ بعيدة    | يُرفض   |
  *  | `VERCEL` بلا `VERCEL_ENV`، أو قيمةٌ غير معروفة  | يُرفض   |
@@ -21,6 +22,8 @@
  *
  *  والمقارنةُ حرفيّة: `Production` و` production` قيمٌ غير معروفة، لا
  *  تقريبٌ لـ`production`. ولا يُطبع عنوانُ القاعدة ولا شيءٌ منها في السبب. */
+
+import { previewDatabaseIsolated, PREVIEW_DATABASE_NAME } from "../src/lib/deploymentEnv";
 
 export type MigrationDecision =
   | { action: "migrate"; reason: string }
@@ -48,6 +51,9 @@ export function migrationDecision(env: Record<string, string | undefined>): Migr
       : { action: "refuse", reason: "VERCEL_ENV=production خارج بناء Vercel" };
   }
   if (vercelEnv === "preview") {
+    // الاستثناءُ الوحيد: قاعدةُ المعاينة المعزولة (`tlaqi_preview` مع إعلان العزل) — لا تمسّ الإنتاج، وبلا ترحيلها
+    // لا تعمل المعاينةُ على مخطّط الفرع. وأيُّ قاعدةٍ أخرى تُتخطّى كما كانت
+    if (previewDatabaseIsolated(env)) return { action: "migrate", reason: `معاينة بقاعدتها المعزولة (${PREVIEW_DATABASE_NAME})` };
     return { action: "skip", reason: "معاينة (VERCEL_ENV=preview) — الترحيل ممنوع فيها" };
   }
   if (vercelEnv !== undefined && vercelEnv !== "development") {

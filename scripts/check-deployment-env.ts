@@ -69,7 +69,10 @@ for (const [name, env, want] of envOf) {
 // ٢ — القاعدة
 const dbOf: [string, Record<string, string | undefined>, boolean][] = [
   ["preview غير معزولة تُمنع", { VERCEL: "1", VERCEL_ENV: "preview" }, true],
-  ["preview معزولة تُفتح", { VERCEL: "1", VERCEL_ENV: "preview", PREVIEW_DATABASE_ISOLATED: "1" }, false],
+  // تغييرُ توقّعٍ مقصود (نوفمبر 2026): إعلانُ العزل وحده لا يكفي — يلزم اسمُ القاعدة tlaqi_preview أيضاً
+  ["preview بإعلان عزلٍ وحده (بلا قاعدة tlaqi_preview) تُمنع", { VERCEL: "1", VERCEL_ENV: "preview", PREVIEW_DATABASE_ISOLATED: "1" }, true],
+  ["preview بإعلان عزلٍ وقاعدة الإنتاج تُمنع", { VERCEL: "1", VERCEL_ENV: "preview", PREVIEW_DATABASE_ISOLATED: "1", DATABASE_URL: "postgresql://u:p@db.invalid:5432/neondb" }, true],
+  ["preview معزولة بقاعدة tlaqi_preview تُفتح", { VERCEL: "1", VERCEL_ENV: "preview", PREVIEW_DATABASE_ISOLATED: "1", DATABASE_URL: "postgresql://u:p@db.invalid:5432/tlaqi_preview" }, false],
   ["preview بقيمة عزلٍ غير صريحة تُمنع", { VERCEL: "1", VERCEL_ENV: "preview", PREVIEW_DATABASE_ISOLATED: "true" }, true],
   ["بيئةٌ مجهولة تُمنع", { VERCEL: "1" }, true],
   ["production تُفتح", { VERCEL: "1", VERCEL_ENV: "production" }, false],
@@ -111,7 +114,9 @@ chk("Prisma: المعاينة غير المعزولة لا تبلغ القاعد
 const p2 = probe({ VERCEL: "1" });
 chk("Prisma: والبيئة المجهولة كذلك", p2 === "failed blocked-host", p2);
 const p3 = probe({ VERCEL: "1", VERCEL_ENV: "preview", PREVIEW_DATABASE_ISOLATED: "1" });
-chk("Prisma: المعاينة المعزولة تبلغ قاعدتها", p3.startsWith("reached"), p3);
+chk("Prisma: إعلانُ العزل بقاعدةٍ غير tlaqi_preview لا يبلغها", p3 === "failed blocked-host", p3);
+const p3b = probe({ VERCEL: "1", VERCEL_ENV: "preview", PREVIEW_DATABASE_ISOLATED: "1", DATABASE_URL: LOCAL.replace(/\/[^/?]+(\?|$)/, "/tlaqi_preview$1") });
+chk("Prisma: المعاينة المعزولة (tlaqi_preview) تبلغ قاعدتها", p3b.startsWith("reached"), p3b);
 const p4 = probe({ VERCEL: "1", VERCEL_ENV: "production" });
 chk("Prisma: الإنتاج يبلغ قاعدته", p4.startsWith("reached"), p4);
 const p5 = probe({});

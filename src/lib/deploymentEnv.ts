@@ -27,9 +27,27 @@ export function deploymentEnv(env: Env = process.env): DeploymentEnv {
   return "preview";
 }
 
-/** القاعدةُ ممنوعة: معاينةٌ لم يُعلَن أن قاعدتها معزولة عن الإنتاج */
+/** اسمُ قاعدة المعاينة المعزولة — **شرطٌ ثانٍ مع إعلان العزل**: لو ضُبط `PREVIEW_DATABASE_ISOLATED=1` خطأً وعنوانُ
+ *  القاعدة ما زال عنوانَ الإنتاج (اسمُ قاعدته غيرُ هذا) بقيت المعاينةُ ممنوعة، ولم يُرحَّل الإنتاجُ من بناء معاينة. */
+export const PREVIEW_DATABASE_NAME = "tlaqi_preview";
+
+function databaseName(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    return decodeURIComponent(new URL(url).pathname.replace(/^\//, "")) || null;
+  } catch {
+    return null;
+  }
+}
+
+/** معاينةٌ بقاعدتها المعزولة فعلاً: العزلُ معلَنٌ صراحةً **واسمُ القاعدة** `tlaqi_preview` */
+export function previewDatabaseIsolated(env: Env = process.env): boolean {
+  return deploymentEnv(env) === "preview" && env.PREVIEW_DATABASE_ISOLATED === "1" && databaseName(env.DATABASE_URL) === PREVIEW_DATABASE_NAME;
+}
+
+/** القاعدةُ ممنوعة: معاينةٌ لم يثبت أن قاعدتها معزولة عن الإنتاج */
 export function databaseBlocked(env: Env = process.env): boolean {
-  return deploymentEnv(env) === "preview" && env.PREVIEW_DATABASE_ISOLATED !== "1";
+  return deploymentEnv(env) === "preview" && !previewDatabaseIsolated(env);
 }
 
 /** عنوانٌ لا يُحَلّ (`.invalid` محجوزٌ لذلك): من يتّصل به لا يبلغ قاعدةً أصلاً */

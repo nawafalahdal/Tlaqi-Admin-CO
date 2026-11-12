@@ -2,6 +2,7 @@
 import "dotenv/config";
 import { spawnSync } from "node:child_process";
 import { migrationDecision, migrationDatabaseUrl } from "./migrationPolicy";
+import { previewDatabaseIsolated } from "../src/lib/deploymentEnv";
 
 /** `prisma migrate deploy` مع إعادةٍ محدودة على فشل قفل الترحيل وحده.
  *
@@ -69,6 +70,12 @@ for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
 
   if (run.status === 0) {
     if (attempt > 1) console.log(`✓ نجح الترحيل في المحاولة ${attempt}`);
+    // قاعدةُ المعاينة المعزولة وحدها تُبذَر إن كانت فارغة (`seed-preview.ts`) — لا الإنتاج ولا غيره
+    if (previewDatabaseIsolated(process.env)) {
+      const seed = spawnSync("npx", ["tsx", "scripts/seed-preview.ts"], { encoding: "utf8", env: process.env });
+      process.stdout.write(`${seed.stdout ?? ""}${seed.stderr ?? ""}`);
+      process.exit(seed.status ?? 1);
+    }
     process.exit(0);
   }
 
