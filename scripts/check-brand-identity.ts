@@ -15,6 +15,7 @@
 import { readFileSync } from "fs";
 import { inkForBackground, certificateFrame, serviceDurationAr, CERTIFICATE_PAPER } from "../src/lib/certificate";
 import { renderEmail } from "../src/lib/emailBrand";
+import { approvedLogoFor } from "../src/lib/shareCards";
 import { appointerTitle, committeeLeadAppointedContent } from "../src/lib/email";
 
 let failed = 0;
@@ -110,6 +111,20 @@ check(
     ![page, sheet].some((f) => f.includes("تَـــلاقِ") || f.includes("new Date()"))
 );
 check("الترويسة التحريرية (التعيين): نسخة الشعار المعتمدة للخلفية الداكنة", sheet.includes("/brand/logo-fullname-on-dark.png"));
+
+// ── بطاقتا الدعوة والعضوية: الشعارُ الرسمي لكل لون كما اعتمده المؤسس (نوفمبر 2026)، والشعاران في البطاقة نسخةٌ واحدة
+{
+  const want: [string, string, string, string][] = [
+    ["البنفسجي (Temptress): علامةٌ برتقالية وكلمةٌ Beige", "#341D2B", "on-temptress", "TLAQI-mark_mahogany.png"],
+    ["الـBeige: علامةٌ برتقالية", "#EEF6DF", "on-beige", "TLAQI-mark_mahogany.png"],
+    ["البرتقالي (Mahogany): الشعارُ أبيض كاملاً", "#C34900", "on-mahogany", "TLAQI-mark_beige.png"],
+    ["الأخضر (Green Sheen): الشعارُ بنفسجيٌّ كاملاً", "#67C090", "on-green-sheen", "TLAQI-mark_temptress.png"],
+  ];
+  for (const [label, hex, logo, mark] of want) {
+    const got = approvedLogoFor(hex);
+    check(`البطاقات — ${label}`, got.logo === logo && got.mark === mark);
+  }
+}
 
 console.log(failed ? `\n✗ ${failed} فحصاً فشل` : "\n✓ الهوية المعتمدة سليمة");
 process.exit(failed ? 1 : 0);

@@ -240,6 +240,12 @@ const MARK_FOR: Record<LogoFile, string> = {
   "on-mahogany": "TLAQI-mark_beige.png",
   "on-green-sheen": "TLAQI-mark_temptress.png",
 };
+/** للفحص الآلي: نسخةُ الشعار وعلامتُه لكل لون كما اعتمدها المؤسس (نوفمبر 2026) — `scripts/check-brand-identity.ts` */
+export function approvedLogoFor(colorHex: string): { logo: LogoFile; mark: string } {
+  const logo = palette(colorHex).logo;
+  return { logo, mark: MARK_FOR[logo] };
+}
+
 const markCache = new Map<string, string>();
 async function markUri(logo: LogoFile): Promise<string> {
   const file = MARK_FOR[logo];
