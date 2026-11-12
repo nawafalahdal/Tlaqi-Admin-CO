@@ -567,3 +567,66 @@ export const parseSubject = (key: string): Subject | null => {
   const m = /^(user|member):([A-Za-z0-9_-]{6,64})$/.exec(key);
   return m ? { kind: m[1] as Subject["kind"], id: m[2] } : null;
 };
+
+// ═════════════════════════ النسخةُ الموقّعة ═════════════════════════
+
+const escHtml = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+const riyadh = (d: Date) =>
+  new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Riyadh", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(d) + " (الرياض)";
+
+/** من يرى النسخة الموقّعة: صاحبُها، ومن يطّلع على الاتفاقيات */
+export async function signedCopyAccess(ctx: AgreementContext, signatureId: string) {
+  if (!ctx.account) return null;
+  const v = await verifySignature(signatureId);
+  if (!v) return null;
+  const own = v.signature.signerKind === ctx.account.kind && v.signature.signerId === ctx.account.id;
+  return own || ctx.canView ? { ...v, own } : null;
+}
+
+/** **النسخةُ الموقّعة — HTML مكتفٍ بذاته** (للعرض والطباعة والتنزيل): النصُّ كما وُقّع من الإصدار المجمَّد، وبياناتُ
+ *  الموقِّع والوقت والإصدار ووسيلة الإثبات، والبصماتُ ونتيجةُ التحقق منها لحظةَ الإنشاء. كلُّ حقلٍ مُهرَّب. */
+export function signedCopyHtml(v: NonNullable<Awaited<ReturnType<typeof verifySignature>>>, opts: { logoUrl?: string | null } = {}): string {
+  const s = v.signature;
+  const row = (k: string, val: string, ltr = false) =>
+    `<tr><th>${escHtml(k)}</th><td${ltr ? ' dir="ltr" class="mono"' : ""}>${escHtml(val)}</td></tr>`;
+  const ok = (b: boolean) => (b ? "✓ سليمة" : "✗ لا تطابق");
+  return `<!doctype html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escHtml(s.template.titleAr)} — نسخة موقّعة</title>
+<style>
+body{margin:0;background:#fff;color:#341D2B;font-family:"The Year of The Camel",Tahoma,Arial,sans-serif;line-height:1.9}
+.doc{max-width:820px;margin:0 auto;padding:28px 24px}
+.head{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #341D2B;padding-bottom:12px;gap:12px}
+.head small{font-size:12px}
+h1{color:#C34900;font-size:24px;margin:18px 0 6px}
+table{width:100%;border-collapse:collapse;font-size:14px;margin:10px 0 18px}
+th,td{border-bottom:1px solid #341D2B;padding:7px 8px;text-align:start;vertical-align:top}
+th{width:34%;font-weight:600}
+.mono{font-family:Consolas,"Courier New",monospace;font-size:12px;word-break:break-all}
+.body{white-space:pre-line;font-size:15px;border:1px solid #341D2B;border-radius:12px;padding:16px}
+.verify{border:2px solid ${v.valid ? "#67C090" : "#C34900"};border-radius:12px;padding:10px 14px;margin:14px 0;font-size:14px}
+footer{font-size:12px;margin-top:18px;border-top:1px solid #341D2B;padding-top:10px}
+@media print{.noprint{display:none}.doc{padding:0}}
+</style></head><body><div class="doc">
+<div class="head">${opts.logoUrl ? `<img src="${escHtml(opts.logoUrl)}" alt="TLAQI" style="height:44px;width:auto">` : "<b>TLAQI</b>"}<small>نسخة موقّعة إلكترونياً · ${escHtml(s.template.issuer)} · الإصدار ${s.version}</small></div>
+<h1>${escHtml(s.template.titleAr)}</h1>
+<table>
+${row("الاسم المكتوب (التوقيع)", s.typedName)}
+${row("اسم الحساب", s.signerAccountName)}
+${row("البريد", s.signerEmail, true)}
+${row("الصفة وقت التوقيع", s.roleLabel)}
+${row("وقت التوقيع", riyadh(s.signedAt))}
+${row("رقم الإصدار", String(s.version))}
+${row("وسيلة الإثبات", "اسمٌ مكتوب يطابق الحساب + رمزٌ لمرّةٍ واحدة إلى بريد الحساب")}
+${row("التحقق برمز البريد", riyadh(s.otpVerifiedAt))}
+${row("معرّف التوقيع", s.id, true)}
+${row("بصمة الوثيقة SHA-256", s.documentHash, true)}
+${row("بصمة سجل الإثبات SHA-256", s.evidenceHash, true)}
+${row("بصمة التوقيع السابق في السلسلة", s.prevEvidenceHash ?? "— (أول توقيع)", true)}
+</table>
+<div class="verify"><b>التحقق عند إنشاء هذه النسخة:</b> الوثيقة ${ok(v.documentOk)} · سجلّ الإثبات ${ok(v.evidenceOk)} · السلسلة ${ok(v.chainOk)}</div>
+<div class="body">${escHtml(s.template.body)}</div>
+<footer>أُنشئت هذه النسخة من سجلٍّ لا يُعدَّل ولا يُحذف في منصة TLAQI. وتطابُقُ بصمة الوثيقة مع نصّ الإصدار يُثبت أن النصّ لم يتغيّر منذ التوقيع.
+هذه نسخةٌ إلكترونية؛ ولا تُغني عن مراجعة محامٍ مرخّص في أي نزاع.</footer>
+</div></body></html>`;
+}
