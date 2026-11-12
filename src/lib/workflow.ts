@@ -658,8 +658,8 @@ export async function issueWarning(opts: { memberId: string; issuedByUserId: str
     await sendWhatsAppMessage({
       to: member.phone,
       text: terminated
-        ? `عذراً ${member.fullName}، تم إنهاء عضويتك في تَـــلاقِ بعد تجاوز 3 تنبيهات.`
-        : `تنبيه (${warningsCount}/3) من تَـــلاقِ: ${opts.reason}. يرجى الدخول للمنصة للاطلاع.`,
+        ? `عذراً ${member.fullName}، تم إنهاء عضويتك في تلاق بعد تجاوز 3 تنبيهات.`
+        : `تنبيه (${warningsCount}/3) من تلاق: ${opts.reason}. يرجى الدخول للمنصة للاطلاع.`,
     });
   }
 

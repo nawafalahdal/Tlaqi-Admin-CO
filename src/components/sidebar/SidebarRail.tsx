@@ -190,7 +190,7 @@ function SidebarRail({
       <div className="app-sidebar__top">
         {/* الشعارُ الرسميُّ لا يُقصّ ولا يُعاد رسمه: كاملاً موسَّعة، والرمزُ
             وحده مطويّة — والـCSS يختار أيّهما يظهر */}
-        <Link href={homeHref} className="app-sidebar__brand" aria-label={s.homeLink} title="تَـــلاقِ">
+        <Link href={homeHref} className="app-sidebar__brand" aria-label={s.homeLink} title="تلاق">
           <span className="app-sidebar__lockup">
             <ThemedLockup height={28} />
           </span>

@@ -3,8 +3,12 @@
  *  ١) حبرُ التوقيع يُختار من خلفية منطقته: Temptress أو Beige الأعلى تبايناً (المصفوفة المعتمدة).
  *  ٢) ألوانُ «الإطار الكلاسيكي» من لون القسم: البيجُ الذائب في الورق يأخذ Temptress، والأخضرُ إطارٌ لا عنوان.
  *  ٣) مدّةُ المشاركة بالعربية الصحيحة: «٣ أشهر»، «٤ أشهر و١٢ يوماً»، «شهران ويومان».
- *  ٤) رسالةُ تعيين قائد اللجنة: شهادة تعيين بطراز «الترويسة التحريرية»، بالشعار المعتمد، بلا الاسم العربي ولا هاشتاق، وبجنس صاحبها.
- *  ٥) الرسائلُ الأخرى: القالبُ الموحَّد كما كان (الشعار الصغير والجملة)، ولا يظهر فيها الجديد.
+ *  ٤) رسالةُ تعيين قائد اللجنة: بقالب هوية 2026 الموحَّد، بالشعار الرسمي، وبجنس صاحبها، بلا هاشتاق.
+ *  ٥) الرسائلُ الأخرى: القالبُ نفسُه (الشعار الرسمي والتوقيع التعريفي «تحوّل رقمي، برؤية طموحة.»).
+ *
+ *  **تغييرُ توقعاتٍ بقرار المؤسس (نوفمبر 2026)، لا لإخضرار الفحص:** الهويةُ الجديدة تُطبَّق على كل الرسائل (لا قالبَ
+ *  خاصاً للتعيين)، والاسمُ العربي المعتمد «تلاق» يُكتب في النصوص (كان ممنوعاً في هذه الرسالة)، والتوقيعُ التعريفي
+ *  الجديد يحلّ محلّ «نلتقي · نفكّر · نصنع». وما بقي من التوقعات (المحتوى، الجنس، التهريب، الهاشتاق) كما هو.
  *  ٦) ملفّا الشعار المعتمد موجودان، شفّافان، بدقّة الملف الرسمي (٨٨٠ عرضاً).
  *
  *  تشغيله: npx tsx scripts/check-brand-identity.ts */
@@ -65,8 +69,8 @@ const female = committeeLeadAppointedContent(base, "female");
 const male = committeeLeadAppointedContent({ ...base, fullName: "فيصل ناصر" }, "male");
 const neutral = committeeLeadAppointedContent({ ...base, committeeName: "لجنة المحتوى الرقمي" }, null);
 const html = renderEmail({ subject: female.title, content: female, theme: { departmentName: "التسويق", colorHex: "#C34900" } }).html;
-check("الترويسة بالشعار المعتمد مع الاسم الكامل (٣٢٠px)", html.includes("/brand/logo-fullname-on-dark.png") && html.includes('width="320"') && html.includes('alt="TLAQI — Talent Link Advancing Quality Innovation"'));
-check("لا الاسم العربي في الرسالة", !/تَـــلاقِ|تلاقي|تلاق/.test(html));
+check("الترويسة بالشعار الرسمي (هوية 2026) على Temptress", html.includes("/brand/2026/email/logo-on-temptress.png") && html.includes('alt="TLAQI — Talent Link Advancing Quality Innovation"'));
+check("الاسمُ العربي بكتابته المعتمدة «تلاق» وحدها", !/تَـــلاقِ|تلاقي/.test(html) && html.includes("تلاق"));
 check("لا الجملة القديمة ولا أي هاشتاق (رسالةٌ إدارية)", !html.includes("نلتقي") && !/#[\u0600-\u06FF]/.test(html));
 check("شهادة التعيين: العنوان والاسم والصفة بصيغة المؤنث", ["شهادة تعيين", "CERTIFICATE OF APPOINTMENT", "سارة عبدالله المثال", "قائدةً للجنة المحتوى الرقمي"].every((t) => html.includes(t)));
 check("الحقول الأربعة وتاريخ التعيين بالعربية، ومُصدِر التعيين وموقعه", ["اللجنة", "القسم", "المسمى القيادي", "تاريخ التعيين", "١٥ سبتمبر ٢٠٢٦", "صدر التعيين من", "نورة سعد", "قيادة قسم التسويق"].every((t) => html.includes(t)));
@@ -78,14 +82,15 @@ check("صيغة المذكّر", male.appointment?.role === "قائداً للج
 check("الصيغة المحايدة لا تفترض مذكّراً", neutral.appointment?.role === "لقيادة لجنة المحتوى الرقمي" && neutral.appointment?.facts[2][1] === "قيادة اللجنة" && (neutral.appointment?.steps.items[0] ?? "").startsWith("فتحُ"));
 check("اسم اللجنة يُهرَّب", !renderEmail({ subject: "x", content: committeeLeadAppointedContent({ ...base, committeeName: "<b>x</b>" }, "female") }).html.includes("<b>x</b>"));
 const techHtml = renderEmail({ subject: "x", content: male, theme: { departmentName: "التقنية", colorHex: "#67C090" } }).html;
-check("أرقام الخطوات بـMahogany المقروء (لا بأخضر القسم الباهت ٢٫٢:١)", /class="tq-ap-num"[^>]*color:#C34900/.test(techHtml) && !/class="tq-ap-num"[^>]*color:#67C090/.test(techHtml));
-check("الوضع الداكن: الترويسة والتذييل يبقيان داكنين ونصُّهما محميّ من القلب", (html.match(/linear-gradient\(#341D2B,#341D2B\)/g) ?? []).length >= 2 && html.includes("gm-s") && html.includes("prefers-color-scheme: dark"));
+check("لا نصَّ بأخضر القسم الباهت (Green Sheen للكتل لا للنص)", !/[^-]color:#67C090/i.test(techHtml));
+check("الوضع الداكن: الترويسة والتذييل يبقيان داكنين في Gmail", (html.match(/linear-gradient\(#341D2B,#341D2B\)/g) ?? []).length >= 2);
+check("والخلفيةُ بيضاء كما كانت (قرار المؤسس)", html.includes("#FFFFFF") && html.includes("#FAF8F4"));
 eq("موقع مُصدِر التعيين: الرئاسة التنفيذية", appointerTitle("executive", "التسويق"), "الرئاسة التنفيذية");
 eq("ولا موقع لغير القيادة (يُكتب الاسم وحده)", appointerTitle("member", "التسويق"), null);
 
 // ٥) الرسائل الأخرى كما كانت
 const other = renderEmail({ subject: "عام", content: { title: "عنوان", lead: "متن" }, theme: { departmentName: "التقنية", colorHex: "#67C090" } }).html;
-check("الرسائل الأخرى: الشعار الصغير والجملة كما هما", other.includes('width="96" height="28"') && other.includes("نلتقي"));
+check("الرسائل الأخرى: الشعار الرسمي والتوقيع التعريفي الجديد", other.includes("/brand/2026/email/logo-on-temptress.png") && other.includes("تحوّل رقمي، برؤية طموحة.") && !other.includes("نلتقي"));
 check("الرسائل الأخرى: لا الشعار الجديد ولا قالب التعيين", !other.includes("logo-fullname") && !other.includes("tq-ap-"));
 
 // ٦) ملفّا الشعار المعتمد: PNG بقناة شفافية، ٨٨٠ عرضاً

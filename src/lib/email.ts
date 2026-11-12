@@ -22,7 +22,7 @@ import { capturingEmails } from "@/lib/emailCapture";
 import { deploymentEnv, emailRecipientsAllowed } from "@/lib/deploymentEnv";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
-const FROM = process.env.EMAIL_FROM || "تَـــلاقِ <hello@tlaqiteam.site>";
+const FROM = process.env.EMAIL_FROM || "تلاق <hello@tlaqiteam.site>";
 
 /** يهرّب أي نص قد يكون مُدخلاً من مستخدم (اسم، سبب تنبيه، موضوع تذكرة...) قبل
  *  دمجه داخل HTML البريد — يمنع حقن وسوم/روابط ضارة تُعرض في عميل البريد */
@@ -334,11 +334,11 @@ export async function sendCredentialsEmail(opts: {
     const G = (m: string, f: string, n?: string) => gx(r.gender, m, f, n);
     return send(
       opts.to,
-      "بيانات دخول جديدة لحسابك في تَـــلاقِ",
+      "بيانات دخول جديدة لحسابك في تلاق",
       {
         tone: "security",
         title: "بيانات دخول جديدة لحسابك",
-        lead: `${esc(opts.fullName)}، أُعيد تعيين بيانات دخولك إلى منصة تَـــلاقِ. هذه بياناتك الجديدة:`,
+        lead: `${esc(opts.fullName)}، أُعيد تعيين بيانات دخولك إلى منصة تلاق. هذه بياناتك الجديدة:`,
         facts: [
           ["البريد الإلكتروني", opts.to],
           ["كلمة المرور المؤقتة", opts.tempPassword],
@@ -353,18 +353,18 @@ export async function sendCredentialsEmail(opts: {
 
   const dept = opts.departmentName?.trim() || null;
   const position = opts.targetRole ? positionTitle(opts.targetRole, dept) : opts.roleLabel?.trim() || null;
-  const where = dept ? (dept === "الإدارة العليا" ? "الإدارة العليا" : `قسم ${dept}`) : "فريق تَـــلاقِ";
+  const where = dept ? (dept === "الإدارة العليا" ? "الإدارة العليا" : `قسم ${dept}`) : "فريق تلاق";
   const by = opts.invitedByName?.trim();
   const hours = opts.hoursValid ?? 24;
 
   return send(
     opts.to,
-    `دعوة للانضمام إلى تَـــلاقِ${dept ? ` — ${dept}` : ""}`,
+    `دعوة للانضمام إلى تلاق${dept ? ` — ${dept}` : ""}`,
     {
       tone: "action",
       badge: "دعوة خاصّة",
-      title: `${firstName(opts.fullName)}، هذه دعوتك إلى تَـــلاقِ`,
-      lead: `${by ? `دعاك <b>${esc(by)}</b>` : "دعتك إدارة <b>تَـــلاقِ</b>"} للانضمام إلى ${esc(where)}${position ? ` في موقع <b>${esc(position)}</b>` : ""}. وهذه دعوةٌ خاصّة باسمك، وبياناتُها سجّلتها الجهة الداعية.`,
+      title: `${firstName(opts.fullName)}، هذه دعوتك إلى تلاق`,
+      lead: `${by ? `دعاك <b>${esc(by)}</b>` : "دعتك إدارة <b>تلاق</b>"} للانضمام إلى ${esc(where)}${position ? ` في موقع <b>${esc(position)}</b>` : ""}. وهذه دعوةٌ خاصّة باسمك، وبياناتُها سجّلتها الجهة الداعية.`,
       image: opts.inviteCardUrl
         ? // صورةٌ تُحفظ لا رابط: الضغطُ عليها كان يفتح المنصة بدل أن تُحفظ —
           // والدخولُ للزرّ وحده (قرار المؤسس)
@@ -420,7 +420,7 @@ export async function sendWarningEmail(opts: {
       };
   return send(
     opts.to,
-    isFinal ? "إشعار إنهاء العضوية — تَـــلاقِ" : `تنبيه (${opts.warningsCount}/3) — تَـــلاقِ`,
+    isFinal ? "إشعار إنهاء العضوية — تلاق" : `تنبيه (${opts.warningsCount}/3) — تلاق`,
     content,
     "تنبيه",
     themeOf(r)
@@ -431,12 +431,12 @@ export async function sendExitEmail(opts: { to: string; fullName: string; reason
   const r = await recipientOf(opts.to);
   return send(
     opts.to,
-    "إنهاء العضوية — تَـــلاقِ",
+    "إنهاء العضوية — تلاق",
     {
       tone: "alert",
       badge: "إشعار رسمي",
       title: "إنهاء العضوية",
-      lead: `${esc(opts.fullName)}، نحيطك علماً بإنهاء العضوية في منصة تَـــلاقِ.`,
+      lead: `${esc(opts.fullName)}، نحيطك علماً بإنهاء العضوية في منصة تلاق.`,
       quote: { label: "السبب", text: opts.reason },
       note: "هذا الإشعار مُسجَّلٌ في سجلّ الفريق ويمكن الرجوع إليه.",
     },
@@ -462,12 +462,12 @@ export async function sendCertificateEmail(opts: {
   const role = r.role ? roleTitle(r.role, r.gender, opts.departmentName ?? r.departmentName) : opts.roleLabel;
   return send(
     opts.to,
-    "شهادة شكر وخبرة — تَـــلاقِ",
+    "شهادة شكر وخبرة — تلاق",
     {
       tone: "celebrate",
       badge: "شهادة شكر وخبرة",
       title: `${forms(r.gender).thanks}، ${firstName(opts.fullName)}`,
-      lead: `تقديراً لمسيرتك في تَـــلاقِ، صدرت ${forms(r.gender).toYou} شهادةُ شكرٍ وخبرة موقَّعة، بلون قسمك وبتوقيع من عملتَ معهم.`.replace(
+      lead: `تقديراً لمسيرتك في تلاق، صدرت ${forms(r.gender).toYou} شهادةُ شكرٍ وخبرة موقَّعة، بلون قسمك وبتوقيع من عملتَ معهم.`.replace(
         "عملتَ",
         gx(r.gender, "عملتَ", "عملتِ", "عملت")
       ),
@@ -506,13 +506,13 @@ export async function sendAppreciationEmail(opts: {
   const k = gx(r.gender, "ك", "كِ");
   return send(
     opts.to,
-    early ? "شهادة تقدير من تَـــلاقِ" : "ثلاثة أشهر من العطاء — شهادة تقدير من تَـــلاقِ",
+    early ? "شهادة تقدير من تلاق" : "ثلاثة أشهر من العطاء — شهادة تقدير من تلاق",
     {
       tone: "celebrate",
       badge: early ? "شهادة تقدير" : "ثلاثة أشهر من العطاء",
       title: early ? `تقديرٌ مستحقّ، ${firstName(opts.fullName)}` : `ثلاثة أشهرٍ معاً، ${firstName(opts.fullName)}`,
       lead: early
-        ? `قرّرت إدارة تَـــلاقِ أن تُكرّم${k} بشهادة تقدير على عطائ${k} وإسهام${k} في بناء ما نطمح إليه معاً.`
+        ? `قرّرت إدارة تلاق أن تُكرّم${k} بشهادة تقدير على عطائ${k} وإسهام${k} في بناء ما نطمح إليه معاً.`
         : "مضت ثلاثة أشهرٍ على انضمامك إلى مسيرتنا — ثلاثة أشهرٍ من العمل والتعلّم والإسهام في بناء ما نطمح إليه معاً.",
       paragraphs: [
         early
@@ -550,7 +550,7 @@ export async function sendIssuedCertificateEmail(opts: {
   const f = forms(r.gender);
   return send(
     opts.to,
-    `${opts.heading} — تَـــلاقِ`,
+    `${opts.heading} — تلاق`,
     {
       tone: "celebrate",
       badge: opts.heading,
@@ -592,7 +592,7 @@ export async function sendAwardEmail(opts: {
   const note = opts.note?.trim();
   return send(
     opts.to,
-    `تكريمٌ من تَـــلاقِ: ${opts.achievement}`,
+    `تكريمٌ من تلاق: ${opts.achievement}`,
     {
       tone: "celebrate",
       badge: "تكريم",
@@ -625,11 +625,11 @@ export async function sendSignatureRequestEmail(opts: {
   const scope = opts.departmentName?.trim() ? `أعضاء ${opts.departmentName.trim()}` : "من تُوقَّع لهم";
   return send(
     opts.to,
-    "نحتاج توقيعك — شهادات تَـــلاقِ",
+    "نحتاج توقيعك — شهادات تلاق",
     {
       tone: "action",
       title: "نحتاج توقيعك",
-      lead: `${esc(opts.fullName)}، بصفتك <b>${esc(role)}</b> يحمل توقيعُك شهاداتِ الشكر والتقدير التي تُصدرها تَـــلاقِ لـ${esc(scope)}.`,
+      lead: `${esc(opts.fullName)}، بصفتك <b>${esc(role)}</b> يحمل توقيعُك شهاداتِ الشكر والتقدير التي تُصدرها تلاق لـ${esc(scope)}.`,
       paragraphs: [
         "يُرفع التوقيع مرّةً واحدة، ويُرسَم على الشهادات التي تصدر باسمك — فيقرأ صاحبُها توقيعَ من عمل معه فعلاً، لا اسماً مطبوعاً.",
       ],
@@ -1119,11 +1119,11 @@ export async function sendPasswordResetEmail(opts: {
   const r = await recipientOf(opts.to);
   return send(
     opts.to,
-    "استعادة كلمة المرور — تَـــلاقِ",
+    "استعادة كلمة المرور — تلاق",
     {
       tone: "security",
       title: "استعادة كلمة المرور",
-      lead: `${esc(opts.fullName)}، وصلنا طلبٌ لاستعادة كلمة مرور حسابك في تَـــلاقِ.`,
+      lead: `${esc(opts.fullName)}، وصلنا طلبٌ لاستعادة كلمة مرور حسابك في تلاق.`,
       cta: { label: "تعيين كلمة مرور جديدة", url: esc(opts.resetUrl) },
       facts: [["صلاحية الرابط", `${opts.minutesValid} دقيقة · يُستعمل مرّة واحدة`]],
       note: `إن لم يكن الطلب منك ${gx(r.gender, "فتجاهل", "فتجاهلي", "فتجاهل")} الرسالة — لن يتغيّر شيءٌ في حسابك.`,
@@ -1148,7 +1148,7 @@ export async function sendTestReopenedEmail(opts: {
 
   return send(
     opts.to,
-    "أُعيد فتح اختبار القبول لك — تَـــلاقِ",
+    "أُعيد فتح اختبار القبول لك — تلاق",
     {
       tone: "celebrate",
       badge: "فرصة ثانية",
@@ -1175,7 +1175,7 @@ export async function sendSeniorInvitationEmail(opts: {
   acceptUrl: string;
   expiresAt: Date;
 }) {
-  const subject = `دعوةٌ إلى الإدارة العليا — ${opts.titleAr} — تَـــلاقِ`;
+  const subject = `دعوةٌ إلى الإدارة العليا — ${opts.titleAr} — تلاق`;
   const blocked = await suppressed("senior.invitation", opts.to, "دعوة الإدارة العليا", subject);
   if (blocked) return blocked;
   return send(
@@ -1196,7 +1196,7 @@ export async function sendSeniorInvitationEmail(opts: {
 
 /** رمزُ التحقّق قبل توقيع اتفاقية — إلى بريد الحساب نفسه */
 export async function sendAgreementOtpEmail(opts: { to: string; fullName: string; agreementTitle: string; code: string; minutesValid: number }) {
-  const subject = `رمز توقيع «${opts.agreementTitle}» — تَـــلاقِ`;
+  const subject = `رمز توقيع «${opts.agreementTitle}» — تلاق`;
   const blocked = await suppressed("agreement.otp", opts.to, "رمز توقيع الاتفاقية", subject);
   if (blocked) return blocked;
   return send(
@@ -1224,7 +1224,7 @@ export async function sendAgreementSignedEmail(opts: {
   documentHash: string;
   copyUrl: string;
 }) {
-  const subject = `تأكيد توقيعك: ${opts.agreementTitle} — تَـــلاقِ`;
+  const subject = `تأكيد توقيعك: ${opts.agreementTitle} — تلاق`;
   const blocked = await suppressed("agreement.signed", opts.to, "تأكيد توقيع اتفاقية", subject);
   if (blocked) return blocked;
   return send(
@@ -1249,7 +1249,7 @@ export async function sendAgreementSignedEmail(opts: {
 
 /** طلبُ توقيع اتفاقية قبل منح الوصول */
 export async function sendAgreementRequestEmail(opts: { to: string; fullName: string; agreementTitle: string; signUrl: string }) {
-  const subject = `مطلوبٌ توقيعك: ${opts.agreementTitle} — تَـــلاقِ`;
+  const subject = `مطلوبٌ توقيعك: ${opts.agreementTitle} — تلاق`;
   const blocked = await suppressed("agreement.request", opts.to, "طلب توقيع اتفاقية", subject);
   if (blocked) return blocked;
   return send(
@@ -1327,13 +1327,13 @@ export async function sendLoginCodeEmail(opts: {
   const r = await recipientOf(opts.to);
   return send(
     opts.to,
-    `رمز دخولك: ${opts.code} — تَـــلاقِ`,
+    `رمز دخولك: ${opts.code} — تلاق`,
     {
       tone: "security",
       title: "رمز الدخول",
       lead: `${esc(opts.fullName)}، وصلنا طلب دخولٍ إلى حسابك. هذا الرمز يُكمل الدخول:`,
       code: { value: opts.code, caption: `صالح ${opts.minutesValid} دقائق · يُستخدم مرّة واحدة` },
-      note: "لا يُشارَك هذا الرمز مع أحدٍ مهما كان — فريق تَـــلاقِ لا يطلبه أبداً، لا بمكالمة ولا برسالة. وطلبُ رمزٍ جديد يُبطل هذا فوراً.",
+      note: "لا يُشارَك هذا الرمز مع أحدٍ مهما كان — فريق تلاق لا يطلبه أبداً، لا بمكالمة ولا برسالة. وطلبُ رمزٍ جديد يُبطل هذا فوراً.",
     },
     "رمز الدخول",
     themeOf(r)
@@ -1372,8 +1372,8 @@ export function welcomeEmailSubject(
   gender?: MaybeGender
 ) {
   return occasion === "approved"
-    ? `أهلاً ${forms(gender).you} في عائلة تَـــلاقِ، ${fullName}!`
-    : `بطاقتك في تَـــلاقِ، ${fullName}`;
+    ? `أهلاً ${forms(gender).you} في عائلة تلاق، ${fullName}!`
+    : `بطاقتك في تلاق، ${fullName}`;
 }
 
 /** رسالة الاعتماد — تُعلنه وتُرحّب وتحمل بطاقة العضوية للمشاركة.
@@ -1403,7 +1403,7 @@ function welcomeContent(opts: WelcomeEmailOpts): { subject: string; content: Ema
       badge: approved ? "اعتُمد انضمامك" : "بطاقة العضوية",
       title: `أهلاً ${f.you} في العائلة، ${first}`,
       lead: approved
-        ? `اعتُمد انضمامك إلى ${esc(brand.copy.phrase)}${as}. ومن اليوم ${G("أنت", "أنتِ", "أنت")} جزءٌ من تَـــلاقِ.`
+        ? `اعتُمد انضمامك إلى ${esc(brand.copy.phrase)}${as}. ومن اليوم ${G("أنت", "أنتِ", "أنت")} جزءٌ من تلاق.`
         : `هذه بطاقة عضويتك في ${esc(brand.copy.phrase)} كما طلبتها.`,
       image: opts.cardUrl
         ? // البطاقةُ تُحفظ وتُنشر ولا تفتح شيئاً — الدخولُ للزرّ وحده (قرار المؤسس)
@@ -1463,7 +1463,7 @@ export async function sendFarewellEmail(opts: {
   const role = r.role ? roleTitle(r.role, r.gender, opts.departmentName ?? r.departmentName) : opts.roleLabel;
   return send(
     opts.to,
-    `${f.thanks}، ${opts.fullName} — ختام تجربتك مع تَـــلاقِ`,
+    `${f.thanks}، ${opts.fullName} — ختام تجربتك مع تلاق`,
     {
       tone: "farewell",
       title: `${f.thanks}، ${firstName(opts.fullName)}`,

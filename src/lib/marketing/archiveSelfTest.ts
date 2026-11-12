@@ -30,7 +30,7 @@ export async function runArchiveSelfTest(store: ArchiveStore) {
       rowOf(POSTS_TAB, {
         key: `${campaignId}:post:p${n}`, campaignId, type: "post", campaign: name, seq: String(n), title: `منشور اختبار ${n}`, platform: "instagram", contentType: "post",
         size: "1080×1350", status: "منشور", finalText: `نصٌّ للاختبار ${n} — لا يُنشر`, contentVersion: "1", writer: "فحص آلي", contentApproval: "فحص آلي · 2026-12-09 10:00",
-        designLink: "https://www.canva.com/design/selftest/view", designDescription: "خلفية بيج وشعار تَـــلاقِ أعلى اليمين", designVersion: "1", designer: "فحص آلي",
+        designLink: "https://www.canva.com/design/selftest/view", designDescription: "خلفية بيج وشعار تلاق أعلى اليمين", designVersion: "1", designer: "فحص آلي",
         designApproval: "فحص آلي · 2026-12-09 12:00", quality: "اجتاز · فحص آلي · 2026-12-09 14:00", finalCheck: "فحص آلي · 2026-12-10 17:00",
         plannedAt: "2026-12-10 20:30", publishedAt: "2026-12-10 20:31", timezone: "Asia/Riyadh", publisher: "فحص آلي", postUrl: `https://www.instagram.com/p/selftest${n}/`,
         notes: "", details: JSON.stringify({ selfTest: true }), archivedAt: at, runId: rid,

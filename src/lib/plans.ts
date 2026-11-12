@@ -8,7 +8,7 @@ import {
   INLINE_PLAN_TYPES,
 } from "@/lib/planFormats";
 
-/** مركزُ خطط تَـــلاقِ — نبذةٌ يقرؤها الجميع، وموادُّ مرتَّبةٌ تحتها.
+/** مركزُ خطط تلاق — نبذةٌ يقرؤها الجميع، وموادُّ مرتَّبةٌ تحتها.
  *
  *  **الصلاحية مقسومةٌ قسمةً واضحة:** القراءةُ لكل من يدخل المنصة —
  *  عضواً كان أو قائداً؛ والكتابةُ للمؤسس والمدير التنفيذي وحدهما. فهذه
@@ -79,7 +79,7 @@ export async function readPlanLibrary() {
   ]);
 
   return {
-    heading: library?.heading?.trim() || "خطط تَـــلاقِ",
+    heading: library?.heading?.trim() || "خطط تلاق",
     intro: library?.intro ?? "",
     updatedByName: library?.updatedByName ?? null,
     updatedAt: library?.updatedAt ?? null,
@@ -96,7 +96,7 @@ export async function savePlanIntro(opts: {
   if (!canManagePlans(opts.session.user.role)) {
     return { ok: false, reason: "تحرير المركز للمؤسس والرئيس التنفيذي" };
   }
-  const heading = opts.heading.trim() || "خطط تَـــلاقِ";
+  const heading = opts.heading.trim() || "خطط تلاق";
   const intro = opts.intro.trim();
   if (intro.length > 8000) return { ok: false, reason: "النبذة أطول من ثمانية آلاف حرف" };
 

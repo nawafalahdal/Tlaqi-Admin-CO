@@ -26,7 +26,7 @@ export function LogoMark({ size = 40 }: { size?: number }) {
   return (
     <Image
       src="/brand/symbol.png"
-      alt="تَـــلاقِ"
+      alt="تلاق"
       width={size}
       height={size}
       className="shrink-0 object-contain"
@@ -50,7 +50,7 @@ export function LogoLockup({
   return (
     <Image
       src={tone === "light" ? "/brand/lockup-on-dark.png" : "/brand/lockup-on-light.png"}
-      alt="تَـــلاقِ — TLAQI"
+      alt="تلاق — TLAQI"
       width={width}
       height={height}
       className="shrink-0"

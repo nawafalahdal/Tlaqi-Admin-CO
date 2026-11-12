@@ -10,7 +10,7 @@ import { appBaseUrl } from "@/lib/emailBrand";
 import { accountRoleLabel } from "@/lib/testTracks";
 import { syncMemberLifecycleRow } from "@/lib/workflow";
 
-/** «طلب إنهاء فترة الإدارة في تَـــلاقِ».
+/** «طلب إنهاء فترة الإدارة في تلاق».
  *
  *  ثلاث قواعد تحكم هذا الملفّ:
  *

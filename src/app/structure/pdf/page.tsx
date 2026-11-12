@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  *  وتوليدُ PDF عربيٍّ صحيحٍ يحتاج تشكيلَ الحروف ووصلَها — وهو ما يفعله
  *  محرّك المتصفّح مجاناً وبدقّة، بينما مكتبات PDF في العقدة إمّا تقطّع
  *  الحروف أو تحتاج متصفّحاً كاملاً داخل دالّةٍ بلا حالة. وهذا نفس
- *  الطريق المعتمد في شهادات تَـــلاقِ، فالنسختان متّسقتان.
+ *  الطريق المعتمد في شهادات تلاق، فالنسختان متّسقتان.
  *
  *  **والمنع يُفرَض هنا لا في إخفاء الزرّ.** من كتب العنوان بيده يصل إلى
  *  هذا الملف، فيُقاس الاكتمال في الخادم قبل أن يُرسَم حرف: الهيكل
@@ -81,12 +81,12 @@ export default async function StructurePdfPage() {
               الهيكل التنظيمي الرسمي
             </h1>
             <p className="mt-1 text-xs text-black/55">
-              تَـــلاقِ — TLAQI · صادرة في {today} من بيانات المنصة المعتمدة
+              تلاق — TLAQI · صادرة في {today} من بيانات المنصة المعتمدة
             </p>
           </div>
           <Image
             src="/brand/lockup-on-light.png"
-            alt="تَـــلاقِ — TLAQI"
+            alt="تلاق — TLAQI"
             width={150}
             height={44}
             className="shrink-0"
@@ -113,7 +113,7 @@ export default async function StructurePdfPage() {
               <span key={c} className="h-1.5 w-10" style={{ background: c }} />
             ))}
           </span>
-          <span className="text-black/45">يُبنى آلياً من سجلّات المنصة — لا يُحرَّر يدوياً • صادر من إدارة تَـــلاقِ</span>
+          <span className="text-black/45">يُبنى آلياً من سجلّات المنصة — لا يُحرَّر يدوياً • صادر من إدارة تلاق</span>
         </footer>
       </div>
     </main>

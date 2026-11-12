@@ -139,13 +139,13 @@
   --color-brand-temptress: var(--brand-temptress);
   --color-brand-green: var(--brand-green);
   --color-brand-ink: var(--brand-ink);
-  --font-sans: var(--font-cairo);
+  --font-sans: var(--font-brand);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-cairo), "Cairo", Tahoma, sans-serif;
+  font-family: var(--font-brand), Tahoma, Arial, sans-serif;
   text-rendering: optimizeLegibility;
 }
 
@@ -240,7 +240,7 @@ textarea {
    *
    *  **عطبٌ ثانٍ من جنس الأول:** بعض الحالات مكتوبةٌ بقيمةٍ صريحة لا
    *  بصنفٍ من اللوحة — `text-[#9A2E1C]` و`bg-[#FBE5E1]` وأخواتهما، وهي
-   *  من هوية تَـــلاقِ لا من Tailwind. فلم يَطُلها الخرطُ أعلاه وبقيت
+   *  من هوية تلاق لا من Tailwind. فلم يَطُلها الخرطُ أعلاه وبقيت
    *  كما هي: حبرٌ عنّابيٌّ داكنٌ على سطحٍ داكن لا يُقرأ، ولوحةٌ ورديّةٌ
    *  فاتحةٌ تَصرخ في شاشةٍ ليلية.
    *

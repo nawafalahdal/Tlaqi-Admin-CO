@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Cairo } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { LocaleProvider } from "@/i18n/LocaleProvider";
@@ -8,10 +8,19 @@ import { ThemeScript } from "@/components/ThemeScript";
 import { databaseBlocked, deploymentEnv } from "@/lib/deploymentEnv";
 import { fmt } from "@/i18n/fmt";
 
-const cairo = Cairo({
-  variable: "--font-cairo",
-  subsets: ["arabic", "latin"],
-  weight: ["400", "500", "600", "700", "800"],
+/** **الخطُّ الرسمي لهوية تلاق: The Year of The Camel** (قرار المؤسس) — مستضافٌ مع المنصة (لا من خدمةٍ خارجية)،
+ *  بأوزانه المعتمدة الأربعة. والأسماءُ الداخلية في ملفات OTF غير متطابقة، فيُسمّى كلُّ وزنٍ هنا صراحةً بملفّه.
+ *  ويعمل للعربية والإنجليزية واتجاه RTL؛ والاحتياطُ Tahoma إلى أن يُحمَّل. */
+const brandFont = localFont({
+  src: [
+    { path: "./fonts/TheYearofTheCamel-Regular.otf", weight: "400", style: "normal" },
+    { path: "./fonts/TheYearofTheCamel-Medium.otf", weight: "500", style: "normal" },
+    { path: "./fonts/TheYearofTheCamel-Bold.otf", weight: "700", style: "normal" },
+    { path: "./fonts/TheYearofTheCamel-ExtraBold.otf", weight: "800", style: "normal" },
+  ],
+  variable: "--font-brand",
+  display: "swap",
+  fallback: ["Tahoma", "Arial", "sans-serif"],
 });
 
 // عنوانُ التبويب ووصفُه بلغة الواجهة
@@ -33,7 +42,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang={locale}
       dir={locale === "ar" ? "rtl" : "ltr"}
-      className={`${cairo.variable} h-full antialiased`}
+      className={`${brandFont.variable} h-full antialiased`}
       // السمة تُكتب هنا قبل أول رسم (`ThemeScript`)، و`suppressHydrationWarning`
       // لأن الخادم لا يعرف تفضيل الجهاز فيختلف عنه السمةُ المطبَّقة
       suppressHydrationWarning

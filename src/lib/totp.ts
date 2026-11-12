@@ -1,7 +1,7 @@
 import * as OTPAuth from "otpauth";
 import QRCode from "qrcode";
 
-const ISSUER = "تَـــلاقِ";
+const ISSUER = "تلاق";
 
 /** يولّد سرّاً عشوائياً جديداً (base32) لحساب إداري لم يفعّل التحقق بخطوتين بعد */
 export function generateTotpSecret(): string {

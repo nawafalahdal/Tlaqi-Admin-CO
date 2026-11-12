@@ -138,12 +138,23 @@ function t(
 function palette(colorHex: string | null | undefined) {
   const bg = colorHex?.trim() || BRAND.temptress;
   const onLight = themeFromColor(bg).text === BRAND.ink;
+  // **الشعارُ على لون قسمٍ غير Temptress وغير الفاتح (Green Sheen وغيره) يُوضع في لوحة Beige** (قرار المؤسس ودليل
+  // الهوية): لا يُرسم الشعارُ مباشرةً على لونٍ لم تُعتمد له نسخةٌ منه
+  const panel = !onLight && bg.toUpperCase() !== BRAND.temptress.toUpperCase();
+  const greenLike = onLight && bg.toUpperCase() !== BRAND.beige.toUpperCase() && !/^#F/i.test(bg);
   return {
     bg,
     onLight,
     ink: onLight ? BRAND.temptress : BRAND.beige,
-    lockup: onLight ? "lockLight" : ("lockDark" as "lockLight" | "lockDark"),
+    logoPanel: panel || greenLike,
+    lockup: onLight || panel || greenLike ? "lockLight" : ("lockDark" as "lockLight" | "lockDark"),
   };
+}
+
+/** الشعارُ في موضعه — وفي لوحة Beige حين يكون لونُ القسم غيرَ معتمدٍ للشعار */
+function lockupSvg(p: ReturnType<typeof palette>, href: string, x: number, y: number, w: number, h: number): string {
+  const pad = 22;
+  return `${p.logoPanel ? `<rect x="${x - pad}" y="${y - pad}" width="${w + pad * 2}" height="${h + pad * 2}" rx="22" fill="${BRAND.beige}"/>` : ""}<image href="${href}" x="${x}" y="${y}" width="${w}" height="${h}"/>`;
 }
 
 async function toPng(svg: string): Promise<Buffer> {
@@ -178,9 +189,9 @@ export async function renderInviteCard(d: InviteCardData): Promise<Buffer> {
   const R = CARD_W - 90;
   const firstSize = await fit(first, 210, 880, 120);
   const fullSize = await fit(d.fullName, 34, 430, 24);
-  const byName = d.invitedByName?.trim() || "إدارة تَـــلاقِ";
+  const byName = d.invitedByName?.trim() || "إدارة تلاق";
   const bySize = await fit(byName, 34, 400, 24);
-  const dept = d.departmentName?.trim() || "تَـــلاقِ";
+  const dept = d.departmentName?.trim() || "تلاق";
   const deptW = Math.min(420, (await textWidth(dept, 26)) + 56);
   const role = d.jobTitle?.trim() ? `${d.position} · ${d.jobTitle.trim()}` : d.position;
   const roleSize = await fit(role, 38, 900, 26);
@@ -188,12 +199,12 @@ export async function renderInviteCard(d: InviteCardData): Promise<Buffer> {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${CARD_W}" height="${CARD_H}">
   <rect width="100%" height="100%" fill="${p.bg}"/>
   <image href="${mark}" x="-230" y="300" width="900" height="${Math.round((900 * a.markH) / a.markW)}" opacity="${p.onLight ? 0.1 : 0.14}"/>
-  <image href="${a[p.lockup]}" x="${R - 300}" y="86" width="300" height="88"/>
+  ${lockupSvg(p, a[p.lockup], R - 300, 86, 300, 88)}
   <rect x="90" y="100" width="${deptW}" height="58" rx="29" fill="none" stroke="${p.ink}" stroke-opacity="0.45" stroke-width="2"/>
   ${t(dept, 90 + deptW / 2, 138, 26, p.ink, { weight: 700, anchor: "middle" })}
   ${t("دعوة خاصّة", R, 560, 40, p.ink, { weight: 700, opacity: 0.85 })}
   ${t(first, R, 560 + firstSize * 1.05, firstSize, p.ink, { weight: 700 })}
-  ${t("للانضمام إلى فريق تَـــلاقِ", R, 560 + firstSize * 1.05 + 86, 44, p.ink, { weight: 400, opacity: 0.92 })}
+  ${t("للانضمام إلى فريق تلاق", R, 560 + firstSize * 1.05 + 86, 44, p.ink, { weight: 400, opacity: 0.92 })}
   ${t(role, R, 560 + firstSize * 1.05 + 150, roleSize, p.ink, { weight: 700, opacity: 0.9 })}
   <line x1="90" y1="1140" x2="${R}" y2="1140" stroke="${p.ink}" stroke-opacity="0.25" stroke-width="2"/>
   ${t("الاسم", R, 1196, 24, p.ink, { opacity: 0.6 })}
@@ -241,7 +252,7 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   const nameSize = await fit(d.fullName, 104, W - 128, 60);
   const titleSize = await fit(d.title, 42, W - 128, 28);
   const roleSize = await fit(d.roleTitle, 32, 420, 22);
-  const dept = d.departmentName?.trim() || "تَـــلاقِ";
+  const dept = d.departmentName?.trim() || "تلاق";
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${CARD_W}" height="${CARD_H}">
   <defs>
@@ -266,7 +277,7 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   ${t(cardDate(d.joinedAt), R, 978, 34, p.ink, { weight: 700 })}
   ${t("الصفة", IL, 928, 24, p.ink, { opacity: 0.65, anchor: "left" })}
   ${t(d.roleTitle, IL, 978, roleSize, p.ink, { weight: 700, anchor: "left" })}
-  ${t("نلتقي · نفكّر · نصنع", CARD_W - L, 1190, 34, BRAND.beige, { opacity: 0.78 })}
+  ${t("تحوّل رقمي، برؤية طموحة.", CARD_W - L, 1190, 34, BRAND.beige, { opacity: 0.78 })}
   ${t("@tlaqisa", L, 1190, 32, BRAND.beige, { opacity: 0.78, ltr: true })}
 </svg>`;
   return toPng(svg);

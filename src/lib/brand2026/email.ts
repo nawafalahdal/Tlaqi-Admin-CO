@@ -10,10 +10,11 @@ import { HEX, TYPEFACE, BACKGROUNDS } from "./tokens";
  *    «موهبة» بلون Mahogany على الأبيض مستقلاً (لا نمطَ خلف نص).
  *  - **الأزرار (ق9):** الأساسي Temptress بنص Beige، والثانوي حدٌّ Temptress.
  *  - **الخط (ق1، ق8):** The Year of The Camel أولاً، وTahoma/Arial احتياطاً — أغلبُ العملاء لا يحمّلون الخط.
- *  - **التذييل:** العلامة، والسطرُ الرسمي «Talent Link Advancing Quality Innovation» (ق7)، والتوقيعُ «إدارة تلاق» (ق6).
+ *  - **التذييل:** العلامة، والتوقيعُ التعريفي الرسمي «تحوّل رقمي، برؤية طموحة.» (قرار المؤسس)، والحسابات، و«إدارة تلاق».
  *  - **الجوال:** عرضٌ أقصى 600 ومرونةٌ دونه، وأزرارٌ بعرضٍ كامل على الشاشات الصغيرة.
  *
- *  **لا يُستعمل في الإرسال** قبل اعتماد المؤسس (في المحادثة) ثم تطبيقه — هو للمعاينة حتى ذلك. */
+ *  **وهو قالبُ الإرسال على فرع التطوير** (`renderEmail` في `emailBrand.ts`) لمراجعة المؤسس على المعاينة قبل الاعتماد
+ *  النهائي؛ والقالبُ السابق محفوظٌ باسم `renderEmailLegacy` للرجوع. */
 
 const B = HEX;
 const FONT = `'${TYPEFACE.family}',${TYPEFACE.fallback.replace(/, /g, ",")}`;
@@ -21,6 +22,9 @@ const FONT = `'${TYPEFACE.family}',${TYPEFACE.fallback.replace(/, /g, ",")}`;
 function esc(v: string): string {
   return v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
+
+/** الترويسةُ والتذييلُ يبقيان داكنين في Gmail: لا يقلب صورةَ الخلفية، فتُرسَم بتدرّجٍ من لونٍ واحد فوق اللون الصريح */
+const KEEP_DARK = `background-image:linear-gradient(${HEX.temptress},${HEX.temptress});`;
 
 const row = (html: string, pad = "0 0 16px") => `<tr><td style="padding:${pad}">${html}</td></tr>`;
 
@@ -34,7 +38,7 @@ function normalize(c: EmailContent): EmailContent {
     title: c.title,
     lead: `<b>${esc(a.name)}</b> — ${esc(a.role)}`,
     facts: [...a.facts, ["التاريخ", a.date]],
-    paragraphs: [esc(a.statement), `${esc(a.issuer.name)}${a.issuer.title ? ` — ${esc(a.issuer.title)}` : ""}`],
+    paragraphs: [esc(a.statement), `صدر التعيين من: <b>${esc(a.issuer.name)}</b>${a.issuer.title ? ` — ${esc(a.issuer.title)}` : ""}`],
     after: [`<b>${esc(a.steps.title)}</b>`, ...a.steps.items.map((s, i) => `${i + 1}. ${esc(s)}`)],
     note: a.note ?? c.note,
   };
@@ -45,6 +49,7 @@ function body(raw: EmailContent): string {
   const r: string[] = [];
   const badge = c.badge ?? { action: "إجراءٌ مطلوب", security: "أمان الحساب", celebrate: "تهنئة", info: "إشعار", alert: "تنبيه", farewell: "وداع" }[c.tone ?? "info"];
   r.push(row(`<span style="display:inline-block;background-color:${B.greenSheen};color:${B.temptress};font-family:${FONT};font-size:12px;font-weight:bold;padding:5px 14px;border-radius:999px">${esc(badge)}</span>`, "0 0 14px"));
+  if (raw.appointment) r.push(row(`<div dir="ltr" style="font-family:${FONT};font-size:11px;letter-spacing:3px;color:${B.temptress};text-align:right">CERTIFICATE OF APPOINTMENT</div>`, "0 0 6px"));
   r.push(row(`<h1 style="margin:0;font-family:${FONT};font-size:24px;line-height:1.5;font-weight:800;color:${B.mahogany}">${esc(c.title)}</h1>`, "0 0 10px"));
   if (c.lead) r.push(row(`<p style="margin:0;font-family:${FONT};font-size:16px;line-height:1.9;color:${B.temptress}">${c.lead}</p>`, "0 0 18px"));
   if (c.image) {
@@ -97,7 +102,11 @@ ${c.code.caption ? `<div style="margin-top:8px;font-family:${FONT};font-size:12p
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl">${r.join("")}</table>`;
 }
 
-export function renderEmail2026(opts: {
+export function renderEmail2026(opts: Parameters<typeof renderEmail2026Parts>[0]): string {
+  return renderEmail2026Parts(opts).html;
+}
+
+export function renderEmail2026Parts(opts: {
   subject: string;
   content: EmailContent;
   theme?: EmailTheme;
@@ -105,13 +114,19 @@ export function renderEmail2026(opts: {
   assetBase: string;
   /** في المعاينة وحدها: تحميلُ الخط المعتمد لرؤية القصد (أغلبُ العملاء لا يحمّلونه — ق1، ق8) */
   fontFaceBase?: string | null;
-}): string {
+  preheader?: string;
+  /** التوقيعُ التعريفي وحسابُ التواصل — من `emailBrand` (يُمرَّران فلا تدور الاستيرادات) */
+  tagline?: string;
+  handle?: string | null;
+}): { html: string; bodyHtml: string } {
   const a = (p: string) => `${opts.assetBase}/${p}`;
   const dept = opts.theme?.departmentName?.trim();
   const fontFace = opts.fontFaceBase
     ? TYPEFACE.weights.map((w) => `@font-face{font-family:'${TYPEFACE.family}';src:url('${opts.fontFaceBase}/${w.file}') format('opentype');font-weight:${w.weight};font-display:swap}`).join("")
     : "";
-  return `<!doctype html>
+  const bodyHtml = body(opts.content);
+  const handle = opts.handle;
+  const html = `<!doctype html>
 <html dir="rtl" lang="ar">
 <head>
 <meta charset="utf-8">
@@ -125,11 +140,11 @@ ${fontFace}
 </style>
 </head>
 <body style="margin:0;padding:0;background-color:${BACKGROUNDS.emailPage}" bgcolor="${BACKGROUNDS.emailPage}">
-<div style="display:none;max-height:0;overflow:hidden">${esc(opts.subject)}</div>
+<div style="display:none;max-height:0;overflow:hidden">${esc(opts.preheader ?? opts.subject)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BACKGROUNDS.emailPage}" style="background-color:${BACKGROUNDS.emailPage};padding:24px 0">
 <tr><td align="center" style="padding:0 10px">
   <table role="presentation" class="b26-card" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BACKGROUNDS.emailCard}" style="max-width:600px;background-color:${BACKGROUNDS.emailCard};border:1px solid ${B.temptress};border-radius:20px;overflow:hidden">
-    <tr><td bgcolor="${B.temptress}" style="background-color:${B.temptress};padding:22px 26px">
+    <tr><td bgcolor="${B.temptress}" style="background-color:${B.temptress};${KEEP_DARK}padding:22px 26px">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
         <td align="right"><img src="${a("email/logo-on-temptress.png")}" width="200" height="59" alt="TLAQI — Talent Link Advancing Quality Innovation" style="display:block;border:0;width:200px;height:auto"></td>
         <td align="left" style="font-family:${FONT};font-size:12px;font-weight:bold;color:${B.beige}">${dept ? esc(dept) : ""}</td>
@@ -137,12 +152,11 @@ ${fontFace}
     </td></tr>
     <tr><td style="font-size:0;line-height:0;padding:0"><img src="${a("email/pattern-talent-on-white.png")}" width="600" height="48" alt="" style="display:block;border:0;width:100%;height:auto"></td></tr>
     <tr><td style="height:1px;background-color:${B.temptress};font-size:0;line-height:0">&nbsp;</td></tr>
-    <tr><td class="b26-pad" style="padding:28px 30px 24px">${body(opts.content)}</td></tr>
-    <tr><td bgcolor="${B.temptress}" align="center" style="background-color:${B.temptress};padding:22px 24px 18px">
+    <tr><td class="b26-pad" style="padding:28px 30px 24px">${bodyHtml}</td></tr>
+    <tr><td bgcolor="${B.temptress}" align="center" style="background-color:${B.temptress};${KEEP_DARK}padding:22px 24px 18px">
       <img src="${a("email/mark-mahogany.png")}" width="40" height="40" alt="" style="display:block;border:0;width:40px;height:auto;margin:0 auto 10px">
-      <div dir="ltr" style="font-family:${FONT};font-size:12px;font-weight:bold;letter-spacing:1px;color:${B.beige}">TALENT LINK ADVANCING QUALITY INNOVATION</div>
-      <div style="font-family:${FONT};font-size:12px;color:${B.beige};margin-top:6px">موهبة · ربط · تقدّم · جودة · ابتكار</div>
-      <div dir="ltr" style="font-family:${FONT};font-size:11px;color:${B.beige};margin-top:10px">@tlaqisa</div>
+      <div style="font-family:${FONT};font-size:14px;font-weight:bold;color:${B.beige}">${esc(opts.tagline ?? "تحوّل رقمي، برؤية طموحة.")}</div>
+      ${handle ? `<div dir="ltr" style="font-family:${FONT};font-size:11px;color:${B.beige};margin-top:10px">@${esc(handle)}</div>` : ""}
     </td></tr>
   </table>
   <div style="max-width:600px;margin:14px auto 0;font-family:${FONT};font-size:11px;line-height:1.8;color:${B.temptress};text-align:center">
@@ -152,4 +166,5 @@ ${fontFace}
 </table>
 </body>
 </html>`;
+  return { html, bodyHtml };
 }

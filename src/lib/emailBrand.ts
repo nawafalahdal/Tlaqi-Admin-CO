@@ -7,6 +7,7 @@
  */
 
 import { contrastRatio, liftForDark, readableTextOn, shade } from "@/lib/colors";
+import { renderEmail2026Parts } from "@/lib/brand2026/email";
 
 const BRAND = {
   temptress: "#341D2B",
@@ -109,23 +110,13 @@ export function variantForKind(kind: string): EmailVariant {
   return KIND_VARIANT[kind] ?? "default";
 }
 
-/** الجملة التي تُذيَّل بها كل رسالة. تُضبط من البيئة ليُغيّرها صاحب
- *  المنصة دون نشر جديد. */
-export const TAGLINE = process.env.BRAND_TAGLINE || "نلتقي · نفكّر · نصنع";
+/** التوقيعُ التعريفي الرسمي (قرار المؤسس، نوفمبر 2026) — يُذيَّل به كل رسالة. ويُضبط من البيئة دون نشرٍ جديد. */
+export const TAGLINE = process.env.BRAND_TAGLINE || "تحوّل رقمي، برؤية طموحة.";
 
-/** الوسمُ الرسمي — جملتُنا نفسُها وسماً (قرار المؤسس)، لا «#تلاقي».
- *
- *  يُشتقّ من الشعار فلا يفترقان: الفواصلُ شرطاتٌ سفلية، والتشكيلُ يُنزَع —
- *  الوسمُ المشكولُ لا يطابق ما يكتبه الناس في المنصّات فيضيع. ويُضبط من
- *  البيئة (`BRAND_HASHTAG`) إن أُريد غيرُه دون نشرٍ جديد. */
-export const BRAND_HASHTAG =
-  process.env.BRAND_HASHTAG ||
-  "#" +
-    TAGLINE.replace(/[\u064B-\u0652]/g, "")
-      .split("·")
-      .map((w) => w.trim())
-      .filter(Boolean)
-      .join("_");
+/** الوسمُ الرسمي — كان يُشتقّ من الشعار اللفظي القديم («نلتقي · نفكّر · نصنع»). وبعد اعتماد التوقيع التعريفي
+ *  الجديد («تحوّل رقمي، برؤية طموحة.») لا يصلح الاشتقاقُ وسماً (مسافاتٌ وفاصلة)، فثُبّت الوسمُ القائمُ كما هو حتى
+ *  يقرّر المؤسس وسماً جديداً. ويُضبط من البيئة (`BRAND_HASHTAG`) دون نشرٍ جديد. */
+export const BRAND_HASHTAG = process.env.BRAND_HASHTAG || "#نلتقي_نفكر_نصنع";
 
 /** حسابات التواصل. تُقرأ من البيئة لأنها تتغيّر ولا يصحّ تخمينها:
  *  رابط حساب خاطئ في بريد رسمي أسوأ من غياب الرابط. الصفّ كله لا يُرسم
@@ -467,7 +458,23 @@ function darkStyles(a: ReturnType<typeof accentOf>): string {
  *
  *  كلُّه جداول وأنماطٌ مضمَّنة: Gmail وOutlook يُسقطان `<style>` وCSS
  *  الحديث، وهذه وحدها تُرسَم كما كُتبت. */
-export function renderEmail(opts: {
+/** **قالبُ الإرسال — هوية تلاق 2026** (`lib/brand2026/email`): المحتوى نفسُه (روابطُه ومتغيّراتُه ومعناه) بالتصميم الجديد.
+ *  الخطُّ الرسمي من المنصة نفسها لعملاء البريد الذين يحمّلون الخطوط، وTahoma/Arial لغيرهم (قيدٌ تقنيٌّ معروض على المؤسس). */
+export function renderEmail(opts: { subject: string; content: EmailContent; theme?: EmailTheme; preheader?: string }): { html: string; bodyHtml: string } {
+  return renderEmail2026Parts({
+    subject: opts.subject,
+    content: opts.content,
+    theme: opts.theme,
+    preheader: opts.preheader,
+    assetBase: assetUrl("/brand/2026"),
+    fontFaceBase: assetUrl("/fonts/the-year-of-the-camel"),
+    tagline: TAGLINE,
+    handle: SOCIAL_LINKS[0]?.handle ?? null,
+  });
+}
+
+/** القالبُ السابق — محفوظٌ للرجوع إليه إن لزم، ولا يُستعمل في الإرسال */
+export function renderEmailLegacy(opts: {
   subject: string;
   content: EmailContent;
   theme?: EmailTheme;
@@ -505,7 +512,7 @@ export function renderEmail(opts: {
     <tr>
       <td bgcolor="${BRAND.temptress}" style="background-color:${BRAND.temptress};${KEEP_DARK}padding:18px 26px">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-          <td align="right" style="font-size:0;line-height:0"><img src="${assetUrl("/brand/lockup-on-dark.png")}" width="118" height="35" alt="تَـــلاقِ — TLAQI" style="display:block;border:0;width:118px;height:35px"></td>
+          <td align="right" style="font-size:0;line-height:0"><img src="${assetUrl("/brand/lockup-on-dark.png")}" width="118" height="35" alt="تلاق — TLAQI" style="display:block;border:0;width:118px;height:35px"></td>
           <td align="left" style="font-family:${FONT_STACK};font-size:12px;font-weight:bold;color:rgba(238,246,223,0.72)">${dept ? keepLight(esc(dept)) : ""}</td>
         </tr></table>
       </td>
@@ -527,7 +534,7 @@ export function renderEmail(opts: {
     </tr></table></td></tr>
   </table>
   <div class="tq-fine" style="max-width:600px;margin:14px auto 0;font-family:${FONT_STACK};font-size:11px;line-height:1.8;color:rgba(0,0,0,0.6);text-align:center">
-    مُرسَلة من إدارة تَـــلاقِ — لأن لك حساباً في منصّتها الداخلية.
+    مُرسَلة من إدارة تلاق — لأن لك حساباً في منصّتها الداخلية.
   </div>
 </td></tr>
 </table>

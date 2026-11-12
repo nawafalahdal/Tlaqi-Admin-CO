@@ -102,7 +102,7 @@ export function positionTitle(role: string, departmentName?: string | null): str
     case "department_admin":
       return inDept ? `قيادة ${inDept}` : "قيادة قسم";
     case "member":
-      return inDept ? `عضوية ${inDept}` : "عضوية فريق تَـــلاقِ";
+      return inDept ? `عضوية ${inDept}` : "عضوية فريق تلاق";
     default:
       return role;
   }

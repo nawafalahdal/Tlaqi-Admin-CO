@@ -121,7 +121,7 @@ check(!page.url().includes("/login"), "نجح الدخول وفُتحت لوحة
 
 for (const [path, needles] of [
   ["/admin", ["إدارة الأعضاء والهيكل التنظيمي", "الاعتمادات الإدارية"]],
-  ["/admin/people", ["إدارة الأعضاء والهيكل التنظيمي", "سجل الأعضاء", "هيكل تَـــلاقِ التنظيمي"]],
+  ["/admin/people", ["إدارة الأعضاء والهيكل التنظيمي", "سجل الأعضاء", "هيكل تلاق التنظيمي"]],
   ["/admin/approvals", ["الاعتمادات الإدارية", "بانتظار اعتمادي", "طلباتي القائمة"]],
   ["/admin/accounts", []],
   ["/admin/members", []],
@@ -171,7 +171,7 @@ await page.goto(BASE + "/structure", { waitUntil: "domcontentloaded" });
 await page.waitForTimeout(3000);
 const structure = (await page.textContent("body")) ?? "";
 check(!/تعذّر إتمام العملية|Application error/.test(structure), "/structure — بلا خطأ تشغيل");
-check(structure.includes("هيكل تَـــلاقِ التنظيمي"), "/structure — الشجرة تُعرَض");
+check(structure.includes("هيكل تلاق التنظيمي"), "/structure — الشجرة تُعرَض");
 check(structure.includes("أنت هنا"), "**/structure — بطاقةُ المُشاهد مميَّزة بـ«أنت هنا»**");
 check(structure.includes("نسخة الهيكل الرسمية"), "/structure — فيه بطاقة النسخة الرسمية");
 
@@ -260,7 +260,7 @@ await page.waitForTimeout(3000);
 const plans = (await page.textContent("body")) ?? "";
 check(!/تعذّر إتمام العملية|Application error/.test(plans), "/plans — بلا خطأ تشغيل");
 check(plans.includes("وثائق التوجّه"), "**/plans — النبذة تتصدّر الصفحة**");
-check(/خطة تَـــلاقِ ٢٠٢٦/.test(plans), "وفيه الوثائق بعناوينها");
+check(/خطة تلاق ٢٠٢٦/.test(plans), "وفيه الوثائق بعناوينها");
 check(plans.includes("الوثائق والملفات"), "وعنوانُ القائمة مع عددها");
 check(
   (await page.locator('a:has-text("افتح الملف")').count()) >= 1,

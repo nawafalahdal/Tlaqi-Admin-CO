@@ -102,7 +102,7 @@ code{font-family:monospace;font-size:8.8pt;background:#f3eef1;padding:0 1mm;bord
 </style></head><body>
 
 <section class="cover">
-  <div><img src="${logo}" alt="تَـــلاقِ"></div>
+  <div><img src="${logo}" alt="تلاق"></div>
   <div>
     <span class="tag">دليلٌ إرشادي · نسخة ${today}</span>
     <p class="title">دليل وكيل التسويق</p>
@@ -143,7 +143,7 @@ code{font-family:monospace;font-size:8.8pt;background:#f3eef1;padding:0 1mm;bord
 
 <section class="chapter">
   <h2>1. ما هو وكيل التسويق؟</h2>
-  <p>«وكيل التسويق» مساحةُ عملٍ للحملات داخل منصة تَـــلاقِ، لا نافذةُ محادثة. تُدار فيه الحملة كلها في مكانٍ واحد: الموجز والخطة، وتقويم النشر بالدقيقة، والمهام، ونسخ النصوص والتصاميم واعتمادها، وفحص الجودة، والنشر اليدوي بدليله، والنتائج بمصدرها، ثم الأرشفة.</p>
+  <p>«وكيل التسويق» مساحةُ عملٍ للحملات داخل منصة تلاق، لا نافذةُ محادثة. تُدار فيه الحملة كلها في مكانٍ واحد: الموجز والخطة، وتقويم النشر بالدقيقة، والمهام، ونسخ النصوص والتصاميم واعتمادها، وفحص الجودة، والنشر اليدوي بدليله، والنتائج بمصدرها، ثم الأرشفة.</p>
   ${table(["يفعله الوكيل", "لا يفعله الوكيل"], [
     ["يحفظ كل قرارٍ بصاحبه ووقته والنسخة التي قرّر عليها", "لا ينشر على المنصات — النشر يدوي يسجّله الناشر"],
     ["يمنع الانتقال قبل اكتمال شروطه، ويقول ما ينقص بالاسم", "لا يعتمد ولا يُسنِد ولا يمنح صلاحية بنفسه"],
@@ -479,7 +479,7 @@ await page.pdf({
   printBackground: true,
   displayHeaderFooter: true,
   headerTemplate: "<div></div>",
-  footerTemplate: `<div dir="rtl" style="font-family:Cairo,sans-serif;font-size:8px;color:#8a7a84;width:100%;padding:0 14mm;display:flex;justify-content:space-between"><span>دليل وكيل التسويق — تَـــلاقِ</span><span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`,
+  footerTemplate: `<div dir="rtl" style="font-family:Cairo,sans-serif;font-size:8px;color:#8a7a84;width:100%;padding:0 14mm;display:flex;justify-content:space-between"><span>دليل وكيل التسويق — تلاق</span><span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`,
   margin: { top: "16mm", bottom: "18mm", left: "14mm", right: "14mm" },
 });
 await b.close();

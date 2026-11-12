@@ -32,7 +32,7 @@ export const OFFICIAL_LOGO_FILES = ["/brand/logo-full.png", "/brand/lockup-on-li
 
 /** قيمٌ أولى من المصادر الرسمية — تُعرض في النموذج ليعتمدها من يكتب الموجز أو يغيّرها */
 export const BRAND_DEFAULTS = {
-  fonts: "Cairo — خطُّ المنصة الرسمي",
+  fonts: "The Year of The Camel — خطُّ هوية تلاق الرسمي",
   colors: `Temptress ${BRAND.temptress} · Mahogany ${BRAND.mahogany} · Beige ${BRAND.beige} · Green Sheen ${BRAND.greenSheen}`,
   direction: "rtl",
 } as const;

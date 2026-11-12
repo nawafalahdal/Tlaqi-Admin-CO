@@ -9,7 +9,7 @@ import { getLocale, getDictionary } from "@/i18n/server";
 import { fmt } from "@/i18n/fmt";
 export const dynamic = "force-dynamic";
 
-/** هيكل تَـــلاقِ التنظيمي — شجرةٌ واحدة، للعرض، لكل الأعضاء.
+/** هيكل تلاق التنظيمي — شجرةٌ واحدة، للعرض، لكل الأعضاء.
  *
  *  **ولا إجراء في هذه الصفحة على الإطلاق.** لا `"use server"` ولا
  *  `action` ولا `onClick` يُغيّر شيئاً. والسبب أعمق من إخفاء الأزرار:
