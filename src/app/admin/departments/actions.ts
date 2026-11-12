@@ -78,10 +78,10 @@ export async function updateDepartmentColorAction(
   }
 
   try {
-    const dept = await prisma.department.update({
-      where: { id: departmentId },
-      data: { colorHex },
-    });
+    const { updateDepartmentColor } = await import("@/lib/departmentColor");
+    const res = await updateDepartmentColor(departmentId, colorHex);
+    if (!res.ok) return { error: res.reason };
+    const dept = { name: res.name };
     await appendMemberEvent({
       fullName: session.user.name ?? "—",
       email: "",

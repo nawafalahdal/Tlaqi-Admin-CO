@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { colorHolder, lockDepartmentColors, normalizeHex } from "@/lib/departmentColor";
+import type { Prisma } from "@prisma/client";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { SENIOR_ROLES, seniorDepartment } from "@/lib/seniorAffiliation";
 import type { Session } from "next-auth";
@@ -89,6 +91,16 @@ async function uniqueSlug(base: string) {
   return slug;
 }
 
+/** إنشاءُ القسم بلونٍ لم يحمله غيرُه — فحصٌ وكتابةٌ تحت قفلٍ واحد (لا قسمان متزامنان باللون نفسه) */
+async function createWithFreeColor(colorHex: string, data: Prisma.DepartmentUncheckedCreateInput) {
+  return prisma.$transaction(async (tx) => {
+    await lockDepartmentColors(tx);
+    const holder = await colorHolder(tx, colorHex);
+    if (holder) throw new Error(`هذا اللونُ لقسم «${holder.name}» — اختر لوناً غيره`);
+    return tx.department.create({ data: { ...data, colorHex: normalizeHex(colorHex) } });
+  });
+}
+
 /** ينشئ قسماً جديداً كامل الأهلية.
  *
  *  القسم بلا بنك أسئلة قسمٌ لا يمكن دعوة أحد إليه: دالة اختيار المسار
@@ -110,6 +122,9 @@ export async function createDepartment(opts: {
 
   if (!name) throw new Error("اسم القسم مطلوب");
   if (!HEX.test(colorHex)) throw new Error("اللون يجب أن يكون بصيغة #RRGGBB");
+  // لونٌ واحدٌ لقسمٍ واحد — يُفحص هنا للرسالة، ويُعاد فحصُه بقفلٍ في معاملة الإنشاء (`departmentColor.ts`)
+  const holder = await colorHolder(prisma, colorHex);
+  if (holder) throw new Error(`هذا اللونُ لقسم «${holder.name}» — اختر لوناً غيره`);
 
   const existing = await prisma.department.findUnique({ where: { name } });
   if (existing) throw new Error("يوجد قسم بهذا الاسم بالفعل");
@@ -120,8 +135,7 @@ export async function createDepartment(opts: {
 
   if (opts.request) {
     const now = new Date();
-    const department = await prisma.department.create({
-      data: {
+    const department = await createWithFreeColor(colorHex, {
         name,
         slug,
         colorHex,
@@ -130,7 +144,6 @@ export async function createDepartment(opts: {
         requestedById: opts.request.byId,
         requestedByName: opts.request.byName,
         requestedAt: now,
-      },
     });
     // بنكُ الأسئلة يُنشأ عند الاعتماد لا هنا: طلبٌ قد يُرَدّ لا يُورَّث بنكاً
     await appendMemberEvent({
@@ -144,9 +157,7 @@ export async function createDepartment(opts: {
     return department;
   }
 
-  const department = await prisma.department.create({
-    data: { name, slug, colorHex, leadershipOnly },
-  });
+  const department = await createWithFreeColor(colorHex, { name, slug, colorHex, leadershipOnly });
 
   // القسم الاستثنائي لا يُدعى إليه باختبار: من يُضاف إليه يُختار لا
   // يُمتحَن. فلا بنك أسئلة له — وبنكٌ فارغ لا يُستعمل أبداً عبءٌ لا فائدة فيه.

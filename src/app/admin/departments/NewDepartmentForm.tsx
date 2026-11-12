@@ -6,17 +6,8 @@ import { Button } from "@/components/ui";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import type { themeFromColor } from "@/lib/brand";
 
-/** ألوان مقترحة من هوية تَـــلاقِ وما يجاورها — والحقل يقبل أي لون غيرها */
-const SWATCHES = [
-  "#C34900",
-  "#341D2B",
-  "#67C090",
-  "#1F6F8B",
-  "#B38B2D",
-  "#7A4EAB",
-  "#C2185B",
-  "#3F7D20",
-];
+/** ألوانُ التمييز المعتمدة (`lib/departmentColor`) — والمحجوزُ منها لقسمٍ آخر معطَّل؛ والخادمُ يرفضه ثانيةً */
+import { DEPARTMENT_SWATCHES as SWATCHES } from "@/lib/departmentColorSwatches";
 
 /** إنشاءُ قسم — أو طلبُه.
  *
@@ -26,9 +17,15 @@ const SWATCHES = [
 export function NewDepartmentForm({
   theme,
   requestMode = false,
+  defaultColor = SWATCHES[0],
+  taken = {},
 }: {
   theme: ReturnType<typeof themeFromColor>;
   requestMode?: boolean;
+  /** أولُ لونٍ لم يحمله قسم — لا لونُ التسويق لكل قسمٍ جديد */
+  defaultColor?: string;
+  /** الألوانُ المحجوزة وأصحابُها */
+  taken?: Record<string, string>;
 }) {
   const dict = useTranslations();
   const t = dict.deptAdmin;
@@ -37,7 +34,7 @@ export function NewDepartmentForm({
     success: false,
   });
   const [open, setOpen] = useState(false);
-  const [color, setColor] = useState(SWATCHES[0]);
+  const [color, setColor] = useState<string>(defaultColor);
   const [handledSuccess, setHandledSuccess] = useState(false);
   const [leadershipOnly, setLeadershipOnly] = useState(false);
   const [sent, setSent] = useState(false);
@@ -95,8 +92,10 @@ export function NewDepartmentForm({
               key={c}
               type="button"
               onClick={() => setColor(c)}
-              aria-label={c}
-              className={`h-10 w-10 rounded-full border-2 transition-transform ${
+              disabled={!!taken[c]}
+              aria-label={taken[c] ? `${c} — ${taken[c]}` : c}
+              title={taken[c] ? `محجوز لقسم «${taken[c]}»` : c}
+              className={`h-10 w-10 rounded-full border-2 transition-transform disabled:cursor-not-allowed disabled:opacity-30 ${
                 color === c ? "scale-110 border-black/60" : "border-black/10"
               }`}
               style={{ background: c }}

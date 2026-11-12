@@ -1,7 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { seatConflicts, halfApprovedLeaders } from "@/lib/workflow";
 import { leftoverLeaderIds } from "@/lib/leftoverLeaders";
-import { DEPARTMENT_THEME, departmentSlugFor } from "@/lib/brand";
+import { DEPARTMENT_THEME, type DepartmentSlug } from "@/lib/brand";
+
+/** الأقسامُ الرسمية بمعرّفها المخزَّن وحده (لا بالاسم: الأرشفةُ تغيّره) — للتدقيق */
+const OFFICIAL_SLUGS: Record<string, DepartmentSlug> = { "senior-administration": "senior-administration", marketing: "marketing", tech: "technical", technical: "technical", hr: "hr" };
 
 /** **تدقيقُ سلامة البيانات — قراءةٌ فقط، لا كتابة.**
  *
@@ -93,7 +96,7 @@ function report(title: string, count: number, sample: string[], remedy: string) 
   // ألوانُ الأقسام الرسمية: الإدارة بنفسجي، التسويق برتقالي، التقنية أخضر، الموارد البشرية بيج
   const official = await prisma.department.findMany({ where: { parentId: null }, select: { name: true, slug: true, colorHex: true } });
   const offColour = official.filter((d) => {
-    const key = departmentSlugFor(d.slug) ?? departmentSlugFor(d.name);
+    const key = OFFICIAL_SLUGS[d.slug];
     return key && d.colorHex.toUpperCase() !== DEPARTMENT_THEME[key].colorHex.toUpperCase();
   });
   report(

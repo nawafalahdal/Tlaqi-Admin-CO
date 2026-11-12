@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { takenColors, firstFreeSwatch } from "@/lib/departmentColor";
 import Link from "next/link";
 import { PageHeader } from "@/components/PageHeader";
 import { auth } from "@/auth";
@@ -52,6 +53,8 @@ export default async function DepartmentsIndexPage() {
   const t = getDictionary(await getLocale());
   const td = t.deptAdmin;
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
+  // ألوانُ الأقسام: المحجوزُ وأصحابُه، وأولُ لونٍ حرّ لقسمٍ جديد (`lib/departmentColor`)
+  const [takenColorMap, freeColor] = await Promise.all([takenColors(), firstFreeSwatch()]);
   const role = session.user.role;
   const canCreate = canCreateDepartment(role);
   const canDelete = canDeleteDepartment(role);
@@ -162,7 +165,7 @@ export default async function DepartmentsIndexPage() {
 
         {canCreate && (
           <Card className="p-4 sm:p-5">
-            <NewDepartmentForm theme={theme} requestMode={departmentNeedsApproval(role)} />
+            <NewDepartmentForm theme={theme} requestMode={departmentNeedsApproval(role)} defaultColor={freeColor} taken={takenColorMap} />
           </Card>
         )}
 
@@ -335,7 +338,7 @@ export default async function DepartmentsIndexPage() {
                 </div>
                 {(canCreate || deletable || leaderChange) && (
                   <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-black/5 pt-3">
-                    {canCreate && <DepartmentColor departmentId={d.id} current={d.colorHex} />}
+                    {canCreate && <DepartmentColor departmentId={d.id} current={d.colorHex} taken={takenColorMap} />}
                     {leaderChange && (
                       <Link
                         href={`/admin/departments/${d.slug}/leader`}

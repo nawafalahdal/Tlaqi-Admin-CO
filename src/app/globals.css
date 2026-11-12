@@ -48,8 +48,8 @@
   /* Department identity tokens: identity is intentionally separate from workflow status. */
   --department-senior-admin: #341d2b;
   --department-marketing: #c34900;
-  --department-technical: #2f8f63;
-  --department-hr: #9a7b3f;
+  --department-technical: #67c090;
+  --department-hr: #eef6df;
   --department-senior-admin-surface: color-mix(in oklab, var(--department-senior-admin) 12%, var(--surface));
   --department-marketing-surface: color-mix(in oklab, var(--department-marketing) 12%, var(--surface));
   --department-technical-surface: color-mix(in oklab, var(--department-technical) 12%, var(--surface));

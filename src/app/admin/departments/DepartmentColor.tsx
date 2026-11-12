@@ -4,16 +4,19 @@ import { useState, useTransition } from "react";
 import { updateDepartmentColorAction } from "./actions";
 import { useTranslations } from "@/i18n/LocaleProvider";
 
-const SWATCHES = ["#341D2B", "#C34900", "#67C090", "#EEF6DF", "#1F6F8B", "#B38B2D", "#7A4EAB", "#C2185B"];
+import { DEPARTMENT_SWATCHES as SWATCHES } from "@/lib/departmentColorSwatches";
 
 /** تغيير لون قسم من فهرس الأقسام — في مكانه الصحيح الآن.
  *  كان داخل لوحة القسم، ولوحة القسم ما عادت تُفتح لمن يملك الهيكل. */
 export function DepartmentColor({
   departmentId,
   current,
+  taken = {},
 }: {
   departmentId: string;
   current: string;
+  /** الألوانُ المحجوزة لأقسامٍ أخرى — تُعطَّل هنا، والخادمُ يرفضها ثانيةً */
+  taken?: Record<string, string>;
 }) {
   const dict = useTranslations();
   const t = dict.deptAdmin;
@@ -42,8 +45,10 @@ export function DepartmentColor({
             key={c}
             type="button"
             onClick={() => setColor(c)}
-            aria-label={c}
-            className={`h-8 w-8 rounded-full border-2 ${color === c ? "scale-110 border-black/60" : "border-black/10"}`}
+            disabled={!!taken[c] && c !== current.toUpperCase()}
+            aria-label={taken[c] ? `${c} — ${taken[c]}` : c}
+            title={taken[c] && c !== current.toUpperCase() ? `محجوز لقسم «${taken[c]}»` : c}
+            className={`h-8 w-8 rounded-full border-2 disabled:cursor-not-allowed disabled:opacity-30 ${color === c ? "scale-110 border-black/60" : "border-black/10"}`}
             style={{ background: c }}
           />
         ))}

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { departmentColor } from "@/lib/departmentColor";
 import { BRAND } from "@/lib/brand";
 import { accountRoleLabel } from "@/lib/testTracks";
 import { getDictionary, type Dictionary, type Locale } from "@/i18n";
@@ -109,23 +110,15 @@ export const MIN_DEPARTMENT_MEMBERS = 2;
  *  أما القائدُ فلازم: لجنةٌ بلا قائدٍ مقعدٌ شاغرٌ في وثيقةٍ رسمية. */
 export const MIN_COMMITTEE_MEMBERS = 1;
 
-/** ألوان العرض — مرتبطةٌ بالمستوى والقسم لا تُختار عشوائياً.
- *
- *  والمفتاح اسمُ القسم كما هو في القاعدة. ومن لم يُذكَر هنا يأخذ لونَه
- *  المسجَّل في سجلّه — فالقسم الجديد يدخل الهيكل بلونه من يوم إنشائه
- *  بلا تعديلٍ في الكود.
- */
+/** لونُ مقاعد القيادة (المؤسس والرئيس التنفيذي ومسؤول التشغيل) في الهيكل */
 export const ORG_SENIOR_COLOR = "#1A0E1C";
 
-const DEPARTMENT_DISPLAY: Record<string, string> = {
-  "الإدارة العليا": ORG_SENIOR_COLOR,
-  "التسويق": "#C34900",
-  "الموارد البشرية": "#FFFFFF",
-  "التقنية": BRAND.greenSheen,
-};
-
-export function departmentDisplayColor(name: string, fallbackHex: string): string {
-  return DEPARTMENT_DISPLAY[name.trim()] ?? fallbackHex;
+/** **لونُ القسم في الهيكل والصور: لونُه المسجَّل في صفّه وحده** (`lib/departmentColor`).
+ *
+ *  كانت هنا خريطةٌ **بالاسم** تغلب لونَ القاعدة — وهي السببُ الجذري لاختلاط الألوان: الأرشفةُ تغيّر اسم القسم،
+ *  فيفقد المؤرشفُ لونَه ويرثه من يأتي بالاسم نفسه. فصار الاسمُ لا يُسأل؛ والوسيطُ الأول باقٍ لتوافق النداءات. */
+export function departmentDisplayColor(_name: string, colorHex: string): string {
+  return departmentColor({ colorHex });
 }
 
 /** حدٌّ يُرى للألوان الفاتحة جداً.
