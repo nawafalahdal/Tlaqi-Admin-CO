@@ -2,7 +2,6 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import sharp from "sharp";
 import { BRAND, themeFromColor } from "@/lib/brand";
-import { contrastRatio } from "@/lib/colors";
 import { ensureFonts } from "@/lib/welcomeBanner";
 
 /** صورتا المشاركة: ملصقُ الدعوة، وبطاقةُ العضوية.
@@ -234,56 +233,28 @@ export type WelcomeCardData = {
   colorHex: string | null;
 };
 
-/** نمطٌ رسميٌّ **بلون القسم** — يُستبدل لونُ الملف (Temptress) بلون القسم، والشكلُ والمقاسُ كما هما */
-function tintedTile(kind: "talent" | "innovation", hex: string): string {
-  return patternTile(kind, "temptress").replace(/#341D2B/gi, hex);
-}
-
-/** علامةُ الشعار الرسمية بلون الحبر — قناعُ الملف الرسمي مملوءاً باللون (لا يُعاد رسمها) */
-const inkMarkCache = new Map<string, string>();
-async function inkMark(hex: string): Promise<string> {
-  const hit = inkMarkCache.get(hex);
+/** **علامةُ الشعار الرسمية** بنسختها لذلك اللون — الملفُّ نفسُه من حزمة الهوية، مصغَّراً لا ملوَّناً */
+const MARK_FOR: Record<LogoFile, string> = {
+  "on-temptress": "TLAQI-mark_mahogany.png",
+  "on-beige": "TLAQI-mark_mahogany.png",
+  "on-mahogany": "TLAQI-mark_beige.png",
+  "on-green-sheen": "TLAQI-mark_temptress.png",
+};
+const markCache = new Map<string, string>();
+async function markUri(logo: LogoFile): Promise<string> {
+  const file = MARK_FOR[logo];
+  const hit = markCache.get(file);
   if (hit) return hit;
-  const src = readFileSync(join(BRAND_DIR, "2026", "email", "mark-mahogany.png"));
-  const meta = await sharp(src).metadata();
-  const alpha = await sharp(src).ensureAlpha().extractChannel("alpha").toBuffer();
-  const h = hex.replace("#", "");
-  const png = await sharp({ create: { width: meta.width!, height: meta.height!, channels: 3, background: { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) } } })
-    .joinChannel(alpha)
-    .png()
-    .toBuffer();
+  const png = await sharp(readFileSync(join(BRAND_DIR, "2026", "logos", file))).resize({ width: 192 }).png().toBuffer();
   const uri = `data:image/png;base64,${png.toString("base64")}`;
-  inkMarkCache.set(hex, uri);
+  markCache.set(file, uri);
   return uri;
 }
 
-/** درجةٌ عميقةٌ غنيّة من اللون نفسه: الصبغةُ كما هي، والتشبّعُ محفوظٌ بحدّ، والإضاءةُ ~٢٠٪ */
-function deepTone(hex: string): string {
-  const n = parseInt(hex.slice(1), 16);
-  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255);
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  const d = max - min;
-  const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
-  let h = 0;
-  if (d) h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
-  h = (h * 60 + 360) % 360;
-  const L = l < 0.25 ? Math.max(0.09, l * 0.62) : 0.2;
-  const S = Math.min(sat, 0.62);
-  const c = (1 - Math.abs(2 * L - 1)) * S;
-  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-  const m = L - c / 2;
-  const [rr, gg, bb] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
-  return `#${[rr, gg, bb].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, "0")).join("").toUpperCase()}`;
-}
-
 /** **بطاقةُ الاعتماد (العضوية)** — تصميمُها الأصلي الذي اختاره المؤسس (بطاقةٌ بلون القسم على خلفية الهوية)، محسَّناً:
- *  - **الأنماطُ بلون القسم:** عمودا «موهبة» و«ابتكار» على جانبَي الخلفية، بلون القسم نفسه — فالنمطُ هويةُ القسم.
- *    (كانت نقاطاً عامّة ورمزاً شفّافاً يصنع لوناً خامساً.)
- *  - **ألوانٌ لكل قسم:** الخلفيةُ والبطاقةُ والنمطُ كلُّها من لون القسم (واللجنةُ بلون قسمها): الخلفيةُ درجتُه الأعمق،
- *    والبطاقةُ لونُه الصافي، وكلُّ حبرٍ بالتباين.
- *  - الشعارُ الرسمي لكل خلفية، والعلامةُ داخل البطاقة بلون حبرها.
+ *  - **الأنماطُ على الجانبين:** عمودا «موهبة» و«ابتكار» بلون الدليل لخلفية القسم (كانت نقاطاً عامّة ورمزاً شفّافاً).
+ *  - **الخلفيةُ والبطاقةُ بلون القسم الصافي** (واللجنةُ بلون قسمها)، والبطاقةُ تُفرَد بإطارٍ وظلّ.
+ *  - **الشعاران نسخةٌ رسميةٌ واحدة لذلك اللون:** الشعارُ أعلى البطاقة وعلامتُه داخلها من ملفات الحزمة نفسها، لا تلوين.
  *
  *  تصل مع رسالة الاعتماد وحدها: هي الإعلان أنّ صاحبها صار منّا. */
 export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
@@ -291,18 +262,15 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   const card = palette(d.colorHex);
   // **الخلفيةُ بلون القسم أيضاً (قرار المؤسس):** درجةٌ أعمقُ من لون القسم نفسه، والبطاقةُ بلونه الصافي — فالبطاقةُ كلُّها
   // من لونٍ واحد. واللونُ الفاتح جداً (كالـBeige) لا تُعمَّق له خلفيةٌ موحلة: الخلفيةُ بلونه، والبطاقةُ بإطارٍ صريح
-  const light = contrastRatio(card.bg, "#FFFFFF") < 1.6;
-  // **نظامٌ لونيٌّ واحدٌ لكل الأقسام (ملاحظة المؤسس: «نسّق الخلفية والشعارات وألوانها»):**
-  // - الخلفيةُ درجةٌ عميقةٌ **غنيّة** من لون القسم نفسه (بالصبغة والتشبّع، لا تعتيمٌ بالأسود يُبهت اللون)؛
-  // - الشعارُ ونصوصُ الخلفية بلونٍ واحدٍ ثابت: Beige على الداكن (النسخةُ المفرَّغة) وTemptress على الفاتح؛
-  // - البطاقةُ بلون القسم الصافي، وحبرُها وعلامتُها من صبغة القسم العميقة إن قُرئت (≥٤٫٥:١) وإلا فـBeige/Temptress؛
-  // - النمطُ بلون القسم الصافي — فالقسمُ كلُّه درجتان من لونٍ واحد.
-  const page = light ? card.bg : deepTone(card.bg);
-  const pageInk = light ? BRAND.temptress : BRAND.beige;
-  const pageLogo: LogoFile = light ? "on-green-sheen" : "on-mahogany";
-  const patColor = light ? BRAND.temptress : contrastRatio(card.bg, page) >= 1.8 ? card.bg : pageInk;
-  const cardInk = !light && card.onLight && contrastRatio(page, card.bg) >= 4.5 ? page : card.ink;
-  const cardStroke = light ? ` stroke="${BRAND.temptress}" stroke-width="3"` : contrastRatio(card.bg, page) < 1.35 ? ` stroke="${pageInk}" stroke-width="2"` : "";
+  // **الشعاران نسخةٌ رسميةٌ واحدة على لونٍ واحد (قرار المؤسس):** الخلفيةُ والبطاقةُ بلون القسم الصافي، فالشعارُ أعلاها
+  // وعلامتُه داخل البطاقة من النسخة الرسمية لذلك اللون نفسها — البنفسجي: علامةٌ برتقالية وكلمةٌ Beige؛ الـBeige: علامةٌ
+  // برتقالية؛ البرتقالي: الشعارُ أبيض (Beige) كاملاً؛ الأخضر: الشعارُ بنفسجيٌّ كاملاً. والنصُّ بحبر تلك النسخة، والنمطُ
+  // بلون الدليل لتلك الخلفية، والبطاقةُ تُفرَد بإطارٍ وظلّ.
+  const page = card.bg;
+  const pageInk = card.ink;
+  const pageLogo: LogoFile = card.logo;
+  const cardInk = card.ink;
+  const cardStroke = ` stroke="${card.ink}" stroke-width="3"`;
   const C = CARD_W / 2;
   const X = 180;
   const W = CARD_W - 2 * X;
@@ -312,7 +280,7 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   const titleSize = await fit(d.title, 40, W - 112, 26);
   const roleSize = await fit(d.roleTitle, 32, 300, 22);
   const dept = d.departmentName?.trim() || "تلاق";
-  const mark = await inkMark(cardInk);
+  const mark = await markUri(card.logo);
   const cols = [
     ["talent", 0],
     ["innovation", TILE],
@@ -322,7 +290,7 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   const columns = cols
     .map(([kind, x], i) => {
       const id = `side-${i}`;
-      return `<defs><pattern id="${id}" x="${x}" y="${COLUMN.y}" width="${TILE}" height="${TILE}" patternUnits="userSpaceOnUse">${tintedTile(kind, patColor)}</pattern></defs><rect x="${x}" y="${COLUMN.y}" width="${TILE}" height="${COLUMN.rows * TILE}" fill="url(#${id})"/>`;
+      return `<defs><pattern id="${id}" x="${x}" y="${COLUMN.y}" width="${TILE}" height="${TILE}" patternUnits="userSpaceOnUse">${patternTile(kind, card.pattern)}</pattern></defs><rect x="${x}" y="${COLUMN.y}" width="${TILE}" height="${COLUMN.rows * TILE}" fill="url(#${id})"/>`;
     })
     .join("");
   const nameY = 600 + nameSize;
@@ -338,7 +306,7 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   ${t(`${d.greeting} في العائلة`, C, 300, 48, pageInk, { weight: 700, anchor: "middle" })}
   <g filter="url(#shadow)"><rect x="${X}" y="360" width="${W}" height="680" rx="48" fill="${card.bg}"${cardStroke}/></g>
   ${t(dept, R, 452, 30, cardInk, { weight: 700 })}
-  <image href="${mark}" x="${IL}" y="406" width="64" height="69"/>
+  <image href="${mark}" x="${IL}" y="404" width="64" height="69"/>
   ${t(d.fullName, R, nameY, nameSize, cardInk, { weight: HERO })}
   ${t(d.title, R, nameY + 70, titleSize, cardInk)}
   <line x1="${IL}" y1="850" x2="${R}" y2="850" stroke="${cardInk}" stroke-width="2"/>
