@@ -94,6 +94,7 @@ export async function acceptInviteAction(_p: FormState, fd: FormData): Promise<F
 }
 
 /** مزامنةُ تبويبات الحوكمة الآن — للمؤسس والرئيس التنفيذي (والنتيجةُ في سجل المزامنة) */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- توقيعُ useActionState يفرض المعاملين
 export async function syncGovernanceNowAction(_p: FormState, _fd: FormData): Promise<FormState> {
   try {
     const ctx = await seniorContext(await auth());

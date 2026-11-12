@@ -1,3 +1,4 @@
+import { uniqueTestColor } from "./testColors";
 import { prisma } from "@/lib/prisma";
 import type { Session } from "next-auth";
 import { decideCommittee, canDecideCommittee, pendingCommittees, OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
@@ -68,8 +69,9 @@ function sess(role: string, departmentId: string | null, id: string, name = "ا�
   const execSess = sess("executive", null, exec.id, exec.fullName);
 
   // ── التهيئة: قسمان، وقائدٌ لكلٍّ منهما، ومسؤولُ تشغيل، وأعضاء
-  const deptA = await createDepartment({ name: `قسم لجان أ ${STAMP}`, colorHex: "#C34900", createdByName: "اختبار" });
-  const deptB = await createDepartment({ name: `قسم لجان ب ${STAMP}`, colorHex: "#3F7D20", createdByName: "اختبار" });
+  const colorA = uniqueTestColor(); // لونٌ فريد: لا يتشارك قسمان لوناً (تهيئةٌ لا توقّع)
+  const deptA = await createDepartment({ name: `قسم لجان أ ${STAMP}`, colorHex: colorA, createdByName: "اختبار" });
+  const deptB = await createDepartment({ name: `قسم لجان ب ${STAMP}`, colorHex: uniqueTestColor(), createdByName: "اختبار" });
   const mkUser = (role: "department_admin" | "operations_officer", departmentId: string | null, tag: string) =>
     prisma.user.create({ data: { fullName: `${tag} ${STAMP}`, email: `${tag.replace(/\s/g, "")}${DOMAIN}`, passwordHash: "x", role, departmentId } });
   const leadA = await mkUser("department_admin", deptA.id, "قائدأ");
@@ -120,10 +122,21 @@ function sess(role: string, departmentId: string | null, id: string, name = "ا�
   chk("١ · لا لجنةَ بلا غرض", !noPurpose.ok, why(noPurpose));
   const noName = await createCommittee(LA, deptA.id, { ...base, name: "", leadMemberId: a1.id, memberIds: [a2.id], submit: false });
   chk("١ · ولا بلا اسم", !noName.ok, why(noName));
-  const noLead = await createCommittee(LA, deptA.id, { ...base, leadMemberId: "", memberIds: [a2.id], submit: false });
-  chk("١ · ولا بلا قائد", !noLead.ok, why(noLead));
-  const noMembers = await createCommittee(LA, deptA.id, { ...base, leadMemberId: a1.id, memberIds: [], submit: false });
-  chk("١ · ولا بلا أعضاء", !noMembers.ok, why(noMembers));
+  // تغييرُ توقّعٍ مقصود (دورة حياة اللجان، نوفمبر 2026 — توجيه المؤسس «بلا قائد، ويُعيَّن قائدٌ لاحقاً»): اللجنةُ تُنشأ
+  // بلا قائد مسودّةً، ثم يُعيَّن قائدها. فتُحذف هنا كي لا يشغل اسمُها الاسمَ الذي يُختبر به الإنشاءُ الكامل بعدها
+  const noLead = await createCommittee(LA, deptA.id, { ...base, name: `${base.name} بلا قائد`, leadMemberId: "", memberIds: [a2.id], submit: false });
+  chk("١ · وتُنشأ بلا قائد (مسودّةً يُعيَّن قائدُها لاحقاً)", noLead.ok, why(noLead));
+  if (noLead.ok) {
+    await prisma.committeeMembership.deleteMany({ where: { committeeId: noLead.id } });
+    await prisma.department.delete({ where: { id: noLead.id } });
+  }
+  // تغييرُ توقّعٍ مقصود (دورة حياة اللجان، نوفمبر 2026): الأعضاءُ يُضافون عند الإنشاء أو بعده بالصلاحية نفسها
+  const noMembers = await createCommittee(LA, deptA.id, { ...base, name: `${base.name} بلا أعضاء`, leadMemberId: a1.id, memberIds: [], submit: false });
+  chk("١ · وتُنشأ بلا أعضاء (يُضافون لاحقاً)", noMembers.ok, why(noMembers));
+  if (noMembers.ok) {
+    await prisma.committeeMembership.deleteMany({ where: { committeeId: noMembers.id } });
+    await prisma.department.delete({ where: { id: noMembers.id } });
+  }
   const tempNoEnd = await createCommittee(LA, deptA.id, { ...base, kind: "temporary", leadMemberId: a1.id, memberIds: [a2.id], submit: false });
   chk("١ · والمؤقّتةُ لا تُنشأ بلا تاريخ انتهاء", !tempNoEnd.ok, why(tempNoEnd));
   const endBefore = await createCommittee(LA, deptA.id, { ...base, kind: "temporary", startDate: "2026-12-01", endDate: "2026-11-01", leadMemberId: a1.id, memberIds: [a2.id], submit: false });
@@ -139,7 +152,7 @@ function sess(role: string, departmentId: string | null, id: string, name = "ا�
     row.purpose === base.purpose && row.scope === base.scope && row.responsibilities === base.responsibilities &&
       row.expectedOutputs === base.expectedOutputs && row.kpis === base.kpis && row.committeeKind === "permanent" &&
       row.startDate?.toISOString().slice(0, 10) === "2026-11-01" && row.endDate === null);
-  chk("١ · ولونُها لونُ قسمها", row.colorHex === "#C34900", row.colorHex);
+  chk("١ · ولونُها لونُ قسمها", row.colorHex === colorA, row.colorHex);
   const active = await prisma.committeeMembership.findMany({ where: { committeeId: cid, active: true }, select: { memberId: true } });
   chk("١ · القائدُ عضوٌ فيها والأعضاءُ معه", active.length === 3 && active.some((m) => m.memberId === a1.id), String(active.length));
   chk("١ · ولا يتغيّر قسمُ أحدٍ بعضويته", (await prisma.member.findUniqueOrThrow({ where: { id: a2.id } })).departmentId === deptA.id);
@@ -349,7 +362,10 @@ function sess(role: string, departmentId: string | null, id: string, name = "ا�
   chk("١١ · والمغلقةُ لا تُعدَّل", !frozenEdit.ok, why(frozenEdit));
   const frozenAdd = await addCommitteeMembers(LA, cid, [a6.id]);
   chk("١١ · ولا يُضاف إليها", !frozenAdd.ok, why(frozenAdd));
-  chk("١١ · ثم تُؤرشف", (await changeCommitteeStatus(LA, cid, "archived", null)).ok);
+  // تغييرُ توقّعٍ مقصود (دورة حياة اللجان، نوفمبر 2026): الأرشفةُ قابلةٌ للاسترجاع فتُسجَّل بسببٍ مكتوب كالتعليق والإغلاق
+  const archiveNoNote = await changeCommitteeStatus(LA, cid, "archived", null);
+  chk("١١ · ولا أرشفةَ بلا سبب", !archiveNoNote.ok, why(archiveNoNote));
+  chk("١١ · ثم تُؤرشف بسببٍ مكتوب", (await changeCommitteeStatus(LA, cid, "archived", "انتهى عملها وتُحفظ للرجوع")).ok);
   const reopen = await changeCommitteeStatus(LA, cid, "approved", null);
   chk("١١ · والمؤرشفةُ لا تُعاد فتحاً", !reopen.ok, why(reopen));
   const kept = await prisma.department.findUniqueOrThrow({

@@ -54,26 +54,30 @@ const sess = (u: { id: string; role: string; fullName: string; departmentId?: st
   const aOps = await orgActor(sess(ops));
   const aLead = await orgActor(sess(mktLead));
 
-  // ١ — من يقترح في الإدارة العليا
-  chk("المؤسس والرئيس التنفيذي يقترحان لجان الإدارة العليا", canProposeCommitteesOf(aFounder, senior.id) && canProposeCommitteesOf(aCeo, senior.id));
+  // ١ — من يقترح في الإدارة العليا.
+  //    **تغييرُ توقّعٍ مقصود (إعادة هيكلة الحوكمة، نوفمبر 2026):** الإدارةُ العليا يقودها شخصٌ واحدٌ في كل وقت — الرئيسُ
+  //    التنفيذي، وبغيابه المؤسس. فمع رئيسٍ نشط **يقترح الرئيسُ ويعتمد المؤسس** (لا يعتمد أحدٌ اقتراحه)، وبغياب الرئيس
+  //    يقترح المؤسس (القسم ٤ أدناه). كان الفحصُ يتوقّع أن يقترحا معاً — وهو ما ألغته قاعدةُ القائد الواحد.
+  chk("مع رئيسٍ تنفيذيٍّ نشط: هو من يقترح لجان الإدارة العليا، والمؤسسُ يعتمد", canProposeCommitteesOf(aCeo, senior.id) && !canProposeCommitteesOf(aFounder, senior.id));
   chk("ولا يقترحها مسؤول التشغيل ولا قائد قسمٍ آخر", !canProposeCommitteesOf(aOps, senior.id) && !canProposeCommitteesOf(aLead, senior.id));
   chk("والرئيس والمؤسس لا يقترحان لجان الأقسام الأخرى (لقائدها)", !canProposeCommitteesOf(aCeo, marketing.id) && !canProposeCommitteesOf(aFounder, marketing.id) && canProposeCommitteesOf(aLead, marketing.id));
   const forCeo = await departmentsForCreation(aCeo);
-  chk("صفحة الإنشاء تعرض الإدارة العليا للرئيس والمؤسس", forCeo.some((d) => d.id === senior!.id) && (await departmentsForCreation(aFounder)).some((d) => d.id === senior!.id));
+  chk("صفحة الإنشاء تعرض الإدارة العليا لقائدها (الرئيس) لا للمؤسس حينها", forCeo.some((d) => d.id === senior!.id) && !(await departmentsForCreation(aFounder)).some((d) => d.id === senior!.id));
   chk("ولا تعرضها لمسؤول التشغيل ولا لقائد التسويق", (await departmentsForCreation(aOps)).length === 0 && !(await departmentsForCreation(aLead)).some((d) => d.id === senior!.id));
 
   const input = (name: string, lead: string, members: string[]) => ({
     name, purpose: "تنسيق ملفات الحوكمة والسياسات", kind: "permanent" as const, leadMemberId: lead, memberIds: members, submit: true,
   });
 
-  // ٢ — المؤسس يُنشئ، والرئيسُ يقرّر (لا يعتمد أحدٌ اقتراحه)
-  const c1 = await createCommittee(aFounder, senior.id, input(`لجنة الحوكمة ${TAG}`, s1.id, [s2.id]));
-  chk("المؤسس يُنشئ لجنة في الإدارة العليا (طلب اعتماد)", c1.ok && c1.status === "pending_review", JSON.stringify(c1));
+  // ٢ — المؤسس لا يقترح والرئيسُ قائمٌ: يُرفض بسببٍ مفهوم (ويبقى له الاعتماد)
+  const refused = await createCommittee(aFounder, senior.id, input(`لجنة مرفوضة ${TAG}`, s1.id, [s2.id]));
+  chk("المؤسسُ لا يُنشئ لجنةً في الإدارة العليا والرئيسُ قائم — ويُقال له لماذا", !refused.ok && !!refused.reason, JSON.stringify(refused));
+  // ولجنةُ الحوكمة (التي تُختبر بها الأدوار أدناه) يقترحها الرئيس ويعتمدها المؤسس
+  const c1 = await createCommittee(aCeo, senior.id, input(`لجنة الحوكمة ${TAG}`, s1.id, [s2.id]));
+  chk("الرئيسُ يقترح لجنة الحوكمة (طلب اعتماد)", c1.ok && c1.status === "pending_review", JSON.stringify(c1));
   if (c1.ok) {
-    const self = await decideCommittee({ committeeId: c1.id, decision: "approved", session: sess(founder) });
-    chk("ولا يعتمدها المؤسس نفسه (من اقترح لا يعتمد)", !self.ok && self.reason.includes("لا يعتمد"));
-    const byCeo = await decideCommittee({ committeeId: c1.id, decision: "approved", session: sess(ceo) });
-    chk("ويعتمدها الرئيس التنفيذي", byCeo.ok, JSON.stringify(byCeo));
+    const byFounder1 = await decideCommittee({ committeeId: c1.id, decision: "approved", session: sess(founder) });
+    chk("ويعتمدها المؤسس", byFounder1.ok, JSON.stringify(byFounder1));
     const row = await prisma.department.findUniqueOrThrow({ where: { id: c1.id } });
     chk("وتظهر في القسم الصحيح (أبوها الإدارة العليا) ومفتوحةً في القوائم", row.parentId === senior.id && (await prisma.department.count({ where: { id: c1.id, ...OPEN_DEPARTMENT_WHERE } })) === 1);
   }
@@ -87,6 +91,13 @@ const sess = (u: { id: string; role: string; fullName: string; departmentId?: st
     const byFounder = await decideCommittee({ committeeId: c2.id, decision: "approved", session: sess(founder) });
     chk("ويعتمدها المؤسس", byFounder.ok, JSON.stringify(byFounder));
   }
+
+  // ٤ — بغياب الرئيس التنفيذي تنتقل قيادةُ الإدارة العليا إلى المؤسس: فيقترح هو
+  await prisma.user.update({ where: { id: ceo.id }, data: { isActive: false } });
+  const aFounderAlone = await orgActor(sess(founder));
+  chk("بغياب الرئيس: المؤسسُ يقترح لجان الإدارة العليا وتعرضها له صفحةُ الإنشاء",
+    canProposeCommitteesOf(aFounderAlone, senior.id) && (await departmentsForCreation(aFounderAlone)).some((d) => d.id === senior!.id));
+  await prisma.user.update({ where: { id: ceo.id }, data: { isActive: true } });
 
   // ٤ — الرفض لمن لا يملك، والحدود كما هي
   const byOps = await createCommittee(aOps, senior.id, input(`لجنة ${TAG} ٣`, s1.id, [s2.id]));

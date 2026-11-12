@@ -36,6 +36,9 @@ async function setup(totpSecret: string) {
         passwordChangedAt: new Date(), jobTitle: "حساب فحص",
       },
     });
+  // لا يجتمع رئيسان تنفيذيان نشطان (قيد الحوكمة `User_single_active_executive`): يُنحّى أيُّ تنفيذيٍّ آخر في القاعدة
+  // المحلية قبل إنشاء تنفيذيِّ الفحص — والسكربتُ يرفض غيرَ القاعدة المحلية أصلاً
+  await prisma.user.updateMany({ where: { role: "executive", isActive: true }, data: { isActive: false } });
   await admin("executive", "exec");
   await admin("operations_officer", "ops");
   await admin("department_admin", "lead");

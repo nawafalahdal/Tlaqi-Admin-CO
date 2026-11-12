@@ -329,7 +329,8 @@ async function cleanup() {
 
   // ── ١٢ب) حذفُ حسابٍ في الفريق نهائياً: لا يفشل، ولا يمحو ما كتب
   const delEmail = `${MARK}-del@example.test`;
-  const delU = await prisma.user.create({ data: { fullName: "كاتب يُحذف", email: delEmail, passwordHash: "x", role: "executive", isActive: true } });
+  // ليس تنفيذياً: لا يجتمع رئيسان تنفيذيان نشطان (قيد الحوكمة) — والمختبَرُ حذفُ حسابٍ إداريٍّ في الفريق أيّاً كان دورُه
+  const delU = await prisma.user.create({ data: { fullName: "كاتب يُحذف", email: delEmail, passwordHash: "x", role: "operations_officer", isActive: true } });
   const delM = await addTeamMember(mkLead, { kind: "user", id: delU.id, capabilities: ["writer"] });
   chk("حسابٌ يُضاف إلى الفريق ويُحفظ اسمه", delM.ok && (await prisma.marketingMember.findUniqueOrThrow({ where: { id: delM.memberId } })).nameSnapshot === "كاتب يُحذف");
   if (!delM.ok) throw new Error("stop");

@@ -43,6 +43,8 @@ async function strip(tileFile: string, bg: string, out: string, tilePx = 96, wid
     "pattern-talent-on-beige.png": await strip("pattern-talent_M_mahogany.svg", BEIGE, "pattern-talent-on-beige.png"),
     // قرار المؤسس: خلفيةُ البريد بيضاء — فالشريطُ Mahogany على الأبيض
     "pattern-talent-on-white.png": await strip("pattern-talent_M_mahogany.svg", "#FFFFFF", "pattern-talent-on-white.png"),
+    // قرار المؤسس (نوفمبر 2026): الرسائلُ ثابتةٌ بالبنفسجي — شريطُ «موهبة» بلون Temptress على الأبيض
+    "pattern-talent-temptress-on-white.png": await strip("pattern-talent_M_temptress.svg", "#FFFFFF", "pattern-talent-temptress-on-white.png"),
     "pattern-talent-on-temptress.png": await strip("pattern-talent_M_beige.svg", TEMPTRESS, "pattern-talent-on-temptress.png"),
   };
   for (const [k, v] of Object.entries(sizes)) console.log(`${k}\t${Math.round(v / 1024)} KB`);

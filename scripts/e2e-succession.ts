@@ -26,8 +26,10 @@ const STAMP = Date.now();
   const founder = await prisma.user.findFirstOrThrow({ where: { role: "super_admin" } });
   const track = await prisma.testTrack.findFirstOrThrow({ where: { scope: "department_member" } });
 
-  // ── تنفيذيٌّ قديم وآخر جديد: الجديد أُنشئ بعده فالأقدم هو من يُقرأ
-  //    تنفيذياً، وبزواله يرث الجديد الموضع نفسه
+  // ── تغييرُ تهيئةٍ وتوقّعٍ مقصود (إعادة هيكلة الحوكمة، نوفمبر 2026): **لا يجتمع رئيسان تنفيذيان نشطان** (قيدٌ في
+  //    القاعدة `User_single_active_executive`)، و**بغياب الرئيس التنفيذي تنتقل القيادة إلى المؤسس** لا إلى «تنفيذيٍّ تالٍ».
+  //    فيُنحّى أيُّ تنفيذيٍّ قائمٍ في نسخة الفحص، ويُنشأ الخَلَفُ موقوفاً حتى يُعيَّن بعد زوال سلفه
+  await prisma.user.updateMany({ where: { role: "executive", isActive: true }, data: { isActive: false } });
   const oldCeo = await prisma.user.create({
     data: {
       fullName: `تنفيذي سابق ${STAMP}`, email: `ceo-old-${STAMP}@example.test`,
@@ -39,17 +41,10 @@ const STAMP = Date.now();
   const newCeo = await prisma.user.create({
     data: {
       fullName: `تنفيذي جديد ${STAMP}`, email: `ceo-new-${STAMP}@example.test`,
-      passwordHash: "x", role: "executive", isActive: true,
+      passwordHash: "x", role: "executive", isActive: false,
     },
   });
 
-  // ومن يرث المقعد بعده يُحسَب من القاعدة لا يُفترَض: أقدمُ تنفيذيٍّ
-  // نشطٍ سواه — وقد يكون تنفيذياً قائماً قبل هذا الاختبار
-  const expectedNextCeo = await prisma.user.findFirstOrThrow({
-    where: { role: "executive", isActive: true, id: { not: oldCeo.id } },
-    orderBy: { createdAt: "asc" },
-    select: { fullName: true },
-  });
 
   const chartBefore = await buildOrgChart();
   const ceoBefore = chartBefore.ceo.kind === "filled" ? chartBefore.ceo.person.fullName : "(شاغر)";
@@ -68,12 +63,17 @@ const STAMP = Date.now();
     },
   });
 
+  // صاحبُ الطلب مسؤولُ تشغيل لا المؤسس: بغياب رئيسٍ آخر يرث المؤسسُ العملَ المعلَّق (قيادةٌ لا وراثةُ تنفيذيٍّ تالٍ)،
+  // ولا يُسلَّم طلبٌ إلى رافعه — فلو رفعه المؤسس لما كان له خَلَفٌ يعتمده
+  const requester = await prisma.user.create({
+    data: { fullName: `رافع طلب ${STAMP}`, email: `requester-${STAMP}@example.test`, passwordHash: "x", role: "operations_officer", isActive: true },
+  });
   const ticketForApproval = await raiseTicket({
-    raisedByUserId: founder.id, targetUserId: oldCeo.id,
+    raisedByUserId: requester.id, targetUserId: oldCeo.id,
     subject: `خطة تحتاج اعتماداً ${STAMP}`, description: "تُرفع للاعتماد",
   });
   const asked = await requestApproval({
-    ticketId: ticketForApproval.id, requesterUserId: founder.id,
+    ticketId: ticketForApproval.id, requesterUserId: requester.id,
     kind: "marketing_plan", approverUserId: oldCeo.id,
   });
   chk("طلبُ اعتمادٍ معلَّقٌ باسم التنفيذي السابق", asked.ok,
@@ -134,8 +134,10 @@ const STAMP = Date.now();
     (n, d) => n + (d.lead.kind === "filled" ? 1 : 0) + d.members.length,
     0
   );
-  chk("**المقعد لا يبقى شاغراً: ورِثه التنفيذيُّ التالي بلا إجراء**",
-      ceoAfter === expectedNextCeo.fullName, `${ceoBefore} ← ${ceoAfter}`);
+  chk("**المقعدُ شاغرٌ بعد زواله — والقيادةُ للمؤسس حتى يُعيَّن خَلَف** (لا وراثةَ تلقائية)",
+      ceoAfter === "(شاغر)", `${ceoBefore} ← ${ceoAfter}`);
+  // تعيينُ الخَلَف بعد زوال سلفه — يُتاح الآن لأن المقعد شاغر
+  await prisma.user.update({ where: { id: newCeo.id }, data: { isActive: true } });
   chk("**والأقسام كما هي — لم يَنقلها أحد**",
       chartAfter.departments.length === deptsBefore,
       `${deptsBefore} → ${chartAfter.departments.length}`);
@@ -177,7 +179,8 @@ const STAMP = Date.now();
   const approver = await prisma.user.create({
     data: {
       fullName: `معتمِد مؤقّت ${STAMP}`, email: `approver-${STAMP}@example.test`,
-      passwordHash: "x", role: "executive", isActive: true,
+      // ليس تنفيذياً: لا يجتمع رئيسان تنفيذيان — والمعتمِدُ يكفي أن يكون حساباً نشطاً
+      passwordHash: "x", role: "operations_officer", isActive: true,
     },
   });
   const selfTicket = await raiseTicket({
@@ -211,6 +214,8 @@ const STAMP = Date.now();
   });
   await prisma.invite.deleteMany({ where: { email: `invitee-${STAMP}@example.test` } });
   await prisma.user.deleteMany({ where: { id: { in: [newCeo.id, approver.id] } } });
+  await prisma.ticket.deleteMany({ where: { OR: [{ raisedByUserId: requester.id }, { targetUserId: requester.id }] } }).catch(() => undefined);
+  await prisma.user.delete({ where: { id: requester.id } }).catch(() => undefined);
   await prisma.department.delete({ where: { id: leadDept.id } });
 
   console.log(log.join("\n"));

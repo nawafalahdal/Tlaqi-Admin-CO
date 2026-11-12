@@ -1,3 +1,4 @@
+import { uniqueTestColor } from "./testColors";
 import { prisma } from "@/lib/prisma";
 import { departmentDeletionPlan, deleteDepartment, canDeleteDepartment, createDepartment } from "@/lib/departments";
 import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
@@ -86,7 +87,8 @@ const DAY = 86_400_000;
   chk("ولا يُؤرشف مرّتين", !again.ok);
   const tryInvite = await createCandidateAccount({ fullName: "مدعو", email: `${TAG}-inv@example.test`, targetRole: "member", departmentId: hr.id, testTrackId: track.id, invitedById: founder.id }).then(() => "created").catch((e: Error) => e.message);
   chk("ولا يُدعى إليه أحد بعد أرشفته", tryInvite !== "created");
-  const recreated = await createDepartment({ name: hr.name, colorHex: "#EEF6DF", createdByName: "المؤسس" } as never).then(() => true).catch(() => false);
+  // لونُ المؤرشف محجوزٌ له (إصلاح الألوان): يُنشأ الجديد بالاسم نفسه ولونٍ حرّ — والمختبَرُ تحرّرُ الاسم
+  const recreated = await createDepartment({ name: hr.name, colorHex: uniqueTestColor(), createdByName: "المؤسس" } as never).then(() => true).catch(() => false);
   chk("واسمُه الأصلي تحرّر: يُنشأ قسمٌ جديد بالاسم نفسه إن شاء المؤسس", recreated);
 
   // ٣ — التقنية: قائدٌ وعضوٌ نشط → يُرفض بسببٍ واضح

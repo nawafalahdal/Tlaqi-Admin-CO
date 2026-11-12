@@ -379,7 +379,8 @@ async function cleanup() {
   });
   chk("المصمّمُ يُكمل الموجز من قيم الهوية الرسمية", full.ok && full.gaps.length === 0, full.ok ? full.gaps.join(",") : code(full));
   const ds = await sendChatMessage(d1, dScope, { body: "كيف أوزّع العنوان؟", requestId: `${MARK}-d1` }, cdeps);
-  chk("وشاتُ المصمّم يعمل في سياق القطعة", ds.ok && (await processChatReply(ds.ok ? ds.replyId : "", cdeps)) === "done" && seen.at(-1)!.context.includes("Cairo") && seen.at(-1)!.context.includes("1080"));
+  // تغييرُ توقّعٍ مقصود (قرار المؤسس، نوفمبر 2026): خطُّ الهوية الرسمي The Year of The Camel حلّ محلّ Cairo في قيم الهوية
+  chk("وشاتُ المصمّم يعمل في سياق القطعة", ds.ok && (await processChatReply(ds.ok ? ds.replyId : "", cdeps)) === "done" && seen.at(-1)!.context.includes("The Year of The Camel") && seen.at(-1)!.context.includes("1080"));
 
   // ═══ ١٠) التصميم ومراجعتُه واعتمادُه
   step(10, "إنشاء التصميم ومراجعته واعتماده");

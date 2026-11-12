@@ -105,9 +105,11 @@ async function cleanup() {
 
   // ٦أ — وبالإقرار الصريح يُحذف مباشرةً: الحساب المكرّر الذي أُنشئ خطأً
   //      لا معنى لإلزام المؤسس بتنحيته قبل محوه
+  // تغييرُ تهيئة (الحوكمة، نوفمبر 2026): رئيسٌ تنفيذيٌّ ثانٍ نشط ممنوعٌ في القاعدة نفسها فلا يُنشأ «خطأً» أصلاً —
+  // فالحسابُ القياديُّ النشط المكرَّر هنا قائدُ قسم. والمختبَرُ هو نفسه: الحذفُ النهائي بالإقرار الصريح
   const spare = await prisma.user.create({
     data: { fullName: "مكرّر اختبار", email: "dup-ceo@example.test",
-            passwordHash: "x", role: "executive", isActive: true },
+            passwordHash: "x", role: "department_admin", isActive: true },
   });
   const forced = await permanentlyDeleteAccount({
     kind: "user", id: spare.id, confirmEmail: "dup-ceo@example.test",

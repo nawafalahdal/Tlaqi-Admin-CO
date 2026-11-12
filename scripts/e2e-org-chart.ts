@@ -1,3 +1,4 @@
+import { uniqueTestColor } from "./testColors";
 import { prisma } from "@/lib/prisma";
 import {
   buildOrgChart,
@@ -118,10 +119,12 @@ const F = { actorRole: "super_admin", actorName: "المؤسس" };
   chk("الأبيض يُرصَد لوناً لا يُرى", needsOutline("#FFFFFF") === true);
   chk("ويأخذ حدّاً داكناً", outlineFor("#FFFFFF") !== "#FFFFFF", outlineFor("#FFFFFF"));
   chk("والبرتقالي يبقى بلونه", outlineFor("#C34900") === "#C34900");
-  chk("والموارد البشرية لونُها أبيضُ الهوية",
-      departmentDisplayColor("الموارد البشرية", "#000000") === "#FFFFFF");
-  chk("والإدارة العليا بنفسجيُّها الداكن",
-      departmentDisplayColor("الإدارة العليا", "#000000") === "#1A0E1C");
+  // تغييرُ توقّعٍ مقصود (إصلاح ألوان الأقسام، نوفمبر 2026): كان اللونُ يُحلّ من **اسم** القسم فيتغيّر بالأرشفة والتسمية —
+  // وهو السببُ الجذري لتبدّل الألوان. صار لونُ القسم لونَه المخزَّن وحده، أيّاً كان اسمُه
+  chk("لونُ القسم لونُه المخزَّن لا اسمُه (الموارد البشرية)",
+      departmentDisplayColor("الموارد البشرية", "#000000") === "#000000");
+  chk("ولا يغيّره اسمُ «الإدارة العليا»",
+      departmentDisplayColor("الإدارة العليا", "#123456") === "#123456");
 
   // ── الإدارة العليا تُرفَع إلى الأعلى ولا تُكرَّر بين الأقسام
   const senior = await prisma.department.findFirst({ where: { leadershipOnly: true } });
@@ -152,7 +155,7 @@ const F = { actorRole: "super_admin", actorName: "المؤسس" };
 
   // قسمٌ بقائدٍ وعضوٍ واحد: ليس فريقاً — فيُمنَع التنزيل ويُسمّى سببُه
   const thin = await createDepartment({
-    name: `قسم ناقص ${STAMP}`, colorHex: "#67C090", createdByName: "اختبار",
+    name: `قسم ناقص ${STAMP}`, colorHex: uniqueTestColor(), createdByName: "اختبار",
   });
   const thinTrack = await prisma.testTrack.findFirstOrThrow({ where: { departmentId: thin.id } });
   const thinInvite = await prisma.invite.create({

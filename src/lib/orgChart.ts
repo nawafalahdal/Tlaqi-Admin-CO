@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { departmentColor } from "@/lib/departmentColor";
-import { BRAND } from "@/lib/brand";
 import { accountRoleLabel } from "@/lib/testTracks";
 import { getDictionary, type Dictionary, type Locale } from "@/i18n";
 import { fmt } from "@/i18n/fmt";

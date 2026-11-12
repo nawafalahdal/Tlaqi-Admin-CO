@@ -102,7 +102,9 @@ function t(
 type LogoFile = "on-beige" | "on-temptress" | "on-mahogany" | "on-green-sheen";
 type PatternColor = "beige" | "temptress" | "mahogany" | "green-sheen";
 function palette(colorHex: string | null | undefined) {
-  const bg = (colorHex?.trim() || BRAND.temptress).toUpperCase();
+  // لونٌ سداسيٌّ صريحٌ وحده يدخل الـSVG؛ وما سواه (قيمةٌ معطوبة) يُرسم بلون الهوية الافتراضي
+  const raw = colorHex?.trim() ?? "";
+  const bg = (/^#[0-9A-Fa-f]{6}$/.test(raw) ? raw : BRAND.temptress).toUpperCase();
   const onLight = themeFromColor(bg).text === BRAND.ink;
   const ink = onLight ? BRAND.temptress : BRAND.beige;
   const official: Record<string, [LogoFile, PatternColor]> = {

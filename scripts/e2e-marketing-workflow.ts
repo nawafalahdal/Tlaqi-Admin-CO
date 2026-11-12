@@ -116,6 +116,8 @@ async function cleanup() {
   const passwordHash = await hashPassword(`${MARK}-x`);
   const mkUser = (key: string, role: "department_admin" | "operations_officer" | "executive", departmentId?: string) =>
     prisma.user.create({ data: { fullName: `e2e-wf ${key}`, email: `${key}${DOMAIN}`, passwordHash, role, departmentId, isActive: true } });
+  // لا يجتمع رئيسان تنفيذيان نشطان (قيد الحوكمة): يُنحّى أيُّ تنفيذيٍّ في نسخة الفحص قبل إنشاء تنفيذيِّ الفحص
+  await prisma.user.updateMany({ where: { role: "executive", isActive: true }, data: { isActive: false } });
   const U = {
     lead: await mkUser("lead", "department_admin", marketing.id),
     ops: await mkUser("ops", "operations_officer"),

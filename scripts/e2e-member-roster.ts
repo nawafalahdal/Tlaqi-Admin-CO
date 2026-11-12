@@ -52,6 +52,8 @@ async function main() {
   };
 
   try {
+    // لا يجتمع رئيسان تنفيذيان نشطان (قيد الحوكمة): يُنحّى أيُّ تنفيذيٍّ في نسخة الفحص قبل إنشاء تنفيذيِّ الفحص
+    await prisma.user.updateMany({ where: { role: "executive", isActive: true }, data: { isActive: false } });
     const ceo = await mk("executive", null);
     const leader = await mk("department_admin", dept.id);
     const plain = await mk("member", dept.id);

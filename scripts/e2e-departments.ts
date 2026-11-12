@@ -1,3 +1,4 @@
+import { uniqueTestColor } from "./testColors";
 import { prisma } from "@/lib/prisma";
 import {
   createDepartment,
@@ -35,7 +36,7 @@ const STAMP = Date.now();
 
   // ── ٢) قسمٌ فارغ يُحذف، وبالاسم مكتوباً
   const empty = await createDepartment({
-    name: `قسم اختبار فارغ ${STAMP}`, colorHex: "#67C090", createdByName: "اختبار",
+    name: `قسم اختبار فارغ ${STAMP}`, colorHex: uniqueTestColor(), createdByName: "اختبار",
   });
   const wrongName = await deleteDepartment({
     departmentId: empty.id, confirmName: "اسم غلط", ...F });
@@ -56,7 +57,7 @@ const STAMP = Date.now();
 
   // ── ٣) قسمٌ يحمل عضواً لا يُحذف — ويُسمّى المانع بعدده
   const held = await createDepartment({
-    name: `قسم اختبار مأهول ${STAMP}`, colorHex: "#C34900", createdByName: "اختبار",
+    name: `قسم اختبار مأهول ${STAMP}`, colorHex: uniqueTestColor(), createdByName: "اختبار",
   });
   const heldInvite = await prisma.invite.create({
     data: { fullName: "عضو في قسمٍ مأهول", email: `held-dept-${STAMP}@example.test`,
@@ -111,7 +112,7 @@ const STAMP = Date.now();
 
   // ── ٥) **ومن صُنِّف لا يُعاد تصنيفه** — وهو شرط المؤسس
   const other = await createDepartment({
-    name: `قسم اختبار آخر ${STAMP}`, colorHex: "#341D2B", createdByName: "اختبار",
+    name: `قسم اختبار آخر ${STAMP}`, colorHex: uniqueTestColor(), createdByName: "اختبار",
   });
   const reassign = await assignMemberDepartment({
     memberId: free.id, departmentId: other.id, ...F });

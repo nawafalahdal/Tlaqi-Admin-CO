@@ -470,6 +470,8 @@ export function renderEmail(opts: { subject: string; content: EmailContent; them
     fontFaceBase: assetUrl("/fonts/the-year-of-the-camel"),
     tagline: TAGLINE,
     handle: SOCIAL_LINKS[0]?.handle ?? null,
+    // الدائرةُ أسفل الرسالة بلون القسم أو اللجنة — والباقي ثابتٌ بالبنفسجي (قرار المؤسس)
+    markUrl: /^#[0-9A-Fa-f]{6}$/.test(opts.theme?.colorHex?.trim() ?? "") ? assetUrl(`/api/brand-mark/${opts.theme!.colorHex!.trim().slice(1).toUpperCase()}`) : null,
   });
 }
 
