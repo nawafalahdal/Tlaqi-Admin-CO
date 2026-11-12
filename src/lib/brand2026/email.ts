@@ -37,7 +37,8 @@ function normalize(c: EmailContent): EmailContent {
     badge: c.badge ?? "قرار تعيين",
     title: c.title,
     lead: `<b>${esc(a.name)}</b> — ${esc(a.role)}`,
-    facts: [...a.facts, ["التاريخ", a.date]],
+    // التاريخُ مرّةً واحدة: الحقائقُ تحمل «تاريخ التعيين» عادةً
+    facts: a.facts.some(([k]) => k.includes("تاريخ")) ? a.facts : [...a.facts, ["التاريخ", a.date]],
     paragraphs: [esc(a.statement), `صدر التعيين من: <b>${esc(a.issuer.name)}</b>${a.issuer.title ? ` — ${esc(a.issuer.title)}` : ""}`],
     after: [`<b>${esc(a.steps.title)}</b>`, ...a.steps.items.map((s, i) => `${i + 1}. ${esc(s)}`)],
     note: a.note ?? c.note,

@@ -26,6 +26,7 @@ export type NavIcon =
   | "invites"
   | "messages"
   | "signature"
+  | "agreement"
   | "terminations"
   | "sheet"
   | "home"
@@ -151,7 +152,7 @@ export function navFor(v: NavViewer, L: NavLabels): NavItem[] {
     id: "agreements",
     label: L.agreements,
     href: v.canAgreementsAdmin ? "/agreements/manage" : "/agreements",
-    icon: "signature",
+    icon: "agreement",
     match: ["/agreements"],
     group: "people",
   });

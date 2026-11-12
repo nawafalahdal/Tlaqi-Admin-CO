@@ -10,7 +10,7 @@ import { ensureFonts } from "@/lib/welcomeBanner";
  *  كما هي. والبريد لا يحمل خطَّ الهوية (Gmail يُسقط `@font-face`)،
  *  ويقلب الألوان في الوضع الداكن، ويرسم كلُّ عميلٍ الجداول بطريقته — فلا
  *  يصل التصميم مرّتين بالشكل نفسه. أما الصورة فتُرسَم هنا مرّةً بخطّ
- *  Cairo نفسه، فتصل في كلّ صندوقٍ كما صُمِّمت، ولا ينقلبها الوضع الداكن.
+ *  الهوية نفسه (The Year of The Camel)، فتصل في كلّ صندوقٍ كما صُمِّمت، ولا ينقلبها الوضع الداكن.
  *
  *  **والمقاس ١٠٨٠×١٣٥٠ (٤:٥)** — مقاسُ منشور إنستغرام العمودي، فتُنشر بلا
  *  قصّ. والرسمُ بالأدوات نفسها التي ترسم اللوحة الترحيبية (sharp +
@@ -22,7 +22,8 @@ import { ensureFonts } from "@/lib/welcomeBanner";
 export const CARD_W = 1080;
 export const CARD_H = 1350;
 
-const FONT = "Cairo, 'Noto Sans Arabic', 'DejaVu Sans', sans-serif";
+/** خطُّ الهوية الرسمي (قرار المؤسس، نوفمبر 2026) من `assets/fonts` — وCairo احتياطٌ إن غاب */
+const FONT = "'The Year of The Camel', Cairo, 'Noto Sans Arabic', 'DejaVu Sans', sans-serif";
 const BRAND_DIR = join(process.cwd(), "public", "brand");
 
 function escapeXml(s: string): string {

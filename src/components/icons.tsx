@@ -147,6 +147,15 @@ const NAV_PATHS: Record<string, ReactNode> = {
       <path d="M3 21h18" />
     </>
   ),
+  /** الاتفاقيات: وثيقةٌ بقفل — لا تُخلط بأيقونة التوقيعات */
+  agreement: (
+    <>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5" />
+      <rect x="9" y="13.5" width="6" height="4.5" rx="1" />
+      <path d="M10.5 13.5V12a1.5 1.5 0 0 1 3 0v1.5" />
+    </>
+  ),
   terminations: (
     <>
       <path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" />

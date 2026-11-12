@@ -25,6 +25,8 @@ const nextConfig: NextConfig = {
    *  خطّ عربي في بيئة التنفيذ. */
   outputFileTracingIncludes: {
     "/api/welcome-banner/[token]": ["./public/brand/banner/**", "./assets/fonts/**"],
+    // صورتا المشاركة تقرآن الشعار من `public/brand` وترسمان النصّ بخطّ `assets/fonts` — للسبب نفسه
+    "/api/cards/[type]/[token]": ["./public/brand/**", "./assets/fonts/**"],
   },
 
   /** حدُّ حجم طلب Server Action — صورةُ وجهٍ من جوّالٍ حديث تتجاوز

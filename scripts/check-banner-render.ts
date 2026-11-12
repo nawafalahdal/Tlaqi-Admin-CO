@@ -1,4 +1,4 @@
-import { renderWelcomeBanner } from "@/lib/welcomeBanner";
+import { renderWelcomeBanner, ensureFonts } from "@/lib/welcomeBanner";
 import sharp from "sharp";
 import { renderInviteCard, renderWelcomeCard, CARD_W, CARD_H } from "@/lib/shareCards";
 
@@ -38,6 +38,7 @@ const FIXTURE = {
 };
 
 async function main() {
+  ensureFonts();
   const probe = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="80">` +
     `<text x="380" y="55" font-family="Cairo, 'Noto Sans Arabic', sans-serif" font-size="36"` +
     ` fill="#ffffff" direction="rtl" text-anchor="start">${FIXTURE.fullName}</text></svg>`;
@@ -54,6 +55,17 @@ async function main() {
     );
     process.exit(1);
   }
+
+  // خطُّ الهوية الرسمي (The Year of The Camel) يُوجَد فعلاً: لو غاب لرسم pango بالاحتياط فطابقت الصورتان
+  const glyphs = async (family: string) =>
+    sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="80"><text x="380" y="55" font-family="${family}" font-size="36" font-weight="700" fill="#ffffff" direction="rtl" text-anchor="start">${FIXTURE.fullName}</text></svg>`)).png().toBuffer();
+  // يُقارَن بالاحتياط الفعلي (اسمٌ لا وجود له) وبـCairo — فإن طابق أحدَهما فالخطُّ غائب
+  const [camel, cairo, none] = await Promise.all([glyphs("'The Year of The Camel'"), glyphs("Cairo"), glyphs("tlaqi-no-such-font")]);
+  if (camel.equals(cairo) || camel.equals(none)) {
+    console.error("\n✗ خطُّ الهوية The Year of The Camel غيرُ موجودٍ في assets/fonts — الصورُ ستُرسم بالخطّ الاحتياطي.\n");
+    process.exit(1);
+  }
+  console.log("✓ خطُّ الهوية The Year of The Camel يُرسَم في الصور");
 
   // ثم اللوحة كاملةً: الأصل الرمادي + التلوين + التركيب على ٤٦ إطاراً
   const gif = await renderWelcomeBanner(FIXTURE);

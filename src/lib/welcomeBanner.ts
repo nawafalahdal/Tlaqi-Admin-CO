@@ -102,7 +102,8 @@ function textLayerSvg(opts: {
   const nameSize = fitSize(opts.fullName, SLOT.name);
   const roleSize = opts.role ? fitSize(opts.role, SLOT.role) : SLOT.role.size;
   const teamSize = opts.team ? fitSize(opts.team, SLOT.team) : SLOT.team.size;
-  const font = "Cairo, 'Noto Sans Arabic', 'DejaVu Sans', sans-serif";
+  // خطُّ الهوية الرسمي، وCairo احتياطٌ إن غاب
+  const font = "'The Year of The Camel', Cairo, 'Noto Sans Arabic', 'DejaVu Sans', sans-serif";
 
   // محاذاة RTL: `text-anchor="start"` يضع بداية النصّ (وهي يمينه) عند x
   const lines: string[] = [
