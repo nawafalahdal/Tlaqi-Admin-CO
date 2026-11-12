@@ -212,6 +212,11 @@ textarea {
   & .bg-emerald-50 { background-color: color-mix(in oklab, #10b981 16%, var(--surface)); }
   & .bg-green-100,
   & .bg-emerald-100 { background-color: color-mix(in oklab, #10b981 22%, var(--surface)); }
+  /* ودرجاتُها الشفّافة (`/40` `/60` `/70`) — كانت تفلت من القلب فتبقى لوحاً فاتحاً تحت حبرٍ فُتِح: نصٌّ وردي على
+     وردي لا يُقرأ (رآه المؤسس في صندوق حذف القسم) */
+  & .bg-red-50\/40, & .bg-red-50\/70 { background-color: color-mix(in oklab, #ef4444 14%, var(--surface)); }
+  & .bg-amber-50\/60, & .bg-amber-50\/70 { background-color: color-mix(in oklab, #f59e0b 14%, var(--surface)); }
+  & .bg-green-50\/70 { background-color: color-mix(in oklab, #10b981 14%, var(--surface)); }
 
   /* الأحبار الداكنة تَفتح: حبرُ ٩٠٠ على سطحٍ داكن لا يُقرأ */
   & .text-red-700, & .text-red-800, & .text-red-900 { color: #fca5a5; }
@@ -219,10 +224,10 @@ textarea {
   & .text-green-700, & .text-green-800, & .text-green-900,
   & .text-emerald-700, & .text-emerald-800 { color: #6ee7b7; }
   /* ودرجاتُها الشفّافة (`/80` و`/60`) — كانت تفلت من القلب فتبقى داكنةً على داكن */
-  & .text-red-900\/80 { color: color-mix(in oklab, #fca5a5 85%, transparent); }
+  & .text-red-900\/80, & .text-red-900\/85, & .text-red-900\/70, & .text-red-800\/80 { color: color-mix(in oklab, #fca5a5 85%, transparent); }
   & .text-amber-900\/85, & .text-amber-900\/80 { color: color-mix(in oklab, #fcd34d 85%, transparent); }
   & .text-amber-900\/60 { color: color-mix(in oklab, #fcd34d 68%, transparent); }
-  & .text-emerald-800\/80 { color: color-mix(in oklab, #6ee7b7 85%, transparent); }
+  & .text-emerald-800\/80, & .text-green-800\/70, & .text-green-900\/80 { color: color-mix(in oklab, #6ee7b7 85%, transparent); }
 
   /* حدودُ الحالة تُرفَع قليلاً لتُرى على الداكن */
   & .ring-red-200, & .ring-red-300 { --tw-ring-color: color-mix(in oklab, #ef4444 45%, transparent); }

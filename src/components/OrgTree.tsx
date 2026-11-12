@@ -102,6 +102,17 @@ export async function OrgTree({
                 />
               ))}
             </div>
+            {/* لجانُ الإدارة العليا — كانت تُقرأ ولا تُرسم */}
+            {chart.senior && chart.senior.committees.length > 0 && (
+              <div className="mx-3 mb-3 flex flex-wrap items-start justify-center gap-3 rounded-2xl px-2 pb-2" style={{ border: `1px dashed ${ORG_SENIOR_COLOR}55` }}>
+                <p className="w-full pt-2 text-center text-[11px] font-bold" style={{ color: ORG_SENIOR_COLOR }}>
+                  {L.committeesOf.replace("{name}", chart.senior.name)} · {chart.senior.committees.length}
+                </p>
+                {chart.senior.committees.map((c) => (
+                  <Branch key={c.id} dept={c} size={size} viewerId={viewerId} viewerDepartmentId={viewerDepartmentId} depth={1} />
+                ))}
+              </div>
+            )}
           </div>
         </>
       )}
@@ -191,21 +202,39 @@ async function Branch({
         className={`overflow-hidden rounded-3xl bg-white shadow-sm ${dept.isCommittee ? "border border-dashed" : "border border-hairline"}`}
         style={mine ? { boxShadow: `0 0 0 2px ${stem}` } : dept.isCommittee ? { borderColor: stem } : undefined}
       >
-        <div
-          className="flex items-center justify-between gap-2 px-4 py-2.5"
-          style={{
-            background: needsOutline(dept.displayColor) ? "#F1F5E6" : dept.displayColor,
-            color: headInk,
-            borderBottom: needsOutline(dept.displayColor) ? `1px solid ${stem}` : undefined,
-          }}
-        >
-          <span className="text-sm font-bold">
-            {/* لونُها لونُ قسمها، فالكلمةُ والتقطيعُ هما ما يُميّزانها */}
-            {dept.isCommittee ? L.committee.replace("{name}", dept.name) : dept.name}
-            {mine && <span className="ms-2 rounded-full bg-white/85 px-2 py-0.5 text-[10px] text-[#341D2B]">{dept.isCommittee ? L.yourCommittee : L.yourDepartment}</span>}
-          </span>
-          <span className="text-[11px] font-bold opacity-80">{L.people.replace("{n}", String(people))}</span>
-        </div>
+        {dept.isCommittee ? (
+          // **اللجنةُ بطابعٍ مميّز:** ترويسةٌ فاتحةٌ بشريطٍ عريضٍ بلون قسمها، وشارةُ «لجنة» بلونه، وحالتُها إن انتظرت قائداً —
+          // فتُقرأ فرعاً من قسمها لا قسماً بجانبه
+          <div
+            className="flex items-center justify-between gap-2 px-4 py-2.5"
+            style={{ background: "#FFFFFF", borderTop: `6px solid ${dept.displayColor}`, borderBottom: `1px dashed ${stem}`, color: "#341D2B" }}
+          >
+            <span className="flex flex-wrap items-center gap-2 text-sm font-bold">
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ background: needsOutline(dept.displayColor) ? "#F1F5E6" : dept.displayColor, color: headInk, border: needsOutline(dept.displayColor) ? `1px solid ${stem}` : undefined }}>
+                {L.committeeTag}
+              </span>
+              {dept.name}
+              {dept.lead.kind === "vacant" && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-900">{L.awaitingLead}</span>}
+              {mine && <span className="rounded-full bg-black/5 px-2 py-0.5 text-[10px] text-[#341D2B]">{L.yourCommittee}</span>}
+            </span>
+            <span className="text-[11px] font-bold opacity-70">{L.people.replace("{n}", String(people))}</span>
+          </div>
+        ) : (
+          <div
+            className="flex items-center justify-between gap-2 px-4 py-2.5"
+            style={{
+              background: needsOutline(dept.displayColor) ? "#F1F5E6" : dept.displayColor,
+              color: headInk,
+              borderBottom: needsOutline(dept.displayColor) ? `1px solid ${stem}` : undefined,
+            }}
+          >
+            <span className="text-sm font-bold">
+              {dept.name}
+              {mine && <span className="ms-2 rounded-full bg-white/85 px-2 py-0.5 text-[10px] text-[#341D2B]">{L.yourDepartment}</span>}
+            </span>
+            <span className="text-[11px] font-bold opacity-80">{L.people.replace("{n}", String(people))}</span>
+          </div>
+        )}
 
         <div className="flex flex-col items-center px-3 pb-4 pt-4">
           <SeatCard
@@ -239,8 +268,11 @@ async function Branch({
           <span className="block h-4 w-px" style={{ background: stem }} aria-hidden />
           <div
             className="flex flex-wrap items-start justify-center gap-3 rounded-2xl px-2 pb-2"
-            style={{ border: `1px dashed ${stem}` }}
+            style={{ border: `1px dashed ${stem}`, background: needsOutline(dept.displayColor) ? "#FAFCF5" : `${dept.displayColor}0F` }}
           >
+            <p className="w-full pt-2 text-center text-[11px] font-bold" style={{ color: stem }}>
+              {L.committeesOf.replace("{name}", dept.name)} · {dept.committees.length}
+            </p>
             {dept.committees.map((c) => (
               <Branch
                 key={c.id}

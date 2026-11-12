@@ -144,10 +144,7 @@ export function IssueWorkspace({
           colorHex: details.recipient.colorHex,
           number: details.nextNumbers[type],
           issuedAt: new Date().toISOString(),
-          signers: signers.pair.map((s) => ({ title: s.title, name: s.name, signatureImage: s.signatureImage })) as [
-            { title: string; name: string; signatureImage: string | null },
-            { title: string; name: string; signatureImage: string | null },
-          ],
+          signers: signers.pair.map((s) => ({ title: s.title, name: s.name, signatureImage: s.signatureImage })),
         })
       : null;
 

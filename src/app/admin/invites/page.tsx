@@ -195,8 +195,9 @@ export default async function AdminInvitesPage() {
             {ta.createLeadSubtitle}
           </p>
           <Card className="p-4 sm:p-6">
+            {/* الإدارةُ العليا يقودها الرئيسُ التنفيذي: لا تُعرض هنا وجهةً لقائد قسم (ويرفضها الخادمُ أيضاً) */}
             <DeptAdminInviteForm
-              departments={departments.filter((d) => !deptSeats.has(d.id))}
+              departments={departments.filter((d) => !deptSeats.has(d.id) && !d.leadershipOnly)}
             />
           </Card>
           {deptSeats.size > 0 && (

@@ -1322,6 +1322,9 @@ raiseRequestHint: "وجّهها لقسم، أو لحساب إداري، أو ل�
     org: {
       youAreHere: "أنت هنا",
       committee: "لجنة {name}",
+      committeesOf: "لجان {name}",
+      committeeTag: "لجنة",
+      awaitingLead: "بانتظار قائد",
       noPhoto: "{name} — لم تُضَف صورته بعد",
       vacant: "منصب شاغر",
       senior: "الإدارة العليا",

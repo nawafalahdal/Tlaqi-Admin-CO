@@ -256,8 +256,9 @@ export async function buildOrgChart(locale: Locale = "ar"): Promise<OrgChart> {
       orderBy: { fullName: "asc" },
     }),
     prisma.department.findMany({
-      // اللجنةُ المقترحةُ أو المردودة لا تدخل الهيكل: الاقتراحُ ليس فتحاً
-      where: OPEN_DEPARTMENT_WHERE,
+      // اللجنةُ المقترحةُ أو المردودة لا تدخل الهيكل: الاقتراحُ ليس فتحاً. **والمعتمدةُ بانتظار قائد تدخله** (دورة حياة
+      // اللجان): لجنةٌ قائمةٌ بلا قائدٍ بعد — يُرسم مقعدُ قائدها شاغراً، ولا تختفي من الهيكل
+      where: { OR: [...OPEN_DEPARTMENT_WHERE.OR, { committeeStatus: "awaiting_lead" as const }] },
       orderBy: [{ leadershipOnly: "desc" }, { name: "asc" }],
       select: {
         id: true,

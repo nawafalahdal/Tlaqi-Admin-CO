@@ -1326,6 +1326,9 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
     org: {
       youAreHere: "You are here",
       committee: "{name} committee",
+      committeesOf: "{name} committees",
+      committeeTag: "Committee",
+      awaitingLead: "Awaiting a lead",
       noPhoto: "{name} — no photo added yet",
       vacant: "Vacant position",
       senior: "Senior management",

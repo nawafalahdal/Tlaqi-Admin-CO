@@ -80,7 +80,8 @@ export type CertificateData = {
   issuedAt: Date;
   colorHex: string;
   /** يُوقّعها اثنان: صاحب الجهة التي عمل تحتها، ومن يمثّل المنصة */
-  signers: [CertificateSigner, CertificateSigner];
+  /** موقِّعان، أو المؤسسُ وحده لشهادة الرئيس التنفيذي */
+  signers: CertificateSigner[];
   /** هل صدرت بتوقيعٍ ناقص؟ يُعرَض للإدارة ويُسجَّل — فلا تصدر «صامتةً»
    *  وكأنها موقَّعة. والاسم والصفة يبقيان: نسبةٌ لا انتحال. */
   missingSignatures: string[];
@@ -275,8 +276,11 @@ export async function certificateFor(
     signatureImage: leadSig,
   };
 
-  const signers: [CertificateSigner, CertificateSigner] =
-    isLead || !deptLead ? [founderSigner, executiveSigner] : [leadSigner, executiveSigner];
+  // **شهادةُ الرئيس التنفيذي يوقّعها المؤسسُ وحده** (قرار المؤسس): لا يوقّع أحدٌ شهادةً صادرةً لنفسه
+  const forExecutive = member.invite.targetRole === "executive" || (!!executive?.email && executive.email.toLowerCase() === member.email.toLowerCase());
+  const signers: CertificateSigner[] = forExecutive
+    ? [founderSigner]
+    : isLead || !deptLead ? [founderSigner, executiveSigner] : [leadSigner, executiveSigner];
 
   const missingSignatures = signers
     .filter((sg) => !sg.signatureImage)

@@ -27,6 +27,11 @@ export type NavIcon =
   | "messages"
   | "signature"
   | "agreement"
+  | "committee"
+  | "senior"
+  | "history"
+  | "award"
+  | "survey"
   | "terminations"
   | "sheet"
   | "home"
@@ -145,9 +150,9 @@ export function navFor(v: NavViewer, L: NavLabels): NavItem[] {
   if (admin) items.push({ id: "tickets", label: L.tickets, href: "/admin/tickets", icon: "tickets", match: ["/admin/tickets"], group: "tickets" });
   items.push({ id: "structure", label: L.structure, href: "/structure", icon: "structure", match: ["/structure"], group: "org" });
   // اللجان لكل الأدوار: كلٌّ يرى منها ما يخصّه (والقائمةُ تقول ذلك حين تكون فارغة)
-  items.push({ id: "committees", label: L.committees, href: "/committees", icon: "departments", match: ["/committees"], group: "org" });
-  if (v.canSenior) items.push({ id: "senior", label: L.senior, href: "/senior", icon: "structure", match: ["/senior"], group: "org" });
-  if (v.canGovernanceLog) items.push({ id: "governanceLog", label: L.governanceLog, href: "/senior/log", icon: "reports", match: ["/senior/log"], group: "reports" });
+  items.push({ id: "committees", label: L.committees, href: "/committees", icon: "committee", match: ["/committees"], group: "org" });
+  if (v.canSenior) items.push({ id: "senior", label: L.senior, href: "/senior", icon: "senior", match: ["/senior"], group: "org" });
+  if (v.canGovernanceLog) items.push({ id: "governanceLog", label: L.governanceLog, href: "/senior/log", icon: "history", match: ["/senior/log"], group: "reports" });
   items.push({
     id: "agreements",
     label: L.agreements,
@@ -165,11 +170,11 @@ export function navFor(v: NavViewer, L: NavLabels): NavItem[] {
     items.push({ id: "terminations", label: L.terminations, href: "/admin/terminations", icon: "terminations", match: ["/admin/terminations"], group: "people" });
   }
   if (v.canWelcomeCards) {
-    items.push({ id: "welcomeCards", label: L.welcomeCards, href: "/admin/welcome-cards", icon: "invites", match: ["/admin/welcome-cards"], group: "people" });
+    items.push({ id: "welcomeCards", label: L.welcomeCards, href: "/admin/welcome-cards", icon: "award", match: ["/admin/welcome-cards"], group: "people" });
   }
   // استبيانُ الانضمام: لوحةُ المتابعة وتصديرُها — للمؤسس والرئيس التنفيذي ومسؤول التشغيل (`canManageOnboardingSurvey`)
   if (top || r === "operations_officer") {
-    items.push({ id: "onboarding", label: L.onboarding, href: "/admin/onboarding", icon: "members", match: ["/admin/onboarding"], group: "people" });
+    items.push({ id: "onboarding", label: L.onboarding, href: "/admin/onboarding", icon: "survey", match: ["/admin/onboarding"], group: "people" });
   }
   if (top || v.canSign) {
     items.push({ id: "signature", label: L.signature, href: "/admin/signature", icon: "signature", match: ["/admin/signature"], group: "people" });

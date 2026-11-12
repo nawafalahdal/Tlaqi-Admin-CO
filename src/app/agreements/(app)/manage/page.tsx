@@ -51,13 +51,13 @@ export default async function ManageAgreementsPage({ searchParams }: { searchPar
   const M = ctx.canManage;
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-8">
       <PageHeader
         title="إدارة الاتفاقيات"
         description="اتفاقية قادة وفريق التسويق، واتفاقية الفريق التقني: الإصدارات، والتوقيعات، والوصول المرتبط بها، والبلاغات — وكلُّ إجراءٍ في سجل الحوكمة."
         back={<Link href="/agreements" className="mb-2 inline-flex text-xs font-bold text-black/55 hover:underline">← اتفاقياتي</Link>}
       />
-      <p className="rounded-xl bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900">{LAWYER_REVIEW_FLAG}</p>
+      <p className="rounded-2xl bg-amber-50 px-5 py-3.5 text-sm leading-relaxed text-amber-900">{LAWYER_REVIEW_FLAG}</p>
 
       {/* ── الإصدارات */}
       <section className="grid gap-4 lg:grid-cols-2">
@@ -66,7 +66,7 @@ export default async function ManageAgreementsPage({ searchParams }: { searchPar
           const active = list.find((t) => t.status === "active");
           const draft = list.find((t) => t.status === "draft");
           return (
-            <Card key={k} className="flex flex-col gap-3 p-5">
+            <Card key={k} className="flex flex-col gap-3 p-5 sm:p-6">
               <h2 className="text-base font-bold">{AGREEMENT_KIND_LABEL[k]}</h2>
               {active ? (
                 <div className="text-sm">
@@ -134,8 +134,8 @@ export default async function ManageAgreementsPage({ searchParams }: { searchPar
       </section>
 
       {/* ── الأشخاص وحالاتهم */}
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-bold text-black/70">من وقّع ومن لم يوقّع ({roster.length})</h2>
+      <section className="flex flex-col gap-3">
+        <h2 className="text-base font-bold">من وقّع ومن لم يوقّع ({roster.length})</h2>
         <Card className="overflow-x-auto p-0">
           <table className="w-full min-w-[40rem] text-sm">
             <thead>
@@ -189,7 +189,7 @@ export default async function ManageAgreementsPage({ searchParams }: { searchPar
           </table>
         </Card>
         {M && (
-          <Card className="p-4">
+          <Card className="p-5 sm:p-6">
             <ActionForm action={requestSignatureAction} theme={theme} className="grid gap-2 sm:grid-cols-4" pendingLabel="يُرسل…" submits={[{ label: "طلب التوقيع" }]}>
               <input name="email" type="email" required dir="ltr" placeholder="بريد الحساب" aria-label="بريد الحساب" className={inputCls} />
               <select name="kind" required aria-label="الاتفاقية" className={inputCls}>
@@ -203,7 +203,7 @@ export default async function ManageAgreementsPage({ searchParams }: { searchPar
 
       {/* ── سجلُّ المساءلة لشخص */}
       {person && (
-        <Card className="flex flex-col gap-3 p-5" id="person">
+        <Card className="flex flex-col gap-4 p-5 sm:p-6" id="person">
           <h2 className="text-base font-bold">سجلّ المساءلة — {personName}</h2>
           <p className="text-sm">
             {KINDS.map((k) => `${AGREEMENT_KIND_LABEL[k]}: ${AGREEMENT_STATUS_LABEL[person.statuses[k].status]}`).join(" · ")}
@@ -250,10 +250,10 @@ export default async function ManageAgreementsPage({ searchParams }: { searchPar
       )}
 
       {/* ── الأصول */}
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-bold text-black/70">الوصول إلى الأصول (يُمنح بعد التوقيع وحده)</h2>
+      <section className="flex flex-col gap-3">
+        <h2 className="text-base font-bold">الوصول إلى الأصول (يُمنح بعد التوقيع وحده)</h2>
         {M && (
-          <Card className="p-4">
+          <Card className="p-5 sm:p-6">
             <ActionForm action={grantAssetAction} theme={theme} className="grid gap-2 sm:grid-cols-4" pendingLabel="يُمنح…" submits={[{ label: "منح الوصول" }]}>
               <input name="email" type="email" required dir="ltr" placeholder="بريد الحساب" aria-label="بريد الحساب" className={inputCls} />
               <select name="kind" required aria-label="الفئة" className={inputCls}>
@@ -289,9 +289,9 @@ export default async function ManageAgreementsPage({ searchParams }: { searchPar
       </section>
 
       {/* ── البلاغات */}
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-bold text-black/70">بلاغات الإخلال — مراجعةٌ بشرية، لا حكمَ آلي</h2>
-        <Card className="p-4">
+      <section className="flex flex-col gap-3">
+        <h2 className="text-base font-bold">بلاغات الإخلال — مراجعةٌ بشرية، لا حكمَ آلي</h2>
+        <Card className="p-5 sm:p-6">
           <ActionForm action={reportIncidentAction} theme={theme} className="grid gap-2 sm:grid-cols-2" pendingLabel="يُسجَّل…" submits={[{ label: "تسجيل بلاغ", variant: "outline" }]}>
             <input name="email" type="email" required dir="ltr" placeholder="بريد الشخص المعنيّ" aria-label="بريد الشخص" className={inputCls} />
             <select name="kind" required aria-label="الاتفاقية" className={inputCls}>
@@ -324,8 +324,8 @@ export default async function ManageAgreementsPage({ searchParams }: { searchPar
       </section>
 
       {/* ── السجل */}
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-bold text-black/70">آخر عمليات الاتفاقيات</h2>
+      <section className="flex flex-col gap-3">
+        <h2 className="text-base font-bold">آخر عمليات الاتفاقيات</h2>
         <ul className="flex flex-col gap-1 text-xs text-black/70">
           {events.map((e) => (
             <li key={e.id}>

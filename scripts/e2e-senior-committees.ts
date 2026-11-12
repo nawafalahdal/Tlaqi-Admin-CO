@@ -92,6 +92,16 @@ const sess = (u: { id: string; role: string; fullName: string; departmentId?: st
     chk("ويعتمدها المؤسس", byFounder.ok, JSON.stringify(byFounder));
   }
 
+  // ٣ب — لا يُدعى إلى الإدارة العليا «قائدُ قسم» (يقودها الرئيس التنفيذي) — ويُدعى إليها الأعضاءُ وحدهم
+  const { createCandidateAccount } = await import("@/lib/workflow");
+  const leadTrack = await prisma.testTrack.findFirst({ where: { scope: "department_admin" } });
+  const leadToSenior = await createCandidateAccount({ fullName: "مرشّح قيادة", email: `${TAG}-lead-senior@example.test`, jobTitle: "قائد", targetRole: "department_admin", departmentId: senior.id, testTrackId: (leadTrack ?? track).id, invitedById: founder.id } as never)
+    .then(() => "created").catch((e: Error) => e.message);
+  chk("لا تُنشأ دعوةُ «قائد قسم» للإدارة العليا — يقودها الرئيس التنفيذي", leadToSenior !== "created" && leadToSenior.includes("الإدارةُ العليا"), leadToSenior);
+  const memberToSenior = await createCandidateAccount({ fullName: "عضو إدارة عليا", email: `${TAG}-member-senior@example.test`, jobTitle: "مستشار", targetRole: "member", departmentId: senior.id, testTrackId: track.id, invitedById: founder.id } as never)
+    .then(() => "created").catch((e: Error) => e.message);
+  chk("ويُدعى إليها العضو", memberToSenior === "created", memberToSenior);
+
   // ٤ — بغياب الرئيس التنفيذي تنتقل قيادةُ الإدارة العليا إلى المؤسس: فيقترح هو
   await prisma.user.update({ where: { id: ceo.id }, data: { isActive: false } });
   const aFounderAlone = await orgActor(sess(founder));

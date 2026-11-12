@@ -171,7 +171,8 @@ function Classic({ view, watermark }: { view: CertificateView; watermark?: strin
             </div>
             <p style={{ fontSize: u(10), opacity: 0.6, marginTop: u(9.45) }}>صدرت في {longDateAr(view.issuedAt)}</p>
           </div>
-          <Signer s={view.signers[1]} ink={f.signatureInk} />
+          {/* موقِّعٌ ثانٍ — أو فراغٌ بعرضه حين يوقّعها المؤسسُ وحده، فيبقى الختمُ في الوسط */}
+          {view.signers[1] ? <Signer s={view.signers[1]} ink={f.signatureInk} /> : <div style={{ width: u(234.4) }} aria-hidden />}
         </footer>
       </div>
     </div>
@@ -257,7 +258,7 @@ function Editorial({ view, watermark }: { view: CertificateView; watermark?: str
         </div>
         <div className="flex items-end" style={{ gap: mm(14) }}>
           <Signer s={view.signers[0]} ink={f.signatureInk} />
-          <Signer s={view.signers[1]} ink={f.signatureInk} />
+          {view.signers[1] && <Signer s={view.signers[1]} ink={f.signatureInk} />}
           <p style={{ marginInlineStart: "auto", fontSize: pt(7.5), opacity: 0.6, textAlign: "left", lineHeight: 1.7 }}>
             صدرت في {longDateAr(view.issuedAt)}
           </p>

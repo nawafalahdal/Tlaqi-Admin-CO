@@ -416,14 +416,15 @@ export type CertificateView = {
   facts: Array<[string, string]>;
   number: string | null;
   issuedAt: string;
-  signers: [CertificateSignerView, CertificateSignerView];
+  /** موقِّعان، أو موقِّعٌ واحد (شهادةُ الرئيس التنفيذي: المؤسسُ وحده) */
+  signers: CertificateSignerView[];
 };
 
 /** من بيانات الشهادة إلى رسمها — المعاينةُ والشهادةُ الصادرة من الدالّة نفسها */
 export function buildView(
   type: CertificateType,
   f: CertificateFields,
-  ctx: { colorHex: string; number: string | null; issuedAt: string; signers: [CertificateSignerView, CertificateSignerView] }
+  ctx: { colorHex: string; number: string | null; issuedAt: string; signers: CertificateSignerView[] }
 ): CertificateView {
   const info = TYPE_INFO[type];
   const unit = unitPhrase(f.unit ?? "");

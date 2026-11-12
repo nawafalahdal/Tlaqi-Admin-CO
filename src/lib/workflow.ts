@@ -886,9 +886,14 @@ export async function createCandidateAccount(opts: {
   if (opts.departmentId) {
     const open = await prisma.department.findFirst({
       where: { id: opts.departmentId, ...OPEN_DEPARTMENT_WHERE },
-      select: { id: true, parentId: true },
+      select: { id: true, parentId: true, leadershipOnly: true },
     });
     if (!open) throw new Error("هذا القسم لم يُعتمد بعد — لا يُدعى إليه أحدٌ قبل اعتماده");
+    // **الإدارةُ العليا لا قائدَ قسمٍ لها:** يقودها الرئيسُ التنفيذي (وبغيابه المؤسس) — فلا يُدعى إليها «قائد قسم».
+    // ويُدعى إليها الأعضاءُ وحدهم (ومناصبُها من صفحة الإدارة العليا)
+    if (open.leadershipOnly && opts.targetRole === "department_admin") {
+      throw new Error("الإدارةُ العليا يقودها الرئيسُ التنفيذي — لا يُدعى إليها قائدُ قسم، ويُدعى إليها الأعضاءُ وحدهم");
+    }
     // **واللجنةُ ليست قسماً لأحد:** يُدعى الشخصُ إلى قسمه الأصيل، ثم يضمّه قائدُ القسم
     // إلى لجانه. ولا يُرشَّح أحدٌ «قائداً» للجنة بحسابٍ إداري — قيادتُها دورٌ في عضويتها
     if (open.parentId) {

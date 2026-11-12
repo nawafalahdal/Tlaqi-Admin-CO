@@ -57,7 +57,8 @@ type Snapshot = {
   colorHex: string;
   departmentName: string | null;
   fields: CertificateFields;
-  signers: [SignerRef, SignerRef];
+  /** موقِّعان — أو المؤسسُ وحده حين تكون الشهادةُ للرئيس التنفيذي نفسه (لا يوقّع أحدٌ شهادتَه) */
+  signers: SignerRef[];
 };
 
 const DEPT_CODES: Record<string, string> = {
@@ -141,7 +142,7 @@ async function resolveSigners(m: MemberRow, type: CertificateType) {
   const isLead = m.invite.targetRole !== "member";
   const [founder, executive, deptLead] = await Promise.all([
     prisma.user.findFirst({ where: { role: "super_admin", isActive: true }, select: { id: true, fullName: true, gender: true } }),
-    prisma.user.findFirst({ where: { role: "executive", isActive: true }, select: { id: true, fullName: true, gender: true } }),
+    prisma.user.findFirst({ where: { role: "executive", isActive: true }, select: { id: true, fullName: true, gender: true, email: true } }),
     m.departmentId
       ? prisma.user.findFirst({
           where: { role: "department_admin", departmentId: m.departmentId, isActive: true },
@@ -180,8 +181,11 @@ async function resolveSigners(m: MemberRow, type: CertificateType) {
     name: deptLead?.fullName ?? "—",
     signatureId: ls?.id ?? null,
   };
-  const pair: [SignerRef, SignerRef] =
-    type === "leadership" || isLead || !deptLead ? [founderRef, execRef] : [leadRef, execRef];
+  // **شهادةُ الرئيس التنفيذي يوقّعها المؤسسُ وحده** (قرار المؤسس): لا يوقّع أحدٌ شهادةً صادرةً لنفسه
+  const forExecutive = m.invite.targetRole === "executive" || (!!executive?.email && executive.email.toLowerCase() === m.email.toLowerCase());
+  const pair: SignerRef[] = forExecutive
+    ? [founderRef]
+    : type === "leadership" || isLead || !deptLead ? [founderRef, execRef] : [leadRef, execRef];
 
   // توقيعاتٌ بطلت لأصحاب هذين المقعدين — تُعرض «مُبطَلة — لا تُستخدم» ولا تُستعمل
   const seatRoles = pair.map((s) => (s.seat === "department_lead" ? "department_admin" : s.seat === "founder" ? "super_admin" : "executive"));
@@ -279,11 +283,8 @@ export async function recipientDetails(actorRole: string, memberId: string, now 
   const images = await signatureImages(
     [...signersByType.leadership.pair, ...signersByType.appreciation.pair].map((s) => s.signatureId)
   );
-  const withImage = (p: [SignerRef, SignerRef]) =>
-    p.map((s) => ({ ...s, signatureImage: s.signatureId ? images.get(s.signatureId) ?? null : null })) as [
-      SignerRef & { signatureImage: string | null },
-      SignerRef & { signatureImage: string | null },
-    ];
+  const withImage = (p: SignerRef[]) =>
+    p.map((s) => ({ ...s, signatureImage: s.signatureId ? images.get(s.signatureId) ?? null : null })) as (SignerRef & { signatureImage: string | null })[];
 
   return {
     ok: true as const,
@@ -363,7 +364,8 @@ async function createRow(opts: {
   m: MemberRow;
   type: CertificateType;
   fields: CertificateFields;
-  signers: [SignerRef, SignerRef];
+  /** موقِّعان — أو المؤسسُ وحده حين تكون الشهادةُ للرئيس التنفيذي نفسه (لا يوقّع أحدٌ شهادتَه) */
+  signers: SignerRef[];
   edits: ReturnType<typeof fieldEdits>;
   early: { reason: string; reference: string } | null;
   issuedById: string | null;
