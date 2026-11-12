@@ -163,6 +163,17 @@ function patternColumns(p: ReturnType<typeof palette>): string {
     .join("");
 }
 
+/** **إطارُ «موهبة» لبطاقة الاعتماد** — بلاطةٌ واحدةٌ على الحواف الأربع، على شبكةٍ واحدة تبدأ من (0، ٢٧) فلا يُقطع شكل:
+ *  ١٥ بلاطةً عرضاً (١٠٨٠) و١٨ طولاً (١٢٩٦) في وسط الارتفاع. والمحتوى داخله على لونٍ صلب (لا نمطَ خلف نص). */
+function patternFrame(p: ReturnType<typeof palette>): string {
+  const id = `frame-talent-${p.pattern}`;
+  const top = COLUMN.y;
+  const h = COLUMN.rows * TILE;
+  const def = `<defs><pattern id="${id}" x="0" y="${top}" width="${TILE}" height="${TILE}" patternUnits="userSpaceOnUse">${patternTile("talent", p.pattern)}</pattern></defs>`;
+  const r = (x: number, y: number, w: number, hh: number) => `<rect x="${x}" y="${y}" width="${w}" height="${hh}" fill="url(#${id})"/>`;
+  return def + r(0, top, CARD_W, TILE) + r(0, top + h - TILE, CARD_W, TILE) + r(0, top + TILE, TILE, h - 2 * TILE) + r(CARD_W - TILE, top + TILE, TILE, h - 2 * TILE);
+}
+
 async function toPng(svg: string): Promise<Buffer> {
   ensureFonts();
   return sharp(Buffer.from(svg)).png({ compressionLevel: 9 }).toBuffer();
@@ -233,34 +244,41 @@ export type WelcomeCardData = {
   colorHex: string | null;
 };
 
-/** بطاقةُ العضوية — بلون القسم كاملاً، بنظام ملصق الدعوة نفسه (الشعار الرسمي، شارةُ القسم، شريطا النمط).
+/** **بطاقةُ الاعتماد (العضوية)** — تصميمٌ مستقلٌّ عن ملصق الدعوة (قرار المؤسس): احتفاليٌّ متمركز، بلون القسم كاملاً
+ *  (واللجنةُ بلون قسمها)، في **إطارٍ من نمط «موهبة»** على الحواف الأربع، والشعارُ الرسمي لذلك اللون في المنتصف.
  *
  *  تصل مع رسالة الاعتماد وحدها: هي الإعلان أنّ صاحبها صار منّا. */
 export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   ensureFonts();
   const p = palette(d.colorHex);
-  const nameSize = await fit(d.fullName, 104, R - L, 56, HERO);
-  const titleSize = await fit(d.title, 42, R - L, 28);
-  const roleSize = await fit(d.roleTitle, 34, 360, 22);
-  const chip = await deptChip(p, d.departmentName?.trim() || "تلاق", L);
+  const C = CARD_W / 2;
+  const inner = CARD_W - 2 * TILE - 2 * 70;
+  const nameSize = await fit(d.fullName, 100, inner, 56, HERO);
+  const titleSize = await fit(d.title, 40, inner, 26);
+  const roleSize = await fit(d.roleTitle, 32, 330, 22);
+  const dept = d.departmentName?.trim() || "تلاق";
+  const chipW = Math.min(460, (await textWidth(dept, 26)) + 56);
   const nameY = 610 + nameSize;
+  const colR = C + 190;
+  const colL = C - 190;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${CARD_W}" height="${CARD_H}">
   <rect width="100%" height="100%" fill="${p.bg}"/>
-  ${lockupSvg(p, R)}
-  ${chip}
-  ${patternColumns(p)}
-  ${t("بطاقة انضمام", R, 500, 40, p.ink, { weight: 700 })}
-  ${t(`${d.greeting} في العائلة`, R, 570, 44, p.ink)}
-  ${t(d.fullName, R, nameY, nameSize, p.ink, { weight: HERO })}
-  ${t(d.title, R, nameY + 74, titleSize, p.ink)}
-  <line x1="${L}" y1="${ROW.rule}" x2="${R}" y2="${ROW.rule}" stroke="${p.ink}" stroke-width="2"/>
-  ${t(d.joinedLabel, R, ROW.label, 24, p.ink)}
-  ${t(cardDate(d.joinedAt), R, ROW.value, 34, p.ink, { weight: 700 })}
-  ${t("الصفة", L, ROW.label, 24, p.ink, { anchor: "left" })}
-  ${t(d.roleTitle, L, ROW.value, roleSize, p.ink, { weight: 700, anchor: "left" })}
-  ${t("تحوّل رقمي، برؤية طموحة.", R, ROW.extra, 24, p.ink)}
-  ${t("@tlaqisa", L, ROW.extra, 24, p.ink, { ltr: true })}
+  ${patternFrame(p)}
+  <image href="${logoUri(p.logo)}" x="${C - LOGO.w / 2}" y="160" width="${LOGO.w}" height="${LOGO.h}"/>
+  <rect x="${C - chipW / 2}" y="300" width="${chipW}" height="58" rx="29" fill="none" stroke="${p.ink}" stroke-width="2"/>
+  ${t(dept, C, 338, 26, p.ink, { weight: 700, anchor: "middle" })}
+  ${t("بطاقة اعتماد العضوية", C, 480, 40, p.ink, { weight: 700, anchor: "middle" })}
+  ${t(`${d.greeting} في العائلة`, C, 548, 40, p.ink, { anchor: "middle" })}
+  ${t(d.fullName, C, nameY, nameSize, p.ink, { weight: HERO, anchor: "middle" })}
+  ${t(d.title, C, nameY + 74, titleSize, p.ink, { anchor: "middle" })}
+  <line x1="${C - 120}" y1="${nameY + 130}" x2="${C + 120}" y2="${nameY + 130}" stroke="${p.ink}" stroke-width="2"/>
+  ${t(d.joinedLabel, colR, nameY + 196, 24, p.ink, { anchor: "middle" })}
+  ${t(cardDate(d.joinedAt), colR, nameY + 244, 34, p.ink, { weight: 700, anchor: "middle" })}
+  ${t("الصفة", colL, nameY + 196, 24, p.ink, { anchor: "middle" })}
+  ${t(d.roleTitle, colL, nameY + 244, roleSize, p.ink, { weight: 700, anchor: "middle" })}
+  ${t("تحوّل رقمي، برؤية طموحة.", C, 1150, 26, p.ink, { anchor: "middle" })}
+  ${t("@tlaqisa", C, 1196, 24, p.ink, { anchor: "middle", ltr: true })}
 </svg>`;
   return toPng(svg);
 }
