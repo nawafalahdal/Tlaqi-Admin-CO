@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { departmentColor } from "@/lib/departmentColor";
 import { formatDate } from "@/lib/format";
 import { ORG_TIME_ZONE } from "@/lib/anniversary";
 import { appendEmailLog } from "@/lib/googleSheets";
@@ -162,14 +163,14 @@ async function recipientOf(to: string | string[]): Promise<Recipient> {
   try {
     const user = await prisma.user.findFirst({
       where: { email },
-      select: { gender: true, role: true, department: { select: { name: true, colorHex: true } } },
+      select: { gender: true, role: true, department: { select: { name: true, colorHex: true, parent: { select: { colorHex: true } } } } },
     });
     if (user) {
       return {
         gender: user.gender,
         role: user.role,
         departmentName: user.department?.name ?? null,
-        colorHex: user.department?.colorHex ?? null,
+        colorHex: user.department ? departmentColor(user.department) : null,
       };
     }
     const member = await prisma.member.findFirst({
@@ -177,7 +178,7 @@ async function recipientOf(to: string | string[]): Promise<Recipient> {
       select: {
         gender: true,
         invite: { select: { targetRole: true } },
-        department: { select: { name: true, colorHex: true } },
+        department: { select: { name: true, colorHex: true, parent: { select: { colorHex: true } } } },
       },
     });
     if (member) {
@@ -185,7 +186,7 @@ async function recipientOf(to: string | string[]): Promise<Recipient> {
         gender: member.gender,
         role: member.invite.targetRole,
         departmentName: member.department?.name ?? null,
-        colorHex: member.department?.colorHex ?? null,
+        colorHex: member.department ? departmentColor(member.department) : null,
       };
     }
   } catch (err) {

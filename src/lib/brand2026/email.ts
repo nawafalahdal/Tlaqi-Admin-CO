@@ -1,5 +1,6 @@
 import type { EmailContent, EmailTheme } from "@/lib/emailBrand";
 import { HEX, TYPEFACE, BACKGROUNDS } from "./tokens";
+import { readableTextOn } from "@/lib/colors";
 
 /** **قالبُ البريد — هوية تلاق 2026 (معاينة).** يرسم المحتوى نفسَه الذي تبنيه دوالُّ الرسائل (`EmailContent`)
  *  — فلا تتغيّر روابطُها ولا متغيّراتُها ولا معناها — بتصميمٍ جديد من الحزمة وحدها:
@@ -126,6 +127,15 @@ export function renderEmail2026Parts(opts: {
     ? TYPEFACE.weights.map((w) => `@font-face{font-family:'${TYPEFACE.family}';src:url('${opts.fontFaceBase}/${w.file}') format('opentype');font-weight:${w.weight};font-display:swap}`).join("")
     : "";
   const bodyHtml = body(opts.content);
+  // **لونُ القسم كاملاً (قرار المؤسس):** رسالةٌ تخصّ قسماً أو لجنة تحمل شريطاً بلونه واسمه تحت الترويسة — واللجنةُ
+  // بلون قسمها (يُحلّ قبل الوصول هنا). والحبرُ بالتباين، والتدرّجُ نفسُه يحميه من قلب Gmail الداكن
+  const deptColor = opts.theme?.colorHex?.trim();
+  const deptInk = deptColor ? readableTextOn(deptColor) : "";
+  const deptBand = dept && deptColor
+    ? `<tr><td bgcolor="${deptColor}" style="background-color:${deptColor};background-image:linear-gradient(${deptColor},${deptColor});padding:10px 26px;font-family:${FONT};font-size:14px;font-weight:bold;color:${deptInk}">${esc(dept)}</td></tr>`
+    : dept
+      ? `<tr><td style="padding:10px 26px 0;font-family:${FONT};font-size:13px;font-weight:bold;color:${B.temptress}">${esc(dept)}</td></tr>`
+      : "";
   const handle = opts.handle;
   const html = `<!doctype html>
 <html dir="rtl" lang="ar">
@@ -148,9 +158,9 @@ ${fontFace}
     <tr><td bgcolor="${B.temptress}" style="background-color:${B.temptress};${KEEP_DARK}padding:22px 26px">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
         <td align="right"><img src="${a("email/logo-on-temptress.png")}" width="200" height="59" alt="TLAQI — Talent Link Advancing Quality Innovation" style="display:block;border:0;width:200px;height:auto"></td>
-        <td align="left" style="font-family:${FONT};font-size:12px;font-weight:bold;color:${B.beige}">${dept ? esc(dept) : ""}</td>
       </tr></table>
     </td></tr>
+    ${deptBand}
     <tr><td style="font-size:0;line-height:0;padding:0"><img src="${a("email/pattern-talent-on-white.png")}" width="600" height="48" alt="" style="display:block;border:0;width:100%;height:auto"></td></tr>
     <tr><td style="height:1px;background-color:${B.temptress};font-size:0;line-height:0">&nbsp;</td></tr>
     <tr><td class="b26-pad" style="padding:28px 30px 24px">${bodyHtml}</td></tr>

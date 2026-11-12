@@ -118,9 +118,13 @@ function palette(colorHex: string | null | undefined) {
 /** وزنُ الاسم البطل: ملفُّ ExtraBold من خطّ الهوية (Bold فيه خفيفٌ بطبعه) */
 const HERO = 900;
 
-/** شبكةُ البطاقتين: شريطُ النمط تحت الترويسة (ثلاث بلاطات) وشريطٌ في الحافة السفلى (بلاطة)، والصفُّ الأخير فوقه */
-const BAND = { top: 216, rows: 3 };
-const ROW = { rule: 1046, label: 1096, value: 1146, extra: 1208 };
+/** شبكةُ البطاقتين (قرار المؤسس): **عمودُ الأنماط طوليٌّ على الجانب** — عمودُ «موهبة» ثم عمودُ «ابتكار»، كلٌّ بعرض
+ *  بلاطةٍ واحدة وبطول البطاقة — والمحتوى إلى يمينه على لونٍ صلب (لا نمطَ خلف نص). ولا يُستعمل نمطُ «ربط». */
+// بلاطاتٌ كاملة فقط: ١٨ صفاً (١٢٩٦) في وسط ارتفاع البطاقة (١٣٥٠) — لا شكلَ مقطوعاً عند الحافتين
+const COLUMN = { x: 0, w: 2 * 72, rows: 18, y: (1350 - 18 * 72) / 2 };
+const L = COLUMN.w + 66;
+const R = 1080 - 90;
+const ROW = { rule: 1100, label: 1152, value: 1202, extra: 1266 };
 
 /** الشعارُ الرسمي بنسخة اللون — موضعٌ واحدٌ وحجمٌ واحد في البطاقتين (٢٤٠٠×٧٠٦ في الأصل) */
 const LOGO = { w: 340, h: 100, top: 72 };
@@ -134,11 +138,11 @@ async function deptChip(p: ReturnType<typeof palette>, dept: string, left: numbe
   return `<rect x="${left}" y="93" width="${w}" height="58" rx="29" fill="none" stroke="${p.ink}" stroke-width="2"/>${t(dept, left + w / 2, 131, 26, p.ink, { weight: 700, anchor: "middle" })}`;
 }
 
-/** **النمطُ في شريطٍ منفصل لا خلف النص** (قاعدة الدليل)، بمقاس M للبطاقات وبلاطاتٍ كاملة على شبكةٍ واحدة:
- *  «ربط» للدعوة (صلةٌ بين الموهبة والجهة)، و«موهبة» — النمطُ الأساسي — لبطاقة العضوية. */
+/** **النمطُ في عمودٍ منفصل لا خلف النص** (قاعدة الدليل)، بمقاس M للبطاقات وبلاطاتٍ كاملة على شبكةٍ واحدة:
+ *  «موهبة» — النمطُ الأساسي — و«ابتكار» متجاوران. */
 const TILE = 72;
 const patternCache = new Map<string, string>();
-function patternTile(kind: "link" | "talent", color: PatternColor): string {
+function patternTile(kind: "talent" | "innovation", color: PatternColor): string {
   const key = `${kind}_${color}`;
   const hit = patternCache.get(key);
   if (hit) return hit;
@@ -147,10 +151,14 @@ function patternTile(kind: "link" | "talent", color: PatternColor): string {
   patternCache.set(key, inner);
   return inner;
 }
-function patternBand(p: ReturnType<typeof palette>, kind: "link" | "talent", y: number, rows: number): string {
-  // معرّفٌ لكل شريط: لو تشارك شريطان معرّفاً واحداً لأخذ الثاني شبكةَ الأول فقُطعت أشكالُه
-  const id = `pat-${kind}-${p.pattern}-${y}`;
-  return `<defs><pattern id="${id}" x="0" y="${y}" width="${TILE}" height="${TILE}" patternUnits="userSpaceOnUse">${patternTile(kind, p.pattern)}</pattern></defs><rect x="0" y="${y}" width="${CARD_W}" height="${rows * TILE}" fill="url(#${id})"/>`;
+function patternColumns(p: ReturnType<typeof palette>): string {
+  return (["talent", "innovation"] as const)
+    .map((kind, i) => {
+      const x = COLUMN.x + i * TILE;
+      const id = `pat-${kind}-${p.pattern}`;
+      return `<defs><pattern id="${id}" x="${x}" y="${COLUMN.y}" width="${TILE}" height="${TILE}" patternUnits="userSpaceOnUse">${patternTile(kind, p.pattern)}</pattern></defs><rect x="${x}" y="${COLUMN.y}" width="${TILE}" height="${COLUMN.rows * TILE}" fill="url(#${id})"/>`;
+    })
+    .join("");
 }
 
 async function toPng(svg: string): Promise<Buffer> {
@@ -180,23 +188,21 @@ export async function renderInviteCard(d: InviteCardData): Promise<Buffer> {
   ensureFonts();
   const p = palette(d.colorHex);
   const first = d.fullName.trim().split(/\s+/)[0] || d.fullName;
-  const R = CARD_W - 90;
-  const L = 90;
-  const firstSize = await fit(first, 200, R - L, 120, HERO);
-  const fullSize = await fit(d.fullName, 34, 430, 24);
+  const firstSize = await fit(first, 200, R - L, 110, HERO);
+  const fullSize = await fit(d.fullName, 34, 380, 22);
   const byName = d.invitedByName?.trim() || "إدارة تلاق";
-  const bySize = await fit(byName, 34, 400, 24);
+  const bySize = await fit(byName, 34, 360, 22);
   const chip = await deptChip(p, d.departmentName?.trim() || "تلاق", L);
   const role = d.jobTitle?.trim() ? `${d.position} · ${d.jobTitle.trim()}` : d.position;
   const roleSize = await fit(role, 36, R - L, 24);
-  const nameY = 540 + firstSize;
+  const nameY = 460 + firstSize;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${CARD_W}" height="${CARD_H}">
   <rect width="100%" height="100%" fill="${p.bg}"/>
   ${lockupSvg(p, R)}
   ${chip}
-  ${patternBand(p, "link", BAND.top, BAND.rows)}
-  ${t("دعوة خاصّة", R, 520, 40, p.ink, { weight: 700 })}
+  ${patternColumns(p)}
+  ${t("دعوة خاصّة", R, 440, 40, p.ink, { weight: 700 })}
   ${t(first, R, nameY, firstSize, p.ink, { weight: HERO })}
   ${t("للانضمام إلى فريق تلاق", R, nameY + 84, 44, p.ink)}
   ${t(role, R, nameY + 146, roleSize, p.ink, { weight: 700 })}
@@ -206,7 +212,6 @@ export async function renderInviteCard(d: InviteCardData): Promise<Buffer> {
   ${t("بدعوةٍ من", L, ROW.label, 24, p.ink, { anchor: "left" })}
   ${t(byName, L, ROW.value, bySize, p.ink, { weight: 700, anchor: "left" })}
   ${t(cardDate(d.issuedAt), L, ROW.extra, 24, p.ink, { anchor: "left" })}
-  ${patternBand(p, "link", CARD_H - TILE, 1)}
 </svg>`;
   return toPng(svg);
 }
@@ -232,21 +237,19 @@ export type WelcomeCardData = {
 export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   ensureFonts();
   const p = palette(d.colorHex);
-  const R = CARD_W - 90;
-  const L = 90;
-  const nameSize = await fit(d.fullName, 104, R - L, 60, HERO);
+  const nameSize = await fit(d.fullName, 104, R - L, 56, HERO);
   const titleSize = await fit(d.title, 42, R - L, 28);
-  const roleSize = await fit(d.roleTitle, 34, 440, 22);
+  const roleSize = await fit(d.roleTitle, 34, 360, 22);
   const chip = await deptChip(p, d.departmentName?.trim() || "تلاق", L);
-  const nameY = 630 + nameSize;
+  const nameY = 610 + nameSize;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${CARD_W}" height="${CARD_H}">
   <rect width="100%" height="100%" fill="${p.bg}"/>
   ${lockupSvg(p, R)}
   ${chip}
-  ${patternBand(p, "talent", BAND.top, BAND.rows)}
-  ${t("بطاقة انضمام", R, 520, 40, p.ink, { weight: 700 })}
-  ${t(`${d.greeting} في العائلة`, R, 590, 44, p.ink)}
+  ${patternColumns(p)}
+  ${t("بطاقة انضمام", R, 500, 40, p.ink, { weight: 700 })}
+  ${t(`${d.greeting} في العائلة`, R, 570, 44, p.ink)}
   ${t(d.fullName, R, nameY, nameSize, p.ink, { weight: HERO })}
   ${t(d.title, R, nameY + 74, titleSize, p.ink)}
   <line x1="${L}" y1="${ROW.rule}" x2="${R}" y2="${ROW.rule}" stroke="${p.ink}" stroke-width="2"/>
@@ -256,7 +259,6 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   ${t(d.roleTitle, L, ROW.value, roleSize, p.ink, { weight: 700, anchor: "left" })}
   ${t("تحوّل رقمي، برؤية طموحة.", R, ROW.extra, 24, p.ink)}
   ${t("@tlaqisa", L, ROW.extra, 24, p.ink, { ltr: true })}
-  ${patternBand(p, "talent", CARD_H - TILE, 1)}
 </svg>`;
   return toPng(svg);
 }
