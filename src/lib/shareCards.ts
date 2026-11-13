@@ -249,7 +249,7 @@ export function approvedLogoFor(colorHex: string): { logo: LogoFile; mark: strin
 
 
 /** **بطاقةُ الاعتماد (العضوية)** — التصميمُ الذي اعتمده المؤسس (نوفمبر 2026):
- *  - **أعلى الصفحة:** اسمُ صاحبها الأول، وتحته «أهلاً بك في عائلة تلاق» مكبَّرة.
+ *  - **أعلى الصفحة:** «بطاقة انضمام» ثم «أهلاً بك في العائلة» مكبَّرة.
  *  - **البطاقة:** الشعارُ الرسميُّ فوق الاسم والقسمُ في ركنها المقابل، ثم الاسمُ بالخطّ العريض والمسمّى، ثم تاريخُ
  *    الانضمام والصفة. الخلفيةُ والبطاقةُ بلون القسم الصافي (واللجنةُ بلون قسمها)، والبطاقةُ تُفرَد بإطارٍ وظلّ.
  *  - **الشعارُ بنسخته الرسمية لذلك اللون** (لا تلوين): البنفسجي علامةٌ برتقالية وكلمةٌ Beige؛ الـBeige علامةٌ برتقالية؛
@@ -270,12 +270,9 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   const W = CARD_W - 2 * X;
   const R = X + W - 56;
   const IL = X + 56;
-  const welcome = `${d.greeting} في عائلة تلاق`;
-  // عرضُ الرأس محدودٌ (٦٢٠–٦٤٠) فلا يبلغ شكلَ «موهبة» في الزاوية العليا: لا نمطَ خلف نص
-  // الاسمُ الأولُ وحده (قرار المؤسس) — والاسمُ كاملاً في البطاقة
-  const head = firstName(d.fullName);
-  const headName = await fit(head, 50, 620, 30, HERO);
-  const welcomeSize = await fit(welcome, 68, 640, 40);
+  // الترحيبُ مكبَّرٌ (قرار المؤسس) وعرضُه محدودٌ (٤٠٠) فلا يبلغ شكلَ «موهبة» في الزاوية العليا: لا نمطَ خلف نص
+  const welcome = `${d.greeting} في العائلة`;
+  const welcomeSize = await fit(welcome, 66, 400, 44);
   const nameSize = await fit(d.fullName, 92, W - 112, 34, HERO); // الحدُّ الأدنى يسع اسماً رباعياً طويلاً داخل البطاقة
   const titleSize = await fit(d.title, 40, W - 112, 26);
   const roleSize = await fit(d.roleTitle, 32, 300, 22);
@@ -295,8 +292,7 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   // السفلى في الزاوية الحرّة — فتتوزّع الثلاثةُ على البطاقة بلا تكرار: «موهبة» أعلى، و«ابتكار» و«ربط» أسفلُ على الجانبين
   const arc = (patternTile("link", inkName).match(/<path[^>]*transform="translate\(18 18\)"[^>]*\/>/) ?? [""])[0];
   const link = arc ? `<g opacity="${faint}" transform="translate(${CARD_W - 185} ${CARD_H - 150}) scale(15) translate(-18 -18)">${arc}</g>` : "";
-  // «موهبة» مدفوعٌ إلى الزاوية العليا (يخرج نصفُه عن الحافة) فيبقى فوق الرأس وعن يمينه، لا خلفه
-  const motifs = motif("talent", CARD_W - 80, 110, 9) + motif("innovation", 150, CARD_H - 170, 9) + link;
+  const motifs = motif("talent", CARD_W - 150, 175, 9) + motif("innovation", 150, CARD_H - 170, 9) + link;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${CARD_W}" height="${CARD_H}">
   <defs>
@@ -304,8 +300,8 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   </defs>
   <rect width="100%" height="100%" fill="${page}"/>
   ${motifs}
-  ${t(head, C, 172, headName, pageInk, { weight: HERO, anchor: "middle" })}
-  ${t(welcome, C, 276, welcomeSize, pageInk, { weight: 700, anchor: "middle" })}
+  ${t("بطاقة انضمام", C, 180, 26, pageInk, { anchor: "middle" })}
+  ${t(welcome, C, 272, welcomeSize, pageInk, { weight: 700, anchor: "middle" })}
   <g filter="url(#shadow)"><rect x="${X}" y="360" width="${W}" height="680" rx="48" fill="${card.bg}"${cardStroke}/></g>
   <image href="${logoUri(pageLogo)}" x="${R - 280}" y="410" width="280" height="${Math.round((280 * 706) / 2400)}"/>
   ${t(dept, IL, 462, deptSize, cardInk, { weight: 700, anchor: "left" })}
