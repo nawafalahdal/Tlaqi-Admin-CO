@@ -10,12 +10,9 @@ import {
   variantForKind,
   toneForVariant,
   appBaseUrl,
-  SOCIAL_HANDLE,
-  BRAND_HASHTAG,
   type EmailContent,
   type EmailTheme,
 } from "@/lib/emailBrand";
-import { departmentBrand } from "@/lib/departmentBrand";
 import { firstName } from "@/lib/personName";
 import { forms, gx, positionTitle, roleTitle, type MaybeGender } from "@/lib/gender";
 import { emailAllowed, policyReason, type EmailEvent } from "@/lib/emailPolicy";
@@ -1364,63 +1361,59 @@ export type WelcomeEmailOpts = {
   occasion?: "approved" | "resend";
 };
 
-export function welcomeEmailSubject(
-  fullName: string,
-  occasion: "approved" | "resend" = "approved",
-  gender?: MaybeGender
-) {
-  return occasion === "approved"
-    ? `أهلاً ${forms(gender).you} في عائلة تلاق، ${fullName}!`
-    : `بطاقتك في تلاق، ${fullName}`;
+export function welcomeEmailSubject(fullName: string, occasion: "approved" | "resend" = "approved") {
+  return occasion === "approved" ? `اعتماد انضمام — ${fullName}` : `بطاقة العضوية — ${fullName}`;
 }
 
-/** رسالة الاعتماد — تُعلنه وتُرحّب وتحمل بطاقة العضوية للمشاركة.
+/** تاريخُ الخطاب بالأرقام العربية والشهر باسمه — كما في البطاقة: «٢٠ نوفمبر ٢٠٢٦» */
+function letterDate(d: Date): string {
+  return new Intl.DateTimeFormat("ar-u-ca-gregory-nu-arab", { day: "numeric", month: "long", year: "numeric", timeZone: ORG_TIME_ZONE }).format(d);
+}
+
+/** **رسالةُ القبول والاعتماد — خطابٌ رسميٌّ بلا تصميم** (قرار المؤسس، نوفمبر 2026).
  *
- *  **البطاقة صورةٌ لا HTML:** المطلوب أن تُصوَّر الشاشة وتُنشر كما هي، وما
- *  يُرسَم صورةً على الخادم يصل في كل بريدٍ بالخطّ واللون نفسيهما. وتحتها
- *  النصُّ حيّاً: الاسم والصفة والقسم والتاريخ — فلا تُفقَد المعلومة إن
- *  حُجبت الصور. */
+ *  نصٌّ فقط: باسم صاحبها والمهمة التي اعتُمد لها، وقسمِه وتاريخِ اعتماده، ثم رابطُ الدخول ورابطُ بطاقة العضوية
+ *  نصّاً ظاهراً. لا شعار ولا ألوان ولا صور ولا أزرار. وبصيغة الجمع للاحترام («إبلاغكم») — رسميةٌ لا تحتاج جنساً،
+ *  إلا المخاطَبة في أوّلها («المكرّم/المكرّمة»). واسمُ المنصة بالإنجليزية: TLAQI. */
 function welcomeContent(opts: WelcomeEmailOpts): { subject: string; content: EmailContent; theme: EmailTheme } {
   const g = opts.gender ?? null;
-  const f = forms(g);
-  const G = (m: string, fe: string, n?: string) => gx(g, m, fe, n);
-  const brand = departmentBrand(opts.departmentName ?? null, opts.departmentColorHex ?? null);
   const role = opts.accountRole ? roleTitle(opts.accountRole, g, opts.departmentName) : opts.roleLabel;
-  const job = opts.jobTitle?.trim();
-  const as = job ? ` بصفتك ${esc(job)}` : role ? ` بصفتك ${esc(role)}` : "";
+  // المهمة: المسمّى الذي سجّلته الإدارة، وإلا الصفة
+  const task = opts.jobTitle?.trim() || role;
   const approved = (opts.occasion ?? "approved") === "approved";
-  const first = firstName(opts.fullName);
-  const handle = `@${SOCIAL_HANDLE}`;
-  const tag = opts.hashtag ?? BRAND_HASHTAG;
+  const subject = welcomeEmailSubject(opts.fullName, opts.occasion ?? "approved");
+  const link = (url: string, text: string) => `<a href="${esc(url)}" style="color:#1A1023;text-decoration:underline">${esc(text)}</a>`;
+  const since = opts.joinedAt ? `، وذلك اعتباراً من ${esc(letterDate(opts.joinedAt))}` : "";
+  // القسمُ أو اللجنةُ باسمه كما سُجِّل: «في التسويق»، «في لجنة المحتوى»، «في الإدارة العليا»
+  const dept = opts.departmentName?.trim();
+  const where = dept ? `TLAQI في ${esc(dept)}` : "TLAQI";
+  const card = opts.cardUrl ? `وتجدون بطاقة عضويتكم على الرابط: ${link(opts.cardUrl, "بطاقة العضوية")}` : null;
+
+  const paragraphs = approved
+    ? [
+        `يسرّنا إبلاغكم باعتماد انضمامكم إلى ${where} بمهمة <b>${esc(task)}</b>${since}.`,
+        `وقد فُعِّل حسابكم في المنصة، ويمكنكم الدخول إليها عبر الرابط: ${link(opts.portalUrl, opts.portalUrl)}`,
+        ...(card ? [card] : []),
+      ]
+    : [
+        `بناءً على طلبكم، نعيد إليكم بطاقة عضويتكم في ${where} بمهمة <b>${esc(task)}</b>.`,
+        ...(card ? [card] : []),
+      ];
 
   return {
-    subject: welcomeEmailSubject(opts.fullName, opts.occasion ?? "approved", g),
+    subject,
     theme: { departmentName: opts.departmentName ?? null, colorHex: opts.departmentColorHex ?? null },
     content: {
-      tone: "celebrate",
-      badge: approved ? "اعتُمد انضمامك" : "بطاقة العضوية",
-      title: `أهلاً ${f.you} في العائلة، ${first}`,
-      lead: approved
-        ? `اعتُمد انضمامك إلى ${esc(brand.copy.phrase)}${as}. ومن اليوم ${G("أنت", "أنتِ", "أنت")} جزءٌ من تلاق.`
-        : `هذه بطاقة عضويتك في ${esc(brand.copy.phrase)} كما طلبتها.`,
-      image: opts.cardUrl
-        ? // البطاقةُ تُحفظ وتُنشر ولا تفتح شيئاً — الدخولُ للزرّ وحده (قرار المؤسس)
-          { src: opts.cardUrl, width: 544, height: 680, alt: `بطاقة العضوية — ${opts.fullName}` }
-        : undefined,
-      paragraphs: approved ? [esc(brand.copy.belief), esc(brand.copy.aspiration)] : [],
-      facts: [
-        ["الاسم", opts.fullName],
-        ["الصفة", role],
-        ["المسمّى الوظيفي", job],
-        ["القسم", opts.departmentName],
-        ["تاريخ الانضمام", opts.joinedAt ? formatDate(opts.joinedAt) : null],
-      ],
-      cta: { label: "الدخول إلى المنصة", url: esc(opts.portalUrl) },
-      after: [
-        `البطاقة أعلاه ${f.toYou} — تُحفظ بضغطةٍ مطوّلة وتُنشر كما هي. ويسعدنا أن ${G("تشاركنا", "تشاركينا", "تشاركنا")} الخبر بالإشارة إلى <b dir="ltr">${esc(handle)}</b> ووسمِنا الرسمي <b>${esc(tag)}</b>.`,
-        `أهلاً ${f.you} بيننا، ونتطلّع إلى ما سنصنعه معاً.`,
-      ],
-      note: `${G("احتفظ", "احتفظي", "يُحتفظ")} بهذه الرسالة: فيها البيانات كما سُجِّلت عندنا، وتصحيحُ أيّ خطأٍ فيها من صفحة «بياناتي».`,
+      title: subject,
+      letter: {
+        addressee: `${gx(g, "المكرّم", "المكرّمة", "المكرّم/ة")} ${opts.fullName}`,
+        greeting: "السلام عليكم ورحمة الله وبركاته، وبعد:",
+        paragraphs,
+        closing: approved
+          ? ["متمنّين لكم التوفيق والسداد،", "وتفضّلوا بقبول فائق الاحترام والتقدير."]
+          : ["وتفضّلوا بقبول فائق الاحترام والتقدير."],
+        signature: "إدارة TLAQI",
+      },
     },
   };
 }
