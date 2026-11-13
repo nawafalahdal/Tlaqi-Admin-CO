@@ -447,6 +447,8 @@ export type BusinessCardData = {
   colorHex: string | null;
   /** صورتُه الشخصية كما رفعها — وبدونها الحرفُ الأول من اسمه */
   photo: Buffer | null;
+  /** الرقمُ الوظيفي (`TLAQI - 001`) — سطرٌ ثابتٌ أسفل البطاقة كما في بطاقات الجهات؛ يُترك إن لم يُسنَد بعد */
+  employeeId?: string | null;
 };
 
 const LOGO_RATIO = 706 / 2400;
@@ -505,14 +507,18 @@ export async function renderBusinessCard(d: BusinessCardData): Promise<Buffer> {
   const sy = blockTop / 2;
   const stripLabel = `<g transform="translate(${sx} ${sy}) rotate(90)">${t(dept, 0, Math.round(deptSize * 0.35), deptSize, onStrip, { anchor: "middle", weight: 700 })}</g>`;
 
-  // ── الكتلة: الاسمُ والمنصبُ والمهمّة، يميناً
-  const RX = W - M;
+  // ── الكتلة: كلامٌ يأخذ مكانه (قرار المؤسس) — على شبكةٍ ثابتة تتّسق بها البطاقاتُ كلُّها:
+  //    **عمودٌ بلون القسم** يمينَ الكلام يؤطّره كعنوان بطاقةٍ رسمية ويُقابل شريطَ القسم يساراً؛ ثم الاسمُ كبيراً، فالمنصبُ،
+  //    فالمهمّة، بمسافاتٍ متساوية من أعلى الكتلة؛ والرقمُ الوظيفي سطرٌ ثابتٌ أسفلها. والاسمُ الطويلُ سطران ولا يبلغ الرقم
+  const barW = mm(1.2);
+  const barX = W - M - barW;
+  const RX = barX - mm(2.4);
   const TW = RX - M;
   const name = d.fullName.trim();
   let nameLines = [name];
-  let nameSize = await fit(name, mm(4.4), TW, mm(3.2), HERO);
+  let nameSize = await fit(name, mm(5), TW, mm(3.4), HERO);
   const words = name.split(/\s+/);
-  if (nameSize < mm(3.6) && words.length > 1) {
+  if (nameSize < mm(3.8) && words.length > 1) {
     const binds = new Set(["بن", "بنت", "ابن", "عبد", "أبو", "ابو", "آل"]);
     let best: [string, string] = [words[0], words.slice(1).join(" ")];
     let bestDiff = Infinity;
@@ -524,26 +530,43 @@ export async function renderBusinessCard(d: BusinessCardData): Promise<Buffer> {
       if (diff < bestDiff) [best, bestDiff] = [[a, b], diff];
     }
     nameLines = best;
-    nameSize = Math.min(await fit(best[0], mm(3.6), TW, mm(2.8), HERO), await fit(best[1], mm(3.6), TW, mm(2.8), HERO));
+    nameSize = Math.min(await fit(best[0], mm(3.8), TW, mm(3), HERO), await fit(best[1], mm(3.8), TW, mm(3), HERO));
   }
-  const posSize = await fit(d.position, mm(2.8), TW, mm(2.1), 700);
+  const posSize = await fit(d.position, mm(3), TW, mm(2.2), 700);
   const task = d.task?.trim() || null;
-  const taskSize = task ? await fit(task, mm(2.5), TW, mm(2), 400) : 0;
-  const nameStep = Math.round(nameSize * 1.2);
-  const blockH =
-    nameSize + (nameLines.length - 1) * nameStep + mm(2.2) + posSize + (task ? mm(1.4) + taskSize : 0);
-  const zoneTop = stripBottom;
-  let y = Math.round(zoneTop + (H - zoneTop - blockH) / 2 + nameSize * 0.85);
+  const taskSize = task ? await fit(task, mm(2.6), TW, mm(2.1), 400) : 0;
+  const nameStep = Math.round(nameSize * 1.22);
+  const GAP_POS = mm(2.2);
+  const GAP_TASK = mm(1.5);
+  const textH = nameSize * 0.8 + (nameLines.length - 1) * nameStep + GAP_POS + posSize + (task ? GAP_TASK + taskSize : 0);
+
+  const idSize = mm(2.8);
+  const idBase = H - mm(4.8);
+  const idTop = idBase - idSize * 0.75;
+  // الكلامُ متمركزٌ بين نهاية الشريط وسطر الرقم فتمتلئ الكتلةُ قصُر الكلامُ أو طال — ويعلو للاسم الطويل حتى لا يبلغ الرقم
+  const zoneEnd = idTop - mm(3);
+  const start =
+    textH <= zoneEnd - stripBottom
+      ? stripBottom + (zoneEnd - stripBottom - textH) / 2
+      : Math.max(blockTop + mm(3), zoneEnd - textH);
+  let y = Math.round(start + nameSize * 0.8);
   let text = "";
   for (const line of nameLines) {
     text += t(line, RX, y, nameSize, BRAND.beige, { weight: HERO });
     y += nameStep;
   }
-  y += -nameStep + mm(2.2) + posSize;
+  y += -nameStep + GAP_POS + posSize;
   text += t(d.position, RX, y, posSize, BRAND.beige, { weight: 700 });
   if (task) {
-    y += mm(1.4) + taskSize;
+    y += GAP_TASK + taskSize;
     text += t(task, RX, y, taskSize, BRAND.beige);
+  }
+  // العمودُ من أعلى الاسم إلى آخر سطرٍ في الكتلة
+  const barTop = Math.round(start - mm(0.2));
+  const barBottom = Math.round(y + taskSize * 0.25);
+  text += `<rect x="${barX}" y="${barTop}" width="${barW}" height="${barBottom - barTop}" rx="${barW / 2}" fill="${tint}"/>`;
+  if (d.employeeId) {
+    text += t(d.employeeId, RX, Math.round(idBase), idSize, BRAND.beige, { weight: 700, ltr: true, anchor: "right", font: LATIN });
   }
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}">

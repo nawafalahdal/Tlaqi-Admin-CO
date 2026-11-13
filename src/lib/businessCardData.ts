@@ -82,7 +82,7 @@ export async function businessCardData(
   const data: BusinessCardData = {
     fullName: row.fullName,
     position,
-    task: row.jobTitle,
+    task: taskBeyondPosition(row.jobTitle, position),
     departmentName: deptName,
     colorHex,
     photo: avatarBytes(row.avatarData) ?? defaultPortrait(row.gender),
@@ -97,6 +97,37 @@ export async function businessCardData(
     avatarVersion: row.avatarVersion,
   });
   return { data, version };
+}
+
+/** كلماتُ المسمّى للمقارنة وحدها (لا للعرض): بلا تشكيلٍ ولا تطويل، والألفاتُ والياءُ موحّدة، وتاءُ التأنيث في آخر الكلمة
+ *  محذوفةٌ («قائدة» = «قائد»، «التنفيذية» = «التنفيذي»)، وكلمةُ «قسم» ساقطة («قائدة التسويق» = «قائدة قسم التسويق») */
+function titleWords(s: string): string[] {
+  return s
+    .normalize("NFKC")
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, "")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .split(/[\s\-–—/·•،,()]+/)
+    .filter(Boolean)
+    .map((w) => w.replace(/ة$/, ""))
+    .filter((w) => w !== "قسم");
+}
+
+/** **المهمّةُ إن زادت على المنصب — وإلا لا شيء.**
+ *
+ *  كان السطران يتكرّران في البطاقة («قائدة قسم التسويق» مرّتين): المنصبُ تحسبه المنصة من الدور، والمهمّةُ هي المسمّى
+ *  المسجَّل — ويُكتب للقادة غالباً باسم الدور نفسه، ويُضبط لأعضاء الإدارة العليا بعنوان منصبهم (`governance/senior.ts`).
+ *  فتُترك المهمّةُ إن ساوت المنصب أو كانت بعضَه، وتبقى إن زادت عليه («أخصائية محتوى» مع «عضوة»). */
+export function taskBeyondPosition(task: string | null | undefined, position: string): string | null {
+  const t = task?.trim();
+  if (!t) return null;
+  const tw = titleWords(t);
+  const pw = titleWords(position);
+  if (tw.length === 0) return null;
+  for (let i = 0; i + tw.length <= pw.length; i++) {
+    if (tw.every((w, j) => w === pw[i + j])) return null;
+  }
+  return t;
 }
 
 /** اسمُ ملفّ البطاقة حين تُحفظ أو تُرفق: `TLAQI-<الاسم الأول>.png` */

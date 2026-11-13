@@ -13,7 +13,7 @@ const checks: string[] = [];
 const chk = (n: string, ok: boolean, extra = "") => checks.push(`${ok ? "✓" : "✗ FAIL"} ${n}${!ok && extra ? " — " + extra : ""}`);
 
 (async () => {
-  const { businessCardData, businessCardAttachment, businessCardFileName } = await import("@/lib/businessCardData");
+  const { businessCardData, businessCardAttachment, businessCardFileName, taskBeyondPosition } = await import("@/lib/businessCardData");
   const { defaultPortrait } = await import("@/lib/defaultPortraits");
   const { renderBusinessCard } = await import("@/lib/shareCards");
   const { sendWelcomePack } = await import("@/lib/welcome");
@@ -35,6 +35,14 @@ const chk = (n: string, ok: boolean, extra = "") => checks.push(`${ok ? "✓" : 
     chk("الاسمُ والمهمّةُ كما سُجّلا", card?.data.fullName === "ريم الاختبارية" && card?.data.task === "أخصائية محتوى");
     chk("والمنصبُ بجنسها («عضوة»)", card?.data.position === "عضوة", card?.data.position);
     chk("والقسمُ ولونُه", card?.data.departmentName === marketing.name && card?.data.colorHex?.toUpperCase() === BRAND.mahogany.toUpperCase(), `${card?.data.departmentName} ${card?.data.colorHex}`);
+
+    // ── لا يتكرّر المنصبُ في سطر المهمّة («قائدة قسم التسويق» مرّتين — بلاغُ المؤسس)
+    chk("**المهمّةُ المطابقةُ للمنصب لا تتكرّر**", taskBeyondPosition("قائدة قسم التسويق", "قائدة قسم التسويق") === null);
+    chk("ولا بفرق «قسم» أو التأنيث", taskBeyondPosition("قائدة التسويق", "قائدة قسم التسويق") === null && taskBeyondPosition("الرئيسة التنفيذية", "الرئيس التنفيذي") === null);
+    chk("والمهمّةُ التي تزيد على المنصب تبقى", taskBeyondPosition("أخصائية محتوى", "عضوة") === "أخصائية محتوى" && taskBeyondPosition("عضو فريق المحتوى", "عضو") === "عضو فريق المحتوى");
+    await prisma.member.update({ where: { id: member.id }, data: { jobTitle: "عضوة" } });
+    chk("وفي السجلّ: مسمّى «عضوة» لعضوةٍ لا يُكتب سطراً ثانياً", (await businessCardData({ kind: "member", id: member.id }))?.data.task === null);
+    await prisma.member.update({ where: { id: member.id }, data: { jobTitle: "أخصائية محتوى" } });
 
     // ── بلا صورة: الهيئةُ الافتراضية بجنسها (أو الحرفُ الأول إن لم تُضَف صورتُها بعد)
     const female = defaultPortrait("female");
