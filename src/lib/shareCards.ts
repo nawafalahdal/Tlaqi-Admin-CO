@@ -4,7 +4,6 @@ import sharp from "sharp";
 import { BRAND, themeFromColor } from "@/lib/brand";
 import { ensureFonts } from "@/lib/welcomeBanner";
 import { firstName } from "@/lib/personName";
-import { departmentBrand } from "@/lib/departmentBrand";
 
 /** صورتا المشاركة: ملصقُ الدعوة، وبطاقةُ العضوية.
  *
@@ -283,47 +282,17 @@ function contrast(a: string, b: string): number {
   return (x + 0.05) / (y + 0.05);
 }
 
-/** يكسر النصَّ أسطراً لا يتجاوز كلٌّ منها العرضَ — بالقياس لا بعدّ الحروف */
-async function wrapText(text: string, size: number, maxW: number, weight = 700): Promise<string[]> {
-  const lines: string[] = [];
-  let line = "";
-  for (const w of text.trim().split(/\s+/)) {
-    const next = line ? `${line} ${w}` : w;
-    if (line && (await textWidth(next, size, weight)) > maxW) {
-      lines.push(line);
-      line = w;
-    } else line = next;
-  }
-  if (line) lines.push(line);
-  // سطران: يُوازَن بينهما فلا تبقى كلمةٌ وحيدةٌ في الثاني
-  if (lines.length === 2) {
-    const ws = text.trim().split(/\s+/);
-    let best = lines;
-    let bestW = Infinity;
-    for (let i = 1; i < ws.length; i++) {
-      const pair = [ws.slice(0, i).join(" "), ws.slice(i).join(" ")];
-      const w = Math.max(await textWidth(pair[0], size, weight), await textWidth(pair[1], size, weight));
-      if (w <= maxW && w < bestW) [best, bestW] = [pair, w];
-    }
-    return best;
-  }
-  return lines;
-}
-
-/** **بطاقةُ الانضمام (العضوية)** — التصميمُ الذي اعتمده المؤسس (نوفمبر 2026)، على فكرة الملف الرسمي لا غلافِه:
+/** **بطاقةُ الانضمام (العضوية)** — التصميمُ الذي اعتمده المؤسس (نوفمبر 2026)، **بسيطاً واضحاً** (قراره بعد المعاينة):
+ *  الرسالةُ تحمل التفاصيل، فالبطاقةُ لا تُعيدها — فيها ما يُعرَف به صاحبها وحده:
  *  - **يساراً:** أعمدةُ الأنماط الثلاثة بلون القسم بمقاس M — «موهبة» ثم «ربط» (مزاحٌ نصفَ خطوة) ثم «ابتكار».
- *  - **يميناً:** الشعار و«تحوّل رقمي، برؤية طموحة.»، ثم «بطاقة انضمام» و«أهلاً بك في العائلة»، ثم **الاسمُ بطلاً**
- *    وتحته خطٌّ قصيرٌ بلون القسم والمسمّى، ثم **جملةُ القسم** في لوحةٍ ناعمة، ثم كبسولاتُ القسم والصفة والتاريخ، ثم
- *    **رحلةُ TLAQI** (مبدأُ الهوية الرسميّ: حرفٌ ومعناه بالإنجليزية والعربية)، ثم توقيع «فريق TLAQI».
- *  - **بلا خطوطٍ فاصلة** (قرار المؤسس): لا تبدو غلافَ كتابٍ أو ملف.
+ *  - **يميناً:** الشعار، ثم «بطاقة انضمام»، ثم **الاسمُ بطلاً** والمسمّى، ثم القسمُ والصفةُ وتاريخُ الانضمام، ثم **رحلةُ
+ *    TLAQI** (مبدأُ الهوية الرسميّ: حرفٌ ومعناه بالإنجليزية والعربية). لا خطوطَ فاصلة ولا نصوصَ أخرى.
  *  - **الألوان:** صفحةٌ Beige وأنماطٌ بلون القسم؛ والإدارةُ العليا بنفسجيةٌ كاملة؛ والموارد البشرية (Beige) أنماطُها بنفسجية.
  *
  *  تصل مع رسالة الاعتماد وحدها: هي الإعلان أنّ صاحبها صار منّا. */
 export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   ensureFonts();
   const accent = palette(d.colorHex).bg;
-  // ألوانُ الصفحة (قرار المؤسس): الإدارةُ العليا بنفسجيةٌ كاملة وأنماطُها Beige؛ والموارد البشرية (لونُها Beige) صفحتُها
-  // Beige وأنماطُها وحدها بنفسجية؛ وسائرُ الأقسام صفحةٌ Beige وأنماطٌ بلونها
   const frame = contrast(accent, BRAND.temptress) < 1.25;
   const faded = !frame && contrast(accent, BRAND.beige) < 1.5;
   const page = frame ? BRAND.temptress : BRAND.beige;
@@ -332,12 +301,11 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   const onPat = themeFromColor(pat).text === BRAND.ink ? BRAND.temptress : BRAND.beige;
   const logo: LogoFile = frame ? "on-temptress" : "on-beige";
   const dept = d.departmentName?.trim() || "TLAQI";
-  const motto = departmentBrand(d.departmentName).copy.motto;
   const RX = CARD_W - 90; // حافةُ الكلام يميناً
   const LX = 450; // حدُّه يساراً
   const TW = RX - LX;
 
-  // ── الأنماط: ثلاثةُ أعمدة، خطوتُها ١٣٠، والأوسطُ مزاحٌ نصفَ خطوة — نسيجٌ لا شبكةٌ صمّاء
+  // ── الأنماط: ثلاثةُ أعمدة، خطوتُها ١٣٠، والأوسطُ مزاحٌ نصفَ خطوة — تقطعها الحافتان قليلاً
   const STEP = 130;
   const cols: [kind: Motif, x: number, offset: number][] = [
     ["talent", 72, 0],
@@ -354,7 +322,7 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   // ── الاسمُ بطلُ البطاقة: سطرٌ واحدٌ كبير، أو سطران متوازنان إن طال
   const words = d.fullName.trim().split(/\s+/);
   let nameLines = [d.fullName.trim()];
-  let nameSize = await fit(nameLines[0], 88, TW, 30, HERO);
+  let nameSize = await fit(nameLines[0], 92, TW, 30, HERO);
   if (nameSize < 62 && words.length > 1) {
     let best: [string, string] = [words.slice(0, 1).join(" "), words.slice(1).join(" ")];
     let bestDiff = Infinity;
@@ -368,67 +336,40 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
       if (diff < bestDiff) [best, bestDiff] = [[a, b], diff];
     }
     nameLines = best;
-    nameSize = Math.min(await fit(best[0], 70, TW, 40, HERO), await fit(best[1], 70, TW, 40, HERO));
+    nameSize = Math.min(await fit(best[0], 74, TW, 40, HERO), await fit(best[1], 74, TW, 40, HERO));
   }
   const lineH = Math.round(nameSize * 1.2);
-  const tight = nameLines.length > 1 ? 0.6 : 1; // الاسمُ في سطرين يطوي الفراغاتِ لا المحتوى
+  const jobSize = await fit(d.title, 30, TW, 18);
 
-  const welcome = `${d.greeting} في العائلة`;
-  const welcomeSize = await fit(welcome, 36, TW, 24);
-  const jobSize = await fit(d.title, 27, TW, 18);
+  // ── المواضع: كتلةٌ واحدةٌ متمركزةٌ عمودياً بين الشعار وأسفل الصفحة، بفراغاتٍ واسعة
+  const extra = (nameLines.length - 1) * lineH;
+  const H = 690 + extra; // من أعلى «بطاقة انضمام» إلى آخر الرحلة
+  const E = Math.round(210 + (1110 - H) / 2) + 26; // خطُّ أساس «بطاقة انضمام»
+  const nameY = E + 40 + nameSize;
+  const nameEnd = nameY + extra;
+  const jobY = nameEnd + 94;
+  const L1 = jobY + 112; // تسمياتُ البيانات
+  const V1 = L1 + 50; // قيمُها
+  const J = V1 + 118; // «رحلتك معنا»
 
-  // ── المواضع من الأعلى، بفراغاتٍ متناسبة
-  let y = 300;
-  const eyebrowY = y;
-  y += 70;
-  const welcomeY = y;
-  y += Math.round(nameSize * 1.25);
-  const nameY = y;
-  y += (nameLines.length - 1) * lineH;
-  const nameEnd = y;
-  const barY = nameEnd + 30;
-  const jobY = nameEnd + 86;
+  // ── «بطاقة انضمام» كبسولةٌ ممتلئةٌ بلون القسم: عنوانُ البطاقة
+  const tag = "بطاقة انضمام";
+  const tagW = Math.round((await textWidth(tag, 22)) + 48);
 
-  // ── جملةُ القسم: لوحةٌ ناعمةٌ بلون القسم، فيها شكلُ «موهبة» صغيراً والجملةُ بخطٍّ عريض
-  const mottoSize = 27;
-  const mottoLines = await wrapText(motto, mottoSize, TW - 110);
-  const mottoTop = jobY + Math.round(46 * tight) + 14;
-  const mottoH = 52 + mottoLines.length * 44;
-  const mottoSvg =
-    `<rect x="${LX}" y="${mottoTop}" width="${TW}" height="${mottoH}" rx="22" fill="${pat}" fill-opacity="${frame ? 0.1 : 0.13}"/>` +
-    motifAt("talent", pat, RX - 36, mottoTop + 40, 15) +
-    mottoLines.map((l, i) => t(l, RX - 72, mottoTop + 52 + i * 44, mottoSize, ink, { weight: 700 })).join("");
-
-  // ── بياناتُ العضوية كبسولات: القسمُ ممتلئٌ بلونه، والصفةُ والتاريخ بإطارٍ رفيع
-  const pills: [text: string, filled: boolean][] = [
-    [dept, true],
-    [d.roleTitle, false],
-    [`${d.joinedLabel} ${cardDate(d.joinedAt)}`, false],
+  // ── القسمُ والصفةُ وتاريخُ الانضمام: ثلاثُ خاناتٍ متجاورة، تسميةٌ صغيرةٌ وقيمةٌ عريضة — بلا خطوط
+  const cells: [label: string, value: string, right: number, width: number][] = [
+    ["القسم", dept, RX, 190],
+    ["الصفة", d.roleTitle, RX - 215, 140],
+    [d.joinedLabel, cardDate(d.joinedAt), RX - 380, TW - 380],
   ];
-  const pillTop = mottoTop + mottoH + Math.round(34 * tight);
-  const PH = 50;
-  let px = RX;
-  let py = pillTop;
-  let pillSvg = "";
-  for (const [text, filled] of pills) {
-    const size = await fit(text, 21, TW - 40, 14);
-    const w = Math.round((await textWidth(text, size)) + 44);
-    if (px - w < LX - 1 && px !== RX) {
-      px = RX;
-      py += PH + 12;
-    }
-    pillSvg += filled
-      ? `<rect x="${px - w}" y="${py}" width="${w}" height="${PH}" rx="${PH / 2}" fill="${pat}"/>` +
-        t(text, px - 22, py + 33, size, onPat, { weight: 700 })
-      : `<rect x="${px - w}" y="${py}" width="${w}" height="${PH}" rx="${PH / 2}" fill="none" stroke="${ink}" stroke-opacity="0.35" stroke-width="1.6"/>` +
-        t(text, px - 22, py + 33, size, ink, { weight: 700 });
-    px -= w + 12;
+  let cellSvg = "";
+  for (const [label, value, right, width] of cells) {
+    const size = await fit(value, 30, width, 15, HERO);
+    cellSvg += t(label, right, L1, 20, ink, { opacity: 0.62 }) + t(value, right, V1, size, ink, { weight: HERO });
   }
-  const pillsEnd = py + PH;
 
-  // ── الرحلة: مبدؤنا الرسميّ من دليل الهوية — TLAQI يُقرأ كما يُكتب (T يساراً)، وتحت كلِّ حرفٍ معناه بالإنجليزية
-  // والعربية، وأولُ المحطّات «موهبة» ممتلئة: من هنا تبدأ الرحلة
-  const J = pillsEnd + Math.round(66 * tight);
+  // ── الرحلة: مبدؤنا الرسميّ — TLAQI يُقرأ كما يُكتب (T يساراً)، وتحت كلِّ حرفٍ معناه بالإنجليزية والعربية،
+  // وأولُ المحطّات «موهبة» ممتلئة: من هنا تبدأ الرحلة
   const steps: [letter: string, en: string, ar: string][] = [
     ["T", "TALENT", "موهبة"],
     ["L", "LINK", "ربط"],
@@ -436,46 +377,36 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
     ["Q", "QUALITY", "جودة"],
     ["I", "INNOVATION", "ابتكار"],
   ];
-  const span = TW - 64;
-  const xs = steps.map((_, i) => LX + 32 + (i * span) / (steps.length - 1));
-  let journey = t("رحلتك معنا", RX, J, 19, ink, { opacity: 0.66 });
+  const span = TW - 92; // «INNOVATION» أعرضُ الكلمات: لا تتجاوز الهامشَ الأيمن
+  const xs = steps.map((_, i) => LX + 46 + (i * span) / (steps.length - 1));
+  let journey = t("رحلتك معنا", RX, J, 21, ink, { weight: 700, opacity: 0.7 });
   for (let i = 0; i < steps.length - 1; i++) {
-    journey += `<line x1="${xs[i] + 14}" y1="${J + 78}" x2="${xs[i + 1] - 14}" y2="${J + 78}" stroke="${pat}" stroke-opacity="0.55" stroke-width="2.5" stroke-dasharray="2 8" stroke-linecap="round"/>`;
+    journey += `<line x1="${xs[i] + 15}" y1="${J + 88}" x2="${xs[i + 1] - 15}" y2="${J + 88}" stroke="${pat}" stroke-opacity="0.6" stroke-width="2.5" stroke-dasharray="2 8" stroke-linecap="round"/>`;
   }
   steps.forEach(([letter, en, ar], i) => {
-    journey += t(letter, xs[i], J + 56, 40, pat, { weight: HERO, anchor: "middle", ltr: true });
+    journey += t(letter, xs[i], J + 64, 46, pat, { weight: HERO, anchor: "middle", ltr: true });
     journey +=
       i === 0
-        ? `<circle cx="${xs[i]}" cy="${J + 78}" r="8" fill="${pat}"/>`
-        : `<circle cx="${xs[i]}" cy="${J + 78}" r="7" fill="${page}" stroke="${pat}" stroke-width="2.5"/>`;
-    journey += t(en, xs[i], J + 112, 13, ink, { anchor: "middle", ltr: true, weight: 700, opacity: 0.7, font: LATIN });
-    journey += t(ar, xs[i], J + 142, 21, ink, { anchor: "middle", weight: i === 0 ? 700 : 400 });
+        ? `<circle cx="${xs[i]}" cy="${J + 88}" r="9" fill="${pat}"/>`
+        : `<circle cx="${xs[i]}" cy="${J + 88}" r="8" fill="${page}" stroke="${pat}" stroke-width="2.5"/>`;
+    journey += t(en, xs[i], J + 124, 14, ink, { anchor: "middle", ltr: true, weight: 700, opacity: 0.7, font: LATIN });
+    journey += t(ar, xs[i], J + 156, 23, ink, { anchor: "middle", weight: i === 0 ? 700 : 400 });
   });
-
-  // ── الختام: توقيعٌ لا سطرُ غلاف — «مع خالص الترحيب، فريق TLAQI»
-  const teamW = await textWidth("فريق", 26, HERO);
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${CARD_W}" height="${CARD_H}">
   <rect width="100%" height="100%" fill="${page}"/>
   ${patterns}
 
-  <image href="${logoUri(logo)}" x="${RX - 280}" y="92" width="280" height="${Math.round((280 * 706) / 2400)}"/>
-  ${t("تحوّل رقمي، برؤية طموحة.", RX, 214, 21, ink, { opacity: 0.8 })}
+  <image href="${logoUri(logo)}" x="${RX - 280}" y="96" width="280" height="${Math.round((280 * 706) / 2400)}"/>
 
-  ${t("بطاقة انضمام", RX, eyebrowY, 21, ink, { weight: 700, opacity: 0.75 })}
-  ${t(welcome, RX, welcomeY, welcomeSize, ink, { weight: 700, opacity: 0.88 })}
+  <rect x="${RX - tagW}" y="${E - 34}" width="${tagW}" height="48" rx="24" fill="${pat}"/>
+  ${t(tag, RX - 24, E, 22, onPat, { weight: 700 })}
   ${nameLines.map((l, i) => t(l, RX, nameY + i * lineH, nameSize, ink, { weight: HERO })).join("")}
-  <rect x="${RX - 76}" y="${barY}" width="76" height="7" rx="3.5" fill="${pat}"/>
+  <rect x="${RX - 76}" y="${nameEnd + 32}" width="76" height="7" rx="3.5" fill="${pat}"/>
   ${t(d.title, RX, jobY, jobSize, ink, { opacity: 0.85 })}
 
-  ${mottoSvg}
-  ${pillSvg}
+  ${cellSvg}
   ${journey}
-
-  ${t("مع خالص الترحيب،", RX, 1236, 20, ink, { opacity: 0.72 })}
-  ${t("فريق", RX, 1276, 26, ink, { weight: HERO })}
-  ${t("TLAQI", RX - teamW - 10, 1275, 25, ink, { weight: 700, ltr: true, anchor: "right", font: LATIN })}
-  ${t("@tlaqisa", LX, 1274, 21, ink, { anchor: "left", ltr: true, font: LATIN, opacity: 0.75 })}
 </svg>`;
   return toPng(svg);
 }
