@@ -323,3 +323,218 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
 </svg>`;
   return toPng(svg);
 }
+
+/* ───────────────────────── بطاقةُ العضوية «المحادثة» — مقترحٌ بانتظار اعتماد المؤسس ─────────────────────────
+ *  فكرةُ المؤسس (نوفمبر 2026): الترحيبُ يُعرض كما يحدث في مساحة عمل الفريق — نافذةُ تطبيقٍ فيها قناةُ «# الترحيب»،
+ *  ورسالةٌ من تلاق تعلن الانضمام، وبطاقةُ العضو بلون قسمه داخل الرسالة، وتفاعلاتٌ بأنماط الهوية.
+ *  الثابتُ: الإطارُ البنفسجي ونسخةُ الشعار المعتمدة له (علامةٌ برتقالية وكلمةٌ Beige). والمتغيّرُ: لونُ القسم وحده —
+ *  البطاقةُ والقناةُ النشطة والوهجُ والأنماطُ الكبيرة. */
+
+const MARK_FILE: Record<"beige" | "mahogany" | "temptress", string> = {
+  beige: "TLAQI-mark_beige.png",
+  mahogany: "TLAQI-mark_mahogany.png",
+  temptress: "TLAQI-mark_temptress.png",
+};
+const markCache = new Map<string, string>();
+function markUri(file: string): string {
+  const hit = markCache.get(file);
+  if (hit) return hit;
+  const uri = `data:image/png;base64,${readFileSync(join(BRAND_DIR, "2026", "logos", file)).toString("base64")}`;
+  markCache.set(file, uri);
+  return uri;
+}
+/** علامةُ الشعار (١٢٠٠×١٣٠٠) متمركزةً على نقطة بارتفاعٍ معلوم */
+function markAt(file: string, cx: number, cy: number, h: number): string {
+  const w = Math.round((h * 1200) / 1300);
+  return `<image href="${markUri(file)}" x="${cx - w / 2}" y="${cy - h / 2}" width="${w}" height="${h}"/>`;
+}
+
+/** شكلُ النمط بأيّ لون: البلاطةُ الرسمية نفسُها (Beige) بتعبئةٍ أخرى — لا رسمَ جديداً */
+function motifShape(kind: "talent" | "innovation", fill: string): string {
+  return patternTile(kind, "beige").replace(/fill="#EEF6DF"/gi, `fill="${fill}"`);
+}
+/** الشكلُ متمركزاً على (cx, cy) بنصف قطرٍ تقريبيّ r — البلاطةُ ٧٢ والشكلُ يمتدّ نحو ٢١ من مركزها */
+function motifAt(kind: "talent" | "innovation", fill: string, cx: number, cy: number, r: number, opacity = 1): string {
+  const s = r / 21;
+  return `<g opacity="${opacity}" transform="translate(${cx} ${cy}) scale(${s.toFixed(3)}) translate(-36 -36)">${motifShape(kind, fill)}</g>`;
+}
+
+function rgbOf(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function luminance(hex: string): number {
+  const [r, g, b] = rgbOf(hex).map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function contrast(a: string, b: string): number {
+  const [x, y] = [luminance(a), luminance(b)].sort((m, n) => n - m);
+  return (x + 0.05) / (y + 0.05);
+}
+/** مزجُ لونين بنسبة — للتدرّج الخفيف في البطاقة وللونٍ يُقرأ على الإطار البنفسجي */
+function mix(a: string, b: string, t: number): string {
+  const [p, q] = [rgbOf(a), rgbOf(b)];
+  return `#${p.map((v, i) => Math.round(v + (q[i] - v) * t).toString(16).padStart(2, "0")).join("")}`.toUpperCase();
+}
+
+export async function renderWelcomeCardV2(d: WelcomeCardData): Promise<Buffer> {
+  ensureFonts();
+  const card = palette(d.colorHex);
+  const accent = card.bg;
+  const frame = BRAND.temptress;
+  const beige = BRAND.beige;
+  const cream = mix(beige, "#FFFFFF", 0.45);
+  const ink = BRAND.temptress;
+  // لونُ القسم على الإطار البنفسجي: كما هو، إلا إن ذاب فيه (الإدارة العليا) فدرجةٌ أفتح منه نفسه
+  const glow = contrast(accent, frame) >= 1.6 ? accent : mix(accent, "#C9A2BC", 0.55);
+  const glowInk = themeFromColor(glow).text === BRAND.ink ? ink : beige;
+  // لونُ القسم على الخلفية الفاتحة: كما هو، إلا إن ذاب فيها (Beige) فالبنفسجي
+  const onCream = contrast(accent, cream) >= 1.5 ? accent : ink;
+  // اللونُ الثاني (الشكلُ أسفل اليمين والتفاعلُ الثالث): الأخضر، أو البرتقالي إن كان القسمُ أخضر
+  const dist = (a: string, b: string) => rgbOf(a).reduce((s, v, i) => s + (v - rgbOf(b)[i]) ** 2, 0);
+  const second = dist(accent, BRAND.greenSheen) < dist(accent, BRAND.mahogany) ? BRAND.mahogany : BRAND.greenSheen;
+  const cardInk = card.ink;
+  const cardMark = MARK_FOR[card.logo];
+  const frameMark = MARK_FILE.mahogany; // نسخةُ البنفسجي المعتمدة: علامةٌ برتقالية
+
+  const dept = d.departmentName?.trim() || "تلاق";
+  const verb = d.joinedLabel.replace(/\s*في\s*$/, "").trim() || "انضمّ";
+  const brand = "تلاق";
+
+  // ── النافذة
+  const WX = 72, WY = 312, WW = 936, WH = 872, WR = 34;
+  const BAR = 70;
+  const SIDE = 248;
+  const MAINR = WX + WW - SIDE; // حدُّ المنطقة الفاتحة يميناً
+  const top = WY + BAR;
+  // ── داخل المنطقة الفاتحة
+  const PR = MAINR - 37; // هامشُ النص يميناً
+  const PL = WX + 35;
+  // ── البطاقة
+  const CX0 = PL, CX1 = PR, CY0 = top + 232, CY1 = top + 638;
+  const CR = CX1 - 34, CL = CX0 + 34;
+
+  const sideFit = (s: string, size: number, min: number) => fit(s, size, SIDE - 70, min);
+  const deptCh = `# ${dept}`;
+  const fourth = dept === "الإبداع" ? "# المشاريع" : "# الإبداع";
+  const deptChSize = await sideFit(deptCh, 22, 13);
+  const memberSize = await fit(d.fullName, 20, SIDE - 80, 12);
+  const message = `${verb} ${d.fullName} إلى العائلة`;
+  const messageSize = await fit(message, 24, PR - PL - 90, 15);
+  const nameSize = await fit(d.fullName, 60, CR - CL - 20, 30, HERO);
+  const titleSize = await fit(d.title, 29, CR - CL - 20, 18);
+  const roleSize = await fit(d.roleTitle, 30, 220, 18);
+  const chipSize = await fit(dept, 24, CR - CL - 120, 15);
+  const chipW = Math.round((await textWidth(dept, chipSize)) + 44);
+  const authorW = await textWidth(brand, 25);
+  const colW = Math.max(await textWidth("الصفة", 20, 400), await textWidth(d.roleTitle, roleSize));
+  const colR = CL + colW;
+
+  // ── التفاعلات: شكلٌ ورقمٌ في كبسولة، من اليمين
+  const reactions: [kind: "talent" | "innovation", color: string, n: string][] = [
+    ["talent", onCream, "٢٤"],
+    ["innovation", onCream, "١٨"],
+    ["talent", second, "١٢"],
+  ];
+  let rx = PR;
+  const RY = CY1 + 26, RH = 48;
+  let reactionSvg = "";
+  for (const [kind, color, n] of reactions) {
+    const w = Math.round((await textWidth(n, 22)) + 78);
+    const x = rx - w;
+    reactionSvg += `<rect x="${x}" y="${RY}" width="${w}" height="${RH}" rx="${RH / 2}" fill="${onCream}" fill-opacity="0.1" stroke="${onCream}" stroke-opacity="0.35" stroke-width="1.5"/>`;
+    reactionSvg += motifAt(kind, color, rx - 30, RY + RH / 2, 15);
+    reactionSvg += t(n, rx - 52, RY + 32, 22, ink, { weight: 700 });
+    rx = x - 12;
+  }
+  const IY = RY + RH + 22, IH = 54;
+
+  const bgPattern = `<pattern id="bgp" width="132" height="132" patternUnits="userSpaceOnUse">
+      <g opacity="0.06" transform="translate(4 4) scale(0.8)">${motifShape("talent", beige)}</g>
+      <g opacity="0.05" transform="translate(74 74) scale(0.62)">${motifShape("innovation", beige)}</g>
+    </pattern>`;
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${CARD_W}" height="${CARD_H}">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${mix(frame, "#000000", 0.18)}"/><stop offset="1" stop-color="${frame}"/></linearGradient>
+    <radialGradient id="glowA" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="${glow}" stop-opacity="0.55"/><stop offset="1" stop-color="${glow}" stop-opacity="0"/></radialGradient>
+    <radialGradient id="glowB" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="${glow}" stop-opacity="0.35"/><stop offset="1" stop-color="${glow}" stop-opacity="0"/></radialGradient>
+    <linearGradient id="cardFill" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${mix(accent, "#FFFFFF", 0.07)}"/><stop offset="1" stop-color="${mix(accent, "#000000", 0.08)}"/></linearGradient>
+    ${bgPattern}
+    <clipPath id="win"><rect x="${WX}" y="${WY}" width="${WW}" height="${WH}" rx="${WR}"/></clipPath>
+    <filter id="winShadow" x="-10%" y="-10%" width="120%" height="125%"><feGaussianBlur in="SourceAlpha" stdDeviation="22"/><feOffset dy="22"/><feComponentTransfer><feFuncA type="linear" slope="0.45"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="cardShadow" x="-15%" y="-15%" width="130%" height="145%"><feGaussianBlur in="SourceAlpha" stdDeviation="16"/><feOffset dy="14"/><feComponentTransfer><feFuncA type="linear" slope="0.22"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <rect width="100%" height="100%" fill="url(#bgp)"/>
+  <circle cx="1000" cy="360" r="500" fill="url(#glowA)"/>
+  <circle cx="40" cy="1180" r="380" fill="url(#glowB)"/>
+  ${motifAt("talent", glow, 1078, 300, 230, 0.95)}
+  ${motifAt("talent", glow, -12, 1210, 200, 0.92)}
+  ${motifAt("innovation", second, 972, 1276, 80)}
+
+  <image href="${logoUri("on-temptress")}" x="${CARD_W / 2 - 135}" y="52" width="270" height="${Math.round((270 * 706) / 2400)}"/>
+  ${t("بطاقة انضمام", CARD_W / 2, 188, 26, beige, { anchor: "middle", opacity: 0.88 })}
+  ${t(`${d.greeting} في العائلة`, CARD_W / 2, 268, 68, beige, { weight: HERO, anchor: "middle" })}
+
+  <g filter="url(#winShadow)"><rect x="${WX}" y="${WY}" width="${WW}" height="${WH}" rx="${WR}" fill="${frame}" fill-opacity="0.55"/></g>
+  <g clip-path="url(#win)">
+    <rect x="${WX}" y="${WY}" width="${WW}" height="${WH}" fill="#FFFFFF" fill-opacity="0.07"/>
+    <line x1="${WX}" y1="${top}" x2="${WX + WW}" y2="${top}" stroke="#FFFFFF" stroke-opacity="0.1" stroke-width="1.5"/>
+    <rect x="${WX}" y="${top}" width="${MAINR - WX}" height="${WH - BAR}" fill="${cream}"/>
+  </g>
+  <rect x="${WX}" y="${WY}" width="${WW}" height="${WH}" rx="${WR}" fill="none" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="1.5"/>
+
+  <rect x="${CARD_W / 2 - 180}" y="${WY + 16}" width="360" height="39" rx="19.5" fill="#FFFFFF" fill-opacity="0.1"/>
+  ${t(`ابحث في ${brand}`, CARD_W / 2, WY + 43, 19, beige, { anchor: "middle", opacity: 0.75 })}
+  <circle cx="${WX + WW - 38}" cy="${WY + 35}" r="9" fill="${BRAND.mahogany}"/>
+  <circle cx="${WX + WW - 67}" cy="${WY + 35}" r="9" fill="${BRAND.greenSheen}"/>
+  <circle cx="${WX + WW - 96}" cy="${WY + 35}" r="9" fill="${beige}"/>
+
+  ${markAt(frameMark, WX + WW - 40, top + 47, 40)}
+  ${t(brand, WX + WW - 70, top + 57, 29, beige, { weight: HERO })}
+  ${t("القنوات", WX + WW - 23, top + 119, 17, beige, { opacity: 0.6 })}
+  <rect x="${MAINR + 21}" y="${top + 138}" width="${SIDE - 44}" height="52" rx="11" fill="${glow}"/>
+  ${t("# الترحيب", WX + WW - 38, top + 172, 22, glowInk, { weight: 700 })}
+  ${t("# عام", WX + WW - 38, top + 229, 22, beige, { opacity: 0.85 })}
+  ${t(deptCh, WX + WW - 38, top + 286, deptChSize, beige, { opacity: 0.85 })}
+  ${t(fourth, WX + WW - 38, top + 343, 22, beige, { opacity: 0.85 })}
+  ${t("الأعضاء", WX + WW - 23, top + 403, 17, beige, { opacity: 0.6 })}
+  <circle cx="${WX + WW - 40}" cy="${top + 447}" r="5.5" fill="${BRAND.greenSheen}"/>
+  ${t(d.fullName, WX + WW - 56, top + 454, memberSize, beige, { opacity: 0.9 })}
+
+  ${t("# الترحيب", PR, top + 49, 30, ink, { weight: HERO })}
+  ${t("نرحّب بأعضاء العائلة الجدد", PR, top + 79, 19, ink, { opacity: 0.68 })}
+  <line x1="${WX}" y1="${top + 94}" x2="${MAINR}" y2="${top + 94}" stroke="${ink}" stroke-opacity="0.1" stroke-width="1.5"/>
+
+  <rect x="${PR - 63}" y="${top + 123}" width="63" height="63" rx="15" fill="${frame}"/>
+  ${markAt(frameMark, PR - 31.5, top + 154.5, 38)}
+  ${t(brand, PR - 82, top + 152, 25, ink, { weight: HERO })}
+  ${t("الآن", PR - 82 - authorW - 12, top + 151, 17, ink, { opacity: 0.55 })}
+  ${t(message, PR - 82, top + 189, messageSize, ink)}
+
+  <g filter="url(#cardShadow)"><rect x="${CX0}" y="${CY0}" width="${CX1 - CX0}" height="${CY1 - CY0}" rx="26" fill="url(#cardFill)"${contrast(accent, cream) < 1.5 ? ` stroke="${ink}" stroke-opacity="0.18" stroke-width="1.5"` : ""}/></g>
+  ${markAt(cardMark, CL + 18, CY0 + 42, 42)}
+  ${t("بطاقة انضمام", CR, CY0 + 50, 20, cardInk, { opacity: 0.85 })}
+  <rect x="${CR - chipW}" y="${CY0 + 68}" width="${chipW}" height="46" rx="23" fill="${cardInk}" fill-opacity="0.14"/>
+  ${t(dept, CR - 22, CY0 + 100, chipSize, cardInk, { weight: 700 })}
+  ${t(d.fullName, CR, CY0 + 186, nameSize, cardInk, { weight: HERO })}
+  ${t(d.title, CR, CY0 + 244, titleSize, cardInk, { opacity: 0.92 })}
+  <line x1="${CL}" y1="${CY0 + 276}" x2="${CR}" y2="${CY0 + 276}" stroke="${cardInk}" stroke-opacity="0.35" stroke-width="1.5"/>
+  ${t(d.joinedLabel, CR, CY0 + 318, 20, cardInk, { opacity: 0.85 })}
+  ${t(cardDate(d.joinedAt), CR, CY0 + 366, 30, cardInk, { weight: HERO })}
+  ${t("الصفة", colR, CY0 + 318, 20, cardInk, { opacity: 0.85 })}
+  ${t(d.roleTitle, colR, CY0 + 366, roleSize, cardInk, { weight: HERO })}
+
+  ${reactionSvg}
+  <rect x="${PL}" y="${IY}" width="${PR - PL}" height="${IH}" rx="14" fill="#FFFFFF" fill-opacity="0.55" stroke="${ink}" stroke-opacity="0.16" stroke-width="1.5"/>
+  ${t("اكتب رسالة في # الترحيب", PR - 26, IY + 35, 20, ink, { opacity: 0.5 })}
+
+  ${t("تحوّل رقمي، برؤية طموحة.", CARD_W / 2, 1268, 44, beige, { weight: HERO, anchor: "middle" })}
+  ${t("@tlaqisa", CARD_W / 2, 1316, 23, beige, { anchor: "middle", ltr: true, opacity: 0.75 })}
+</svg>`;
+  return toPng(svg);
+}
