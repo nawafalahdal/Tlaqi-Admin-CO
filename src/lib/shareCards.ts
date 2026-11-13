@@ -249,7 +249,7 @@ export function approvedLogoFor(colorHex: string): { logo: LogoFile; mark: strin
 
 
 /** **بطاقةُ الاعتماد (العضوية)** — التصميمُ الذي اعتمده المؤسس (نوفمبر 2026):
- *  - **أعلى الصفحة:** «بطاقة انضمام» ثم ترحيبٌ مكبَّرٌ بالاسم الأول وحده: «سارة، أهلاً بكِ في العائلة».
+ *  - **أعلى الصفحة:** «بطاقة انضمام» ثم «أهلاً بكِ في العائلة» مكبَّرة — الجملتان وحدهما (قرار المؤسس).
  *  - **البطاقة:** الشعارُ الرسميُّ يساراً واسمُ القسم أو اللجنة يميناً فوق الاسم، ثم الاسمُ بالخطّ العريض والمسمّى، ثم تاريخُ
  *    الانضمام والصفة. الخلفيةُ والبطاقةُ بلون القسم الصافي (واللجنةُ بلون قسمها)، والبطاقةُ تُفرَد بإطارٍ وظلّ.
  *  - **الشعارُ بنسخته الرسمية لذلك اللون** (لا تلوين): البنفسجي علامةٌ برتقالية وكلمةٌ Beige؛ الـBeige علامةٌ برتقالية؛
@@ -270,9 +270,9 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   const W = CARD_W - 2 * X;
   const R = X + W - 56;
   const IL = X + 56;
-  // الترحيبُ مكبَّرٌ بالاسم الأول وحده (قرار المؤسس)، وعرضُه محدودٌ (٦٤٠) فلا يبلغ شكلَ «موهبة» في الزاوية العليا
-  const welcome = `${firstName(d.fullName)}، ${d.greeting} في العائلة`;
-  const welcomeSize = await fit(welcome, 66, 640, 40);
+  // الترحيبُ مكبَّرٌ (قرار المؤسس) وعرضُه محدودٌ (٤٠٠) فلا يبلغ شكلَ «موهبة» في الزاوية العليا: لا نمطَ خلف نص
+  const welcome = `${d.greeting} في العائلة`;
+  const welcomeSize = await fit(welcome, 66, 400, 44);
   const nameSize = await fit(d.fullName, 92, W - 112, 34, HERO); // الحدُّ الأدنى يسع اسماً رباعياً طويلاً داخل البطاقة
   const titleSize = await fit(d.title, 40, W - 112, 26);
   const roleSize = await fit(d.roleTitle, 32, 300, 22);
@@ -292,8 +292,7 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   // السفلى في الزاوية الحرّة — فتتوزّع الثلاثةُ على البطاقة بلا تكرار: «موهبة» أعلى، و«ابتكار» و«ربط» أسفلُ على الجانبين
   const arc = (patternTile("link", inkName).match(/<path[^>]*transform="translate\(18 18\)"[^>]*\/>/) ?? [""])[0];
   const link = arc ? `<g opacity="${faint}" transform="translate(${CARD_W - 185} ${CARD_H - 150}) scale(15) translate(-18 -18)">${arc}</g>` : "";
-  // «موهبة» مدفوعٌ إلى الزاوية العليا (يخرج نصفُه عن الحافة) فيبقى عن يمين الترحيب وفوقه، لا خلفه
-  const motifs = motif("talent", CARD_W - 80, 110, 9) + motif("innovation", 150, CARD_H - 170, 9) + link;
+  const motifs = motif("talent", CARD_W - 150, 175, 9) + motif("innovation", 150, CARD_H - 170, 9) + link;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${CARD_W}" height="${CARD_H}">
   <defs>
