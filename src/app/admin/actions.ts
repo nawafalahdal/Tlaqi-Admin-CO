@@ -8,7 +8,6 @@ import {
   completeLeadershipPromotion,
   createCandidateAccount,
   rejectMember,
-  reopenInviteForMember,
   syncMemberLifecycleRow,
 } from "@/lib/workflow";
 import { getTrackForTarget } from "@/lib/testTracks";
@@ -200,19 +199,6 @@ export async function rejectMemberAction(memberId: string) {
   });
   if (!mayDecide(session, member)) throw new Error(L.youAreNotAllowed);
   await rejectMember(memberId);
-  revalidatePath("/admin");
-  revalidatePath("/admin/departments");
-}
-
-export async function reopenInviteAction(memberId: string) {
-  const L = getDictionary(await getLocale()).rAdminActions;
-  const session = await requireSession();
-  const member = await prisma.member.findUniqueOrThrow({
-    where: { id: memberId },
-    include: { invite: { select: { targetRole: true } } },
-  });
-  if (!mayDecide(session, member)) throw new Error(L.youAreNotAllowed);
-  await reopenInviteForMember(memberId);
   revalidatePath("/admin");
   revalidatePath("/admin/departments");
 }

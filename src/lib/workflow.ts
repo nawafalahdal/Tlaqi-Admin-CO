@@ -609,19 +609,6 @@ export async function rejectMember(memberId: string) {
   return member;
 }
 
-/** يعيد فتح الدعوة لنفس الشخص بعد اجتماع الشرح إذا رآه أدمن القسم مناسباً */
-export async function reopenInviteForMember(memberId: string) {
-  const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
-  const invite = await prisma.invite.update({
-    where: { id: member.inviteId },
-    data: { status: "open" },
-  });
-  // إعادةُ فتح الدعوة هي قرارُ ما بعد اجتماع الشرح — فيُغلَق طلبُه بهذه النتيجة
-  const { autoCloseRequests } = await import("@/lib/requests");
-  await autoCloseRequests({ memberId, type: "meeting", note: "أُعيد فتحُ دعوة المرشّح بعد اجتماع الشرح" });
-  return invite;
-}
-
 /** يصدر تنبيهاً لعضو معتمد — عند بلوغ 3 تنبيهات يُستبعد تلقائياً */
 export async function issueWarning(opts: { memberId: string; issuedByUserId: string; reason: string }) {
   const member = await prisma.member.findUniqueOrThrow({ where: { id: opts.memberId } });
@@ -904,7 +891,19 @@ export async function createCandidateAccount(opts: {
   const existingUser = await prisma.user.findUnique({ where: { email: opts.email } });
   if (existingUser) throw new Error("هذا البريد مستخدم بالفعل في حساب قائم");
   const existingMember = await prisma.member.findUnique({ where: { email: opts.email } });
-  if (existingMember) throw new Error("هذا البريد مستخدم بالفعل في حساب قائم");
+  if (existingMember) {
+    // **إعادةُ دعوة من لم يجتز الاختبار ليست دعوةً جديدة:** حسابُه قائمٌ والبريدُ محجوزٌ له — فيُعاد فتحُ اختباره من
+    // «بحاجة إلى اجتماع شرح» في لوحة القسم (`reopenCandidateTest`). فيُقال ذلك صريحاً بدل «البريد مستخدم»
+    if (existingMember.approvalStatus === "pending_review" && existingMember.testStatus === "failed") {
+      throw new Error(
+        "هذا المرشّح لم يجتز الاختبار وحسابُه قائم — لا تُنشأ له دعوةٌ جديدة. أعِد فتح اختباره من «بحاجة إلى اجتماع شرح» في لوحة القسم، فيصله إشعارٌ بالبريد."
+      );
+    }
+    if (existingMember.approvalStatus === "pending_review" && existingMember.testStatus === "not_started") {
+      throw new Error("هذا المرشّح مدعوٌّ بالفعل واختبارُه مفتوح — لا يحتاج دعوةً ثانية.");
+    }
+    throw new Error("هذا البريد مستخدم بالفعل في حساب قائم");
+  }
 
   const tempPassword = generateTempPassword();
   const passwordHash = await hashPassword(tempPassword);

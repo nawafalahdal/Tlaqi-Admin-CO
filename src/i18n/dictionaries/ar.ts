@@ -336,7 +336,7 @@ requestsHint: "ما تُنشئه المنصة وحدها: البانر التر�
   },
   needsMeetingRow: {
     score: "النتيجة",
-    reopenInvite: "إعادة فتح الدعوة",
+    reopenInvite: "إعادة الدعوة للاختبار",
   },
   memberInviteForm: {
     fullName: "الاسم الكامل",

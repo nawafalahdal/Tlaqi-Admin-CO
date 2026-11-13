@@ -339,7 +339,7 @@ requestsHint: "What the platform creates on its own: the welcome banner on appro
   },
   needsMeetingRow: {
     score: "Score",
-    reopenInvite: "Reopen invite",
+    reopenInvite: "Re-invite to the test",
   },
   memberInviteForm: {
     fullName: "Full name",

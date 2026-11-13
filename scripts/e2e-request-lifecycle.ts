@@ -163,7 +163,9 @@ const chk = (n: string, ok: boolean, extra = "") => checks.push(`${ok ? "✓" : 
 
   const c4 = await mkCandidate("مرشّح د");
   await W.submitTestAttempt({ memberId: c4.id, answers: {} });
-  await W.reopenInviteForMember(c4.id);
+  // إعادةُ الدعوة هي إعادةُ فتح الاختبار (`reopenCandidateTest`) — أُزيلت `reopenInviteForMember` التي كانت تقلب
+  // حالةَ الدعوة وحدها فلا يُعاد شيء. والتوقّعُ نفسُه: إعادةُ الفتح تُغلق طلبَ الاجتماع آلياً
+  await W.reopenCandidateTest({ memberId: c4.id, meetingHeld: true, note: "شُرح له", performedByName: "فحص" });
   const m4 = (await allOf(c4.id, "meeting"))[0];
   chk("وإعادةُ فتح الدعوة تُغلقه آلياً", m4?.status === "done" && m4.closedAutomatically);
 

@@ -113,6 +113,8 @@ export async function reopenCandidateTestAction(
     });
     revalidatePath("/admin/people");
     revalidatePath("/admin");
+    // لوحةُ القسم تعرض المرشّحَ في «بحاجة إلى اجتماع شرح» — يُزال منها حين يُعاد اختباره
+    revalidatePath("/admin/departments", "layout");
     return { error: null, done: true };
   } catch (err) {
     return { error: safeErrorMessage(err) };
