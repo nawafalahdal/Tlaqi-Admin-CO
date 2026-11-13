@@ -332,11 +332,6 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
  *  الثابتُ: الإطارُ البنفسجي ونسخةُ الشعار المعتمدة له (علامةٌ برتقالية وكلمةٌ Beige). والمتغيّرُ: لونُ القسم وحده —
  *  البطاقةُ والقناةُ النشطة والوهجُ والأنماطُ الكبيرة. */
 
-const MARK_FILE: Record<"beige" | "mahogany" | "temptress", string> = {
-  beige: "TLAQI-mark_beige.png",
-  mahogany: "TLAQI-mark_mahogany.png",
-  temptress: "TLAQI-mark_temptress.png",
-};
 const markCache = new Map<string, string>();
 function markUri(file: string): string {
   const hit = markCache.get(file);
@@ -360,6 +355,15 @@ function motifAt(kind: "talent" | "innovation", fill: string, cx: number, cy: nu
   const s = r / 21;
   return `<g opacity="${opacity}" transform="translate(${cx} ${cy}) scale(${s.toFixed(3)}) translate(-36 -36)">${motifShape(kind, fill)}</g>`;
 }
+/** «ربط»: قوسٌ واحدٌ من بلاطته الرسمية (طرفاه نقطتان) متمركزاً على (cx, cy) بنصف عرضٍ r — القوسُ يمتدّ نحو ١٢ */
+function linkAt(fill: string, cx: number, cy: number, r: number, opacity = 1): string {
+  const arc = (patternTile("link", "beige").match(/<path[^>]*transform="translate\(18 18\)"[^>]*\/>/) ?? [""])[0];
+  const s = r / 12;
+  return `<g opacity="${opacity}" transform="translate(${cx} ${cy}) scale(${s.toFixed(3)}) translate(-18 -18)">${arc.replace(/fill="#EEF6DF"/gi, `fill="${fill}"`)}</g>`;
+}
+type Motif = "talent" | "innovation" | "link";
+const motifIcon = (kind: Motif, fill: string, cx: number, cy: number, r: number) =>
+  kind === "link" ? linkAt(fill, cx, cy + r * 0.1, r * 1.05) : motifAt(kind, fill, cx, cy, r);
 
 function rgbOf(hex: string): [number, number, number] {
   const n = parseInt(hex.slice(1), 16);
@@ -400,7 +404,6 @@ export async function renderWelcomeCardV2(d: WelcomeCardData): Promise<Buffer> {
   const second = dist(accent, BRAND.greenSheen) < dist(accent, BRAND.mahogany) ? BRAND.mahogany : BRAND.greenSheen;
   const cardInk = card.ink;
   const cardMark = MARK_FOR[card.logo];
-  const frameMark = MARK_FILE.mahogany; // نسخةُ البنفسجي المعتمدة: علامةٌ برتقالية
 
   const dept = d.departmentName?.trim() || "TLAQI";
   const verb = d.joinedLabel.replace(/\s*في\s*$/, "").trim() || "انضمّ";
@@ -441,10 +444,11 @@ export async function renderWelcomeCardV2(d: WelcomeCardData): Promise<Buffer> {
   const colR = CL + colW;
 
   // ── التفاعلات: شكلٌ ورقمٌ في كبسولة، من اليمين
-  const reactions: [kind: "talent" | "innovation", color: string, n: string][] = [
+  // الأنماطُ الثلاثة كلُّها: «موهبة» و«ابتكار» بلون القسم، و«ربط» باللون الثاني
+  const reactions: [kind: Motif, color: string, n: string][] = [
     ["talent", onCream, "٢٤"],
     ["innovation", onCream, "١٨"],
-    ["talent", second, "١٢"],
+    ["link", second, "١٢"],
   ];
   let rx = PR;
   const RY = CY1 + 26, RH = 48;
@@ -453,35 +457,28 @@ export async function renderWelcomeCardV2(d: WelcomeCardData): Promise<Buffer> {
     const w = Math.round((await textWidth(n, 22)) + 78);
     const x = rx - w;
     reactionSvg += `<rect x="${x}" y="${RY}" width="${w}" height="${RH}" rx="${RH / 2}" fill="${onCream}" fill-opacity="0.1" stroke="${onCream}" stroke-opacity="0.35" stroke-width="1.5"/>`;
-    reactionSvg += motifAt(kind, color, rx - 30, RY + RH / 2, 15);
+    reactionSvg += motifIcon(kind, color, rx - 30, RY + RH / 2, 15);
     reactionSvg += t(n, rx - 52, RY + 32, 22, ink, { weight: 700 });
     rx = x - 12;
   }
   const IY = RY + RH + 22, IH = 54;
 
-  const bgPattern = `<pattern id="bgp" width="132" height="132" patternUnits="userSpaceOnUse">
-      <g opacity="0.06" transform="translate(4 4) scale(0.8)">${motifShape("talent", beige)}</g>
-      <g opacity="0.05" transform="translate(74 74) scale(0.62)">${motifShape("innovation", beige)}</g>
-    </pattern>`;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${CARD_W}" height="${CARD_H}">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${mix(frame, "#000000", 0.18)}"/><stop offset="1" stop-color="${frame}"/></linearGradient>
-    <radialGradient id="glowA" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="${glow}" stop-opacity="0.55"/><stop offset="1" stop-color="${glow}" stop-opacity="0"/></radialGradient>
-    <radialGradient id="glowB" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="${glow}" stop-opacity="0.35"/><stop offset="1" stop-color="${glow}" stop-opacity="0"/></radialGradient>
+    <radialGradient id="glowA" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="${glow}" stop-opacity="0.4"/><stop offset="1" stop-color="${glow}" stop-opacity="0"/></radialGradient>
     <linearGradient id="cardFill" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${mix(accent, "#FFFFFF", 0.07)}"/><stop offset="1" stop-color="${mix(accent, "#000000", 0.08)}"/></linearGradient>
-    ${bgPattern}
     <clipPath id="win"><rect x="${WX}" y="${WY}" width="${WW}" height="${WH}" rx="${WR}"/></clipPath>
     <filter id="winShadow" x="-10%" y="-10%" width="120%" height="125%"><feGaussianBlur in="SourceAlpha" stdDeviation="22"/><feOffset dy="22"/><feComponentTransfer><feFuncA type="linear" slope="0.45"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
     <filter id="cardShadow" x="-15%" y="-15%" width="130%" height="145%"><feGaussianBlur in="SourceAlpha" stdDeviation="16"/><feOffset dy="14"/><feComponentTransfer><feFuncA type="linear" slope="0.22"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
   </defs>
   <rect width="100%" height="100%" fill="url(#bg)"/>
-  <rect width="100%" height="100%" fill="url(#bgp)"/>
-  <circle cx="1000" cy="360" r="500" fill="url(#glowA)"/>
-  <circle cx="40" cy="1180" r="380" fill="url(#glowB)"/>
-  ${motifAt("talent", glow, 1078, 300, 230, 0.95)}
-  ${motifAt("talent", glow, -12, 1210, 200, 0.92)}
-  ${motifAt("innovation", second, 972, 1276, 80)}
+  <circle cx="1000" cy="360" r="480" fill="url(#glowA)"/>
+  ${/* هادئة (قرار المؤسس): لا نمطَ مكرَّراً في الخلفية ولا وهجَ ثانياً — والأنماطُ الثلاثة شكلٌ واحدٌ لكلٍّ منها */ ""}
+  ${motifAt("talent", glow, 1078, 300, 230, 0.9)}
+  ${linkAt(glow, 96, 1270, 190, 0.9)}
+  ${motifAt("innovation", second, 978, 1282, 70)}
 
   <image href="${logoUri("on-temptress")}" x="${CARD_W / 2 - 135}" y="52" width="270" height="${Math.round((270 * 706) / 2400)}"/>
   ${t("بطاقة انضمام", CARD_W / 2, 188, 26, beige, { anchor: "middle", opacity: 0.88 })}
@@ -502,8 +499,7 @@ export async function renderWelcomeCardV2(d: WelcomeCardData): Promise<Buffer> {
   <circle cx="${WX + WW - 67}" cy="${WY + 35}" r="9" fill="${BRAND.greenSheen}"/>
   <circle cx="${WX + WW - 96}" cy="${WY + 35}" r="9" fill="${beige}"/>
 
-  ${markAt(frameMark, WX + WW - 40, top + 47, 40)}
-  ${t(brand, WX + WW - 70, top + 56, 26, beige, { weight: 700, ltr: true, anchor: "right", font: LATIN })}
+  <image href="${logoUri("on-temptress")}" x="${WX + WW - 24 - 170}" y="${top + 22}" width="170" height="${Math.round((170 * 706) / 2400)}"/>
   ${t("القنوات", WX + WW - 23, top + 119, 17, beige, { opacity: 0.6 })}
   <rect x="${MAINR + 21}" y="${top + 138}" width="${SIDE - 44}" height="52" rx="11" fill="${glow}"/>
   ${t("# الترحيب", WX + WW - 38, top + 172, 22, glowInk, { weight: 700 })}
@@ -518,8 +514,7 @@ export async function renderWelcomeCardV2(d: WelcomeCardData): Promise<Buffer> {
   ${t("نرحّب بأعضاء العائلة الجدد", PR, top + 79, 19, ink, { opacity: 0.68 })}
   <line x1="${WX}" y1="${top + 94}" x2="${MAINR}" y2="${top + 94}" stroke="${ink}" stroke-opacity="0.1" stroke-width="1.5"/>
 
-  <rect x="${PR - 63}" y="${top + 123}" width="63" height="63" rx="15" fill="${frame}"/>
-  ${markAt(frameMark, PR - 31.5, top + 154.5, 38)}
+  ${markAt(MARK_FOR["on-beige"], PR - 29, top + 154, 60)}
   ${t(brand, PR - 82, top + 151, 22, ink, { weight: 700, ltr: true, anchor: "right", font: LATIN })}
   ${t("الآن", PR - 82 - authorW - 12, top + 151, 17, ink, { opacity: 0.55 })}
   ${t(message, PR - 82, top + 189, messageSize, ink)}
