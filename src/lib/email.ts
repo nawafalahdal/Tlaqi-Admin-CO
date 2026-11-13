@@ -1362,56 +1362,44 @@ export type WelcomeEmailOpts = {
 };
 
 export function welcomeEmailSubject(fullName: string, occasion: "approved" | "resend" = "approved") {
-  return occasion === "approved" ? `اعتماد انضمام — ${fullName}` : `بطاقة العضوية — ${fullName}`;
+  return occasion === "approved" ? `اعتماد انضمامك إلى TLAQI — ${fullName}` : `رسالة اعتماد انضمامك — ${fullName}`;
 }
 
-/** تاريخُ الخطاب بالأرقام العربية والشهر باسمه — كما في البطاقة: «٢٠ نوفمبر ٢٠٢٦» */
-function letterDate(d: Date): string {
+/** التاريخ بالأرقام العربية والشهر باسمه — كما في البطاقة: «٢٠ نوفمبر ٢٠٢٦» */
+function arabicDate(d: Date): string {
   return new Intl.DateTimeFormat("ar-u-ca-gregory-nu-arab", { day: "numeric", month: "long", year: "numeric", timeZone: ORG_TIME_ZONE }).format(d);
 }
 
-/** **رسالةُ القبول والاعتماد — خطابٌ رسميٌّ بلا تصميم** (قرار المؤسس، نوفمبر 2026).
- *
- *  نصٌّ فقط: باسم صاحبها والمهمة التي اعتُمد لها، وقسمِه وتاريخِ اعتماده — بلا رابطٍ للمنصة، ليُصوَّر ويُنشر.
- *  ورابطُ بطاقة العضوية سطرٌ صغيرٌ بعد التوقيع. لا شعار ولا ألوان ولا صور ولا أزرار. وبصيغة الجمع للاحترام («إبلاغكم») — رسميةٌ لا تحتاج جنساً،
- *  إلا المخاطَبة في أوّلها («المكرّم/المكرّمة»). واسمُ المنصة بالإنجليزية: TLAQI. */
+/** **رسالةُ القبول والاعتماد** — بقالب الرسائل المعتمد، **نصّاً فقط** (قرار المؤسس، نوفمبر 2026):
+ *  لا صورةَ ولا بطاقةَ عضويةٍ ولا رابطَ للمنصة ولا زرّ — فتُصوَّر الشاشةُ وتُنشر كما هي. فيها اسمُ صاحبها
+ *  والمهمةُ التي اعتُمد لها، وقسمُه وتاريخُ اعتماده. واسمُ المنصة بالإنجليزية: TLAQI. */
 function welcomeContent(opts: WelcomeEmailOpts): { subject: string; content: EmailContent; theme: EmailTheme } {
   const g = opts.gender ?? null;
+  const f = forms(g);
+  const G = (m: string, fe: string, n?: string) => gx(g, m, fe, n);
   const role = opts.accountRole ? roleTitle(opts.accountRole, g, opts.departmentName) : opts.roleLabel;
   // المهمة: المسمّى الذي سجّلته الإدارة، وإلا الصفة
   const task = opts.jobTitle?.trim() || role;
   const approved = (opts.occasion ?? "approved") === "approved";
-  const subject = welcomeEmailSubject(opts.fullName, opts.occasion ?? "approved");
-  const link = (url: string, text: string) => `<a href="${esc(url)}" style="color:#1A1023;text-decoration:underline">${esc(text)}</a>`;
-  const since = opts.joinedAt ? `، وذلك اعتباراً من ${esc(letterDate(opts.joinedAt))}` : "";
+  const first = firstName(opts.fullName);
   // القسمُ أو اللجنةُ باسمه كما سُجِّل: «في التسويق»، «في لجنة المحتوى»، «في الإدارة العليا»
   const dept = opts.departmentName?.trim();
   const where = dept ? `TLAQI في ${esc(dept)}` : "TLAQI";
-  // **الخطابُ يُصوَّر ويُنشر** (قرار المؤسس): لا رابطَ للمنصة فيه أبداً. ورابطُ البطاقة سطرٌ صغيرٌ بعد التوقيع،
-  // خارج الخطاب — فتُلتقط الشاشةُ من الاسم إلى التوقيع نظيفةً
-  const card = opts.cardUrl ? `بطاقة عضويتكم للحفظ والمشاركة: ${link(opts.cardUrl, "بطاقة العضوية")}` : null;
-
-  const paragraphs = approved
-    ? [`يسرّنا إبلاغكم باعتماد انضمامكم إلى ${where} بمهمة <b>${esc(task)}</b>${since}.`]
-    : [
-        `بناءً على طلبكم، نعيد إليكم بطاقة عضويتكم في ${where} بمهمة <b>${esc(task)}</b>.`,
-      ];
+  const since = opts.joinedAt ? `، اعتباراً من ${esc(arabicDate(opts.joinedAt))}` : "";
 
   return {
-    subject,
+    subject: welcomeEmailSubject(opts.fullName, opts.occasion ?? "approved"),
     theme: { departmentName: opts.departmentName ?? null, colorHex: opts.departmentColorHex ?? null },
     content: {
-      title: subject,
-      letter: {
-        addressee: `${gx(g, "المكرّم", "المكرّمة", "المكرّم/ة")} ${opts.fullName}`,
-        greeting: "السلام عليكم ورحمة الله وبركاته، وبعد:",
-        paragraphs,
-        closing: approved
-          ? ["متمنّين لكم التوفيق والسداد،", "وتفضّلوا بقبول فائق الاحترام والتقدير."]
-          : ["وتفضّلوا بقبول فائق الاحترام والتقدير."],
-        signature: "إدارة TLAQI",
-        postscript: card,
-      },
+      tone: "celebrate",
+      badge: approved ? "اعتُمد انضمامك" : "رسالة الاعتماد",
+      title: `أهلاً ${f.you} في العائلة، ${first}`,
+      lead: approved
+        ? `اعتُمد انضمامك إلى ${where} بمهمة <b>${esc(task)}</b>${since}.`
+        : `نعيد إليك رسالة اعتماد انضمامك إلى ${where} بمهمة <b>${esc(task)}</b>${since}.`,
+      paragraphs: [
+        `ومن اليوم ${G("أنت", "أنتِ", "أنت")} جزءٌ من فريق TLAQI — أهلاً ${f.you} بيننا، ونتطلّع إلى ما سنصنعه معاً.`,
+      ],
     },
   };
 }

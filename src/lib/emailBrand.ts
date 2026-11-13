@@ -255,21 +255,6 @@ export type EmailContent = {
   /** شهادةُ تعيينٍ بطراز «الترويسة التحريرية» المعتمد — رسالة تعيين قائد اللجنة وحدها.
    *  حين تُمرَّر تُرسم الرسالة بقالبها (`renderAppointmentEmail`) لا بالقالب الموحَّد. */
   appointment?: EmailAppointment | null;
-  /** **خطابٌ رسميٌّ بلا تصميم** (قرار المؤسس، نوفمبر 2026): رسالتا القبول والاعتماد نصٌّ فقط — لا شعار ولا ألوان
-   *  ولا صور ولا أزرار. حين يُمرَّر يُرسم بقالبه (`renderLetterEmail`) لا بالقالب الموحَّد. */
-  letter?: EmailLetter | null;
-};
-
-/** نصُّ الخطاب الرسمي — الفقراتُ HTML مهرَّبٌ عند من يكتبها (كسائر حقول الرسالة) */
-export type EmailLetter = {
-  /** «المكرّمة سارة أحمد المثال» */
-  addressee: string;
-  greeting: string;
-  paragraphs: string[];
-  closing: string[];
-  signature: string;
-  /** سطرٌ صغيرٌ منفصلٌ بعد التوقيع (رابطُ البطاقة) — خارج الخطاب نفسه، فيُصوَّر الخطابُ ويُنشر بلا روابط */
-  postscript?: string | null;
 };
 
 /** بياناتُ شهادة التعيين في البريد. كلُّها نصٌّ يُهرِّبه القالب. */
@@ -476,7 +461,6 @@ function darkStyles(a: ReturnType<typeof accentOf>): string {
 /** **قالبُ الإرسال — هوية تلاق 2026** (`lib/brand2026/email`): المحتوى نفسُه (روابطُه ومتغيّراتُه ومعناه) بالتصميم الجديد.
  *  الخطُّ الرسمي من المنصة نفسها لعملاء البريد الذين يحمّلون الخطوط، وTahoma/Arial لغيرهم (قيدٌ تقنيٌّ معروض على المؤسس). */
 export function renderEmail(opts: { subject: string; content: EmailContent; theme?: EmailTheme; preheader?: string }): { html: string; bodyHtml: string } {
-  if (opts.content.letter) return renderLetterEmail(opts.subject, opts.content.letter, opts.preheader);
   return renderEmail2026Parts({
     subject: opts.subject,
     content: opts.content,
@@ -489,41 +473,6 @@ export function renderEmail(opts: { subject: string; content: EmailContent; them
     // الدائرةُ أسفل الرسالة بلون القسم أو اللجنة — والباقي ثابتٌ بالبنفسجي (قرار المؤسس)
     markUrl: /^#[0-9A-Fa-f]{6}$/.test(opts.theme?.colorHex?.trim() ?? "") ? assetUrl(`/api/brand-mark/${opts.theme!.colorHex!.trim().slice(1).toUpperCase()}`) : null,
   });
-}
-
-/** **الخطابُ الرسمي** — صفحةٌ بيضاء ونصٌّ أسود بخطٍّ نظاميّ، بلا شعارٍ ولا لونٍ ولا صورةٍ ولا زرّ: يُقرأ في كل
- *  عميل بريدٍ كما كُتب، ويُطبع كما هو. الروابطُ نصٌّ ظاهرٌ لا أزرار. */
-function renderLetterEmail(subject: string, letter: EmailLetter, preheader?: string): { html: string; bodyHtml: string } {
-  const p = (html: string, extra = "") => `<p style="margin:0 0 16px;${extra}">${html}</p>`;
-  const bodyHtml = [
-    p(`<b>${esc(letter.addressee)}</b>`, "margin-bottom:6px"),
-    p(esc(letter.greeting)),
-    ...letter.paragraphs.map((x) => p(x)),
-    p(letter.closing.map(esc).join("<br>"), "margin-top:24px"),
-    p(`<b>${esc(letter.signature)}</b>`),
-    ...(letter.postscript ? [p(letter.postscript, "margin-top:40px;font-size:12px;line-height:1.8;color:#6B6070")] : []),
-  ].join("\n");
-  const html = `<!doctype html>
-<html dir="rtl" lang="ar">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(subject)}</title>
-</head>
-<body style="margin:0;padding:0;background-color:#ffffff">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(preheader ?? subject)}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff">
-<tr><td align="center" style="padding:32px 18px">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px">
-    <tr><td dir="rtl" style="font-family:${FONT_STACK};font-size:15px;line-height:2;color:#1A1023;text-align:right">
-${bodyHtml}
-    </td></tr>
-  </table>
-</td></tr>
-</table>
-</body>
-</html>`;
-  return { html, bodyHtml };
 }
 
 /** القالبُ السابق — محفوظٌ للرجوع إليه إن لزم، ولا يُستعمل في الإرسال */
