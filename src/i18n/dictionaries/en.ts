@@ -440,7 +440,6 @@ requestsHint: "What the platform creates on its own: the welcome banner on appro
     failedBody: "We'll be in touch to schedule a short briefing meeting.",
   },
   testEditorPage: {
-    founderReadOnly: "You are viewing this department\u2019s question bank for oversight only. Editing belongs to the department lead \u2014 they are the one answerable for its results.",
     execTitle: "Executive management test",
     execSubtitle: "The questions CEO account candidates must pass — only you can edit this",
     leadsTitle: "Department leads test",
@@ -700,6 +699,7 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
     readinessOwnerFounder: "Prepared by the Founder",
     readinessOwnerCeo: "Prepared by the CEO",
     readinessOwnerLead: "Prepared by the department leader",
+    readinessOwnerSeniorLeader: "Prepared by the senior administration lead (the CEO)",
     readinessMembersOf: "{dept} members",
     readinessEmail: "Email",
     readinessEmailOn: "On — invites and sign-in details are emailed",

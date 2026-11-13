@@ -24,6 +24,7 @@ import { getLocale, getDictionary } from "@/i18n/server";
 import { scheduleDueSweeps } from "@/lib/sweepThrottle";
 import { DeleteInviteButton } from "./DeleteInviteButton";
 import { isUnusedInvite } from "@/lib/founderActions";
+import { isSeniorLeader } from "@/lib/governance/leadership";
 
 export default async function AdminInvitesPage() {
   const session = await auth();
@@ -83,6 +84,7 @@ export default async function AdminInvitesPage() {
   const count = (scope: string, departmentId: string | null = null) =>
     tracks.find((tr) => tr.scope === scope && tr.departmentId === departmentId)?._count.questions ?? 0;
   const isExecutive = session.user.role === "executive";
+  const seniorLead = await isSeniorLeader({ kind: "user", id: session.user.id });
   const readiness: ReadinessRow[] = [
     {
       key: "executive",
@@ -105,13 +107,14 @@ export default async function AdminInvitesPage() {
       questions: count("department_admin"),
       editHref: isExecutive ? "/admin/tests/leads" : undefined,
     },
-    // بنوكُ الأعضاء لقادة أقسامها — تُعرض هنا ليعرف صاحبُ الدعوة أيُّ قسمٍ
-    // جاهزٌ لاستقبال أعضائه، ولا رابط: صفحةُ القسم لقائده وحده
+    // بنوكُ الأعضاء لقادة أقسامها — تُعرض هنا ليعرف صاحبُ الدعوة أيُّ قسمٍ جاهزٌ لاستقبال أعضائه، ولا رابط:
+    // صفحةُ القسم لقائده وحده. إلا الإدارةَ العليا: قائدُها الرئيسُ التنفيذي (أو المؤسسُ بالخلافة) — فرابطُها له
     ...departments.map((d) => ({
       key: `member-${d.id}`,
       label: t.readinessMembersOf.replace("{dept}", d.name),
-      owner: t.readinessOwnerLead,
+      owner: d.leadershipOnly ? t.readinessOwnerSeniorLeader : t.readinessOwnerLead,
       questions: count("department_member", d.id),
+      editHref: d.leadershipOnly && seniorLead ? `/admin/departments/${d.slug}/test` : undefined,
     })),
   ];
 

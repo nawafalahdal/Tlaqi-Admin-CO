@@ -304,9 +304,8 @@ export default async function DepartmentsIndexPage() {
                         <dt className="text-black/45">{td.membersCount}:</dt>
                         <dd className="font-semibold text-black/75">{membersOf(d)}</dd>
                       </div>
-                      {/* القسم الاستثنائي بلا بنك أسئلة، فعرض عدّاده صفراً
-                          يوحي بنقصٍ ليس فيه */}
-                      {!d.leadershipOnly && isOpen(d) && (
+                      {/* وللإدارة العليا بنكٌ يعدّه قائدُها (الرئيس التنفيذي) كسائر الأقسام */}
+                      {isOpen(d) && (
                         <div className="flex gap-1">
                           <dt className="text-black/45">{td.questionsCount}:</dt>
                           <dd className="font-semibold text-black/75">{questionCount}</dd>
@@ -331,7 +330,7 @@ export default async function DepartmentsIndexPage() {
                     )}
                     {/* ما لم يُفتح بعد بلا بنكٍ — وذاك حالُه قبل الفتح لا
                         نقصٌ يُنذَر به */}
-                    {questionCount === 0 && !d.leadershipOnly && isOpen(d) && (
+                    {questionCount === 0 && isOpen(d) && (
                       <p className="mt-1 text-xs font-semibold text-[#9A2E1C]">{td.emptyTrack}</p>
                     )}
                   </div>

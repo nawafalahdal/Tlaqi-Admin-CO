@@ -437,7 +437,6 @@ requestsHint: "ما تُنشئه المنصة وحدها: البانر التر�
     failedBody: "سيتم التواصل معك لجدولة اجتماع شرح قصير.",
   },
   testEditorPage: {
-    founderReadOnly: "أنت تطّلع على بنك أسئلة هذا القسم للرقابة فقط. تعديله يملكه قائد القسم — فهو مَن يُحاسَب على نتيجة اختباره.",
     execTitle: "اختبار الإدارة التنفيذية",
     execSubtitle: "الأسئلة التي يجتازها مرشحو حساب CEO — تحريرك هنا فقط",
     leadsTitle: "اختبار قادة الأقسام",
@@ -697,6 +696,7 @@ raiseRequestHint: "وجّهها لقسم، أو لحساب إداري، أو ل�
     readinessOwnerFounder: "يُعدّه المؤسس",
     readinessOwnerCeo: "يُعدّه الرئيس التنفيذي",
     readinessOwnerLead: "يُعدّه قائد القسم",
+    readinessOwnerSeniorLeader: "يُعدّه قائد الإدارة العليا (الرئيس التنفيذي)",
     readinessMembersOf: "أعضاء {dept}",
     readinessEmail: "البريد",
     readinessEmailOn: "مفعّل — تصل الدعوات وبيانات الدخول بالبريد",

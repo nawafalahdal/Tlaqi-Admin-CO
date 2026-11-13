@@ -159,8 +159,8 @@ export async function createDepartment(opts: {
 
   const department = await createWithFreeColor(colorHex, { name, slug, colorHex, leadershipOnly });
 
-  // القسم الاستثنائي لا يُدعى إليه باختبار: من يُضاف إليه يُختار لا
-  // يُمتحَن. فلا بنك أسئلة له — وبنكٌ فارغ لا يُستعمل أبداً عبءٌ لا فائدة فيه.
+  // القسم الاستثنائي (الإدارة العليا) لا يُنشأ بنكُه هنا: يُنشأ حين يفتحه قائدُها — الرئيسُ التنفيذي، أو المؤسسُ
+  // بالخلافة — من صفحة اختباره (`ensureMemberTrack`)، ويعدّه هو كما يعدّ كلُّ قائدٍ بنكَ قسمه.
   if (!leadershipOnly) {
     await prisma.testTrack.create({
       data: { scope: "department_member", departmentId: department.id },

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { requireOnboardingSurveyDone } from "@/lib/onboardingGate";
@@ -55,7 +56,11 @@ export default async function SeniorPage() {
       </div>
     );
   }
-  const dept = await prisma.department.findUnique({ where: { id: board.leadership.departmentId }, select: { colorHex: true } });
+  const dept = await prisma.department.findUnique({ where: { id: board.leadership.departmentId }, select: { colorHex: true, slug: true } });
+  // بنكُ أسئلة أعضاء الإدارة العليا يملكه قائدُها — عددُ أسئلته وحده، لا الأسئلة
+  const testQuestions = ctx.isLeader
+    ? await prisma.testQuestion.count({ where: { track: { scope: "department_member", departmentId: board.leadership.departmentId } } })
+    : 0;
   const theme = themeFromColor(dept?.colorHex ?? SUPER_ADMIN_THEME.colorHex);
   const { leadership } = board;
   const live = board.positions.filter((p) => p.status === "active" || p.status === "suspended");
@@ -88,6 +93,25 @@ export default async function SeniorPage() {
           <p className="text-sm text-red-700">لا قائدَ نشطاً الآن — لا رئيسَ تنفيذياً ولا مؤسساً نشطاً.</p>
         )}
       </Card>
+
+      {/* ── اختبارُ أعضاء الإدارة العليا — لقائدها وحده (الرئيس التنفيذي، أو المؤسسُ بالخلافة) */}
+      {ctx.isLeader && dept && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 p-5">
+          <div>
+            <h2 className="text-sm font-bold">اختبار أعضاء الإدارة العليا</h2>
+            <p className="mt-1 text-xs text-black/50">
+              {testQuestions > 0 ? `${testQuestions} سؤالاً في البنك — تعدّله أنت بصفتك قائد الإدارة العليا.` : "البنكُ فارغ — أضف أسئلته قبل دعوة أعضاءٍ باختبار."}
+            </p>
+          </div>
+          <Link
+            href={`/admin/departments/${dept.slug}/test`}
+            className="inline-flex min-h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold"
+            style={{ background: theme.surface, color: theme.onSurface }}
+          >
+            تعديل الأسئلة
+          </Link>
+        </Card>
+      )}
 
       {ctx.position && (
         <Card className="flex flex-col gap-2 p-5">

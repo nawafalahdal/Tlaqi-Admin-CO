@@ -416,7 +416,10 @@ export async function acceptSeniorInvitation(
     await prisma.$transaction(async (tx) => {
       if (mode === "created") {
         // عضوٌ جديد في الإدارة العليا — الدعوةُ هي الاعتماد (لا اختبار)، والبريدُ مثبَتٌ بالرابط
-        const track = await tx.testTrack.findFirst({ where: { scope: "department_member" }, orderBy: { createdAt: "asc" }, select: { id: true } });
+        // بنكُ الإدارة العليا نفسُها إن أُنشئ — وإلا أقدمُ بنكٍ قائم (الحقلُ إلزاميٌّ في الدعوة ولا اختبارَ هنا)
+        const track =
+          (await tx.testTrack.findFirst({ where: { scope: "department_member", departmentId: p.departmentId }, select: { id: true } })) ??
+          (await tx.testTrack.findFirst({ where: { scope: "department_member" }, orderBy: { createdAt: "asc" }, select: { id: true } }));
         if (!track) throw new Error("NO_TRACK");
         const inv = await tx.invite.create({
           data: { fullName: p.inviteName, email, targetRole: "member", departmentId: p.departmentId, testTrackId: track.id, invitedById: p.invitedById, status: "used" },

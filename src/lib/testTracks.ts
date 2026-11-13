@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { InviteTargetRole, TestTrack } from "@prisma/client";
 import type { Session } from "next-auth";
 import { getDictionary, type Locale } from "@/i18n";
+import { isSeniorLeader } from "@/lib/governance/leadership";
 
 /** يحدد بنك الأسئلة الصحيح حسب الدور المستهدف للدعوة:
  *  عضو قسم ← اختبار ذلك القسم (يملكه أدمن القسم)
@@ -95,6 +96,31 @@ export function canEditTrack(session: Session, track: Pick<TestTrack, "scope" | 
     session.user.role === "executive" ||
     (session.user.role === "department_admin" && session.user.departmentId === track.departmentId)
   );
+}
+
+/** **من يملك بنكَ أسئلة أعضاء قسمٍ بعينه** (صفحتُه تسأل هنا): قائدُ القسم — وللإدارة العليا قائدُها الفعلي.
+ *
+ *  الإدارةُ العليا لا قائدَ قسمٍ لها: يقودها الرئيسُ التنفيذي (أو المؤسسُ بالخلافة إن غاب) — `isSeniorLeader`.
+ *  وكانت الصفحةُ تسأل عن «قائد القسم» وحده، فرُدَّ الرئيسُ التنفيذي عن اختبار أعضاء إدارته، ولم يملكه أحد. */
+export async function canEditDepartmentTrack(
+  session: Session,
+  department: { id: string; leadershipOnly: boolean; parentId: string | null }
+): Promise<boolean> {
+  if (session.user.role === "department_admin" && session.user.departmentId === department.id) return true;
+  if (department.leadershipOnly && !department.parentId && session.user.role !== "member") {
+    return isSeniorLeader({ kind: "user", id: session.user.id });
+  }
+  return false;
+}
+
+/** بنكُ أعضاء القسم — يُنشأ عند أول فتحٍ إن لم يكن (الإدارةُ العليا أُنشئت بلا بنك). آمنٌ للتكرار */
+export function ensureMemberTrack(departmentId: string) {
+  return prisma.testTrack.upsert({
+    where: { scope_departmentId: { scope: "department_member", departmentId } },
+    create: { scope: "department_member", departmentId },
+    update: {},
+    include: { questions: { orderBy: { order: "asc" } } },
+  });
 }
 
 /** نسخة السؤال التي تُرسَل للمرشّح — بلا correctIndex. ما يُمرَّر لمكوّن عميل
