@@ -249,7 +249,7 @@ export function approvedLogoFor(colorHex: string): { logo: LogoFile; mark: strin
 
 
 /** **بطاقةُ الاعتماد (العضوية)** — التصميمُ الذي اعتمده المؤسس (نوفمبر 2026):
- *  - **أعلى الصفحة:** «بطاقة انضمام» ثم «أهلاً بكِ في العائلة» مكبَّرة — الجملتان وحدهما (قرار المؤسس).
+ *  - **أعلى الصفحة:** «بطاقة انضمام» في إطارٍ دائريٍّ رفيع ثم «أهلاً بكِ في العائلة» مكبَّرة — الجملتان وحدهما (قرار المؤسس).
  *  - **البطاقة:** الشعارُ الرسميُّ يساراً واسمُ القسم أو اللجنة يميناً فوق الاسم، ثم الاسمُ بالخطّ العريض والمسمّى، ثم تاريخُ
  *    الانضمام والصفة. الخلفيةُ والبطاقةُ بلون القسم الصافي (واللجنةُ بلون قسمها)، والبطاقةُ تُفرَد بإطارٍ وظلّ.
  *  - **الشعارُ بنسخته الرسمية لذلك اللون** (لا تلوين): البنفسجي علامةٌ برتقالية وكلمةٌ Beige؛ الـBeige علامةٌ برتقالية؛
@@ -272,14 +272,19 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   const IL = X + 56;
   // الترحيبُ مكبَّرٌ (قرار المؤسس) وعرضُه محدودٌ (٤٠٠) فلا يبلغ شكلَ «موهبة» في الزاوية العليا: لا نمطَ خلف نص
   const welcome = `${d.greeting} في العائلة`;
-  const welcomeSize = await fit(welcome, 66, 400, 44);
+  const welcomeSize = await fit(welcome, 72, 410, 44);
+  // **رأسٌ متوازن (قرار المؤسس):** «بطاقة انضمام» داخل إطارٍ دائريٍّ رفيع يملأ أعلى الصفحة، ثم الترحيب، ثم البطاقة —
+  // موزَّعةً بهوامشَ متساوية أعلى الصفحة وأسفلها (نحو ١١٨) فلا يبقى فراغٌ فوق الجملتين
+  const tag = "بطاقة انضمام";
+  const tagW = Math.round(await textWidth(tag, 26, 400)) + 64;
+  const CY = 377; // أعلى البطاقة
   const nameSize = await fit(d.fullName, 92, W - 112, 34, HERO); // الحدُّ الأدنى يسع اسماً رباعياً طويلاً داخل البطاقة
   const titleSize = await fit(d.title, 40, W - 112, 26);
   const roleSize = await fit(d.roleTitle, 32, 300, 22);
   const dept = d.departmentName?.trim() || "تلاق";
   // القسمُ يميناً والشعارُ يساراً (قرار المؤسس): لا يتجاوز ما بينهما (اسمُ لجنةٍ طويل يصغُر ولا يبلغ الشعار)
   const deptSize = await fit(dept, 28, W - 112 - 280 - 40, 18);
-  const nameY = 600 + nameSize;
+  const nameY = CY + 240 + nameSize;
   // **نمطان كبيران خافتان في الخلفية (قرار المؤسس):** شكلُ «موهبة» في الزاوية العليا وشكلُ «ابتكار» في الزاوية السفلى
   // المقابلة، كلٌّ منهما شكلٌ واحدٌ مكبَّرٌ بنسبته (لا تمديد ولا تدوير) يخرج عن الحافة، بحبر الخلفية وبشفافيةٍ خفيفة —
   // فيُرى أثراً هادئاً لا زحمة. ويقعان خلف البطاقة والهوامش وحدها، فلا نمطَ خلف نص.
@@ -300,20 +305,21 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   </defs>
   <rect width="100%" height="100%" fill="${page}"/>
   ${motifs}
-  ${t("بطاقة انضمام", C, 180, 26, pageInk, { anchor: "middle" })}
-  ${t(welcome, C, 272, welcomeSize, pageInk, { weight: 700, anchor: "middle" })}
-  <g filter="url(#shadow)"><rect x="${X}" y="360" width="${W}" height="680" rx="48" fill="${card.bg}"${cardStroke}/></g>
-  <image href="${logoUri(pageLogo)}" x="${IL}" y="410" width="280" height="${Math.round((280 * 706) / 2400)}"/>
-  ${t(dept, R, 462, deptSize, cardInk, { weight: 700 })}
+  <rect x="${C - tagW / 2}" y="118" width="${tagW}" height="52" rx="26" fill="none" stroke="${pageInk}" stroke-width="2"/>
+  ${t(tag, C, 153, 26, pageInk, { anchor: "middle" })}
+  ${t(welcome, C, 282, welcomeSize, pageInk, { weight: 700, anchor: "middle" })}
+  <g filter="url(#shadow)"><rect x="${X}" y="${CY}" width="${W}" height="680" rx="48" fill="${card.bg}"${cardStroke}/></g>
+  <image href="${logoUri(pageLogo)}" x="${IL}" y="${CY + 50}" width="280" height="${Math.round((280 * 706) / 2400)}"/>
+  ${t(dept, R, CY + 102, deptSize, cardInk, { weight: 700 })}
   ${t(d.fullName, R, nameY, nameSize, cardInk, { weight: HERO })}
   ${t(d.title, R, nameY + 70, titleSize, cardInk)}
-  <line x1="${IL}" y1="850" x2="${R}" y2="850" stroke="${cardInk}" stroke-width="2"/>
-  ${t(d.joinedLabel, R, 912, 24, cardInk)}
-  ${t(cardDate(d.joinedAt), R, 964, 34, cardInk, { weight: 700 })}
-  ${t("الصفة", IL, 912, 24, cardInk, { anchor: "left" })}
-  ${t(d.roleTitle, IL, 964, roleSize, cardInk, { weight: 700, anchor: "left" })}
-  ${t("تحوّل رقمي، برؤية طموحة.", C, 1166, 30, pageInk, { anchor: "middle" })}
-  ${t("@tlaqisa", C, 1216, 26, pageInk, { anchor: "middle", ltr: true })}
+  <line x1="${IL}" y1="${CY + 490}" x2="${R}" y2="${CY + 490}" stroke="${cardInk}" stroke-width="2"/>
+  ${t(d.joinedLabel, R, CY + 552, 24, cardInk)}
+  ${t(cardDate(d.joinedAt), R, CY + 604, 34, cardInk, { weight: 700 })}
+  ${t("الصفة", IL, CY + 552, 24, cardInk, { anchor: "left" })}
+  ${t(d.roleTitle, IL, CY + 604, roleSize, cardInk, { weight: 700, anchor: "left" })}
+  ${t("تحوّل رقمي، برؤية طموحة.", C, 1182, 30, pageInk, { anchor: "middle" })}
+  ${t("@tlaqisa", C, 1230, 26, pageInk, { anchor: "middle", ltr: true })}
 </svg>`;
   return toPng(svg);
 }
