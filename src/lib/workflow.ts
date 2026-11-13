@@ -151,6 +151,7 @@ export async function syncMemberLifecycleRow(
     endDate: member.endDate,
     farewellDesignAt: member.farewellDesignAt,
     offboardingClosedAt: member.offboardingClosedAt,
+    employeeNo: member.employeeNo,
   });
 
   if (!member.sheetRow && result.sheetRow) {
@@ -188,6 +189,7 @@ export async function syncAdminAccountRow(
     passwordChangedAt: user.passwordChangedAt,
     removedAt: user.removedAt,
     welcomeEmailSentAt: user.welcomeEmailSentAt,
+    employeeNo: user.employeeNo,
   });
 
   if (!user.sheetRow && result.sheetRow) {

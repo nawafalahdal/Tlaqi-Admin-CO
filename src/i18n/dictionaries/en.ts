@@ -1927,7 +1927,7 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
     oneRegisterForEveryone: "One register for everyone in TLAQI — each person appears once, with their actions in their profile and in its short menu.",
     inviteSomeone: "＋ Invite someone",
     registerTabs: "Register tabs",
-    searchByNameOr: "Search by name or email",
+    searchByNameOr: "Search by name, email or employee ID",
     department: "Department",
     allDepartments: "All departments",
     filter: "Filter",

@@ -1923,7 +1923,7 @@ raiseRequestHint: "وجّهها لقسم، أو لحساب إداري، أو ل�
     oneRegisterForEveryone: "سجلٌّ واحد لكل من في تلاق — كل شخصٍ يظهر مرّةً واحدة، وإجراءاتُه في ملفه وفي قائمته المختصرة.",
     inviteSomeone: "＋ دعوة شخص",
     registerTabs: "تبويبات السجل",
-    searchByNameOr: "بحث بالاسم أو البريد",
+    searchByNameOr: "بحث بالاسم أو البريد أو الرقم الوظيفي",
     department: "القسم",
     allDepartments: "كل الأقسام",
     filter: "تصفية",

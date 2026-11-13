@@ -26,6 +26,8 @@ export function RemovedAccountRow({
     email: string;
     departmentName: string | null;
     removalReason: string | null;
+    /** رقمُه الوظيفي المحفوظ (`TLAQI - 007`) */
+    employeeId?: string | null;
   };
   theme: ReturnType<typeof themeFromColor>;
   /** المؤسس وحده — والتصريح يُفرض في الخادم أيضاً */
@@ -47,6 +49,12 @@ export function RemovedAccountRow({
           <p className="break-all text-xs text-black/50" dir="ltr">
             {account.email}
           </p>
+          {/* من نُحّي رقمُه محفوظٌ على سجلّه — لا يُعطى لغيره، ويبقى له إن أُعيد تفعيلُه */}
+          {account.employeeId && (
+            <p className="text-xs font-bold tracking-wide text-black/55">
+              <bdi dir="ltr">{account.employeeId}</bdi>
+            </p>
+          )}
           <p className="mt-1 text-xs text-black/40">
             {account.departmentName ? `${account.departmentName} — ` : ""}
             {account.removalReason}

@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeTabSnapshot, formatSheetDate } from "@/lib/googleSheets";
 import { buildXlsxWorkbook, type XlsxCell } from "@/lib/xlsx";
+import { employeeIdLabel } from "@/lib/employeeId";
 import { SENIOR_CAPABILITIES, INVITE_STATE_LABEL, POSITION_STATUS_LABEL } from "./senior";
 import { BASIS_LABEL, type SeniorLeaderBasis } from "./leadership";
 import { orgAr } from "@/i18n/dictionaries/org.ar";
@@ -42,11 +43,11 @@ export async function governanceTables(): Promise<GovernanceTables> {
     prisma.department.findFirst({ where: { leadershipOnly: true, parentId: null }, select: { seniorLeaderUserId: true, seniorLeaderBasis: true, seniorLeaderSince: true } }),
     prisma.user.findMany({
       where: { isActive: true, role: { in: ["super_admin", "executive", "operations_officer"] } },
-      select: { id: true, fullName: true, email: true, role: true, jobTitle: true, createdAt: true },
+      select: { id: true, fullName: true, email: true, role: true, jobTitle: true, createdAt: true, employeeNo: true },
       orderBy: [{ role: "asc" }, { createdAt: "asc" }],
     }),
     prisma.seniorPosition.findMany({
-      include: { holderMember: { select: { fullName: true, email: true } }, holderUser: { select: { fullName: true, email: true } } },
+      include: { holderMember: { select: { fullName: true, email: true, employeeNo: true } }, holderUser: { select: { fullName: true, email: true, employeeNo: true } } },
       orderBy: { createdAt: "asc" },
     }),
     // department-scope: all — تبويبُ «اللجان» سجلٌّ كامل: المؤرشفةُ والمغلقةُ والمقترحةُ صفوفٌ بحالتها، لا يُحذف شيء
@@ -71,7 +72,7 @@ export async function governanceTables(): Promise<GovernanceTables> {
     ...seats.map((u) => {
       const leader = seniorDept?.seniorLeaderUserId === u.id;
       return [
-        u.id, u.fullName, u.email, SEAT[u.role] ?? u.role, "",
+        u.id, u.fullName, employeeIdLabel(u.employeeNo) ?? "—", u.email, SEAT[u.role] ?? u.role, "",
         leader ? `${SEAT[u.role]} — قائد الإدارة العليا (${BASIS_LABEL[seniorDept!.seniorLeaderBasis as SeniorLeaderBasis] ?? ""})` : SEAT[u.role] ?? u.role,
         u.jobTitle ?? "", "كلُّ صلاحيات الدور", u.createdAt, "نشط", "—", "—",
         leader && seniorDept?.seniorLeaderSince ? `يقود منذ ${d(seniorDept.seniorLeaderSince)}` : "",
@@ -80,6 +81,7 @@ export async function governanceTables(): Promise<GovernanceTables> {
     ...positions.map((p) => [
       p.id,
       p.holderMember?.fullName ?? p.holderUser?.fullName ?? p.inviteName,
+      employeeIdLabel(p.holderMember?.employeeNo ?? p.holderUser?.employeeNo) ?? "—",
       p.holderMember?.email ?? p.holderUser?.email ?? p.inviteEmail,
       p.titleAr, p.titleEn ?? "", "منصبٌ بتكليف", p.responsibilities ?? "",
       p.capabilities.map((c) => CAP_LABEL[c] ?? c).join("، "),
@@ -118,7 +120,7 @@ export async function governanceWorkbook(): Promise<Buffer> {
   const cols = (h: string[]) => h.map((header) => ({ header, width: Math.min(40, Math.max(14, header.length + 6)) }));
   return buildXlsxWorkbook({
     sheets: [
-      { sheetName: "الإدارة العليا", columns: cols(["المعرّف", "الاسم", "البريد الإلكتروني", "المسمّى (عربي)", "المسمّى (إنجليزي)", "الصفة", "المسؤوليات", "الصلاحيات", "تاريخ الانضمام / البدء", "حالة التكليف", "حالة الدعوة", "دعاه", "ملاحظات"]), rows: t.xlsx.senior },
+      { sheetName: "الإدارة العليا", columns: cols(["المعرّف", "الاسم", "الرقم الوظيفي", "البريد الإلكتروني", "المسمّى (عربي)", "المسمّى (إنجليزي)", "الصفة", "المسؤوليات", "الصلاحيات", "تاريخ الانضمام / البدء", "حالة التكليف", "حالة الدعوة", "دعاه", "ملاحظات"]), rows: t.xlsx.senior },
       { sheetName: "اللجان", columns: cols(["المعرّف", "اسم اللجنة", "القسم", "الوصف", "الأهداف", "القائد", "الأعضاء", "تاريخ الإنشاء", "تاريخ تعيين القائد", "عيّنه", "الحالة", "مؤرشفة؟", "تاريخ الأرشفة", "المهام (مفتوحة / الكل)", "الاجتماعات", "القرارات", "ملاحظات"]), rows: t.xlsx.committees },
       { sheetName: "سجل الحوكمة", columns: cols(["المعرّف", "التاريخ", "النطاق", "الإجراء", "الفاعل", "دوره وقتها", "الهدف", "قبل", "بعد", "السبب", "النتيجة"]), rows: t.xlsx.log },
       {

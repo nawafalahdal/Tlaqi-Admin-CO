@@ -32,6 +32,7 @@ import { PersonAvatar } from "@/components/PersonAvatar";
 import { portraitColorFor } from "@/lib/portraitTone";
 
 import { fmt } from "@/i18n/fmt";
+import { employeeIdLabel } from "@/lib/employeeId";
 /** إدارة الأعضاء والهيكل التنظيمي — موضعٌ واحد للشخص وموقعه وقسمه.
  *
  *  كانت «إدارة حسابات القيادة» و«سجلّ الأعضاء» صفحتين: الأولى للإجراء
@@ -88,7 +89,7 @@ export default async function PeoplePage({
       where: { id: session.user.id },
       select: {
         id: true, fullName: true, email: true, role: true, jobTitle: true, gender: true,
-        createdAt: true, avatarVersion: true, totpEnabled: true, welcomeEmailSentAt: true,
+        createdAt: true, avatarVersion: true, totpEnabled: true, welcomeEmailSentAt: true, employeeNo: true,
         department: { select: { id: true, name: true, colorHex: true } },
       },
     }),
@@ -286,7 +287,13 @@ export default async function PeoplePage({
       id: m.id,
       cells: {
         name: m.fullName,
-        email: <span className="break-all text-black/70">{m.email}</span>,
+        // ومن غادر رقمُه محفوظٌ له — يُقرأ هنا كما كان
+        email: (
+          <span className="break-all text-black/70">
+            {m.email}
+            <EmployeeIdLine eid={employeeIdLabel(m.employeeNo)} />
+          </span>
+        ),
         dept: m.department ? (
           <span className="inline-flex items-center gap-1.5 text-black/70">
             <span
@@ -326,6 +333,8 @@ export default async function PeoplePage({
     id: string;
     name: string;
     email: string;
+    /** الرقمُ الوظيفي (`TLAQI - 001`) — ومن لا رقم له بعد `null` */
+    eid: string | null;
     role: string;
     dept: { id: string; name: string; colorHex: string } | null;
     since: Date;
@@ -359,6 +368,7 @@ export default async function PeoplePage({
             email: me.email,
             role: roleTitle(me.role, me.gender, me.department?.name, locale),
             dept: affiliationFor(me.role, me.department, seniorRef),
+            eid: employeeIdLabel(me.employeeNo),
             since: me.createdAt,
             avatar: avatarUrl("user", me.id, me.avatarVersion),
             status: statusOf(me.email, me.totpEnabled),
@@ -379,6 +389,7 @@ export default async function PeoplePage({
         a.department ? { id: a.department.id, name: a.department.name, colorHex: a.department.colorHex } : null,
         seniorRef
       ),
+      eid: employeeIdLabel(a.employeeNo),
       since: a.createdAt,
       avatar: avatarUrl("user", a.id, a.avatarVersion),
       status: statusOf(a.email, a.totpEnabled),
@@ -394,6 +405,7 @@ export default async function PeoplePage({
     email: m.email,
     role: [roleTitle("member", m.gender, null, locale), m.jobTitle?.trim()].filter(Boolean).join(" · "),
     dept: m.department ? { id: m.department.id, name: m.department.name, colorHex: m.department.colorHex } : null,
+    eid: employeeIdLabel(m.employeeNo),
     since: m.orgJoinDate ?? m.decidedAt ?? m.joinDate,
     avatar: avatarUrl("member", m.id, m.avatarVersion),
     status: statusOf(m.email, null),
@@ -403,7 +415,8 @@ export default async function PeoplePage({
   }));
 
   const matches = (r: Row) =>
-    (!q || r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q)) &&
+    // والبحثُ بالرقم الوظيفي أيضاً («007» أو «TLAQI - 007»)
+    (!q || r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q) || !!r.eid?.toLowerCase().includes(q)) &&
     (!deptFilter || r.dept?.id === deptFilter);
   const everyone = [...leaderRows, ...memberRows];
   const attention = everyone.filter((r) => r.status.tone !== "ok" || r.welcome.tone !== "ok");
@@ -519,6 +532,7 @@ export default async function PeoplePage({
                         {r.self && <span className="ms-1.5 text-[11px] font-semibold text-black/40">{L.you}</span>}
                       </span>
                       <span className="block break-all text-[11px] text-black/45">{r.email}</span>
+                      <EmployeeIdLine eid={r.eid} />
                     </span>
                   </span>
                 ),
@@ -630,6 +644,7 @@ export default async function PeoplePage({
                         email: u.email,
                         departmentName: u.department?.name ?? null,
                         removalReason: u.removalReason,
+                        employeeId: employeeIdLabel(u.employeeNo),
                       }}
                     />
                   ))}
@@ -645,6 +660,16 @@ export default async function PeoplePage({
         )}
       </main>
     </div>
+  );
+}
+
+/** سطرُ الرقم الوظيفي تحت البريد — أرقامٌ لاتينيةٌ في سطرٍ عربيّ (`bdi`) فلا ينقلب ترتيبُها */
+function EmployeeIdLine({ eid }: { eid: string | null }) {
+  if (!eid) return null;
+  return (
+    <span className="block text-[11px] font-bold tracking-wide text-black/55">
+      <bdi dir="ltr">{eid}</bdi>
+    </span>
   );
 }
 

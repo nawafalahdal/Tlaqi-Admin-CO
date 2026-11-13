@@ -1,6 +1,7 @@
 import { google } from "googleapis";
 import type { sheets_v4 } from "googleapis";
 import { spreadsheetId } from "@/lib/deploymentEnv";
+import { employeeIdLabel } from "@/lib/employeeId";
 
 // في المعاينة: الشيتُ التجريبيُّ وحده، ولا شيتَ إن لم يُضبط (`deploymentEnv.ts`)
 const SPREADSHEET_ID = spreadsheetId();
@@ -211,6 +212,7 @@ export async function upsertMemberLifecycleRow(row: {
   endDate: Date | null;
   farewellDesignAt: Date | null;
   offboardingClosedAt: Date | null;
+  employeeNo: number | null;
 }) {
   const TEST_VERDICT: Record<string, string> = {
     passed: "ناجح",
@@ -256,6 +258,7 @@ export async function upsertMemberLifecycleRow(row: {
       : row.stepDownAt
         ? "قيد الختام"
         : "—",
+    employeeIdLabel(row.employeeNo) ?? "—",
   ]);
 }
 
@@ -280,6 +283,7 @@ export async function upsertAdminAccountRow(row: {
   removedAt: Date | null;
   removalReason: string | null;
   welcomeEmailSentAt: Date | null;
+  employeeNo: number | null;
 }) {
   return upsertRow("الحسابات الإدارية", row.sheetRow, [
     row.fullName,
@@ -298,6 +302,7 @@ export async function upsertAdminAccountRow(row: {
     row.removedAt ? formatSheetDate(row.removedAt) : "—",
     row.removalReason ?? "—",
     row.welcomeEmailSentAt ? `✓ وصلت — ${formatSheetDate(row.welcomeEmailSentAt)}` : "لم تصل بعد",
+    employeeIdLabel(row.employeeNo) ?? "—",
   ]);
 }
 
@@ -358,8 +363,10 @@ const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: numb
       "تاريخ التنحية",
       "سبب التنحية",
       "بطاقة الانضمام",
+      // آخرُ الأعمدة عمداً: إضافتُه في الوسط تُزيح قيمَ الصفوف القائمة تحت عناوينَ ليست عناوينها حتى تُعاد مزامنتُها
+      "الرقم الوظيفي",
     ],
-    widths: [170, 240, 150, 150, 130, 160, 160, 170, 180, 140, 110, 170, 180, 160, 240, 190],
+    widths: [170, 240, 150, 150, 130, 160, 160, 170, 180, 140, 110, 170, 180, 160, 240, 190, 130],
   },
   "الأعضاء — دورة الحياة": {
     title: "تلاق — دورة حياة الأعضاء (صف ثابت لكل عضو)",
@@ -394,15 +401,17 @@ const TAB_SPECS: Record<string, { title: string; headers: string[]; widths: numb
       "تاريخ الانتهاء",
       "تصميم الوداع",
       "ختام التجربة",
+      // آخرُ الأعمدة عمداً (كما في «الحسابات الإدارية»): يبقى فيه رقمُ من غادر — ولو حُذف سجلُّه نهائياً
+      "الرقم الوظيفي",
     ],
-    widths: [160, 220, 150, 140, 190, 130, 150, 160, 170, 180, 170, 180, 160, 110, 110, 160, 140, 160, 150, 200, 110, 160, 220, 100, 180, 160, 160, 160, 170, 200],
+    widths: [160, 220, 150, 140, 190, 130, 150, 160, 170, 180, 170, 180, 160, 110, 110, 160, 140, 160, 150, 200, 110, 160, 220, 100, 180, 160, 160, 160, 170, 200, 130],
   },
   // ── تبويباتُ الحوكمة: لقطةٌ كاملة تُعاد كتابتُها من القاعدة (مصدرِ الحقيقة) — لا صفوفَ تُلحَق فتتكرّر
   //    (`lib/governance/sheets.ts`). والمعرّفُ في العمود الأول معرّفُ القاعدة نفسه.
   "الإدارة العليا": {
     title: "تلاق — الإدارة العليا: القيادة والمناصب والدعوات",
-    headers: ["المعرّف", "الاسم", "البريد الإلكتروني", "المسمّى (عربي)", "المسمّى (إنجليزي)", "الصفة", "المسؤوليات", "الصلاحيات", "تاريخ الانضمام / البدء", "حالة التكليف", "حالة الدعوة", "دعاه", "ملاحظات"],
-    widths: [200, 170, 220, 170, 160, 170, 280, 240, 150, 120, 130, 150, 220],
+    headers: ["المعرّف", "الاسم", "الرقم الوظيفي", "البريد الإلكتروني", "المسمّى (عربي)", "المسمّى (إنجليزي)", "الصفة", "المسؤوليات", "الصلاحيات", "تاريخ الانضمام / البدء", "حالة التكليف", "حالة الدعوة", "دعاه", "ملاحظات"],
+    widths: [200, 170, 130, 220, 170, 160, 170, 280, 240, 150, 120, 130, 150, 220],
   },
   "اللجان": {
     title: "تلاق — اللجان: كلُّها بما فيها المؤرشفة (لا يُحذف شيء)",

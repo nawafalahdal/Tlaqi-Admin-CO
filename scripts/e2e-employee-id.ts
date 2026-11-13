@@ -60,6 +60,20 @@ async function maxNo(): Promise<number> {
     chk("**وعند اعتماده يأخذ الرقمَ التالي**", (approved.employeeNo ?? 0) > beforeApprove, `${approved.employeeNo} بعد ${beforeApprove}`);
     chk("وبطاقتُه تحمل رقمَه", (await businessCardData({ kind: "member", id: member.id }))?.data.employeeId === employeeIdLabel(approved.employeeNo));
 
+    // ── من غادر رقمُه محفوظ («حتى إذا طلع واحد يكون رقمه محفوظ»): يبقى على سجلّه، ولا يُعطى لغيره
+    const { stepDownMember } = await import("@/lib/offboarding");
+    const sd = await stepDownMember({ memberId: member.id, byName: "فحص الرقم", reason: "مغادرةٌ اختبارية", endDate: new Date() });
+    await prisma.member.update({ where: { id: member.id }, data: { isActive: false, terminatedAt: new Date() } });
+    const left = await prisma.member.findUniqueOrThrow({ where: { id: member.id } });
+    chk("**من غادر يبقى رقمُه على سجلّه**", sd.ok && left.employeeNo === approved.employeeNo, `${JSON.stringify(sd)} ${left.employeeNo}`);
+    const after = await prisma.user.create({ data: { fullName: "حساب بعد المغادرة", email: `${TAG}-u2@example.test`, passwordHash: "x", role: "operations_officer", isActive: false } });
+    chk("**ولا يُعطى رقمُه لغيره** — من بعده يأخذ التالي", after.employeeNo !== left.employeeNo && (after.employeeNo ?? 0) > (left.employeeNo ?? 0), `${after.employeeNo} / ${left.employeeNo}`);
+
+    // ── جدولُ الإدارة العليا (Excel والسجل الحي) يحمل الرقمَ بعد الاسم
+    const { governanceTables } = await import("@/lib/governance/sheets");
+    const founderRow = (await governanceTables()).senior.find((r) => r[0] === founder.id);
+    chk("جدولُ الإدارة العليا في Excel والسجل الحي يحمل الرقم", founderRow?.[2] === "TLAQI - 001", JSON.stringify(founderRow?.slice(0, 4)));
+
     // ── المرشّحُ القياديّ: حسابُه وسجلُّ عضويته برقمٍ واحد
     const leadDept = await prisma.department.create({
       data: { name: `قسم ${TAG}`, slug: TAG, colorHex: `#${(Date.now() % 0xffffff).toString(16).padStart(6, "0")}` },
