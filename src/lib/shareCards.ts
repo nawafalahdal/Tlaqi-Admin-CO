@@ -276,7 +276,7 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   const pageInk = card.ink;
   const pageLogo: LogoFile = card.logo;
   const cardInk = card.ink;
-  const cardStroke = ` stroke="${card.ink}" stroke-width="3"`;
+  const cardStroke = ` stroke="${card.ink}" stroke-width="2.5"`;
   const C = CARD_W / 2;
   const X = 180;
   const W = CARD_W - 2 * X;
@@ -287,18 +287,15 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   const roleSize = await fit(d.roleTitle, 32, 300, 22);
   const dept = d.departmentName?.trim() || "تلاق";
   const mark = await markUri(card.logo);
-  const cols = [
-    ["talent", 0],
-    ["innovation", TILE],
-    ["innovation", CARD_W - 2 * TILE],
-    ["talent", CARD_W - TILE],
-  ] as const;
-  const columns = cols
-    .map(([kind, x], i) => {
-      const id = `side-${i}`;
-      return `<defs><pattern id="${id}" x="${x}" y="${COLUMN.y}" width="${TILE}" height="${TILE}" patternUnits="userSpaceOnUse">${patternTile(kind, card.pattern)}</pattern></defs><rect x="${x}" y="${COLUMN.y}" width="${TILE}" height="${COLUMN.rows * TILE}" fill="url(#${id})"/>`;
-    })
-    .join("");
+  // **نمطان كبيران خافتان في الخلفية (قرار المؤسس):** شكلُ «موهبة» في الزاوية العليا وشكلُ «ابتكار» في الزاوية السفلى
+  // المقابلة، كلٌّ منهما شكلٌ واحدٌ مكبَّرٌ بنسبته (لا تمديد ولا تدوير) يخرج عن الحافة، بحبر الخلفية وبشفافيةٍ خفيفة —
+  // فيُرى أثراً هادئاً لا زحمة. ويقعان خلف البطاقة والهوامش وحدها، فلا نمطَ خلف نص.
+  const inkName: PatternColor = card.ink === BRAND.temptress ? "temptress" : "beige";
+  const faint = card.onLight ? 0.07 : 0.1;
+  const motif = (kind: "talent" | "innovation", cx: number, cy: number, scale: number) =>
+    `<g opacity="${faint}" transform="translate(${cx} ${cy}) scale(${scale}) translate(-36 -36)">${patternTile(kind, inkName)}</g>`;
+  // مقاسٌ يُقرأ به الشكلُ كاملاً (نحو ٣٦٠ بكسلاً)، وتقطعه الحافةُ قليلاً فيبدو ممتدّاً خارج البطاقة لا ملصقاً عليها
+  const motifs = motif("talent", CARD_W - 150, 175, 9) + motif("innovation", 150, CARD_H - 170, 9);
   const nameY = 600 + nameSize;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${CARD_W}" height="${CARD_H}">
@@ -306,7 +303,7 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
     <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feGaussianBlur in="SourceAlpha" stdDeviation="26"/><feOffset dy="30"/><feComponentTransfer><feFuncA type="linear" slope="0.38"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
   </defs>
   <rect width="100%" height="100%" fill="${page}"/>
-  ${columns}
+  ${motifs}
   <image href="${logoUri(pageLogo)}" x="${C - 150}" y="66" width="300" height="${Math.round((300 * 706) / 2400)}"/>
   ${t("بطاقة انضمام", C, 236, 26, pageInk, { anchor: "middle" })}
   ${t(`${d.greeting} في العائلة`, C, 300, 48, pageInk, { weight: 700, anchor: "middle" })}
