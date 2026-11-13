@@ -425,11 +425,12 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
  *
  *  **رسميةٌ على طريقة بطاقات الجهات** (مرجعُ المؤسس، نوفمبر 2026)، بمقاس البطاقة الرسمي **CR80 طولياً (٥٤×٨٥٫٦ مم)**
  *  وبدقّة الطباعة (٦٠٠ نقطة/بوصة):
- *  - **الوجه:** العلامةُ أعلى اليمين، وصورةٌ شخصيةٌ مستطيلة (صورةُ هوية) بإطارٍ رفيعٍ بلون القسم، وشريطٌ عموديٌّ يساراً بلون
- *    القسم يحمل اسمَه، وكتلةٌ سفلى بلون الهوية (Temptress) فيها الاسمُ والمنصبُ والمهمّة.
- *  - **الظهر:** Temptress كاملاً والعلامةُ في منتصفه.
- *  - **الأنماطُ في الخلفية كبيرةً خافتة** بقرار المؤسس — لا أشكالاً صريحةً صغيرة. (يخالف هذا قاعدتين في الدليل: «لا نمط خلف
- *    نص» و«لا شفافية» — والقرارُ للمؤسس، ومذكورٌ في سجلّ الهوية.)
+ *  - **الوجه:** الشعارُ الكامل (العلامةُ واسمُنا TLAQI) أعلى اليمين، وصورةٌ شخصيةٌ مستطيلة (صورةُ هوية) بإطارٍ رفيعٍ بلون
+ *    القسم، وشريطٌ عموديٌّ يساراً بلون القسم يحمل اسمَه، وكتلةٌ سفلى بلون الهوية (Temptress) فيها الاسمُ والمنصبُ والمهمّة.
+ *  - **الظهر:** Temptress كاملاً والشعارُ الكاملُ في منتصفه.
+ *  - **النمطُ بطريقته:** بلاطةُ «موهبة» الرسمية مكرّرةً بمقاس L نسيجاً خافتاً في الكتلة السفلى وعلى الظهر — بقرار المؤسس.
+ *    (يخالف هذا قواعدَ في الدليل: «لا نمط خلف نص»، و«لا شفافية»، و«الشعارُ الكامل لا يقلّ عن ٧٠ مم» — والبطاقةُ عرضُها ٥٤.
+ *    والقرارُ للمؤسس، ومذكورٌ في سجلّ الهوية.)
  *  - **الألوان:** الشريطُ بلون القسم؛ والموارد البشرية (Beige) شريطُها Beige بحدٍّ بنفسجيّ كي يُرى؛ والإدارة العليا بنفسجيّ. */
 export const BIZ_MM = { w: 54, h: 85.6 } as const;
 const BIZ_PX_PER_MM = 600 / 25.4;
@@ -447,9 +448,14 @@ export type BusinessCardData = {
   photo: Buffer | null;
 };
 
-function markUri(file: string): string {
-  return `data:image/png;base64,${readFileSync(join(BRAND_DIR, "2026", "logos", file)).toString("base64")}`;
+/** نسيجُ «موهبة» الرسمي: بلاطةُ الدليل نفسُها (١٢٫٧ مم لـM) مكبّرةً إلى L (٢٥٫٤ مم) ومكرّرةً — خافتاً بشفافية `opacity`.
+ *  تبدأ الشبكةُ من `x0, y0` فيتمركز النقشُ في المساحة لا يُقطع اعتباطاً */
+function bizTexture(id: string, x0: number, y0: number, w: number, h: number, opacity: number): string {
+  const L = mm(25.4);
+  return `<defs><pattern id="${id}" x="${x0}" y="${y0}" width="${L}" height="${L}" patternUnits="userSpaceOnUse"><g transform="scale(${(L / TILE).toFixed(4)})">${patternTile("talent", "beige")}</g></pattern></defs>
+  <rect x="${x0}" y="${y0}" width="${w}" height="${h}" fill="url(#${id})" opacity="${opacity}"/>`;
 }
+const LOGO_RATIO = 706 / 2400;
 
 /** **الوجه:** الهويةُ الرسمية للشخص */
 export async function renderBusinessCard(d: BusinessCardData): Promise<Buffer> {
@@ -471,16 +477,17 @@ export async function renderBusinessCard(d: BusinessCardData): Promise<Buffer> {
   const stripX = mm(4);
   const stripW = mm(6.5);
   const stripBottom = blockTop + mm(5); // يدخل الكتلةَ قليلاً كما في بطاقات الجهات
-  const markH = mm(10);
-  const markW = Math.round((markH * 1200) / 1300);
+  // الشعارُ الكامل: يمتدّ من حافة الإطار اليمنى، ولا يبلغ الشريط
+  const logoW = mm(33);
+  const logoH = Math.round(logoW * LOGO_RATIO);
   const PW = mm(24);
   const PH = mm(30);
   const PX = W - M - mm(1) - PW;
   const PY = mm(19);
 
-  // ── النمطُ كبيراً خافتاً، والشكلُ كاملاً يُعرَف: «موهبة» (النمطُ الأساسي) في الكتلة وحدها كما في بطاقات الجهات —
-  //    والصفحةُ فوقها نظيفةٌ رسمية
-  const faint = `<g clip-path="url(#blk)">${motifAt("talent", BRAND.beige, mm(13), mm(72), mm(13), 0.1)}</g>`;
+  // ── النمطُ بطريقته: بلاطةُ «موهبة» مكرّرةً نسيجاً خافتاً في الكتلة وحدها كما في بطاقات الجهات — والصفحةُ فوقها نظيفة
+  const L = mm(25.4);
+  const faint = bizTexture("tex", Math.round(W / 2 - L * 1.5), blockTop, Math.round(L * 3), H - blockTop, 0.09);
 
   // ── الصورة: مستطيلةٌ بإطارٍ رفيعٍ وهامشٍ أبيضَ كصورة الهوية
   let portrait: string;
@@ -550,7 +557,7 @@ export async function renderBusinessCard(d: BusinessCardData): Promise<Buffer> {
   ${faint}
   <rect x="${stripX}" y="0" width="${stripW}" height="${stripBottom}" fill="${strip}"${stripEdge ? ` stroke="${stripEdge}" stroke-width="${mm(0.3)}"` : ""}/>
   ${stripLabel}
-  <image href="${markUri("TLAQI-mark_mahogany.png")}" x="${W - M - markW}" y="${mm(5)}" width="${markW}" height="${markH}"/>
+  <image href="${logoUri("on-beige")}" x="${W - M - logoW}" y="${mm(6)}" width="${logoW}" height="${logoH}"/>
   <rect x="${PX - pad}" y="${PY - pad}" width="${PW + 2 * pad}" height="${PH + 2 * pad}" fill="${page}" stroke="${frame}" stroke-width="${mm(0.25)}"/>
   ${portrait}
   ${text}
@@ -558,17 +565,18 @@ export async function renderBusinessCard(d: BusinessCardData): Promise<Buffer> {
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
-/** **الظهر:** Temptress كاملاً، والعلامةُ في منتصفه، و«موهبة» كبيرةٌ خافتةٌ يقطعها الحدّ */
+/** **الظهر:** Temptress كاملاً بنسيج «موهبة» الخافت، والشعارُ الكاملُ في منتصفه */
 export async function renderBusinessCardReverse(): Promise<Buffer> {
   ensureFonts();
   const W = mm(BIZ_MM.w);
   const H = mm(BIZ_MM.h);
-  const markW = mm(18);
-  const markH = Math.round((markW * 1300) / 1200);
+  const L = mm(25.4);
+  const logoW = mm(42);
+  const logoH = Math.round(logoW * LOGO_RATIO);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}">
   <rect width="${W}" height="${H}" fill="${BRAND.temptress}"/>
-  ${motifAt("talent", BRAND.beige, W - mm(9), H - mm(13), mm(16), 0.09)}
-  <image href="${markUri("TLAQI-mark_mahogany.png")}" x="${Math.round((W - markW) / 2)}" y="${Math.round(H / 2 - markH / 2)}" width="${markW}" height="${markH}"/>
+  ${bizTexture("tex", Math.round(W / 2 - L * 1.5), Math.round(H / 2 - L * 2), Math.round(L * 3), Math.round(L * 4), 0.08)}
+  <image href="${logoUri("on-temptress")}" x="${Math.round((W - logoW) / 2)}" y="${Math.round(H / 2 - logoH / 2)}" width="${logoW}" height="${logoH}"/>
 </svg>`;
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
