@@ -297,11 +297,11 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   </defs>
   <rect width="100%" height="100%" fill="${page}"/>
   ${motifs}
-  ${t("بطاقة انضمام", C, 196, 26, pageInk, { anchor: "middle" })}
-  ${t(`${d.greeting} في العائلة`, C, 262, 48, pageInk, { weight: 700, anchor: "middle" })}
+  <image href="${logoUri(pageLogo)}" x="${C - 150}" y="66" width="300" height="${Math.round((300 * 706) / 2400)}"/>
+  ${t("بطاقة انضمام", C, 236, 26, pageInk, { anchor: "middle" })}
+  ${t(`${d.greeting} في العائلة`, C, 300, 48, pageInk, { weight: 700, anchor: "middle" })}
   <g filter="url(#shadow)"><rect x="${X}" y="360" width="${W}" height="680" rx="48" fill="${card.bg}"${cardStroke}/></g>
-  <image href="${logoUri(pageLogo)}" x="${R - 280}" y="410" width="280" height="${Math.round((280 * 706) / 2400)}"/>
-  ${t(dept, IL, 462, 28, cardInk, { weight: 700, anchor: "left" })}
+  ${t(dept, R, 452, 30, cardInk, { weight: 700 })}
   ${t(d.fullName, R, nameY, nameSize, cardInk, { weight: HERO })}
   ${t(d.title, R, nameY + 70, titleSize, cardInk)}
   <line x1="${IL}" y1="850" x2="${R}" y2="850" stroke="${cardInk}" stroke-width="2"/>
