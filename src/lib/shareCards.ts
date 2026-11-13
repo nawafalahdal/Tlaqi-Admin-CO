@@ -423,14 +423,14 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
 // ═══════════════════════════════════════════════════════════════════════════════════════════════════
 /** **بطاقةُ العمل (Business Card)** — مقترحٌ للمعاينة، لم يُربط بصفحةٍ بعد (بانتظار اعتماد المؤسس).
  *
- *  ٩٠×٥٠ مم (المقاسُ الشائع في السعودية) مرسومةً بدقّة الطباعة (٦٠٠ نقطة/بوصة)، بوجهين:
- *  - **الأمام — الهوية:** لونُ القسم كاملاً، والشعارُ الكاملُ بنسخته الرسمية لذلك اللون بعرض ٧٠ مم (حدُّه الأدنى في
- *    الدليل)، وشريطُ الأنماط بمقاس M أسفلَه منفصلاً عنه.
- *  - **الخلف — الشخص:** صورتُه في دائرةٍ بلون انتمائه، واسمُه بطلاً، ومنصبُه، ومهمّتُه، وقسمُه بنقطةٍ بلونه؛ وعمودُ
- *    الأنماط (موهبة · ربط · ابتكار) يساراً منفصلاً عن الكلام، والعلامةُ وحدها (فالشعارُ هنا أصغرُ من ٧٠ مم).
- *  - **الألوانُ نظامُ بطاقة العضوية المعتمد:** صفحةٌ Beige وأنماطٌ بلون القسم؛ الإدارةُ العليا بنفسجيةٌ كاملة بأنماطٍ
- *    Beige؛ والموارد البشرية (Beige) أنماطُها بنفسجية. والكلامُ كلُّه بالحبر الصلب — لا شفافيةَ تصنع لوناً خامساً. */
-export const BIZ_MM = { w: 90, h: 50 } as const;
+ *  **طوليةٌ ٥٠×٩٠ مم** (طلبُ المؤسس) بدقّة الطباعة (٦٠٠ نقطة/بوصة)، رسميةٌ متمركزة، بوجهين:
+ *  - **الأمام — الهوية:** لونُ القسم كاملاً، والعلامةُ وحدها في المنتصف (الشعارُ الكاملُ لا يقلّ عن ٧٠ مم في الدليل،
+ *    والبطاقةُ عرضُها ٥٠)، والأنماطُ الثلاثة توقيعاً هادئاً أسفلَها.
+ *  - **الخلف — الشخص:** ترويسةٌ بلون القسم فيها الأنماطُ الثلاثة، وصورتُه على حدّها بحلقةٍ رفيعة، ثم متمركزاً:
+ *    اسمُه بطلاً، فمنصبُه، فمهمّتُه، فقسمُه بنقطةٍ بلونه — والعلامةُ صغيرةً في الأسفل.
+ *  - **الألوانُ بقرارات المؤسس:** الإدارةُ العليا بنفسجيةٌ كاملة؛ والموارد البشرية (Beige) شريطُها بنفسجيّ؛ وما سواهما صفحةٌ
+ *    Beige وترويسةٌ بلون القسم. والنمطُ على الترويسة بزوج الدليل للونها، والكلامُ كلُّه بالحبر الصلب. */
+export const BIZ_MM = { w: 50, h: 90 } as const;
 const BIZ_PX_PER_MM = 600 / 25.4;
 const mm = (v: number) => Math.round(v * BIZ_PX_PER_MM);
 
@@ -453,30 +453,38 @@ const PATTERN_HEX: Record<PatternColor, string> = {
   "green-sheen": BRAND.greenSheen,
 };
 
-/** ألوانُ وجهِ الشخص — نظامُ بطاقة العضوية نفسُه */
-function bizColors(colorHex: string | null) {
+/** ألوانُ الوجه الخلفي */
+function bizScheme(colorHex: string | null) {
   const accent = palette(colorHex).bg;
-  const frame = contrast(accent, BRAND.temptress) < 1.25; // الإدارة العليا
-  const faded = !frame && contrast(accent, BRAND.beige) < 1.5; // الموارد البشرية
+  const senior = contrast(accent, BRAND.temptress) < 1.25;
+  const beigeDept = !senior && contrast(accent, BRAND.beige) < 1.5; // الموارد البشرية
+  const band = beigeDept ? BRAND.temptress : accent; // «الموارد البشرية: الشريطُ وحده بنفسجيّ»
+  const onBand = themeFromColor(band).text === BRAND.ink ? BRAND.temptress : BRAND.beige;
   return {
-    accent,
-    frame,
-    faded,
-    page: frame ? BRAND.temptress : BRAND.beige,
-    ink: frame ? BRAND.beige : BRAND.temptress,
-    pat: frame ? BRAND.beige : faded ? BRAND.temptress : accent,
+    senior,
+    page: senior ? BRAND.temptress : BRAND.beige,
+    ink: senior ? BRAND.beige : BRAND.temptress,
+    band,
+    onBand,
+    dot: senior ? BRAND.beige : band,
   };
 }
 
-/** نقشُ M: البلاطةُ ١٢٫٧ مم، والشكلُ فيها نحو ٣٫٧ مم نصفَ قطر */
+/** نقشُ M: البلاطةُ ١٢٫٧ مم، والشكلُ فيها نحو ٣٫٧ مم نصفَ قطر — ثلاثةٌ كاملةٌ في صفّ: موهبة · ربط · ابتكار */
 const BIZ_TILE = mm(12.7);
 const BIZ_R = mm(3.7);
 function bizMotif(kind: Motif, fill: string, cx: number, cy: number): string {
   return kind === "link" ? linkAt(fill, cx, cy + Math.round(BIZ_R * 0.1), BIZ_R) : motifAt(kind, fill, cx, cy, BIZ_R);
 }
-const BIZ_CYCLE: Motif[] = ["talent", "link", "innovation"];
+function bizMotifRow(fill: string, cx: number, cy: number): string {
+  // يُقرأ من اليمين: موهبة ← ربط ← ابتكار
+  return (["innovation", "link", "talent"] as Motif[]).map((k, i) => bizMotif(k, fill, Math.round(cx + (i - 1) * BIZ_TILE), cy)).join("");
+}
+function markUri(file: string): string {
+  return `data:image/png;base64,${readFileSync(join(BRAND_DIR, "2026", "logos", file)).toString("base64")}`;
+}
 
-/** **الأمام:** لونُ القسم كاملاً، الشعارُ الرسميُّ لذلك اللون بعرض ٧٠ مم، وشريطُ الأنماط أسفلَه */
+/** **الأمام:** لونُ القسم كاملاً، والعلامةُ في المنتصف، والأنماطُ الثلاثة أسفلَها */
 export async function renderBusinessCardFront(colorHex: string | null): Promise<Buffer> {
   ensureFonts();
   const W = mm(BIZ_MM.w);
@@ -484,73 +492,45 @@ export async function renderBusinessCardFront(colorHex: string | null): Promise<
   const p = palette(colorHex);
   // نمطُ الموارد البشرية (Beige) بنفسجيٌّ بقرار المؤسس، وما سواه زوجُ الدليل للونه
   const pat = p.bg === BRAND.beige.toUpperCase() ? BRAND.temptress : PATTERN_HEX[p.pattern];
-
-  const bandH = BIZ_TILE;
-  const bandY = H - bandH / 2;
-  let band = "";
-  const n = Math.ceil(W / BIZ_TILE) + 2;
-  const x0 = W / 2 - Math.floor(n / 2) * BIZ_TILE;
-  for (let i = 0; i < n; i++) {
-    band += bizMotif(BIZ_CYCLE[i % 3], pat, Math.round(x0 + i * BIZ_TILE), Math.round(bandY));
-  }
-
-  const logoW = mm(70);
-  const logoH = Math.round((logoW * 706) / 2400);
-  const logoY = Math.round((H - bandH - logoH) / 2);
+  const markW = mm(22);
+  const markH = Math.round((markW * 1300) / 1200);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}">
   <rect width="${W}" height="${H}" fill="${p.bg}"/>
-  <image href="${logoUri(p.logo)}" x="${Math.round((W - logoW) / 2)}" y="${logoY}" width="${logoW}" height="${logoH}"/>
-  ${band}
+  <image href="${markUri(MARK_FOR[p.logo])}" x="${Math.round((W - markW) / 2)}" y="${Math.round(mm(40) - markH / 2)}" width="${markW}" height="${markH}"/>
+  ${bizMotifRow(pat, W / 2, mm(78))}
 </svg>`;
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
-/** **الخلف:** الصورةُ والاسمُ والمنصبُ والمهمّةُ والقسم — وعمودُ الأنماط والعلامة */
+/** **الخلف:** الترويسةُ والصورةُ على حدّها، ثم الاسمُ والمنصبُ والمهمّةُ والقسم متمركزةً، والعلامةُ أسفل */
 export async function renderBusinessCardBack(d: BusinessCardData): Promise<Buffer> {
   ensureFonts();
   const W = mm(BIZ_MM.w);
   const H = mm(BIZ_MM.h);
-  const c = bizColors(d.colorHex);
+  const c = bizScheme(d.colorHex);
+  const CX = W / 2;
 
-  // ── عمودُ الأنماط يساراً: موهبة ← ربط ← ابتكار، ثلاثةٌ كاملةٌ متمركزة — لا شظايا عند الحافة
-  //    (في بطاقةٍ بهذا الصغر تبدو الشظيةُ نقطةً شاردة، وقصُّ المطبعة لا يقطعها بالتساوي)
-  let column = "";
-  const colX = mm(9);
-  for (let k = -1; k <= 1; k++) {
-    column += bizMotif(BIZ_CYCLE[k + 1], c.pat, colX, Math.round(H / 2 + k * BIZ_TILE));
-  }
-
-  // ── العلامةُ وحدها أعلى منطقة الكلام يساراً — على صفّ «موهبة» أعلى العمود، لا طافيةً وحدها
-  const markH = mm(7);
-  const markW = Math.round((markH * 1200) / 1300);
-  const markX = mm(22);
-  const markY = Math.round(H / 2 - BIZ_TILE - markH / 2);
-  const mark = `data:image/png;base64,${readFileSync(join(BRAND_DIR, "2026", "logos", MARK_FOR[c.frame ? "on-temptress" : "on-beige"])).toString("base64")}`;
-
-  // ── الصورة: دائرةٌ يميناً بلون الانتماء، وحلقةٌ حين تذوب في الصفحة
-  const D = mm(26);
-  const PCX = W - mm(5) - D / 2;
-  const PCY = H / 2;
-  const circle = c.frame ? BRAND.temptress : c.faded ? BRAND.beige : c.accent;
-  const ring = contrast(circle, c.page) < 1.5 ? c.pat : null;
+  // ── الترويسة والصورة على حدّها
+  const bandH = mm(30);
+  const D = mm(25);
+  const PCY = bandH;
+  const ringW = mm(0.9);
   let portrait: string;
   if (d.photo) {
     const png = await sharp(d.photo).resize(D, D, { fit: "cover", position: "top" }).png().toBuffer();
-    portrait = `<image href="data:image/png;base64,${png.toString("base64")}" x="${PCX - D / 2}" y="${PCY - D / 2}" width="${D}" height="${D}" clip-path="url(#ph)"/>`;
+    portrait = `<image href="data:image/png;base64,${png.toString("base64")}" x="${CX - D / 2}" y="${PCY - D / 2}" width="${D}" height="${D}" clip-path="url(#ph)"/>`;
   } else {
-    const onCircle = themeFromColor(circle).text === BRAND.ink ? BRAND.temptress : BRAND.beige;
     const initial = firstName(d.fullName).trim().charAt(0) || "T";
-    portrait = t(initial, PCX, PCY + mm(3.8), mm(11), onCircle, { anchor: "middle", weight: HERO });
+    portrait = t(initial, CX, PCY + mm(3.6), mm(10.5), c.onBand, { anchor: "middle", weight: HERO });
   }
 
-  // ── الكلام: كتلةٌ واحدةٌ يمينَ الوسط، حافتُها اليمنى عند الصورة
-  const RX = PCX - D / 2 - mm(5);
-  const TW = RX - mm(22);
+  // ── الكلام متمركزاً بين الصورة والعلامة
+  const TW = W - mm(8);
   const name = d.fullName.trim();
   let nameLines = [name];
-  let nameSize = await fit(name, mm(4.8), TW, mm(3.2), HERO);
+  let nameSize = await fit(name, mm(4.6), TW, mm(3.2), HERO);
   const words = name.split(/\s+/);
-  if (nameSize < mm(4) && words.length > 1) {
+  if (nameSize < mm(3.8) && words.length > 1) {
     const binds = new Set(["بن", "بنت", "ابن", "عبد", "أبو", "ابو", "آل"]);
     let best: [string, string] = [words[0], words.slice(1).join(" ")];
     let bestDiff = Infinity;
@@ -564,51 +544,56 @@ export async function renderBusinessCardBack(d: BusinessCardData): Promise<Buffe
     nameLines = best;
     nameSize = Math.min(await fit(best[0], mm(4.2), TW, mm(3), HERO), await fit(best[1], mm(4.2), TW, mm(3), HERO));
   }
-  const posSize = await fit(d.position, mm(3), TW, mm(2.3), 700);
+  const posSize = await fit(d.position, mm(2.9), TW, mm(2.2), 700);
   const task = d.task?.trim() || null;
-  const taskSize = task ? await fit(task, mm(2.7), TW, mm(2.2), 400) : 0;
+  const taskSize = task ? await fit(task, mm(2.6), TW, mm(2.1), 400) : 0;
   const dept = d.departmentName?.trim() || "TLAQI";
-  const dot = mm(1.7);
-  const deptSize = await fit(dept, mm(2.7), TW - dot - mm(1.6), mm(2.2), 700);
+  const dot = mm(1.6);
+  const dotGap = mm(1.5);
+  const deptSize = await fit(dept, mm(2.6), TW - dot - dotGap, mm(2.1), 700);
+  const deptW = await textWidth(dept, deptSize, 700);
 
-  // سطرُ الاسم الأول إن حاذى العلامةَ عمودياً لا يمتدّ تحتها: يصغُر ليتّسع يمينَها
-  const blockTop = (sz: number, lines: number) =>
-    (H - (sz + (lines - 1) * Math.round(sz * 1.18) + mm(2.2) + mm(3) + (d.task?.trim() ? mm(1.4) + mm(2.7) : 0) + mm(2.8) + mm(2.7))) / 2;
-  if (blockTop(nameSize, nameLines.length) < markY + markH + mm(1)) {
-    const clear = RX - (markX + markW + mm(2));
-    nameSize = Math.min(nameSize, await fit(nameLines[0], nameSize, clear, mm(2.8), HERO));
-  }
-  const nameStep = Math.round(nameSize * 1.18);
-  const gapAfterName = mm(2.2);
-  const gapAfterPos = mm(1.4);
-  const gapBeforeDept = mm(2.8);
-  const blockH =
-    nameSize + (nameLines.length - 1) * nameStep + gapAfterName + posSize + (task ? gapAfterPos + taskSize : 0) + gapBeforeDept + deptSize;
-  let y = Math.round((H - blockH) / 2 + nameSize * 0.9);
+  const markH = mm(6.5);
+  const markW = Math.round((markH * 1200) / 1300);
+  const markTop = H - mm(6) - markH;
+
+  const nameStep = Math.round(nameSize * 1.2);
+  const g1 = mm(2.4); // الاسم ← المنصب
+  const g2 = mm(1.5); // المنصب ← المهمّة
+  const g3 = mm(3.2); // ← القسم
+  const blockH = nameSize + (nameLines.length - 1) * nameStep + g1 + posSize + (task ? g2 + taskSize : 0) + g3 + deptSize;
+  const zoneTop = PCY + D / 2 + ringW;
+  const zoneBottom = markTop;
+  let y = Math.round(zoneTop + (zoneBottom - zoneTop - blockH) / 2 + nameSize * 0.85);
+
   let text = "";
   for (const line of nameLines) {
-    text += t(line, RX, y, nameSize, c.ink, { weight: HERO });
+    text += t(line, CX, y, nameSize, c.ink, { anchor: "middle", weight: HERO });
     y += nameStep;
   }
-  y += -nameStep + gapAfterName + posSize;
-  text += t(d.position, RX, y, posSize, c.ink, { weight: 700 });
+  y += -nameStep + g1 + posSize;
+  text += t(d.position, CX, y, posSize, c.ink, { anchor: "middle", weight: 700 });
   if (task) {
-    y += gapAfterPos + taskSize;
-    text += t(task, RX, y, taskSize, c.ink);
+    y += g2 + taskSize;
+    text += t(task, CX, y, taskSize, c.ink, { anchor: "middle" });
   }
-  y += gapBeforeDept + deptSize;
-  text += `<circle cx="${RX - dot / 2}" cy="${y - Math.round(deptSize * 0.32)}" r="${dot / 2}" fill="${c.pat}"/>`;
-  text += t(dept, RX - dot - mm(1.6), y, deptSize, c.ink, { weight: 700 });
+  y += g3 + deptSize;
+  // النقطةُ يمينَ اسم القسم، والسطرُ كلُّه متمركز
+  const lineW = dot + dotGap + deptW;
+  const right = CX + lineW / 2;
+  text += `<circle cx="${Math.round(right - dot / 2)}" cy="${Math.round(y - deptSize * 0.32)}" r="${dot / 2}" fill="${c.dot}"/>`;
+  text += t(dept, Math.round(right - dot - dotGap), y, deptSize, c.ink, { weight: 700 });
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}">
-  <defs><clipPath id="ph"><circle cx="${PCX}" cy="${PCY}" r="${D / 2}"/></clipPath></defs>
+  <defs><clipPath id="ph"><circle cx="${CX}" cy="${PCY}" r="${D / 2}"/></clipPath></defs>
   <rect width="${W}" height="${H}" fill="${c.page}"/>
-  ${column}
-  <image href="${mark}" x="${markX}" y="${markY}" width="${markW}" height="${markH}"/>
-  <circle cx="${PCX}" cy="${PCY}" r="${D / 2}" fill="${circle}"/>
+  <rect width="${W}" height="${bandH}" fill="${c.band}"/>
+  ${bizMotifRow(c.onBand, CX, mm(10))}
+  <circle cx="${CX}" cy="${PCY}" r="${D / 2 + ringW}" fill="${BRAND.beige}"/>
+  <circle cx="${CX}" cy="${PCY}" r="${D / 2}" fill="${c.band}"/>
   ${portrait}
-  ${ring ? `<circle cx="${PCX}" cy="${PCY}" r="${D / 2 - mm(0.25)}" fill="none" stroke="${ring}" stroke-width="${mm(0.5)}"/>` : ""}
   ${text}
+  <image href="${markUri(MARK_FOR[c.senior ? "on-temptress" : "on-beige"])}" x="${Math.round(CX - markW / 2)}" y="${markTop}" width="${markW}" height="${markH}"/>
 </svg>`;
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
