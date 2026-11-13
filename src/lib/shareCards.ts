@@ -246,16 +246,6 @@ export function approvedLogoFor(colorHex: string): { logo: LogoFile; mark: strin
   return { logo, mark: MARK_FOR[logo] };
 }
 
-const markCache = new Map<string, string>();
-async function markUri(logo: LogoFile): Promise<string> {
-  const file = MARK_FOR[logo];
-  const hit = markCache.get(file);
-  if (hit) return hit;
-  const png = await sharp(readFileSync(join(BRAND_DIR, "2026", "logos", file))).resize({ width: 192 }).png().toBuffer();
-  const uri = `data:image/png;base64,${png.toString("base64")}`;
-  markCache.set(file, uri);
-  return uri;
-}
 
 /** **بطاقةُ الاعتماد (العضوية)** — تصميمُها الأصلي الذي اختاره المؤسس (بطاقةٌ بلون القسم على خلفية الهوية)، محسَّناً:
  *  - **الأنماطُ على الجانبين:** عمودا «موهبة» و«ابتكار» بلون الدليل لخلفية القسم (كانت نقاطاً عامّة ورمزاً شفّافاً).
@@ -286,7 +276,6 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   const titleSize = await fit(d.title, 40, W - 112, 26);
   const roleSize = await fit(d.roleTitle, 32, 300, 22);
   const dept = d.departmentName?.trim() || "تلاق";
-  const mark = await markUri(card.logo);
   // **نمطان كبيران خافتان في الخلفية (قرار المؤسس):** شكلُ «موهبة» في الزاوية العليا وشكلُ «ابتكار» في الزاوية السفلى
   // المقابلة، كلٌّ منهما شكلٌ واحدٌ مكبَّرٌ بنسبته (لا تمديد ولا تدوير) يخرج عن الحافة، بحبر الخلفية وبشفافيةٍ خفيفة —
   // فيُرى أثراً هادئاً لا زحمة. ويقعان خلف البطاقة والهوامش وحدها، فلا نمطَ خلف نص.
@@ -308,12 +297,11 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   </defs>
   <rect width="100%" height="100%" fill="${page}"/>
   ${motifs}
-  <image href="${logoUri(pageLogo)}" x="${C - 150}" y="66" width="300" height="${Math.round((300 * 706) / 2400)}"/>
-  ${t("بطاقة انضمام", C, 236, 26, pageInk, { anchor: "middle" })}
-  ${t(`${d.greeting} في العائلة`, C, 300, 48, pageInk, { weight: 700, anchor: "middle" })}
+  ${t("بطاقة انضمام", C, 196, 26, pageInk, { anchor: "middle" })}
+  ${t(`${d.greeting} في العائلة`, C, 262, 48, pageInk, { weight: 700, anchor: "middle" })}
   <g filter="url(#shadow)"><rect x="${X}" y="360" width="${W}" height="680" rx="48" fill="${card.bg}"${cardStroke}/></g>
-  ${t(dept, R, 452, 30, cardInk, { weight: 700 })}
-  <image href="${mark}" x="${IL}" y="404" width="64" height="69"/>
+  <image href="${logoUri(pageLogo)}" x="${R - 280}" y="410" width="280" height="${Math.round((280 * 706) / 2400)}"/>
+  ${t(dept, IL, 462, 28, cardInk, { weight: 700, anchor: "left" })}
   ${t(d.fullName, R, nameY, nameSize, cardInk, { weight: HERO })}
   ${t(d.title, R, nameY + 70, titleSize, cardInk)}
   <line x1="${IL}" y1="850" x2="${R}" y2="850" stroke="${cardInk}" stroke-width="2"/>
