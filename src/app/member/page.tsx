@@ -31,7 +31,8 @@ import { WELCOME_MAX_SENDS, resenderRoleFor } from "@/lib/welcomeResend";
 import { myCommittees } from "@/lib/org/queries";
 import { MyCommittees } from "@/app/committees/_components/MyCommittees";
 import { MyMembershipCard, MY_CARD_READY } from "@/components/MyMembershipCard";
-import { shareCardUrl, cardFingerprint } from "@/lib/bannerToken";
+import { shareCardUrl } from "@/lib/bannerToken";
+import { businessCardVersion } from "@/lib/businessCardData";
 import { firstName } from "@/lib/personName";
 
 export default async function MemberPortalPage() {
@@ -130,17 +131,25 @@ export default async function MemberPortalPage() {
 
         {/* «بطاقتي»: بطاقةُ العضوية يحفظها صاحبُها من صفحته — لم تعد تُرفق برسالة الاعتماد (قرار المؤسس).
             والرابطُ ببصمة ما يُرسم فيها: يُخزَّن ولا يُعاد رسمُه في كل زيارة، ويتجدّد إن تغيّر الاسمُ أو القسم.
-            وهي الآن «قريباً» (`MY_CARD_READY`) حتى يُعتمد تصميمُها مع الصورة الشخصية */}
+            وهي البطاقةُ الرسمية المعتمدة (CR80) بصورته — والمفتاحُ `MY_CARD_READY` يُعيدها «قريباً» */}
         <section>
           <MyMembershipCard
             card={
               MY_CARD_READY
                 ? {
                     url: shareCardUrl(
-                      "welcome",
+                      "business",
                       { kind: "member", id: member.id },
                       "",
-                      cardFingerprint([member.fullName, member.jobTitle, member.department?.name, member.department?.colorHex, member.decidedAt?.toISOString()])
+                      businessCardVersion({
+                        fullName: member.fullName,
+                        jobTitle: member.jobTitle,
+                        role: session.user.role,
+                        departmentName: member.department?.name ?? null,
+                        colorHex: member.department?.colorHex ?? null,
+                        gender: member.gender,
+                        avatarVersion: member.avatarVersion,
+                      })
                     ),
                     fileName: `TLAQI-${firstName(member.fullName)}`,
                   }

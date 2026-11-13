@@ -19,7 +19,8 @@ import { portraitColorFor } from "@/lib/portraitTone";
 import { SecurityGuidance } from "@/components/SecurityGuidance";
 import { GovernanceCharter } from "@/components/GovernanceCharter";
 import { MyMembershipCard, MY_CARD_READY } from "@/components/MyMembershipCard";
-import { shareCardUrl, cardFingerprint } from "@/lib/bannerToken";
+import { shareCardUrl } from "@/lib/bannerToken";
+import { businessCardVersion } from "@/lib/businessCardData";
 import { firstName } from "@/lib/personName";
 
 /** بيانات صاحب الحساب الإداري.
@@ -143,16 +144,24 @@ export default async function AdminProfilePage() {
         />
 
         {/* «بطاقتي» للجميع لا للأعضاء وحدهم (قرار المؤسس): المؤسسُ والإدارةُ العليا والقادةُ هنا،
-            بطاقةُ الحساب نفسِه (`user`) — وهي «قريباً» حتى يُعتمد تصميمُها مع الصورة الشخصية */}
+            بطاقةُ الحساب نفسِه (`user`) الرسميةُ المعتمدة بصورته */}
         <MyMembershipCard
           card={
             MY_CARD_READY
               ? {
                   url: shareCardUrl(
-                    "welcome",
+                    "business",
                     { kind: "user", id: user.id },
                     "",
-                    cardFingerprint([user.fullName, user.jobTitle, user.role, user.gender, user.department?.name, user.department?.colorHex, user.createdAt.toISOString()])
+                    businessCardVersion({
+                      fullName: user.fullName,
+                      jobTitle: user.jobTitle,
+                      role: user.role,
+                      departmentName: shownDepartment?.name ?? null,
+                      colorHex: shownDepartment?.colorHex ?? null,
+                      gender: user.gender,
+                      avatarVersion: user.avatarVersion,
+                    })
                   ),
                   fileName: `TLAQI-${firstName(user.fullName)}`,
                 }

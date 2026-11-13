@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyBannerToken } from "@/lib/bannerToken";
-import { renderInviteCard, renderWelcomeCard } from "@/lib/shareCards";
+import { renderBusinessCard, renderInviteCard, renderWelcomeCard } from "@/lib/shareCards";
+import { businessCardData } from "@/lib/businessCardData";
 import { departmentColor } from "@/lib/departmentColor";
 import { forms, gx, positionTitle, roleTitle } from "@/lib/gender";
 
 /** sharp يحتاج Node لا Edge */
 export const runtime = "nodejs";
 
-/** صورتا المشاركة: `invite` (ملصق الدعوة) و`welcome` (بطاقة العضوية).
+/** صورُ المشاركة: `invite` (ملصق الدعوة) و`welcome` (بطاقة العضوية) و`business` (البطاقة الرسمية في «بطاقتي»).
  *
  *  تُولَّد حين يطلبها عميل البريد، والرابط موقَّعٌ لصاحبه بالتوقيع نفسه
  *  الذي يحرس اللوحة الترحيبية — لولاه لأمكن تخمينُ معرّفٍ وقراءةُ اسم
@@ -21,13 +22,18 @@ export async function GET(
   { params }: { params: Promise<{ type: string; token: string }> }
 ) {
   const { type, token } = await params;
-  if (type !== "invite" && type !== "welcome") return new NextResponse("غير موجود", { status: 404 });
+  if (type !== "invite" && type !== "welcome" && type !== "business") return new NextResponse("غير موجود", { status: 404 });
   const subject = verifyBannerToken(decodeURIComponent(token));
   if (!subject) return new NextResponse("غير موجود", { status: 404 });
 
   try {
     let png: Buffer;
-    if (type === "invite") {
+    if (type === "business") {
+      // البطاقةُ الرسمية («بطاقتي») — من مصدرها الواحد الذي ترسمه رسالةُ الترحيب أيضاً
+      const card = await businessCardData(subject);
+      if (!card) return new NextResponse("غير موجود", { status: 404 });
+      png = await renderBusinessCard(card.data);
+    } else if (type === "invite") {
       // الدعوة للمرشّح وحده: له سجلُّ عضوٍ منذ لحظة دعوته
       if (subject.kind !== "member") return new NextResponse("غير موجود", { status: 404 });
       const m = await prisma.member.findUnique({

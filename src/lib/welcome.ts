@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { WELCOME_MAX_SENDS } from "@/lib/welcomeResend";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { sendWelcomeEmail } from "@/lib/email";
+import { businessCardAttachment } from "@/lib/businessCardData";
 import { accountRoleLabel } from "@/lib/testTracks";
 import { departmentBrand } from "@/lib/departmentBrand";
 import { syncAdminAccountRow, syncMemberLifecycleRow } from "@/lib/workflow";
@@ -297,6 +298,16 @@ async function releaseWelcomeClaim(subject: WelcomeSubject, at: Date) {
 const ALREADY_SENT =
   "بطاقة الانضمام تُرسل مرّةً واحدة وقد أُرسلت — وانتهت بها صلاحية الإرسال لهذا الشخص.";
 
+/** البطاقةُ الرسمية مرفقاً لرسالة الترحيب — `null` إن تعذّر رسمُها: الترحيبُ يصل بلا مرفقٍ ولا يتعطّل لأجله */
+async function welcomeCardAttachment(subject: WelcomeSubject) {
+  try {
+    return await businessCardAttachment(subject);
+  } catch (err) {
+    console.error("[welcome] تعذّر رسمُ البطاقة الرسمية — يُرسَل الترحيبُ بدونها:", err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
 export async function sendWelcomePack(
   subject: WelcomeSubject,
   occasion: "approved" | "resend" = "resend",
@@ -325,7 +336,10 @@ export async function sendWelcomePack(
     const claim = await claimWelcomeSend(subject, at, user.email, repeat, uncapped);
     if (!claim.claimed) return { ok: false, reason: claim.reason };
 
+    // البطاقةُ الرسمية مرفقةً (قرار المؤسس) — وتعذُّرُ رسمها لا يمنع الترحيب
+    const card = await welcomeCardAttachment(subject);
     const sent = await sendWelcomeEmail({
+      ...(card ? { attachments: [card] } : {}),
       to: user.email,
       fullName: user.fullName,
       roleLabel,
@@ -400,7 +414,9 @@ export async function sendWelcomePack(
   const claim = await claimWelcomeSend(subject, at, member.email, repeat);
   if (!claim.claimed) return { ok: false, reason: claim.reason };
 
+  const card = await welcomeCardAttachment(subject);
   const sent = await sendWelcomeEmail({
+    ...(card ? { attachments: [card] } : {}),
     to: member.email,
     fullName: member.fullName,
     roleLabel,

@@ -49,7 +49,7 @@ export function bannerUrl(subject: BannerSubject, base: string): string {
  *  `v` ختمُ الإصدار: الصورة تُخزَّن سنةً، فإن تغيّر الاسم أو القسم بعدها
  *  حمل البريدُ التالي رابطاً جديداً ولم يُعرَض القديم. */
 export function shareCardUrl(
-  type: "invite" | "welcome",
+  type: "invite" | "welcome" | "business",
   subject: BannerSubject,
   base: string,
   /** تاريخٌ، أو بصمةُ ما يُرسم في البطاقة (`cardFingerprint`) — فلا يتغيّر الرابطُ إلا إن تغيّرت البطاقة */

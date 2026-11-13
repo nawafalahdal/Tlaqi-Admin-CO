@@ -4,7 +4,16 @@ import type { EmailContent, EmailTheme } from "@/lib/emailBrand";
 /** **التقاطُ البريد للمعاينة** — داخل `captureEmails` لا يُرسَل شيءٌ ولا يُسجَّل: تُجمع الرسالةُ كما بنتها
  *  دالتُها الحقيقية (عنوانها ومحتواها ونوعها) لتُعرض في مركز مراجعة الهوية بالقالبين القديم والجديد.
  *  فالمعاينةُ لا تكتب نصّاً موازياً للرسالة: نصُّها نصُّ الرسالة نفسها، بمتغيّراتٍ تجريبية. */
-export type CapturedEmail = { to: string[]; subject: string; content: EmailContent; kind: string; theme?: EmailTheme };
+/** ملفٌّ مرفقٌ بالرسالة — كالبطاقة الرسمية مع رسالة الترحيب */
+export type EmailAttachment = { filename: string; content: Buffer };
+export type CapturedEmail = {
+  to: string[];
+  subject: string;
+  content: EmailContent;
+  kind: string;
+  theme?: EmailTheme;
+  attachments?: EmailAttachment[];
+};
 
 const store = new AsyncLocalStorage<CapturedEmail[]>();
 

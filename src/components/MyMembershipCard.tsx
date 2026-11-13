@@ -1,9 +1,9 @@
 import { Card } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 
-/** «بطاقتي» لكل حساب — العضو في صفحته، والمؤسسُ والإدارةُ العليا والقادةُ في «ملفي».
- *  وتُعرض «قريباً» حتى يُعتمد تصميمُها مع الصورة الشخصية (قرار المؤسس، نوفمبر 2026) — `true` يُعيدها للجميع */
-export const MY_CARD_READY = false;
+/** «بطاقتي» لكل حساب — العضو في صفحته، والمؤسسُ والإدارةُ العليا والقادةُ في «بياناتي».
+ *  اعتمد المؤسس تصميمَها (البطاقةُ الرسمية CR80 بالصورة الشخصية، نوفمبر 2026) — و`false` يُعيدها «قريباً» للجميع */
+export const MY_CARD_READY = true;
 
 /** **«بطاقتي»** — بطاقةُ العضوية في صفحة صاحبها (قرار المؤسس، نوفمبر 2026).
  *
@@ -47,8 +47,8 @@ export function MyMembershipCard({
       <img
         src={url}
         alt={L.alt}
-        width={1080}
-        height={1350}
+        width={1276}
+        height={2022}
         className="mx-auto h-auto w-full max-w-sm rounded-2xl ring-1 ring-black/10"
       />
       <a

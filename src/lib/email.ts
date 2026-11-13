@@ -17,7 +17,7 @@ import { firstName } from "@/lib/personName";
 import { forms, gx, positionTitle, roleTitle, type MaybeGender } from "@/lib/gender";
 import { emailAllowed, policyReason, type EmailEvent } from "@/lib/emailPolicy";
 import { resultOf, type SendResult } from "@/lib/emailOutcome";
-import { capturingEmails } from "@/lib/emailCapture";
+import { capturingEmails, type EmailAttachment } from "@/lib/emailCapture";
 import { deploymentEnv, emailRecipientsAllowed } from "@/lib/deploymentEnv";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -206,13 +206,15 @@ async function send(
   content: EmailContent,
   kind = "عام",
   /** لون القسم في الرسالة — من سجلّ المستلِم في الغالب */
-  theme?: EmailTheme
+  theme?: EmailTheme,
+  /** ملفّاتٌ مرفقة (البطاقة الرسمية مع رسالة الترحيب) — جسمُ الرسالة يبقى كما هو */
+  attachments?: EmailAttachment[]
 ) {
   const all = Array.isArray(to) ? to.filter(Boolean) : [to].filter(Boolean);
   // معاينةُ مركز الهوية: تُلتقط الرسالةُ ولا تُرسَل ولا تُسجَّل
   const capture = capturingEmails();
   if (capture) {
-    capture.push({ to: all, subject, content, kind, theme });
+    capture.push({ to: all, subject, content, kind, theme, ...(attachments?.length ? { attachments } : {}) });
     return resultOf({ state: "provider_disabled" });
   }
   if (all.length === 0) return resultOf({ state: "no_recipient" });
@@ -261,6 +263,7 @@ async function send(
       // النسخة النصّية ليست ترفاً: رسالة HTML بلا بديل نصّي علامةٌ معروفة
       // عند مرشّحات السبام، وتصل مشوّهة لمن يقرأ بالنص المجرّد
       text: htmlToText(bodyHtml),
+      ...(attachments?.length ? { attachments: attachments.map((a) => ({ filename: a.filename, content: a.content })) } : {}),
       headers: {
         // يمنع تجميع الرسائل المتتابعة في خيط واحد عند Gmail
         "X-Entity-Ref-ID": `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -1336,6 +1339,8 @@ export async function sendLoginCodeEmail(opts: {
 }
 
 export type WelcomeEmailOpts = {
+  /** البطاقةُ الرسمية مرفقةٌ بالرسالة؟ — فيُذكر ذلك بسطرٍ واحد (قرار المؤسس، نوفمبر 2026) */
+  withCard?: boolean;
   fullName: string;
   roleLabel: string;
   jobTitle?: string | null;
@@ -1399,6 +1404,7 @@ function welcomeContent(opts: WelcomeEmailOpts): { subject: string; content: Ema
         : `نعيد إليك رسالة اعتماد انضمامك إلى ${where} بمهمة <b>${esc(task)}</b>${since}.`,
       paragraphs: [
         `ومن اليوم ${G("أنت", "أنتِ", "أنت")} جزءٌ من فريق TLAQI — أهلاً ${f.you} بيننا، ونتطلّع إلى ما سنصنعه معاً.`,
+        ...(opts.withCard ? [`ومرفقةٌ بهذه الرسالة بطاقتُ${G("ك", "كِ", "ك")} الرسمية في TLAQI.`] : []),
       ],
     },
   };
@@ -1410,14 +1416,15 @@ export function renderWelcomeEmail(opts: WelcomeEmailOpts): string {
   return renderEmail({ subject: w.subject, content: w.content, theme: w.theme }).html;
 }
 
-export async function sendWelcomeEmail(opts: WelcomeEmailOpts & { to: string }) {
-  const w = welcomeContent(opts);
+export async function sendWelcomeEmail(opts: WelcomeEmailOpts & { to: string; attachments?: EmailAttachment[] }) {
+  const w = welcomeContent({ ...opts, withCard: opts.withCard ?? Boolean(opts.attachments?.length) });
   return send(
     opts.to,
     w.subject,
     w.content,
     "ترحيب",
-    w.theme
+    w.theme,
+    opts.attachments
   );
 }
 
