@@ -268,6 +268,8 @@ export type EmailLetter = {
   paragraphs: string[];
   closing: string[];
   signature: string;
+  /** سطرٌ صغيرٌ منفصلٌ بعد التوقيع (رابطُ البطاقة) — خارج الخطاب نفسه، فيُصوَّر الخطابُ ويُنشر بلا روابط */
+  postscript?: string | null;
 };
 
 /** بياناتُ شهادة التعيين في البريد. كلُّها نصٌّ يُهرِّبه القالب. */
@@ -499,6 +501,7 @@ function renderLetterEmail(subject: string, letter: EmailLetter, preheader?: str
     ...letter.paragraphs.map((x) => p(x)),
     p(letter.closing.map(esc).join("<br>"), "margin-top:24px"),
     p(`<b>${esc(letter.signature)}</b>`),
+    ...(letter.postscript ? [p(letter.postscript, "margin-top:40px;font-size:12px;line-height:1.8;color:#6B6070")] : []),
   ].join("\n");
   const html = `<!doctype html>
 <html dir="rtl" lang="ar">
