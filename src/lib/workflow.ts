@@ -1268,7 +1268,8 @@ export async function reopenCandidateTest(opts: {
     note: `عُقد اجتماع الشرح وأُعيد فتح الاختبار — ${member.testReopenNote} — نفّذه: ${opts.performedByName}`,
   });
 
-  await sendTestReopenedEmail({
+  // نتيجةُ البريد تعود مع الحساب: الواجهةُ لا تقول «وصله إشعار» إلا إن وصل
+  const reopenEmail = await sendTestReopenedEmail({
     to: member.email,
     fullName: member.fullName,
     roleLabel: member.department?.name ?? (ROLE_LABELS[member.invite.targetRole] ?? ""),
@@ -1286,7 +1287,56 @@ export async function reopenCandidateTest(opts: {
   });
 
   await syncMemberLifecycleRow(member.id);
-  return member;
+  return Object.assign(member, { reopenEmail });
+}
+
+/** أيُعاد إرسالُ «أُعيد فتح اختبارك» لهذا المرشّح؟ — أُعيد فتحُ اختباره ولم يدخل بعدُ ولم يُسلّم. */
+export function canResendReopenedTest(m: {
+  testReopenCount: number;
+  testStatus: string;
+  firstLoginAt: Date | null;
+  approvalStatus: string;
+  isActive: boolean;
+}): boolean {
+  return m.isActive && m.testReopenCount > 0 && m.testStatus === "not_started" && !m.firstLoginAt && m.approvalStatus !== "approved";
+}
+
+/** **إعادةُ إرسال رسالة إعادة الاختبار** — لمن أُعيد فتحُ اختباره ولم يدخل.
+ *
+ *  كانت الرسالةُ مكتومةً بالسياسة، فيُفتح الاختبار ولا يعلم صاحبُه، وتمضي مهلةُ الدخول فيسقط حسابُه.
+ *  فتُعاد هنا: مهلةٌ جديدة من الآن (`CANDIDATE_WINDOW_HOURS`) ورسالةٌ تقول له — والحسابُ وكلمةُ مروره كما هما.
+ *  ومن سقط بانقضاء المهلة يُعاد إصدارُه من «الحسابات الساقطة» لا من هنا. */
+export async function resendReopenedTest(opts: { memberId: string; performedByName: string }) {
+  const current = await prisma.member.findUniqueOrThrow({ where: { id: opts.memberId } });
+  if (!canResendReopenedTest(current)) {
+    throw new Error("لا رسالةَ تُعاد هنا: الاختبار لم يُعَد فتحُه، أو دخل صاحبُه بعد الفتح، أو الحساب غير نشط");
+  }
+
+  const member = await prisma.member.update({
+    where: { id: opts.memberId },
+    data: { credentialsIssuedAt: new Date() },
+    include: { department: true, invite: true },
+  });
+
+  const sent = await sendTestReopenedEmail({
+    to: member.email,
+    fullName: member.fullName,
+    roleLabel: member.department?.name ?? (ROLE_LABELS[member.invite.targetRole] ?? ""),
+    loginUrl: `${baseUrl()}/login`,
+    hoursValid: CANDIDATE_WINDOW_HOURS,
+  });
+
+  await appendMemberEvent({
+    fullName: member.fullName,
+    email: member.email,
+    roleOrDepartment: await memberScope(member),
+    event: "إعادة إرسال رسالة إعادة الاختبار",
+    details: `مهلة ${CANDIDATE_WINDOW_HOURS} ساعة من الآن — نفّذه: ${opts.performedByName}`,
+    at: new Date(),
+  });
+
+  await syncMemberLifecycleRow(member.id);
+  return { member, sent };
 }
 
 /** حذف نهائي لمرشّح عالق — الملاذ الأخير.

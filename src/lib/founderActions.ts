@@ -554,11 +554,17 @@ export async function changeLeadershipEmail(opts: {
   return { ok: true, previous, next };
 }
 
-/** أهي دعوةٌ لم تُستعمَل؟ — لا سجلَّ لها، أو سجلٌّ لم يدخل صاحبُه قطّ ولم يُعتمَد */
+/** أهي دعوةٌ لم تُستعمَل؟ — لا سجلَّ لها، أو سجلٌّ لم يدخل صاحبُه قطّ ولم يُعتمَد ولم يُعَد اختبارُه.
+ *
+ *  و«لم يدخل» وحدها لا تكفي: إعادةُ فتح الاختبار تُفرغ `firstLoginAt` لتبدأ مهلةُ الدخول من جديد،
+ *  فبدا الراسبُ المُعاد اختبارُه «دعوةً لم تُستعمَل» — وحذفُه يصطدم بمحاولته المحفوظة (`TestAttempt`). */
 export function isUnusedInvite(inv: {
-  member: { firstLoginAt: Date | null; approvalStatus: string } | null;
+  member: { firstLoginAt: Date | null; approvalStatus: string; testReopenCount: number } | null;
 }): boolean {
-  return !inv.member || (!inv.member.firstLoginAt && inv.member.approvalStatus !== "approved");
+  return (
+    !inv.member ||
+    (!inv.member.firstLoginAt && inv.member.approvalStatus !== "approved" && inv.member.testReopenCount === 0)
+  );
 }
 
 /** حذفُ دعوةٍ لم تُستعمَل — للمؤسس وحده (قرار المؤسس).
@@ -583,7 +589,7 @@ export async function deleteUnusedInvite(opts: {
       fullName: true,
       email: true,
       targetRole: true,
-      member: { select: { id: true, firstLoginAt: true, approvalStatus: true } },
+      member: { select: { id: true, firstLoginAt: true, approvalStatus: true, testReopenCount: true } },
     },
   });
   if (!inv) return { ok: false, reason: "الدعوة غير موجودة" };
@@ -604,7 +610,8 @@ export async function deleteUnusedInvite(opts: {
     if (inv.member) {
       // الشرطُ نفسُه في الكتابة: لا يُحذف سجلٌّ دخل صاحبُه بين القراءة والحذف
       const gone = await tx.member.deleteMany({
-        where: { id: inv.member.id, firstLoginAt: null, approvalStatus: { not: "approved" } },
+        // ولا يُحذف من له محاولةُ اختبار: أثرُها دليلٌ لا يُمحى بتنظيف قائمة
+        where: { id: inv.member.id, firstLoginAt: null, approvalStatus: { not: "approved" }, testReopenCount: 0, testAttempts: { none: {} } },
       });
       if (gone.count === 0) throw new Error("استُعملت الدعوة للتوّ — لم تُحذف");
     }

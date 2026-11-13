@@ -32,8 +32,10 @@ const SUPPRESSED = "لم تُرسل (سياسة التقليل)";
   chk("والتذكيرات مكتومة",
       !emailAllowed("ticket.reminder") && !emailAllowed("request.reminder"));
   // تذكيرُ الاجتماع لم يكن يناديه شيء (شيفرةٌ ميتة) فأُزيل مع نوعه — ويُسأل عنه في `check-discontinued-features`
-  chk("ونتيجة الرسوب وإعادة الاختبار مكتومتان",
-      !emailAllowed("test.failed") && !emailAllowed("test.reopened"));
+  chk("ونتيجة الرسوب مكتومة", !emailAllowed("test.failed"));
+  // تغييرُ سياسةٍ مقصود لا تليينُ فحص: الراسبُ خارج المنصة فلا يعلم بفتح اختباره إلا بالبريد،
+  // ومهلةُ دخوله تبدأ لحظةَ الفتح — فكان يسقط حسابُه دون أن يعلم (شكوى المؤسس، نوفمبر 2026)
+  chk("**ورسالةُ إعادة فتح الاختبار تُرسَل**", emailAllowed("test.reopened"));
   // تذكيرُ مهلة الدخول وتذكيرُ التحقق الثنائي أُوقفا نهائياً وحُذف نوعاهما مع مهمّتَيهما — فلا يُسألان هنا
   // بل في `check-discontinued-features` (غيابُهما من السياسة ومن الكنس، وأنهما لا يعودان)
   chk("**والنوعان الموقوفان نهائياً خارج السياسة أصلاً**", !("totp.nudge" in EMAIL_POLICY) && !("window.reminder" in EMAIL_POLICY));

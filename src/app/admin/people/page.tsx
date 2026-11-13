@@ -18,7 +18,7 @@ import { avatarUrl } from "@/lib/avatarUrl";
 import { formatDate, sinceLabel } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
 import {
-  CANDIDATE_EXPIRY_REASON,
+  CANDIDATE_EXPIRY_REASON, canResendReopenedTest,
   sweepExpiredCandidateAccounts,
   candidateWindowExpired,
 } from "@/lib/workflow";
@@ -268,6 +268,7 @@ export default async function PeoplePage({
     reopenCount: m.testReopenCount,
     // الاختبار يُعاد لمن سلّمه فرسب أو رُفض — لا لمن لم يبدأه بعد
     canReopen: m.testStatus !== "not_started" && m.approvalStatus !== "approved",
+    canResendReopen: canResendReopenedTest(m),
     twin: leaderEmails.has(m.email.toLowerCase())
       ? ("email" as const)
       : leaderNames.has(m.fullName.trim())

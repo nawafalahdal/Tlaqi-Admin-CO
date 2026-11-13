@@ -5,6 +5,7 @@ import { reopenCandidateTestAction, purgeCandidateAction } from "./actions";
 import { Button, Card } from "@/components/ui";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import type { themeFromColor } from "@/lib/brand";
+import { ResendReopenedTestButton } from "./ResendReopenedTestButton";
 
 export type StuckCandidate = {
   id: string;
@@ -16,6 +17,8 @@ export type StuckCandidate = {
   warningsCount: number;
   reopenCount: number;
   canReopen: boolean;
+  /** أُعيد فتحُ اختباره ولم يدخل — تُعاد له رسالةُ الاختبار */
+  canResendReopen: boolean;
   /** هذا الصف يحمل اسم أو بريد حسابٍ قيادي نشط — أي أنه أثر دعوةٍ اكتملت */
   twin: "name" | "email" | null;
 };
@@ -112,7 +115,8 @@ export function StuckCandidateRow({
       )}
 
       {panel === "none" && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap items-end gap-2">
+          {candidate.canResendReopen && <ResendReopenedTestButton memberId={candidate.id} theme={theme} />}
           {candidate.canReopen && (
             <Button theme={theme} variant="outline" onClick={() => setPanel("reopen")}>
               {t.reopenTitle}

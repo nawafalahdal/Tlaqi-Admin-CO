@@ -1123,6 +1123,9 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
     notePlaceholder: "Meeting note (optional) \u2014 recorded in the live log",
     reopenConfirm: "Reopen the test",
     reopenDone: "The test was reopened and an email was sent \u2014 24 hours from now.",
+    resendReopen: "Resend the test email",
+    resendReopenHint: "Test reopened \u2014 not signed in yet",
+    resendReopenDone: "The test email was resent \u2014 24 hours from now.",
     purgeTitle: "Delete permanently",
     purgeWarning:
       "Deleting does not erase the record: the full row is written to the sheet first (score, warnings, reason, who deleted it), then removed from the database, freeing the email for a new invitation. This cannot be undone.",
@@ -2422,6 +2425,8 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
   },
   rPeopleActions: {
     youNeedToSign: "You need to sign in",
+    reopenMailFailed: "The test was reopened, but its email did not reach the candidate ({0}) \u2014 resend it with \u201cResend the test email\u201d.",
+    resendMailFailed: "The email did not go out ({0}) \u2014 try again once the cause is fixed.",
     passwordRecoveryIsNow: "Password recovery is now self-service by email — setting it manually is for the founder only",
     removingLeadershipAccountsIs: "Removing leadership accounts is for the founder only",
     writeTheReasonFor: "Write the reason for removal — it is kept in the log",

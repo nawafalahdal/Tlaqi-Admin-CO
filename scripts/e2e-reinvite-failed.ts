@@ -57,15 +57,33 @@ const chk = (n: string, ok: boolean, extra = "") => checks.push(`${ok ? "✓" : 
     }
     chk("لا تُعاد الدعوة قبل تأكيد اجتماع الشرح", refused);
 
-    // ── الإعادة الفعلية: يُفتح الاختبار ويصل البريد
-    const mails = await captureEmails(() =>
-      W.reopenCandidateTest({ memberId: member.id, meetingHeld: true, note: "شُرحت الأسئلة", performedByName: "قائدة التسويق" })
-    );
+    // ── الإعادة الفعلية: يُفتح الاختبار ويُرسَل البريد.
+    //    بلا التقاط عمداً: وضعُ الالتقاط يتجاوز سياسةَ الكتمان (للمعاينة)، فكان هذا الفحصُ يمرّ
+    //    والرسالةُ مكتومةٌ في الإنتاج — ولم تصل المرشّحَ قطّ (شكوى المؤسس، نوفمبر 2026)
+    const reopened = await W.reopenCandidateTest({ memberId: member.id, meetingHeld: true, note: "شُرحت الأسئلة", performedByName: "قائدة التسويق" });
     const after = await prisma.member.findUniqueOrThrow({ where: { id: member.id } });
     chk("أُعيد فتح الاختبار", after.testStatus === "not_started" && after.testScore === null);
     chk("وحُسبت المحاولة", after.testReopenCount === 1);
-    chk("ووصل المرشّحَ بريدٌ بإعادة الفتح", mails.some((m) => m.to.includes(EMAIL)), JSON.stringify(mails.map((m) => m.subject)));
+    chk("**ورسالةُ إعادة الفتح لا تكتمها السياسة**", reopened.reopenEmail.outcome.state !== "suppressed_policy", reopened.reopenEmail.outcome.state);
+    const policyLogged = await prisma.emailLog.count({ where: { recipient: EMAIL, kind: "إعادة اختبار", status: "لم تُرسل (سياسة التقليل)" } });
+    chk("ولا تُسجَّل «مكتومة» في سجل الرسائل", policyLogged === 0, String(policyLogged));
     chk("وخرج من «بحاجة إلى اجتماع شرح»", (await failedList()) === 0);
+
+    // ── إعادةُ الإرسال: لمن أُعيد فتحُ اختباره ولم يدخل — مهلةٌ جديدة ورسالةٌ تصله
+    chk("ويُعرَض له زرُّ «إعادة إرسال رسالة الاختبار»", W.canResendReopenedTest(after));
+    await prisma.member.update({ where: { id: member.id }, data: { credentialsIssuedAt: new Date(Date.now() - 20 * 3600_000) } });
+    const mails = await captureEmails(() => W.resendReopenedTest({ memberId: member.id, performedByName: "قائدة التسويق" }));
+    const resent = await prisma.member.findUniqueOrThrow({ where: { id: member.id } });
+    chk("وإعادةُ الإرسال تصل المرشّحَ بريدَها", mails.some((m) => m.to.includes(EMAIL) && m.subject.includes("أُعيد فتح اختبار")), JSON.stringify(mails.map((m) => m.subject)));
+    chk("وتبدأ مهلةُ الدخول من جديد", W.candidateHoursLeft(resent.credentialsIssuedAt!) === W.CANDIDATE_WINDOW_HOURS, String(W.candidateHoursLeft(resent.credentialsIssuedAt!)));
+    chk("ولا يُمسّ الاختبارُ ولا عددُ المحاولات", resent.testStatus === "not_started" && resent.testReopenCount === 1);
+
+    // ── وحذفُها «دعوةً غير مستخدمة» يُرفض برسالة — كان يسقط بخطأ قاعدة البيانات (محاولتُه المحفوظة)
+    const F = await import("@/lib/founderActions");
+    const del = await F.deleteUnusedInvite({ inviteId: member.inviteId, actorRole: "super_admin", actorName: "المؤسس" }).catch(
+      (e: unknown) => ({ ok: "crash" as const, reason: (e instanceof Error ? e.message : String(e)).split("\n").filter(Boolean).slice(-2).join(" ") })
+    );
+    chk("**ولا تُعَدّ دعوتُه «غير مستخدمة» فتُحذف — برسالةٍ لا بسقوط**", del.ok === false && (await prisma.member.count({ where: { id: member.id } })) === 1, JSON.stringify(del));
 
     // ── والدعوةُ الثانية الآن تقول إنه مدعوٌّ واختبارُه مفتوح
     let msg2 = "";
@@ -81,10 +99,12 @@ const chk = (n: string, ok: boolean, extra = "") => checks.push(`${ok ? "✓" : 
     await W.submitTestAttempt({ memberId: member.id, answers });
     const passed = await prisma.member.findUniqueOrThrow({ where: { id: member.id } });
     chk("ويجتاز الاختبارَ بعد إعادة فتحه", passed.testStatus === "passed", `${passed.testStatus} ${passed.testScore}`);
+    chk("وبعد أن سلّم لا تُعاد له رسالةُ الإعادة", !W.canResendReopenedTest(passed));
   } finally {
     const m = await prisma.member.findUnique({ where: { email: EMAIL }, select: { id: true, inviteId: true } });
     if (m) {
       await prisma.request.deleteMany({ where: { linkedMemberId: m.id } }).catch(() => {});
+      await prisma.testAttempt.deleteMany({ where: { memberId: m.id } }).catch(() => {});
       await prisma.member.delete({ where: { id: m.id } }).catch(() => {});
       await prisma.invite.delete({ where: { id: m.inviteId } }).catch(() => {});
     }

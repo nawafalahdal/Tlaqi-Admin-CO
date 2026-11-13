@@ -6,8 +6,11 @@ import {
   removeLeadershipUser,
   resetUserCredentials,
   reopenCandidateTest,
+  resendReopenedTest,
   purgeCandidate,
 } from "@/lib/workflow";
+import { reasonFor } from "@/lib/emailOutcome";
+import { fmt } from "@/i18n/fmt";
 import { permanentlyDeleteAccount, sendWelcomeToUser } from "@/lib/founderActions";
 import { sendAward } from "@/lib/awards";
 import { safeErrorMessage } from "@/lib/safeError";
@@ -105,7 +108,7 @@ export async function reopenCandidateTestAction(
   if (!allowed) return { error: L.youAreNotAllowed };
 
   try {
-    await reopenCandidateTest({
+    const reopened = await reopenCandidateTest({
       memberId,
       meetingHeld,
       note,
@@ -115,6 +118,36 @@ export async function reopenCandidateTestAction(
     revalidatePath("/admin");
     // لوحةُ القسم تعرض المرشّحَ في «بحاجة إلى اجتماع شرح» — يُزال منها حين يُعاد اختباره
     revalidatePath("/admin/departments", "layout");
+    // فُتح الاختبار — لكن لا يُقال «وصله إشعار» ورسالتُه لم تصل: يُقال السببُ وطريقُ الإعادة
+    if (reopened.reopenEmail.skipped) {
+      return { error: fmt(L.reopenMailFailed, reasonFor(reopened.reopenEmail.outcome)) };
+    }
+    return { error: null, done: true };
+  } catch (err) {
+    return { error: safeErrorMessage(err) };
+  }
+}
+
+/** **إعادةُ إرسال رسالة إعادة الاختبار** — لمن أُعيد فتحُ اختباره ولم يدخل بعد.
+ *  بصلاحيات الإعادة نفسها: المؤسس والتنفيذي لأي مرشّح، وقائد القسم لمرشّحي قسمه. */
+export async function resendReopenedTestAction(memberId: string): Promise<{ error: string | null; done?: boolean }> {
+  const L = getDictionary(await getLocale()).rPeopleActions;
+  const session = await auth();
+  if (!session) return { error: L.youNeedToSign };
+
+  const member = await prisma.member.findUnique({ where: { id: memberId }, select: { departmentId: true } });
+  if (!member) return { error: L.youAreNotAllowed };
+  const allowed =
+    session.user.role === "super_admin" ||
+    session.user.role === "executive" ||
+    (session.user.role === "department_admin" && session.user.departmentId === member.departmentId);
+  if (!allowed) return { error: L.youAreNotAllowed };
+
+  try {
+    const { sent } = await resendReopenedTest({ memberId, performedByName: session.user.name ?? "—" });
+    revalidatePath("/admin/people");
+    revalidatePath("/admin/departments", "layout");
+    if (sent.skipped) return { error: fmt(L.resendMailFailed, reasonFor(sent.outcome)) };
     return { error: null, done: true };
   } catch (err) {
     return { error: safeErrorMessage(err) };

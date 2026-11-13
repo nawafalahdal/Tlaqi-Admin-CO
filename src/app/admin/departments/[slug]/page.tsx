@@ -3,7 +3,7 @@ import { earnsFinalCertificate, servicePeriod, serviceDays } from "@/lib/certifi
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
-  CANDIDATE_EXPIRY_REASON,
+  CANDIDATE_EXPIRY_REASON, canResendReopenedTest,
   candidateHoursLeft,
   sweepOverdueRequests,
   sweepExpiredCandidateAccounts,
@@ -39,6 +39,7 @@ import { periodTasks, assignableOwners } from "@/lib/executionViews";
 import { approvedGoals } from "@/lib/goals";
 import { announcementsForSession, announcementPowers } from "@/lib/announcements";
 import { CandidateWindow } from "@/components/CandidateWindow";
+import { ResendReopenedTestButton } from "../../people/ResendReopenedTestButton";
 import { TicketBoard } from "@/components/TicketBoard";
 import { scheduleDueSweeps } from "@/lib/sweepThrottle";
 import { WorkspaceOverview } from "@/components/dashboard/WorkspaceOverview";
@@ -139,6 +140,11 @@ export default async function DepartmentBoardPage({
   ]);
   const canPlanHere = canPlanDepartment(session, department.id);
   const canReviewHere = canGovernPeriod(session.user.role);
+  // إعادةُ إرسال رسالة الاختبار بصلاحية إعادة فتحه نفسِها (`resendReopenedTestAction`)
+  const canResendHere =
+    session.user.role === "super_admin" ||
+    session.user.role === "executive" ||
+    (session.user.role === "department_admin" && session.user.departmentId === department.id);
 
   scheduleDueSweeps({
     overdue_requests: () => sweepOverdueRequests(department.id),
@@ -433,6 +439,8 @@ export default async function DepartmentBoardPage({
                     lapsed={!inv.isActive && inv.exitReason === CANDIDATE_EXPIRY_REASON}
                     notApplicable={!inv.credentialsIssuedAt}
                   />
+                  {/* أُعيد فتحُ اختباره ولم يدخل: تُعاد له رسالتُه — كانت مكتومةً فلا يعلم بالفتح */}
+                  {canResendHere && canResendReopenedTest(inv) && <ResendReopenedTestButton memberId={inv.id} theme={theme} />}
                 </Card>
               ))}
             </div>

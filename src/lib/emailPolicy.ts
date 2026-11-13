@@ -114,6 +114,12 @@ export const EMAIL_POLICY: Record<EmailEvent, { send: boolean; why: string }> = 
   "termination.request": { send: true, why: "طلبُ إنهاءٍ ينتظر قراراً من شخصٍ بعينه" },
   "termination.decision": { send: true, why: "قرارٌ في طلبِ صاحبه" },
   "signature.request": { send: true, why: "توقيعٌ ينتظر اعتماداً — ولا تُختم شهادةٌ بغيره" },
+  // كان مكتوماً بحجة «يراه حين يدخل» — والراسبُ خارج المنصة لا يدخل ليرى، ومهلةُ الدخول
+  // (24 ساعة) تبدأ لحظةَ الفتح فيسقط حسابُه دون أن يعلم. فأُعيد بعد شكوى المؤسس (نوفمبر 2026)
+  "test.reopened": {
+    send: true,
+    why: "المرشّحُ الراسب خارج المنصة ولا يعلم بفتح اختباره إلا به — ومهلةُ دخوله تبدأ لحظةَ الفتح",
+  },
   "announcement.broadcast": {
     send: true,
     why: "اختياريٌّ بقرار الناشر لا بافتراض النظام — وهو الافتراضُ مُطفأ",
@@ -136,7 +142,6 @@ export const EMAIL_POLICY: Record<EmailEvent, { send: boolean; why: string }> = 
     why: "قرأ نتيجته على الشاشة لحظة التسليم، واجتماعُ الشرح يُجدَّل في المنصة",
   },
   "committee.member_added": { send: false, why: "اللجنةُ تظهر في بوابته («لجاني») ومهامُّها في قائمته" },
-  "test.reopened": { send: false, why: "الاختبار يُفتَح في بوابته — يراه حين يدخل" },
   // أُوقف نهائياً وحُذف مع كنسه — لا يُعاد هنا ولا في الكنس (`check-discontinued-features`):
   //   «تذكير مهلة الدخول» و«تذكير التحقق الثنائي». انظر docs/audit/TLAQI_DISCONTINUED_FEATURES.md
   // ═══ يُكتَم: نظامُ التنفيذ كلُّه يُقرأ في «ما ينتظرك» على المنصة ═══
