@@ -16,6 +16,7 @@ import {
   type EmailTheme,
 } from "@/lib/emailBrand";
 import { departmentBrand } from "@/lib/departmentBrand";
+import { firstName } from "@/lib/personName";
 import { forms, gx, positionTitle, roleTitle, type MaybeGender } from "@/lib/gender";
 import { emailAllowed, policyReason, type EmailEvent } from "@/lib/emailPolicy";
 import { resultOf, type SendResult } from "@/lib/emailOutcome";
@@ -199,10 +200,6 @@ function themeOf(r: Recipient): EmailTheme {
   return { departmentName: r.departmentName, colorHex: r.colorHex };
 }
 
-/** الاسم الأول — للعناوين القصيرة: «أهلاً بكِ في العائلة، سارة» */
-function firstName(fullName: string): string {
-  return fullName.trim().split(/\s+/)[0] || fullName;
-}
 
 const portal = () => `${appBaseUrl()}/login`;
 

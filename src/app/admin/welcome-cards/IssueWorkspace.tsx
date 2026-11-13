@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { firstName as firstNameOf } from "@/lib/personName";
 import { useRouter } from "next/navigation";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CertificateFrameBox, CertificateSheet } from "@/components/certificates/CertificateSheet";
@@ -197,7 +198,7 @@ export function IssueWorkspace({
   }
 
   const chip = (k: CertificateType) => (T as Record<string, string>)[TYPE_KEY[k]];
-  const firstName = details?.recipient.name.trim().split(/\s+/)[0] ?? "";
+  const firstName = details ? firstNameOf(details.recipient.name) : "";
   const status = !details
     ? ""
     : details.recipient.stepDownAt

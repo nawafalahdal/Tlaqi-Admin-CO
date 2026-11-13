@@ -3,6 +3,7 @@ import { join } from "path";
 import sharp from "sharp";
 import { BRAND, themeFromColor } from "@/lib/brand";
 import { ensureFonts } from "@/lib/welcomeBanner";
+import { firstName } from "@/lib/personName";
 
 /** صورتا المشاركة: ملصقُ الدعوة، وبطاقةُ العضوية.
  *
@@ -189,7 +190,7 @@ export async function renderInviteCard(d: InviteCardData): Promise<Buffer> {
   // إعداد النظام مرّةً وثبّته، فيُرسم كلُّ ما بعده بخطٍّ غير خطّ الهوية
   ensureFonts();
   const p = palette(d.colorHex);
-  const first = d.fullName.trim().split(/\s+/)[0] || d.fullName;
+  const first = firstName(d.fullName);
   const firstSize = await fit(first, 200, R - L, 110, HERO);
   const fullSize = await fit(d.fullName, 34, 380, 22);
   const byName = d.invitedByName?.trim() || "إدارة تلاق";
@@ -248,7 +249,7 @@ export function approvedLogoFor(colorHex: string): { logo: LogoFile; mark: strin
 
 
 /** **بطاقةُ الاعتماد (العضوية)** — التصميمُ الذي اعتمده المؤسس (نوفمبر 2026):
- *  - **أعلى الصفحة:** اسمُ صاحبها، وتحته «أهلاً بك في عائلة تلاق» مكبَّرة.
+ *  - **أعلى الصفحة:** اسمُ صاحبها الأول، وتحته «أهلاً بك في عائلة تلاق» مكبَّرة.
  *  - **البطاقة:** الشعارُ الرسميُّ فوق الاسم والقسمُ في ركنها المقابل، ثم الاسمُ بالخطّ العريض والمسمّى، ثم تاريخُ
  *    الانضمام والصفة. الخلفيةُ والبطاقةُ بلون القسم الصافي (واللجنةُ بلون قسمها)، والبطاقةُ تُفرَد بإطارٍ وظلّ.
  *  - **الشعارُ بنسخته الرسمية لذلك اللون** (لا تلوين): البنفسجي علامةٌ برتقالية وكلمةٌ Beige؛ الـBeige علامةٌ برتقالية؛
@@ -271,7 +272,9 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   const IL = X + 56;
   const welcome = `${d.greeting} في عائلة تلاق`;
   // عرضُ الرأس محدودٌ (٦٢٠–٦٤٠) فلا يبلغ شكلَ «موهبة» في الزاوية العليا: لا نمطَ خلف نص
-  const headName = await fit(d.fullName, 50, 620, 30, HERO);
+  // الاسمُ الأولُ وحده (قرار المؤسس) — والاسمُ كاملاً في البطاقة
+  const head = firstName(d.fullName);
+  const headName = await fit(head, 50, 620, 30, HERO);
   const welcomeSize = await fit(welcome, 68, 640, 40);
   const nameSize = await fit(d.fullName, 92, W - 112, 34, HERO); // الحدُّ الأدنى يسع اسماً رباعياً طويلاً داخل البطاقة
   const titleSize = await fit(d.title, 40, W - 112, 26);
@@ -301,7 +304,7 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   </defs>
   <rect width="100%" height="100%" fill="${page}"/>
   ${motifs}
-  ${t(d.fullName, C, 172, headName, pageInk, { weight: HERO, anchor: "middle" })}
+  ${t(head, C, 172, headName, pageInk, { weight: HERO, anchor: "middle" })}
   ${t(welcome, C, 276, welcomeSize, pageInk, { weight: 700, anchor: "middle" })}
   <g filter="url(#shadow)"><rect x="${X}" y="360" width="${W}" height="680" rx="48" fill="${card.bg}"${cardStroke}/></g>
   <image href="${logoUri(pageLogo)}" x="${R - 280}" y="410" width="280" height="${Math.round((280 * 706) / 2400)}"/>

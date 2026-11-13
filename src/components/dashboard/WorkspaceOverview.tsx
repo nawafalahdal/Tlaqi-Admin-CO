@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Session } from "next-auth";
 import type { ReactNode } from "react";
+import { firstName as firstNameOf } from "@/lib/personName";
 import { prisma } from "@/lib/prisma";
 import { approvedGoals } from "@/lib/goals";
 import { goalProgress } from "@/lib/progress";
@@ -95,7 +96,7 @@ export async function WorkspaceOverview({
   const monthKey = `${grid.year}-${String(grid.month + 1).padStart(2, "0")}`;
 
   const copy = w.roles[session.user.role as keyof typeof w.roles] ?? w.roles.member;
-  const firstName = (session.user.name ?? "").trim().split(/\s+/)[0] ?? "";
+  const firstName = firstNameOf(session.user.name ?? "");
   const maxCount = Math.max(1, ...departments.map((d) => d._count.members));
 
   return (

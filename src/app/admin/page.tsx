@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/auth";
+import { firstName } from "@/lib/personName";
 import { prisma } from "@/lib/prisma";
 import { OPEN_DEPARTMENT_WHERE, DEPARTMENT_TAKE } from "@/lib/committees";
 import { sweepOverdueRequests, sweepExpiredCandidateAccounts, QUEUE_TAKE } from "@/lib/workflow";
@@ -169,7 +170,7 @@ export default async function AdminPage() {
       <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
         <PageHeader
           // الفاصلةُ بلغة الصفحة: «Welcome، نواف» كانت تُكتب بفاصلةٍ عربية في الإنجليزية
-          title={`${to.greeting}${locale === "en" ? ", " : "، "}${(session.user.name ?? "").trim().split(/\s+/)[0] ?? ""}`}
+          title={`${to.greeting}${locale === "en" ? ", " : "، "}${firstName(session.user.name ?? "")}`}
           description={to.desc}
           actions={
             <Link href="/admin/tickets/new" className="btn-brand ticket-cta__btn">
