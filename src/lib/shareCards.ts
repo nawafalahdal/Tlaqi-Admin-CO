@@ -249,8 +249,8 @@ export function approvedLogoFor(colorHex: string): { logo: LogoFile; mark: strin
 
 
 /** **بطاقةُ الاعتماد (العضوية)** — التصميمُ الذي اعتمده المؤسس (نوفمبر 2026):
- *  - **أعلى الصفحة:** «بطاقة انضمام» ثم «أهلاً بك في العائلة» مكبَّرة.
- *  - **البطاقة:** الشعارُ الرسميُّ فوق الاسم والقسمُ في ركنها المقابل، ثم الاسمُ بالخطّ العريض والمسمّى، ثم تاريخُ
+ *  - **أعلى الصفحة:** «بطاقة انضمام» ثم ترحيبٌ مكبَّرٌ بالاسم الأول وحده: «سارة، أهلاً بكِ في العائلة».
+ *  - **البطاقة:** الشعارُ الرسميُّ يساراً واسمُ القسم أو اللجنة يميناً فوق الاسم، ثم الاسمُ بالخطّ العريض والمسمّى، ثم تاريخُ
  *    الانضمام والصفة. الخلفيةُ والبطاقةُ بلون القسم الصافي (واللجنةُ بلون قسمها)، والبطاقةُ تُفرَد بإطارٍ وظلّ.
  *  - **الشعارُ بنسخته الرسمية لذلك اللون** (لا تلوين): البنفسجي علامةٌ برتقالية وكلمةٌ Beige؛ الـBeige علامةٌ برتقالية؛
  *    البرتقالي أبيضُ (Beige) كاملاً؛ الأخضر بنفسجيٌّ كاملاً — والنصُّ بحبر تلك النسخة.
@@ -270,14 +270,14 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   const W = CARD_W - 2 * X;
   const R = X + W - 56;
   const IL = X + 56;
-  // الترحيبُ مكبَّرٌ (قرار المؤسس) وعرضُه محدودٌ (٤٠٠) فلا يبلغ شكلَ «موهبة» في الزاوية العليا: لا نمطَ خلف نص
-  const welcome = `${d.greeting} في العائلة`;
-  const welcomeSize = await fit(welcome, 66, 400, 44);
+  // الترحيبُ مكبَّرٌ بالاسم الأول وحده (قرار المؤسس)، وعرضُه محدودٌ (٦٤٠) فلا يبلغ شكلَ «موهبة» في الزاوية العليا
+  const welcome = `${firstName(d.fullName)}، ${d.greeting} في العائلة`;
+  const welcomeSize = await fit(welcome, 66, 640, 40);
   const nameSize = await fit(d.fullName, 92, W - 112, 34, HERO); // الحدُّ الأدنى يسع اسماً رباعياً طويلاً داخل البطاقة
   const titleSize = await fit(d.title, 40, W - 112, 26);
   const roleSize = await fit(d.roleTitle, 32, 300, 22);
   const dept = d.departmentName?.trim() || "تلاق";
-  // القسمُ في الركن المقابل للشعار: لا يتجاوز ما بينهما (اسمُ لجنةٍ طويل يصغُر ولا يبلغ الشعار)
+  // القسمُ يميناً والشعارُ يساراً (قرار المؤسس): لا يتجاوز ما بينهما (اسمُ لجنةٍ طويل يصغُر ولا يبلغ الشعار)
   const deptSize = await fit(dept, 28, W - 112 - 280 - 40, 18);
   const nameY = 600 + nameSize;
   // **نمطان كبيران خافتان في الخلفية (قرار المؤسس):** شكلُ «موهبة» في الزاوية العليا وشكلُ «ابتكار» في الزاوية السفلى
@@ -292,7 +292,8 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   // السفلى في الزاوية الحرّة — فتتوزّع الثلاثةُ على البطاقة بلا تكرار: «موهبة» أعلى، و«ابتكار» و«ربط» أسفلُ على الجانبين
   const arc = (patternTile("link", inkName).match(/<path[^>]*transform="translate\(18 18\)"[^>]*\/>/) ?? [""])[0];
   const link = arc ? `<g opacity="${faint}" transform="translate(${CARD_W - 185} ${CARD_H - 150}) scale(15) translate(-18 -18)">${arc}</g>` : "";
-  const motifs = motif("talent", CARD_W - 150, 175, 9) + motif("innovation", 150, CARD_H - 170, 9) + link;
+  // «موهبة» مدفوعٌ إلى الزاوية العليا (يخرج نصفُه عن الحافة) فيبقى عن يمين الترحيب وفوقه، لا خلفه
+  const motifs = motif("talent", CARD_W - 80, 110, 9) + motif("innovation", 150, CARD_H - 170, 9) + link;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${CARD_W}" height="${CARD_H}">
   <defs>
@@ -303,8 +304,8 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   ${t("بطاقة انضمام", C, 180, 26, pageInk, { anchor: "middle" })}
   ${t(welcome, C, 272, welcomeSize, pageInk, { weight: 700, anchor: "middle" })}
   <g filter="url(#shadow)"><rect x="${X}" y="360" width="${W}" height="680" rx="48" fill="${card.bg}"${cardStroke}/></g>
-  <image href="${logoUri(pageLogo)}" x="${R - 280}" y="410" width="280" height="${Math.round((280 * 706) / 2400)}"/>
-  ${t(dept, IL, 462, deptSize, cardInk, { weight: 700, anchor: "left" })}
+  <image href="${logoUri(pageLogo)}" x="${IL}" y="410" width="280" height="${Math.round((280 * 706) / 2400)}"/>
+  ${t(dept, R, 462, deptSize, cardInk, { weight: 700 })}
   ${t(d.fullName, R, nameY, nameSize, cardInk, { weight: HERO })}
   ${t(d.title, R, nameY + 70, titleSize, cardInk)}
   <line x1="${IL}" y1="850" x2="${R}" y2="850" stroke="${cardInk}" stroke-width="2"/>
