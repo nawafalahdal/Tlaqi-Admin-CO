@@ -428,8 +428,8 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
  *  - **الوجه:** الشعارُ الكامل (العلامةُ واسمُنا TLAQI) أعلى اليمين، وصورةٌ شخصيةٌ مستطيلة (صورةُ هوية) بإطارٍ رفيعٍ بلون
  *    القسم، وشريطٌ عموديٌّ يساراً بلون القسم يحمل اسمَه، وكتلةٌ سفلى بلون الهوية (Temptress) فيها الاسمُ والمنصبُ والمهمّة.
  *  - **الظهر:** Temptress كاملاً والشعارُ الكاملُ في منتصفه.
- *  - **النمط:** «موهبة» و«ابتكار» بشكليهما الرسميين كبيرين خافتين يقطعهما حدُّ البطاقة فلا يظهر إلا نصفُ كلٍّ — متقابلين على
- *    حافتي الكتلة السفلى، وقطريّاً على الظهر — بقرار المؤسس.
+ *  - **النمط:** «موهبة» واحدةٌ كبيرةٌ يقطعها حدُّ البطاقة فلا يظهر إلا نصفُها — في الوجه على حافة الكتلة اليمنى بلون القسم
+ *    (تقابل شريطَه)، وفي الظهر خافتةً تطلع من الحافة السفلى تحت الشعار — بقرار المؤسس.
  *    (يخالف هذا قواعدَ في الدليل: «لا نمط خلف نص»، و«لا شفافية»، و«الشعارُ الكامل لا يقلّ عن ٧٠ مم» — والبطاقةُ عرضُها ٥٤.
  *    والقرارُ للمؤسس، ومذكورٌ في سجلّ الهوية.)
  *  - **الألوان:** الشريطُ بلون القسم؛ والموارد البشرية (Beige) شريطُها Beige بحدٍّ بنفسجيّ كي يُرى؛ والإدارة العليا بنفسجيّ. */
@@ -449,15 +449,6 @@ export type BusinessCardData = {
   photo: Buffer | null;
 };
 
-/** **النمطان كبيرين يقطعهما الحدّ** (قرار المؤسس): «موهبة» و«ابتكار» بشكليهما الرسميين، كلٌّ على حافةٍ لا يظهر منه إلا
- *  نصفُه — متقابلين متّزنين، خافتين. */
-function bizEdgeMotifs(a: { kind: Motif; cx: number; cy: number }, b: { kind: Motif; cx: number; cy: number }, r: number, opacity: number): string {
-  return [a, b]
-    .map((m) => (m.kind === "link" ? linkAt(BRAND.beige, m.cx, m.cy, r, opacity) : motifAt(m.kind, BRAND.beige, m.cx, m.cy, r, opacity)))
-    .join("");
-}
-/** مركزُ الشكل داخل الحدّ بقليل: يظهر نحو ثلثيه ومركزُه معه فيُعرَف — القطعُ عند المركز تماماً يُبقي قطراتٍ متناثرة لا تُقرأ */
-const EDGE_INSET = 0.35;
 const LOGO_RATIO = 706 / 2400;
 
 /** **الوجه:** الهويةُ الرسمية للشخص */
@@ -488,11 +479,11 @@ export async function renderBusinessCard(d: BusinessCardData): Promise<Buffer> {
   const PX = W - M - mm(1) - PW;
   const PY = mm(19);
 
-  // ── النمطان في الكتلة وحدها كما في بطاقات الجهات: «موهبة» على الحافة اليمنى و«ابتكار» على اليسرى، على ارتفاعٍ واحد،
-  //    لا يظهر من كلٍّ إلا نصفُه — والصفحةُ فوقها نظيفة
+  // ── نمطٌ واحدٌ كبيرٌ في الكتلة يقطعه الحدّ فلا يظهر إلا نصفُه (قرار المؤسس): «موهبة» على الحافة اليمنى **بلون القسم** —
+  //    يُقابل شريطَ القسم يساراً فتتّزن البطاقة، ولكلّ قسمٍ طابعُه. وما لا يُرى لونُه على الكتلة (الإدارة العليا، Beige) فبـBeige
   const bcy = blockTop + (H - blockTop) / 2;
-  const RB = mm(13);
-  const faint = `<g clip-path="url(#blk)">${bizEdgeMotifs({ kind: "talent", cx: W - RB * EDGE_INSET, cy: bcy }, { kind: "innovation", cx: RB * EDGE_INSET, cy: bcy }, RB, 0.1)}</g>`;
+  const tint = hr || contrast(accent, block) < 1.25 ? BRAND.beige : accent;
+  const faint = `<g clip-path="url(#blk)">${motifAt("talent", tint, W, bcy, mm(14), tint === BRAND.beige ? 0.1 : 0.24)}</g>`;
 
   // ── الصورة: مستطيلةٌ بإطارٍ رفيعٍ وهامشٍ أبيضَ كصورة الهوية
   let portrait: string;
@@ -570,7 +561,7 @@ export async function renderBusinessCard(d: BusinessCardData): Promise<Buffer> {
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
-/** **الظهر:** Temptress كاملاً، والشعارُ الكاملُ في منتصفه، و«موهبة» أعلى اليمين و«ابتكار» أسفل اليسار نصفين يقطعهما الحدّ */
+/** **الظهر:** Temptress كاملاً، والشعارُ الكاملُ في منتصفه، و«موهبة» كبيرةٌ خافتةٌ يطلع نصفُها من الحافة السفلى */
 export async function renderBusinessCardReverse(): Promise<Buffer> {
   ensureFonts();
   const W = mm(BIZ_MM.w);
@@ -579,7 +570,7 @@ export async function renderBusinessCardReverse(): Promise<Buffer> {
   const logoH = Math.round(logoW * LOGO_RATIO);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}">
   <rect width="${W}" height="${H}" fill="${BRAND.temptress}"/>
-  ${bizEdgeMotifs({ kind: "talent", cx: W - mm(20) * EDGE_INSET, cy: mm(20) }, { kind: "innovation", cx: mm(20) * EDGE_INSET, cy: H - mm(20) }, mm(20), 0.08)}
+  ${motifAt("talent", BRAND.beige, W / 2, H, mm(27), 0.08)}
   <image href="${logoUri("on-temptress")}" x="${Math.round((W - logoW) / 2)}" y="${Math.round(H / 2 - logoH / 2)}" width="${logoW}" height="${logoH}"/>
 </svg>`;
   return sharp(Buffer.from(svg)).png().toBuffer();
