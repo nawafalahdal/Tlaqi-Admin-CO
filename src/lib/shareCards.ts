@@ -247,25 +247,21 @@ export function approvedLogoFor(colorHex: string): { logo: LogoFile; mark: strin
 }
 
 
-/** **بطاقةُ الاعتماد (العضوية)** — تصميمُها الأصلي الذي اختاره المؤسس (بطاقةٌ بلون القسم على خلفية الهوية)، محسَّناً:
- *  - **الأنماطُ على الجانبين:** عمودا «موهبة» و«ابتكار» بلون الدليل لخلفية القسم (كانت نقاطاً عامّة ورمزاً شفّافاً).
- *  - **الخلفيةُ والبطاقةُ بلون القسم الصافي** (واللجنةُ بلون قسمها)، والبطاقةُ تُفرَد بإطارٍ وظلّ.
- *  - **رأسُها اسمُ صاحبها ثم «أهلاً بك في عائلة تلاق» مكبَّرة**، بلا شعارٍ أعلاها (قرار المؤسس، نوفمبر 2026).
+/** **بطاقةُ الاعتماد (العضوية)** — التصميمُ الذي اعتمده المؤسس (نوفمبر 2026):
+ *  - **أعلى الصفحة:** اسمُ صاحبها، وتحته «أهلاً بك في عائلة تلاق» مكبَّرة.
+ *  - **البطاقة:** الشعارُ الرسميُّ فوق الاسم والقسمُ في ركنها المقابل، ثم الاسمُ بالخطّ العريض والمسمّى، ثم تاريخُ
+ *    الانضمام والصفة. الخلفيةُ والبطاقةُ بلون القسم الصافي (واللجنةُ بلون قسمها)، والبطاقةُ تُفرَد بإطارٍ وظلّ.
+ *  - **الشعارُ بنسخته الرسمية لذلك اللون** (لا تلوين): البنفسجي علامةٌ برتقالية وكلمةٌ Beige؛ الـBeige علامةٌ برتقالية؛
+ *    البرتقالي أبيضُ (Beige) كاملاً؛ الأخضر بنفسجيٌّ كاملاً — والنصُّ بحبر تلك النسخة.
+ *  - **الأنماطُ الثلاثة خافتةً في الخلفية**، ولا نمطَ خلف نص.
  *
  *  تصل مع رسالة الاعتماد وحدها: هي الإعلان أنّ صاحبها صار منّا. */
 export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   ensureFonts();
   const card = palette(d.colorHex);
-  // **الخلفيةُ بلون القسم أيضاً (قرار المؤسس):** درجةٌ أعمقُ من لون القسم نفسه، والبطاقةُ بلونه الصافي — فالبطاقةُ كلُّها
-  // من لونٍ واحد. واللونُ الفاتح جداً (كالـBeige) لا تُعمَّق له خلفيةٌ موحلة: الخلفيةُ بلونه، والبطاقةُ بإطارٍ صريح
-  // **الشعاران نسخةٌ رسميةٌ واحدة على لونٍ واحد (قرار المؤسس):** الخلفيةُ والبطاقةُ بلون القسم الصافي، فالشعارُ أعلاها
-  // وعلامتُه داخل البطاقة من النسخة الرسمية لذلك اللون نفسها — البنفسجي: علامةٌ برتقالية وكلمةٌ Beige؛ الـBeige: علامةٌ
-  // برتقالية؛ البرتقالي: الشعارُ أبيض (Beige) كاملاً؛ الأخضر: الشعارُ بنفسجيٌّ كاملاً. والنصُّ بحبر تلك النسخة، والنمطُ
-  // بلون الدليل لتلك الخلفية، والبطاقةُ تُفرَد بإطارٍ وظلّ.
-  // **رأسُ البطاقة اسمُ صاحبها (قرار المؤسس):** لا شعارَ أعلى الصفحة — الاسمُ أولاً بخطٍّ عريض، وتحته «أهلاً بك في عائلة
-  // تلاق» مكبَّرةً، فالترحيبُ هو الرسالة واسمُ تلاق فيه نصّاً. والبطاقةُ تحمل القسمَ والمسمّى وتاريخَ الانضمام والصفة.
   const page = card.bg;
   const pageInk = card.ink;
+  const pageLogo: LogoFile = card.logo;
   const cardInk = card.ink;
   const cardStroke = ` stroke="${card.ink}" stroke-width="2.5"`;
   const C = CARD_W / 2;
@@ -274,13 +270,16 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   const R = X + W - 56;
   const IL = X + 56;
   const welcome = `${d.greeting} في عائلة تلاق`;
-  // عرضُ الرأس محدودٌ (٦٢٠) فلا يبلغ شكلَ «موهبة» في الزاوية العليا: لا نمطَ خلف نص
-  const nameSize = await fit(d.fullName, 96, 620, 44, HERO);
-  const welcomeSize = await fit(welcome, 64, 640, 40);
-  const dept = d.departmentName?.trim() || "تلاق";
-  const deptSize = await fit(dept, 60, W - 112, 34, HERO);
-  const titleSize = await fit(d.title, 36, W - 112, 24);
+  // عرضُ الرأس محدودٌ (٦٢٠–٦٤٠) فلا يبلغ شكلَ «موهبة» في الزاوية العليا: لا نمطَ خلف نص
+  const headName = await fit(d.fullName, 50, 620, 30, HERO);
+  const welcomeSize = await fit(welcome, 68, 640, 40);
+  const nameSize = await fit(d.fullName, 92, W - 112, 34, HERO); // الحدُّ الأدنى يسع اسماً رباعياً طويلاً داخل البطاقة
+  const titleSize = await fit(d.title, 40, W - 112, 26);
   const roleSize = await fit(d.roleTitle, 32, 300, 22);
+  const dept = d.departmentName?.trim() || "تلاق";
+  // القسمُ في الركن المقابل للشعار: لا يتجاوز ما بينهما (اسمُ لجنةٍ طويل يصغُر ولا يبلغ الشعار)
+  const deptSize = await fit(dept, 28, W - 112 - 280 - 40, 18);
+  const nameY = 600 + nameSize;
   // **نمطان كبيران خافتان في الخلفية (قرار المؤسس):** شكلُ «موهبة» في الزاوية العليا وشكلُ «ابتكار» في الزاوية السفلى
   // المقابلة، كلٌّ منهما شكلٌ واحدٌ مكبَّرٌ بنسبته (لا تمديد ولا تدوير) يخرج عن الحافة، بحبر الخلفية وبشفافيةٍ خفيفة —
   // فيُرى أثراً هادئاً لا زحمة. ويقعان خلف البطاقة والهوامش وحدها، فلا نمطَ خلف نص.
@@ -302,17 +301,18 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   </defs>
   <rect width="100%" height="100%" fill="${page}"/>
   ${motifs}
-  ${t(d.fullName, C, 250, nameSize, pageInk, { weight: HERO, anchor: "middle" })}
-  ${t(welcome, C, 362, welcomeSize, pageInk, { weight: 700, anchor: "middle" })}
-  <g filter="url(#shadow)"><rect x="${X}" y="440" width="${W}" height="530" rx="48" fill="${card.bg}"${cardStroke}/></g>
-  ${t("بطاقة انضمام", R, 525, 24, cardInk)}
-  ${t(dept, R, 615, deptSize, cardInk, { weight: HERO })}
-  ${t(d.title, R, 685, titleSize, cardInk)}
-  <line x1="${IL}" y1="765" x2="${R}" y2="765" stroke="${cardInk}" stroke-width="2"/>
-  ${t(d.joinedLabel, R, 827, 24, cardInk)}
-  ${t(cardDate(d.joinedAt), R, 880, 34, cardInk, { weight: 700 })}
-  ${t("الصفة", IL, 827, 24, cardInk, { anchor: "left" })}
-  ${t(d.roleTitle, IL, 880, roleSize, cardInk, { weight: 700, anchor: "left" })}
+  ${t(d.fullName, C, 172, headName, pageInk, { weight: HERO, anchor: "middle" })}
+  ${t(welcome, C, 276, welcomeSize, pageInk, { weight: 700, anchor: "middle" })}
+  <g filter="url(#shadow)"><rect x="${X}" y="360" width="${W}" height="680" rx="48" fill="${card.bg}"${cardStroke}/></g>
+  <image href="${logoUri(pageLogo)}" x="${R - 280}" y="410" width="280" height="${Math.round((280 * 706) / 2400)}"/>
+  ${t(dept, IL, 462, deptSize, cardInk, { weight: 700, anchor: "left" })}
+  ${t(d.fullName, R, nameY, nameSize, cardInk, { weight: HERO })}
+  ${t(d.title, R, nameY + 70, titleSize, cardInk)}
+  <line x1="${IL}" y1="850" x2="${R}" y2="850" stroke="${cardInk}" stroke-width="2"/>
+  ${t(d.joinedLabel, R, 912, 24, cardInk)}
+  ${t(cardDate(d.joinedAt), R, 964, 34, cardInk, { weight: 700 })}
+  ${t("الصفة", IL, 912, 24, cardInk, { anchor: "left" })}
+  ${t(d.roleTitle, IL, 964, roleSize, cardInk, { weight: 700, anchor: "left" })}
   ${t("تحوّل رقمي، برؤية طموحة.", C, 1166, 30, pageInk, { anchor: "middle" })}
   ${t("@tlaqisa", C, 1216, 26, pageInk, { anchor: "middle", ltr: true })}
 </svg>`;
