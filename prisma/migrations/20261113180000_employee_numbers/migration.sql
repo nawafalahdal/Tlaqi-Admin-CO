@@ -33,10 +33,17 @@ SELECT k, "id", row_number() OVER (ORDER BY pri, joined, "id")::int AS n FROM pe
 UPDATE "User" u SET "employeeNo" = o.n FROM "_employee_order" o WHERE o.k = 'U' AND o."id" = u."id";
 UPDATE "Member" m SET "employeeNo" = o.n FROM "_employee_order" o WHERE o.k = 'M' AND o."id" = m."id";
 
--- سجلُّ العضوية التوأم يحمل رقمَ صاحبه نفسَه
-UPDATE "Member" m SET "employeeNo" = u."employeeNo"
-FROM "User" u
-WHERE lower(u."email") = lower(m."email") AND u."employeeNo" IS NOT NULL AND m."employeeNo" IS NULL;
+-- سجلُّ العضوية التوأم يحمل رقمَ صاحبه نفسَه — سجلٌّ واحدٌ لكل رقم (لو تكرّر البريدُ باختلاف حالة الأحرف
+-- في سجلَّين لم يُكرَّر الرقمُ فيهما فيكسرَ الفهرسَ الفريد ويُفشلَ الترحيل: يُقدَّم المطابقُ حرفاً ثم الأحدث)
+UPDATE "Member" m SET "employeeNo" = t.n
+FROM (
+  SELECT DISTINCT ON (u."employeeNo") m2."id", u."employeeNo" AS n
+  FROM "User" u
+  JOIN "Member" m2 ON lower(m2."email") = lower(u."email")
+  WHERE u."employeeNo" IS NOT NULL AND m2."employeeNo" IS NULL
+  ORDER BY u."employeeNo", (m2."email" = u."email") DESC, m2."createdAt" DESC, m2."id"
+) t
+WHERE m."id" = t."id";
 
 CREATE UNIQUE INDEX "User_employeeNo_key" ON "User"("employeeNo");
 CREATE UNIQUE INDEX "Member_employeeNo_key" ON "Member"("employeeNo");
