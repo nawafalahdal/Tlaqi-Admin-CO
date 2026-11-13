@@ -21,6 +21,7 @@ import { GovernanceCharter } from "@/components/GovernanceCharter";
 import { MyMembershipCard, MY_CARD_READY } from "@/components/MyMembershipCard";
 import { shareCardUrl } from "@/lib/bannerToken";
 import { businessCardVersion } from "@/lib/businessCardData";
+import { employeeIdLabel } from "@/lib/employeeId";
 import { firstName } from "@/lib/personName";
 
 /** بيانات صاحب الحساب الإداري.
@@ -82,6 +83,11 @@ export default async function AdminProfilePage() {
                 </span>
               )}
               <span>· {roleLabel}</span>
+              {user.employeeNo != null && (
+                <span>
+                  · {t.member.employeeId}: <span dir="ltr" className="font-bold tracking-wide">{employeeIdLabel(user.employeeNo)}</span>
+                </span>
+              )}
               <span
                 className={`rounded-full px-2.5 py-0.5 text-xs font-bold ring-1 ${
                   user.totpEnabled ? "bg-green-50 text-green-800 ring-green-200" : "bg-amber-50 text-amber-900 ring-amber-200"
@@ -161,6 +167,7 @@ export default async function AdminProfilePage() {
                       colorHex: shownDepartment?.colorHex ?? null,
                       gender: user.gender,
                       avatarVersion: user.avatarVersion,
+                      employeeNo: user.employeeNo,
                     })
                   ),
                   fileName: `TLAQI-${firstName(user.fullName)}`,

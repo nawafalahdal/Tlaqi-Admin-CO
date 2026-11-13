@@ -388,6 +388,10 @@ model User {
   departmentId       String?
   department         Department? @relation(fields: [departmentId], references: [id])
   createdAt          DateTime    @default(now())
+  /// الرقمُ الوظيفي (`TLAQI - 001`) — تسلسلُه (`User_employeeNo_seq`) واحدٌ مع `Member.employeeNo`، بدأ بالمؤسس 001 (قرار المؤسس،
+  /// نوفمبر 2026). يُسنَد تلقائياً عند إنشاء الحساب، ويرثه من سجلّ عضويته إن كان له رقم: لكل شخصٍ رقمٌ واحد — `lib/employeeId`.
+  /// `autoincrement` لا `dbgenerated`: بها يعرف Prisma التسلسلَ فلا يقترح حذفَه في ترحيلٍ لاحق
+  employeeNo         Int?        @unique @default(autoincrement())
 
   // التنحية لا تحذف الحساب: تُعطّله وتُفرِغ المنصب لمن بعده، ويبقى سجله
   isActive      Boolean   @default(true)
@@ -527,6 +531,8 @@ model Member {
   /// تَسأل الختمَ ولا تَسأل البيانات، فلا تَحمل ميجاباتٍ لتَعرف حرفاً.
   avatarVersion   DateTime?
   joinDate        DateTime       @default(now())
+  /// الرقمُ الوظيفي — يُسنَد عند الاعتماد لا عند الدعوة (المرشّحُ ليس موظفاً بعد)، من تسلسل `User.employeeNo` نفسِه
+  employeeNo      Int?           @unique
   /// تاريخ الانضمام الفعلي لتَـــلاقِ — لا تاريخ إنشاء حسابه.
   ///
   /// بعضهم انضمّ قبل أن توجد المنصة، فتاريخُ حسابه ليس تاريخَ انضمامه.

@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { assignMemberEmployeeNo } from "@/lib/employeeId";
 import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { committeeGaps, GAP_LABELS } from "./completeness";
@@ -396,6 +397,11 @@ async function convertLeader(actor: Actor, key: string, userId: string): Promise
         select: { id: true },
       });
       memberId = m.id;
+    }
+    {
+      // يبقى رقمُه الوظيفي معه عضواً
+      const userNo = (await tx.user.findUnique({ where: { id: u.id }, select: { employeeNo: true } }))?.employeeNo ?? null;
+      await assignMemberEmployeeNo(tx, memberId, userNo);
     }
 
     // يقودها إن لم يكن لها قائدٌ عضو — ولو كانت بيد القائم بالخلافة (ملءُ الترحيل): يُرفع في الكتابة نفسها،

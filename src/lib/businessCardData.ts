@@ -6,6 +6,7 @@ import { defaultPortrait } from "@/lib/defaultPortraits";
 import { renderBusinessCard, type BusinessCardData } from "@/lib/shareCards";
 import { cardFingerprint, type BannerSubject } from "@/lib/bannerToken";
 import { firstName } from "@/lib/personName";
+import { employeeIdLabel } from "@/lib/employeeId";
 
 /** **بيانات البطاقة الرسمية من السجلّ** — مصدرٌ واحدٌ لرسالة الترحيب و«بطاقتي» معاً، فلا تختلف البطاقةُ بين موضعين.
  *
@@ -28,6 +29,7 @@ export function businessCardVersion(parts: {
   colorHex: string | null;
   gender: string | null;
   avatarVersion: Date | null;
+  employeeNo?: number | null;
 }): string {
   return cardFingerprint([
     "biz1",
@@ -38,6 +40,7 @@ export function businessCardVersion(parts: {
     parts.colorHex,
     parts.gender,
     parts.avatarVersion?.toISOString(),
+    String(parts.employeeNo ?? ""),
     // إضافةُ الهيئة الافتراضية لاحقاً تُجدّد بطاقاتِ من لا صورة لهم
     String(defaultPortrait(parts.gender)?.length ?? 0),
   ]);
@@ -53,6 +56,7 @@ export async function businessCardData(
     gender: string | null;
     avatarData: string | null;
     avatarVersion: Date | null;
+    employeeNo: number | null;
     role: string;
     department: { name: string; colorHex: string; parent?: { colorHex: string } | null } | null;
   } | null = null;
@@ -60,13 +64,13 @@ export async function businessCardData(
   if (subject.kind === "member") {
     const m = await prisma.member.findUnique({
       where: { id: subject.id },
-      select: { fullName: true, jobTitle: true, gender: true, avatarData: true, avatarVersion: true, department: deptSelect, invite: { select: { targetRole: true } } },
+      select: { fullName: true, jobTitle: true, gender: true, avatarData: true, avatarVersion: true, employeeNo: true, department: deptSelect, invite: { select: { targetRole: true } } },
     });
     if (m) row = { ...m, role: m.invite.targetRole };
   } else {
     const u = await prisma.user.findUnique({
       where: { id: subject.id },
-      select: { fullName: true, jobTitle: true, gender: true, avatarData: true, avatarVersion: true, role: true, department: deptSelect },
+      select: { fullName: true, jobTitle: true, gender: true, avatarData: true, avatarVersion: true, employeeNo: true, role: true, department: deptSelect },
     });
     if (u) {
       // الإدارةُ العليا لأهلها بدورهم — قسمٌ أصيلٌ لا أبَ له
@@ -86,6 +90,7 @@ export async function businessCardData(
     departmentName: deptName,
     colorHex,
     photo: avatarBytes(row.avatarData) ?? defaultPortrait(row.gender),
+    employeeId: employeeIdLabel(row.employeeNo),
   };
   const version = businessCardVersion({
     fullName: row.fullName,
@@ -95,6 +100,7 @@ export async function businessCardData(
     colorHex,
     gender: row.gender,
     avatarVersion: row.avatarVersion,
+    employeeNo: row.employeeNo,
   });
   return { data, version };
 }

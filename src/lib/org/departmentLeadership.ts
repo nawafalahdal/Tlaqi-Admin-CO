@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { assignMemberEmployeeNo, assignUserEmployeeNo } from "@/lib/employeeId";
 import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { revokeAccess } from "@/lib/accessRevocation";
@@ -126,6 +127,8 @@ export async function changeDepartmentLeader(
 
     // ── القائدُ الجديد: يُعاد تفعيلُ حسابه القياديّ السابق إن وُجد، وإلا يُنشأ — وكلمةُ مروره كلمتُه
     const pw = m.passwordHash;
+    // رقمُه الوظيفي من عضويته — يحمله حسابُه القياديّ نفسَه (لكل شخصٍ رقمٌ واحد)
+    const memberNo = (await tx.member.findUnique({ where: { id: m.id }, select: { employeeNo: true } }))?.employeeNo ?? null;
     let newUserId: string;
     if (existingUser) {
       const re = await tx.user.updateMany({
@@ -137,16 +140,22 @@ export async function changeDepartmentLeader(
       });
       if (!re.count) throw new Error("تغيّر حسابُ القائد البديل للتوّ — أعِد المحاولة");
       newUserId = existingUser.id;
+      await assignUserEmployeeNo(tx, newUserId, memberNo);
     } else {
       const u = await tx.user.create({
         data: {
           fullName: m.fullName, email: m.email, passwordHash: pw ?? "!", mustChangePassword: pw ? m.mustChangePassword : true,
           role: "department_admin", departmentId, phone: m.phone, jobTitle: m.jobTitle, gender: m.gender,
           specialization: m.specialization, section: m.section, profileCompletedAt: m.profileCompletedAt,
+          ...(memberNo != null ? { employeeNo: memberNo } : {}),
         },
         select: { id: true },
       });
       newUserId = u.id;
+    }
+    {
+      const userNo = (await tx.user.findUnique({ where: { id: newUserId }, select: { employeeNo: true } }))?.employeeNo ?? null;
+      await assignMemberEmployeeNo(tx, m.id, userNo);
     }
     // مدخلٌ واحدٌ لكل شخص: سجلُّ عضويته يصير سجلَّ ترقيته (كما عند اعتماد قائدٍ مرشّح)
     await tx.member.update({ where: { id: m.id }, data: { passwordHash: null } });
@@ -170,6 +179,8 @@ export async function changeDepartmentLeader(
         where: { email: o.email },
         select: { id: true, isActive: true, terminatedAt: true, approvalStatus: true, inviteId: true },
       });
+      // يعود عضواً برقمه الوظيفي نفسِه
+      const oldNo = (await tx.user.findUnique({ where: { id: o.id }, select: { employeeNo: true } }))?.employeeNo ?? null;
       let memberId: string | null = null;
       if (rec && rec.isActive && !rec.terminatedAt && rec.approvalStatus === "approved") {
         await tx.member.update({
@@ -178,6 +189,7 @@ export async function changeDepartmentLeader(
         });
         await tx.invite.update({ where: { id: rec.inviteId }, data: { targetRole: "member" } });
         memberId = rec.id;
+        await assignMemberEmployeeNo(tx, rec.id, oldNo);
       } else if (!rec) {
         const track = await tx.testTrack.findFirst({
           where: { OR: [{ scope: "department_member", departmentId }, { scope: "department_member" }] },
@@ -197,6 +209,7 @@ export async function changeDepartmentLeader(
             select: { id: true },
           });
           memberId = created.id;
+          await assignMemberEmployeeNo(tx, created.id, oldNo);
         }
       }
       oldMembers.push({ userId: o.id, memberId });

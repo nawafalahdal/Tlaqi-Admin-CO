@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { assignMemberEmployeeNo } from "@/lib/employeeId";
 import type { Prisma } from "@prisma/client";
 import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
 import { approverFor } from "@/lib/notify";
@@ -346,6 +347,8 @@ export async function approveMember(memberId: string) {
     data: { approvalStatus: "approved", decidedAt: new Date() },
     include: { department: true, invite: true },
   });
+  // الاعتمادُ يجعله موظفاً: رقمُه الوظيفي التالي — قبل رسالة الترحيب التي تحمل بطاقتَه
+  await assignMemberEmployeeNo(prisma, member.id);
 
   // لا تُولَّد كلمة مرور جديدة عند الاعتماد: المرشّح استلم رمزاً مؤقتاً لحظة
   // إنشاء حسابه وغيّره بنفسه قبل الاختبار، فيدخل بعد الاعتماد بنفس كلمته.
@@ -461,9 +464,13 @@ async function provisionLeadershipAccount(
         specialization: candidate.specialization,
         section: candidate.section,
         profileCompletedAt: candidate.profileCompletedAt,
+        // رقمُه الوظيفي إن كان له من عضويته — وإلا يأخذ الحسابُ التاليَ تلقائياً
+        ...(candidate.employeeNo != null ? { employeeNo: candidate.employeeNo } : {}),
       },
-      select: { id: true },
+      select: { id: true, employeeNo: true },
     });
+    // والسجلُّ التوأم يحمل الرقمَ نفسَه: لكل شخصٍ رقمٌ واحد
+    await assignMemberEmployeeNo(tx, candidate.id, user.employeeNo);
     const member = await tx.member.update({
       where: { id: candidate.id },
       data: { passwordHash: null },

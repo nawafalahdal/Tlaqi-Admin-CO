@@ -210,6 +210,7 @@ requestsHint: "What the platform creates on its own: the welcome banner on appro
     deactivatedBody: "Since you've reached the maximum number of warnings allowed (3/3), your membership in Tlaqi has ended. Please contact your department directly for inquiries.",
     roleFallback: "Member",
     memberOf: "Member of",
+    employeeId: "Employee ID",
     myCardTitle: "My card",
     myCardHint: "Your official TLAQI card with your photo and role — save or print it.",
     myCardSave: "Save the card",

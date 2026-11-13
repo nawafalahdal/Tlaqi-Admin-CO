@@ -33,6 +33,7 @@ import { MyCommittees } from "@/app/committees/_components/MyCommittees";
 import { MyMembershipCard, MY_CARD_READY } from "@/components/MyMembershipCard";
 import { shareCardUrl } from "@/lib/bannerToken";
 import { businessCardVersion } from "@/lib/businessCardData";
+import { employeeIdLabel } from "@/lib/employeeId";
 import { firstName } from "@/lib/personName";
 
 export default async function MemberPortalPage() {
@@ -126,6 +127,12 @@ export default async function MemberPortalPage() {
             <p className="text-xs text-black/40">{t.member.memberOf}</p>
             <p className="text-lg font-bold">{member.department?.name ?? t.member.departmentFallback}</p>
             {member.jobTitle && <p className="text-sm text-black/50">{member.jobTitle}</p>}
+            {member.employeeNo != null && (
+              <p className="mt-2 text-xs text-black/50">
+                {t.member.employeeId}:{" "}
+                <span dir="ltr" className="font-bold tracking-wide text-black/70">{employeeIdLabel(member.employeeNo)}</span>
+              </p>
+            )}
           </Card>
         </section>
 
@@ -149,6 +156,7 @@ export default async function MemberPortalPage() {
                         colorHex: member.department?.colorHex ?? null,
                         gender: member.gender,
                         avatarVersion: member.avatarVersion,
+                        employeeNo: member.employeeNo,
                       })
                     ),
                     fileName: `TLAQI-${firstName(member.fullName)}`,

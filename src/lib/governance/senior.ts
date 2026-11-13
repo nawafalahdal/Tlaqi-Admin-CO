@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Prisma, SeniorCapability, SeniorPositionStatus } from "@prisma/client";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
+import { assignMemberEmployeeNo } from "@/lib/employeeId";
 import { recordOrgEvent, diffFields } from "@/lib/org/audit";
 import { hashPassword } from "@/lib/credentials";
 import { appBaseUrl } from "@/lib/emailBrand";
@@ -431,6 +432,9 @@ export async function acceptSeniorInvitation(
           },
           select: { id: true, fullName: true },
         });
+        // موظفٌ من لحظة قبوله: رقمُ حسابه الإداري إن كان له، وإلا التالي
+        const twin = await tx.user.findUnique({ where: { email }, select: { employeeNo: true, isActive: true } });
+        await assignMemberEmployeeNo(tx, m.id, twin?.isActive ? twin.employeeNo : null);
         holder = { kind: "member", id: m.id, name: m.fullName };
       }
       const h = holder!;
