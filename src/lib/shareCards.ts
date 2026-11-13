@@ -285,7 +285,7 @@ function contrast(a: string, b: string): number {
 /** **بطاقةُ الانضمام (العضوية)** — التصميمُ الذي اعتمده المؤسس (نوفمبر 2026)، **مجموعاً واضحاً** (قراره بعد المعاينة):
  *  الرسالةُ تحمل التفاصيل، فالبطاقةُ لا تُعيدها. وكلُّ ما فيها **كتلةٌ واحدةٌ متمركزة** لا قطعٌ متفرّقة:
  *  - **يساراً:** أعمدةُ الأنماط الثلاثة بلون القسم بمقاس M — «موهبة» ثم «ربط» (مزاحٌ نصفَ خطوة) ثم «ابتكار».
- *  - **يميناً:** الشعارُ الرسميُّ كبيراً، وتحته لوحةُ العضوية: «بطاقة انضمام»، **الاسمُ بطلاً** والمسمّى، القسمُ والصفة
+ *  - **يميناً:** الشعارُ الرسميّ، وتحته لوحةُ العضوية مدمجةً بهواءٍ حولها: «بطاقة انضمام»، **الاسمُ بطلاً** والمسمّى، القسمُ والصفة
  *    وتاريخُ الانضمام سطرين، ثم **شريطُ TLAQI** (مبدأُ الهوية: الحرفُ ومعناه بالإنجليزية والعربية) — هويةٌ واضحة.
  *  - **الألوان:** صفحةٌ Beige وأنماطٌ بلون القسم؛ والإدارةُ العليا بنفسجيةٌ كاملة؛ والموارد البشرية (Beige) أنماطُها بنفسجية.
  *
@@ -317,8 +317,9 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   }
 
   // ── اللوحة: عمودُ الكلام كلُّه داخلها، بحاشيةٍ واحدةٍ وحافةٍ يمنى واحدة
-  const PX0 = 446, PX1 = CARD_W - 64; // حدّا اللوحة
-  const PAD = 46;
+  // لوحةٌ مدمجة (قرار المؤسس: «حتى لو تصغر»): أضيقُ وأقصر، وحولها هواء — في منتصف ما يمين الأنماط
+  const PX0 = 492, PX1 = CARD_W - 76; // حدّا اللوحة
+  const PAD = 40;
   const RX = PX1 - PAD; // الحافةُ اليمنى للكلام
   const LX = PX0 + PAD;
   const TW = RX - LX;
@@ -326,8 +327,8 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   // ── الاسمُ بطلُ البطاقة: سطرٌ واحدٌ كبير، أو سطران متوازنان إن طال
   const words = d.fullName.trim().split(/\s+/);
   let nameLines = [d.fullName.trim()];
-  let nameSize = await fit(nameLines[0], 86, TW, 30, HERO);
-  if (nameSize < 58 && words.length > 1) {
+  let nameSize = await fit(nameLines[0], 72, TW, 30, HERO);
+  if (nameSize < 52 && words.length > 1) {
     let best: [string, string] = [words.slice(0, 1).join(" "), words.slice(1).join(" ")];
     let bestDiff = Infinity;
     // لا ينتهي السطرُ الأولُ بكلمةٍ تتعلّق بما بعدها («بن»، «عبد»، «أبو»، «آل»)
@@ -340,40 +341,40 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
       if (diff < bestDiff) [best, bestDiff] = [[a, b], diff];
     }
     nameLines = best;
-    nameSize = Math.min(await fit(best[0], 68, TW, 38, HERO), await fit(best[1], 68, TW, 38, HERO));
+    nameSize = Math.min(await fit(best[0], 58, TW, 34, HERO), await fit(best[1], 58, TW, 34, HERO));
   }
   const lineH = Math.round(nameSize * 1.2);
   const extra = (nameLines.length - 1) * lineH;
-  const jobSize = await fit(d.title, 28, TW, 18);
+  const jobSize = await fit(d.title, 24, TW, 16);
 
   // ── القسمُ والصفة سطرٌ عريضٌ بينهما نقطةٌ بلون القسم، والتاريخُ سطرٌ هادئٌ تحته
-  const roleSize0 = await fit(`${dept}  ${d.roleTitle}`, 30, TW - 30, 16, HERO);
+  const roleSize0 = await fit(`${dept}  ${d.roleTitle}`, 26, TW - 30, 15, HERO);
   const deptW = await textWidth(dept, roleSize0, HERO);
   const joined = `${d.joinedLabel} ${cardDate(d.joinedAt)}`;
-  const joinedSize = await fit(joined, 24, TW, 16);
+  const joinedSize = await fit(joined, 21, TW, 15);
 
   // ── المواضع: الشعارُ واللوحةُ كتلةٌ واحدةٌ متمركزةٌ عمودياً في الصفحة
-  const LOGO_W = 360;
+  const LOGO_W = 320;
   const LOGO_H = Math.round((LOGO_W * 706) / 2400);
-  const GAP = 56; // بين الشعار واللوحة
-  const tagH = 48;
-  const inner =
-    PAD + tagH + 34 + nameSize + extra + 62 + 82 + 46 + 52 + 214 + PAD - 8; // ارتفاعُ اللوحة
+  const GAP = 50; // بين الشعار واللوحة
+  const tagH = 42;
+  const BAND = 176; // ارتفاعُ شريط TLAQI
+  const inner = PAD + tagH + 28 + nameSize + extra + 50 + 66 + 38 + 40 + BAND + PAD - 6; // ارتفاعُ اللوحة
   const groupH = LOGO_H + GAP + inner;
   const top = Math.round((CARD_H - groupH) / 2);
   const PY0 = top + LOGO_H + GAP;
   const PY1 = PY0 + inner;
   const tagY = PY0 + PAD;
-  const nameY = tagY + tagH + 34 + nameSize;
+  const nameY = tagY + tagH + 28 + nameSize;
   const nameEnd = nameY + extra;
-  const jobY = nameEnd + 62;
-  const roleY = jobY + 82;
-  const joinedY = roleY + 46;
-  const B0 = joinedY + 52; // شريطُ TLAQI
-  const B1 = B0 + 214;
+  const jobY = nameEnd + 50;
+  const roleY = jobY + 66;
+  const joinedY = roleY + 38;
+  const B0 = joinedY + 40; // شريطُ TLAQI
+  const B1 = B0 + BAND;
 
   const tag = "بطاقة انضمام";
-  const tagW = Math.round((await textWidth(tag, 21)) + 46);
+  const tagW = Math.round((await textWidth(tag, 19)) + 40);
 
   // ── شريطُ TLAQI: مبدؤنا الرسميّ — الحروفُ تُقرأ كما تُكتب (T يساراً)، وتحت كلٍّ معناه بالإنجليزية والعربية
   const steps: [letter: string, en: string, ar: string][] = [
@@ -384,14 +385,14 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
     ["I", "INNOVATION", "ابتكار"],
   ];
   const BX0 = LX, BX1 = RX;
-  const span = BX1 - BX0 - 100;
-  const xs = steps.map((_, i) => BX0 + 50 + (i * span) / (steps.length - 1));
-  let band = `<rect x="${BX0}" y="${B0}" width="${BX1 - BX0}" height="${B1 - B0}" rx="22" fill="${pat}" fill-opacity="${frame ? 0.12 : 0.14}"/>`;
-  band += t("رحلتك معنا", BX1 - 28, B0 + 44, 20, ink, { weight: 700, opacity: 0.75 });
+  const span = BX1 - BX0 - 92;
+  const xs = steps.map((_, i) => BX0 + 46 + (i * span) / (steps.length - 1));
+  let band = `<rect x="${BX0}" y="${B0}" width="${BX1 - BX0}" height="${B1 - B0}" rx="20" fill="${pat}" fill-opacity="${frame ? 0.12 : 0.14}"/>`;
+  band += t("رحلتك معنا", BX1 - 24, B0 + 38, 18, ink, { weight: 700, opacity: 0.75 });
   steps.forEach(([letter, en, ar], i) => {
-    band += t(letter, xs[i], B0 + 118, 58, pat, { weight: HERO, anchor: "middle", ltr: true });
-    band += t(en, xs[i], B0 + 150, 13, ink, { anchor: "middle", ltr: true, weight: 700, opacity: 0.7, font: LATIN });
-    band += t(ar, xs[i], B0 + 184, 22, ink, { anchor: "middle", weight: 700 });
+    band += t(letter, xs[i], B0 + 98, 48, pat, { weight: HERO, anchor: "middle", ltr: true });
+    band += t(en, xs[i], B0 + 126, 11.5, ink, { anchor: "middle", ltr: true, weight: 700, opacity: 0.7, font: LATIN });
+    band += t(ar, xs[i], B0 + 156, 19, ink, { anchor: "middle", weight: 700 });
   });
 
   const panelFill = frame ? `fill="#FFFFFF" fill-opacity="0.07"` : `fill="#FFFFFF" fill-opacity="0.62"`;
@@ -405,14 +406,14 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
 
   <image href="${logoUri(logo)}" x="${PX1 - LOGO_W}" y="${top}" width="${LOGO_W}" height="${LOGO_H}"/>
 
-  <g filter="url(#soft)"><rect x="${PX0}" y="${PY0}" width="${PX1 - PX0}" height="${PY1 - PY0}" rx="34" ${panelFill}/></g>
+  <g filter="url(#soft)"><rect x="${PX0}" y="${PY0}" width="${PX1 - PX0}" height="${PY1 - PY0}" rx="30" ${panelFill}/></g>
   <rect x="${RX - tagW}" y="${tagY}" width="${tagW}" height="${tagH}" rx="${tagH / 2}" fill="${pat}"/>
-  ${t(tag, RX - 23, tagY + 32, 21, onPat, { weight: 700 })}
+  ${t(tag, RX - 20, tagY + 28, 19, onPat, { weight: 700 })}
   ${nameLines.map((l, i) => t(l, RX, nameY + i * lineH, nameSize, ink, { weight: HERO })).join("")}
   ${t(d.title, RX, jobY, jobSize, ink, { opacity: 0.82 })}
   ${t(dept, RX, roleY, roleSize0, ink, { weight: HERO })}
-  <circle cx="${RX - deptW - 17}" cy="${roleY - roleSize0 * 0.3}" r="6" fill="${pat}"/>
-  ${t(d.roleTitle, RX - deptW - 34, roleY, roleSize0, ink, { weight: HERO })}
+  <circle cx="${RX - deptW - 15}" cy="${roleY - roleSize0 * 0.3}" r="5" fill="${pat}"/>
+  ${t(d.roleTitle, RX - deptW - 30, roleY, roleSize0, ink, { weight: HERO })}
   ${t(joined, RX, joinedY, joinedSize, ink, { opacity: 0.75 })}
   ${band}
 </svg>`;
