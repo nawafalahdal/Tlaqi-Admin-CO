@@ -30,6 +30,9 @@ import { avatarHasTransparency } from "@/lib/avatars";
 import { WELCOME_MAX_SENDS, resenderRoleFor } from "@/lib/welcomeResend";
 import { myCommittees } from "@/lib/org/queries";
 import { MyCommittees } from "@/app/committees/_components/MyCommittees";
+import { MyMembershipCard } from "@/components/MyMembershipCard";
+import { shareCardUrl, cardFingerprint } from "@/lib/bannerToken";
+import { firstName } from "@/lib/personName";
 
 export default async function MemberPortalPage() {
   const session = await auth();
@@ -123,6 +126,22 @@ export default async function MemberPortalPage() {
             <p className="text-lg font-bold">{member.department?.name ?? t.member.departmentFallback}</p>
             {member.jobTitle && <p className="text-sm text-black/50">{member.jobTitle}</p>}
           </Card>
+        </section>
+
+        {/* «بطاقتي»: بطاقةُ العضوية يحفظها صاحبُها من صفحته — لم تعد تُرفق برسالة الاعتماد (قرار المؤسس).
+            والرابطُ ببصمة ما يُرسم فيها: يُخزَّن ولا يُعاد رسمُه في كل زيارة، ويتجدّد إن تغيّر الاسمُ أو القسم */}
+        <section>
+          <MyMembershipCard
+            url={shareCardUrl(
+              "welcome",
+              { kind: "member", id: member.id },
+              "",
+              cardFingerprint([member.fullName, member.jobTitle, member.department?.name, member.department?.colorHex, member.decidedAt?.toISOString()])
+            )}
+            fileName={`TLAQI-${firstName(member.fullName)}.png`}
+            theme={theme}
+            L={{ title: t.member.myCardTitle, hint: t.member.myCardHint, save: t.member.myCardSave, alt: t.member.myCardAlt }}
+          />
         </section>
 
         {/* البريد الترحيبي وشروط الحماية للجميع — العضو كالقائد في هذا */}

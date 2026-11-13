@@ -52,7 +52,20 @@ export function shareCardUrl(
   type: "invite" | "welcome",
   subject: BannerSubject,
   base: string,
-  version: Date = new Date()
+  /** تاريخٌ، أو بصمةُ ما يُرسم في البطاقة (`cardFingerprint`) — فلا يتغيّر الرابطُ إلا إن تغيّرت البطاقة */
+  version: Date | string = new Date()
 ): string {
-  return `${base}/api/cards/${type}/${signBannerToken(subject)}?v=${version.getTime().toString(36)}`;
+  const v = typeof version === "string" ? version : version.getTime().toString(36);
+  return `${base}/api/cards/${type}/${signBannerToken(subject)}?v=${encodeURIComponent(v)}`;
+}
+
+/** بصمةٌ قصيرةٌ لما يُرسم في البطاقة: تتغيّر إن تغيّر الاسمُ أو المسمّى أو القسمُ أو لونُه — فتُخزَّن الصورةُ سنةً
+ *  ولا يُعرض القديمُ بعد تعديل (صفحةُ «بطاقتي» تُفتح مراراً، فلا يُعاد رسمُها في كل زيارة) */
+export function cardFingerprint(parts: (string | null | undefined)[]): string {
+  let h = 2166136261;
+  for (const ch of parts.map((x) => x ?? "").join("|")) {
+    h ^= ch.codePointAt(0)!;
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h.toString(36);
 }
