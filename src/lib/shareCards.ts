@@ -428,7 +428,8 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
  *  - **الوجه:** الشعارُ الكامل (العلامةُ واسمُنا TLAQI) أعلى اليمين، وصورةٌ شخصيةٌ مستطيلة (صورةُ هوية) بإطارٍ رفيعٍ بلون
  *    القسم، وشريطٌ عموديٌّ يساراً بلون القسم يحمل اسمَه، وكتلةٌ سفلى بلون الهوية (Temptress) فيها الاسمُ والمنصبُ والمهمّة.
  *  - **الظهر:** Temptress كاملاً والشعارُ الكاملُ في منتصفه.
- *  - **النمطُ بطريقته:** بلاطةُ «موهبة» الرسمية مكرّرةً بمقاس L نسيجاً خافتاً في الكتلة السفلى وعلى الظهر — بقرار المؤسس.
+ *  - **النمط:** بلاطتا «موهبة» و«ابتكار» الرسميتان متناوبتين كبيرتين خافتتين — شكلان كاملان في الكتلة السفلى، وثلاثةُ
+ *    صفوفٍ كاملة على الظهر — بقرار المؤسس.
  *    (يخالف هذا قواعدَ في الدليل: «لا نمط خلف نص»، و«لا شفافية»، و«الشعارُ الكامل لا يقلّ عن ٧٠ مم» — والبطاقةُ عرضُها ٥٤.
  *    والقرارُ للمؤسس، ومذكورٌ في سجلّ الهوية.)
  *  - **الألوان:** الشريطُ بلون القسم؛ والموارد البشرية (Beige) شريطُها Beige بحدٍّ بنفسجيّ كي يُرى؛ والإدارة العليا بنفسجيّ. */
@@ -448,13 +449,23 @@ export type BusinessCardData = {
   photo: Buffer | null;
 };
 
-/** نسيجُ «موهبة» الرسمي: بلاطةُ الدليل نفسُها (١٢٫٧ مم لـM) مكبّرةً إلى L (٢٥٫٤ مم) ومكرّرةً — خافتاً بشفافية `opacity`.
- *  تبدأ الشبكةُ من `x0, y0` فيتمركز النقشُ في المساحة لا يُقطع اعتباطاً */
-function bizTexture(id: string, x0: number, y0: number, w: number, h: number, opacity: number): string {
-  const L = mm(25.4);
-  return `<defs><pattern id="${id}" x="${x0}" y="${y0}" width="${L}" height="${L}" patternUnits="userSpaceOnUse"><g transform="scale(${(L / TILE).toFixed(4)})">${patternTile("talent", "beige")}</g></pattern></defs>
-  <rect x="${x0}" y="${y0}" width="${w}" height="${h}" fill="url(#${id})" opacity="${opacity}"/>`;
+/** نسيجُ الأنماط الرسمي: بلاطتا «موهبة» و«ابتكار» من الدليل نفسِه متناوبتين كرقعةٍ متّزنة (قرار المؤسس) — كبيرتين
+ *  (`P` لكل بلاطة) وخافتتين، وشبكتُهما متمركزةٌ على (cx, cy) فتظهر الأشكالُ كاملةً لا مقطوعةً اعتباطاً.
+ *  وتبدأ الرقعةُ يميناً بـ«موهبة» (النمطُ الأساسي)، تُقرأ كما يُقرأ الكلام. */
+function bizTexture(cx: number, cy: number, cols: number, rows: number, P: number, opacity: number): string {
+  const x0 = cx - (cols * P) / 2;
+  const y0 = cy - (rows * P) / 2;
+  const s = (P / TILE).toFixed(4);
+  let g = "";
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const kind = (cols - 1 - c + r) % 2 === 0 ? "talent" : "innovation";
+      g += `<g transform="translate(${Math.round(x0 + c * P)} ${Math.round(y0 + r * P)}) scale(${s})">${patternTile(kind, "beige")}</g>`;
+    }
+  }
+  return `<g opacity="${opacity}">${g}</g>`;
 }
+const BIZ_P = 32; // مم — بلاطةٌ كبيرةٌ متّزنة: شكلان كاملان في الكتلة، وثلاثةُ صفوفٍ كاملة على الظهر
 const LOGO_RATIO = 706 / 2400;
 
 /** **الوجه:** الهويةُ الرسمية للشخص */
@@ -477,17 +488,16 @@ export async function renderBusinessCard(d: BusinessCardData): Promise<Buffer> {
   const stripX = mm(4);
   const stripW = mm(6.5);
   const stripBottom = blockTop + mm(5); // يدخل الكتلةَ قليلاً كما في بطاقات الجهات
-  // الشعارُ الكامل: يمتدّ من حافة الإطار اليمنى، ولا يبلغ الشريط
-  const logoW = mm(33);
-  const logoH = Math.round(logoW * LOGO_RATIO);
   const PW = mm(24);
+  // الشعارُ الكامل بعرض الصورة تماماً، على حافتيها، متمركزاً في المسافة فوق إطارها
+  const logoW = PW;
+  const logoH = Math.round(logoW * LOGO_RATIO);
   const PH = mm(30);
   const PX = W - M - mm(1) - PW;
   const PY = mm(19);
 
-  // ── النمطُ بطريقته: بلاطةُ «موهبة» مكرّرةً نسيجاً خافتاً في الكتلة وحدها كما في بطاقات الجهات — والصفحةُ فوقها نظيفة
-  const L = mm(25.4);
-  const faint = bizTexture("tex", Math.round(W / 2 - L * 1.5), blockTop, Math.round(L * 3), H - blockTop, 0.09);
+  // ── النمطُ: «موهبة» و«ابتكار» متجاورتين كبيرتين خافتتين في الكتلة وحدها كما في بطاقات الجهات — والصفحةُ فوقها نظيفة
+  const faint = `<g clip-path="url(#blk)">${bizTexture(W / 2, blockTop + (H - blockTop) / 2, 2, 1, mm(BIZ_P), 0.1)}</g>`;
 
   // ── الصورة: مستطيلةٌ بإطارٍ رفيعٍ وهامشٍ أبيضَ كصورة الهوية
   let portrait: string;
@@ -557,7 +567,7 @@ export async function renderBusinessCard(d: BusinessCardData): Promise<Buffer> {
   ${faint}
   <rect x="${stripX}" y="0" width="${stripW}" height="${stripBottom}" fill="${strip}"${stripEdge ? ` stroke="${stripEdge}" stroke-width="${mm(0.3)}"` : ""}/>
   ${stripLabel}
-  <image href="${logoUri("on-beige")}" x="${W - M - logoW}" y="${mm(6)}" width="${logoW}" height="${logoH}"/>
+  <image href="${logoUri("on-beige")}" x="${PX}" y="${Math.round((PY - pad - logoH) / 2)}" width="${logoW}" height="${logoH}"/>
   <rect x="${PX - pad}" y="${PY - pad}" width="${PW + 2 * pad}" height="${PH + 2 * pad}" fill="${page}" stroke="${frame}" stroke-width="${mm(0.25)}"/>
   ${portrait}
   ${text}
@@ -570,12 +580,11 @@ export async function renderBusinessCardReverse(): Promise<Buffer> {
   ensureFonts();
   const W = mm(BIZ_MM.w);
   const H = mm(BIZ_MM.h);
-  const L = mm(25.4);
   const logoW = mm(42);
   const logoH = Math.round(logoW * LOGO_RATIO);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}">
   <rect width="${W}" height="${H}" fill="${BRAND.temptress}"/>
-  ${bizTexture("tex", Math.round(W / 2 - L * 1.5), Math.round(H / 2 - L * 2), Math.round(L * 3), Math.round(L * 4), 0.08)}
+  ${bizTexture(W / 2, H / 2, 2, 3, mm(BIZ_P), 0.08)}
   <image href="${logoUri("on-temptress")}" x="${Math.round((W - logoW) / 2)}" y="${Math.round(H / 2 - logoH / 2)}" width="${logoW}" height="${logoH}"/>
 </svg>`;
   return sharp(Buffer.from(svg)).png().toBuffer();
