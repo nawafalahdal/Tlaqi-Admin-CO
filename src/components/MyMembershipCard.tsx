@@ -31,8 +31,8 @@ export function MyMembershipCard({
         className="mx-auto h-auto w-full max-w-sm rounded-2xl ring-1 ring-black/10"
       />
       <a
-        href={url}
-        download={fileName}
+        href={`${url}${url.includes("?") ? "&" : "?"}download=${encodeURIComponent(fileName)}`}
+        download={`${fileName}.png`}
         className="inline-flex min-h-11 items-center justify-center self-center rounded-xl px-5 text-sm font-semibold hover:brightness-95"
         style={{ background: theme.fill, color: theme.onFill }}
       >

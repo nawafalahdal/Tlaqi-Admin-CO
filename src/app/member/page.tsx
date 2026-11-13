@@ -138,7 +138,7 @@ export default async function MemberPortalPage() {
               "",
               cardFingerprint([member.fullName, member.jobTitle, member.department?.name, member.department?.colorHex, member.decidedAt?.toISOString()])
             )}
-            fileName={`TLAQI-${firstName(member.fullName)}.png`}
+            fileName={`TLAQI-${firstName(member.fullName)}`}
             theme={theme}
             L={{ title: t.member.myCardTitle, hint: t.member.myCardHint, save: t.member.myCardSave, alt: t.member.myCardAlt }}
           />

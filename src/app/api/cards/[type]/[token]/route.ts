@@ -17,7 +17,7 @@ export const runtime = "nodejs";
  *
  *  ولا يُكتب في الصورة إلا ما في السجلّ لحظة الطلب. */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ type: string; token: string }> }
 ) {
   const { type, token } = await params;
@@ -99,6 +99,9 @@ export async function GET(
     return new NextResponse(new Uint8Array(png), {
       headers: {
         "Content-Type": "image/png",
+        // «حفظ البطاقة» في صفحة «بطاقتي» (`?download=اسم`): يُحفَظ الملفُّ باسمه — سمةُ `download` وحدها
+        // لا يحترمها كلُّ متصفّح، والاسمُ العربي يصل بترميز RFC 5987 مع بديلٍ لاتينيّ
+        ...downloadHeader(new URL(request.url).searchParams.get("download")),
         // الرابط يحمل ختمَ الإصدار (`?v=`)، فما تغيّر بعده يأخذ رابطاً جديداً
         "Cache-Control": "public, max-age=31536000, immutable",
         "Content-Length": String(png.length),
@@ -108,4 +111,11 @@ export async function GET(
     console.error("تعذّر توليد صورة المشاركة:", err);
     return new NextResponse("تعذّر التوليد", { status: 500 });
   }
+}
+
+/** ترويسةُ الحفظ باسمٍ مهذَّب — حروفٌ وأرقامٌ وشرطاتٌ فقط، وطولٌ محدود */
+function downloadHeader(name: string | null): Record<string, string> {
+  if (!name) return {};
+  const clean = name.replace(/[^\p{L}\p{N}\-_ ]/gu, "").trim().slice(0, 60) || "TLAQI";
+  return { "Content-Disposition": `attachment; filename="TLAQI-card.png"; filename*=UTF-8''${encodeURIComponent(clean)}.png` };
 }
