@@ -4,6 +4,7 @@ import sharp from "sharp";
 import { BRAND, themeFromColor } from "@/lib/brand";
 import { ensureFonts } from "@/lib/welcomeBanner";
 import { firstName } from "@/lib/personName";
+import { departmentBrand } from "@/lib/departmentBrand";
 
 /** صورتا المشاركة: ملصقُ الدعوة، وبطاقةُ العضوية.
  *
@@ -250,102 +251,6 @@ export function approvedLogoFor(colorHex: string): { logo: LogoFile; mark: strin
 }
 
 
-/** **بطاقةُ الاعتماد (العضوية)** — التصميمُ الذي اعتمده المؤسس (نوفمبر 2026):
- *  - **أعلى الصفحة:** «بطاقة انضمام» في إطارٍ دائريٍّ رفيع ثم «أهلاً بكِ في العائلة» مكبَّرة — الجملتان وحدهما (قرار المؤسس).
- *  - **البطاقة:** الشعارُ الرسميُّ يساراً واسمُ القسم أو اللجنة يميناً فوق الاسم، ثم الاسمُ بالخطّ العريض والمسمّى، ثم تاريخُ
- *    الانضمام والصفة. الخلفيةُ والبطاقةُ بلون القسم الصافي (واللجنةُ بلون قسمها)، والبطاقةُ تُفرَد بإطارٍ وظلّ.
- *  - **الشعارُ بنسخته الرسمية لذلك اللون** (لا تلوين): البنفسجي علامةٌ برتقالية وكلمةٌ Beige؛ الـBeige علامةٌ برتقالية؛
- *    البرتقالي أبيضُ (Beige) كاملاً؛ الأخضر بنفسجيٌّ كاملاً — والنصُّ بحبر تلك النسخة.
- *  - **الأنماطُ الثلاثة خافتةً في الخلفية**، ولا نمطَ خلف نص.
- *
- *  تصل مع رسالة الاعتماد وحدها: هي الإعلان أنّ صاحبها صار منّا. */
-export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
-  ensureFonts();
-  const card = palette(d.colorHex);
-  const page = card.bg;
-  const pageInk = card.ink;
-  const pageLogo: LogoFile = card.logo;
-  const cardInk = card.ink;
-  const cardStroke = ` stroke="${card.ink}" stroke-width="2.5"`;
-  const C = CARD_W / 2;
-  const X = 180;
-  const W = CARD_W - 2 * X;
-  const R = X + W - 56;
-  const IL = X + 56;
-  // الترحيبُ مكبَّرٌ (قرار المؤسس) وعرضُه محدودٌ (٤٠٠) فلا يبلغ شكلَ «موهبة» في الزاوية العليا: لا نمطَ خلف نص
-  const welcome = `${d.greeting} في العائلة`;
-  const welcomeSize = await fit(welcome, 72, 410, 44);
-  // **رأسٌ متوازن (قرار المؤسس):** «بطاقة انضمام» داخل إطارٍ دائريٍّ رفيع يملأ أعلى الصفحة، ثم الترحيب، ثم البطاقة —
-  // موزَّعةً بهوامشَ متساوية أعلى الصفحة وأسفلها (نحو ١١٨) فلا يبقى فراغٌ فوق الجملتين
-  const tag = "بطاقة انضمام";
-  const tagW = Math.round(await textWidth(tag, 26, 400)) + 64;
-  const CY = 377; // أعلى البطاقة
-  const nameSize = await fit(d.fullName, 92, W - 112, 34, HERO); // الحدُّ الأدنى يسع اسماً رباعياً طويلاً داخل البطاقة
-  const titleSize = await fit(d.title, 40, W - 112, 26);
-  const roleSize = await fit(d.roleTitle, 32, 300, 22);
-  const dept = d.departmentName?.trim() || "تلاق";
-  // القسمُ يميناً والشعارُ يساراً (قرار المؤسس): لا يتجاوز ما بينهما (اسمُ لجنةٍ طويل يصغُر ولا يبلغ الشعار)
-  const deptSize = await fit(dept, 28, W - 112 - 280 - 40, 18);
-  const nameY = CY + 240 + nameSize;
-  // **نمطان كبيران خافتان في الخلفية (قرار المؤسس):** شكلُ «موهبة» في الزاوية العليا وشكلُ «ابتكار» في الزاوية السفلى
-  // المقابلة، كلٌّ منهما شكلٌ واحدٌ مكبَّرٌ بنسبته (لا تمديد ولا تدوير) يخرج عن الحافة، بحبر الخلفية وبشفافيةٍ خفيفة —
-  // فيُرى أثراً هادئاً لا زحمة. ويقعان خلف البطاقة والهوامش وحدها، فلا نمطَ خلف نص.
-  const inkName: PatternColor = card.ink === BRAND.temptress ? "temptress" : "beige";
-  const faint = card.onLight ? 0.07 : 0.1;
-  const motif = (kind: "talent" | "innovation", cx: number, cy: number, scale: number) =>
-    `<g opacity="${faint}" transform="translate(${cx} ${cy}) scale(${scale}) translate(-36 -36)">${patternTile(kind, inkName)}</g>`;
-  // مقاسٌ يُقرأ به الشكلُ كاملاً (نحو ٣٦٠ بكسلاً)، وتقطعه الحافةُ قليلاً فيبدو ممتدّاً خارج البطاقة لا ملصقاً عليها
-  // والثالثُ «ربط» — قوسٌ يصل نقطتين (معناه في الدليل: الصلةُ بين الموهبة والجهة): قوسٌ واحدٌ كبيرٌ كالجسر، طرفاه على الحافة
-  // السفلى في الزاوية الحرّة — فتتوزّع الثلاثةُ على البطاقة بلا تكرار: «موهبة» أعلى، و«ابتكار» و«ربط» أسفلُ على الجانبين
-  const arc = (patternTile("link", inkName).match(/<path[^>]*transform="translate\(18 18\)"[^>]*\/>/) ?? [""])[0];
-  const link = arc ? `<g opacity="${faint}" transform="translate(${CARD_W - 185} ${CARD_H - 150}) scale(15) translate(-18 -18)">${arc}</g>` : "";
-  const motifs = motif("talent", CARD_W - 150, 175, 9) + motif("innovation", 150, CARD_H - 170, 9) + link;
-
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${CARD_W}" height="${CARD_H}">
-  <defs>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%"><feGaussianBlur in="SourceAlpha" stdDeviation="26"/><feOffset dy="30"/><feComponentTransfer><feFuncA type="linear" slope="0.38"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  </defs>
-  <rect width="100%" height="100%" fill="${page}"/>
-  ${motifs}
-  <rect x="${C - tagW / 2}" y="118" width="${tagW}" height="52" rx="26" fill="none" stroke="${pageInk}" stroke-width="2"/>
-  ${t(tag, C, 153, 26, pageInk, { anchor: "middle" })}
-  ${t(welcome, C, 282, welcomeSize, pageInk, { weight: 700, anchor: "middle" })}
-  <g filter="url(#shadow)"><rect x="${X}" y="${CY}" width="${W}" height="680" rx="48" fill="${card.bg}"${cardStroke}/></g>
-  <image href="${logoUri(pageLogo)}" x="${IL}" y="${CY + 50}" width="280" height="${Math.round((280 * 706) / 2400)}"/>
-  ${t(dept, R, CY + 102, deptSize, cardInk, { weight: 700 })}
-  ${t(d.fullName, R, nameY, nameSize, cardInk, { weight: HERO })}
-  ${t(d.title, R, nameY + 70, titleSize, cardInk)}
-  <line x1="${IL}" y1="${CY + 490}" x2="${R}" y2="${CY + 490}" stroke="${cardInk}" stroke-width="2"/>
-  ${t(d.joinedLabel, R, CY + 552, 24, cardInk)}
-  ${t(cardDate(d.joinedAt), R, CY + 604, 34, cardInk, { weight: 700 })}
-  ${t("الصفة", IL, CY + 552, 24, cardInk, { anchor: "left" })}
-  ${t(d.roleTitle, IL, CY + 604, roleSize, cardInk, { weight: 700, anchor: "left" })}
-  ${t("تحوّل رقمي، برؤية طموحة.", C, 1182, 30, pageInk, { anchor: "middle" })}
-  ${t("@tlaqisa", C, 1230, 26, pageInk, { anchor: "middle", ltr: true })}
-</svg>`;
-  return toPng(svg);
-}
-
-/* ───────────────────────── بطاقةُ العضوية «المحادثة» — مقترحٌ بانتظار اعتماد المؤسس ─────────────────────────
- *  فكرةُ المؤسس (نوفمبر 2026): الترحيبُ يُعرض كما يحدث في مساحة عمل الفريق — نافذةُ تطبيقٍ فيها قناةُ «# الترحيب»،
- *  ورسالةٌ من تلاق تعلن الانضمام، وبطاقةُ العضو بلون قسمه داخل الرسالة، وتفاعلاتٌ بأنماط الهوية.
- *  الثابتُ: الإطارُ البنفسجي ونسخةُ الشعار المعتمدة له (علامةٌ برتقالية وكلمةٌ Beige). والمتغيّرُ: لونُ القسم وحده —
- *  البطاقةُ والقناةُ النشطة والوهجُ والأنماطُ الكبيرة. */
-
-const markCache = new Map<string, string>();
-function markUri(file: string): string {
-  const hit = markCache.get(file);
-  if (hit) return hit;
-  const uri = `data:image/png;base64,${readFileSync(join(BRAND_DIR, "2026", "logos", file)).toString("base64")}`;
-  markCache.set(file, uri);
-  return uri;
-}
-/** علامةُ الشعار (١٢٠٠×١٣٠٠) متمركزةً على نقطة بارتفاعٍ معلوم */
-function markAt(file: string, cx: number, cy: number, h: number): string {
-  const w = Math.round((h * 1200) / 1300);
-  return `<image href="${markUri(file)}" x="${cx - w / 2}" y="${cy - h / 2}" width="${w}" height="${h}"/>`;
-}
-
 /** شكلُ النمط بأيّ لون: البلاطةُ الرسمية نفسُها (Beige) بتعبئةٍ أخرى — لا رسمَ جديداً */
 function motifShape(kind: "talent" | "innovation", fill: string): string {
   return patternTile(kind, "beige").replace(/fill="#EEF6DF"/gi, `fill="${fill}"`);
@@ -362,9 +267,6 @@ function linkAt(fill: string, cx: number, cy: number, r: number, opacity = 1): s
   return `<g opacity="${opacity}" transform="translate(${cx} ${cy}) scale(${s.toFixed(3)}) translate(-18 -18)">${arc.replace(/fill="#EEF6DF"/gi, `fill="${fill}"`)}</g>`;
 }
 type Motif = "talent" | "innovation" | "link";
-const motifIcon = (kind: Motif, fill: string, cx: number, cy: number, r: number) =>
-  kind === "link" ? linkAt(fill, cx, cy + r * 0.1, r * 1.05) : motifAt(kind, fill, cx, cy, r);
-
 function rgbOf(hex: string): [number, number, number] {
   const n = parseInt(hex.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
@@ -380,164 +282,200 @@ function contrast(a: string, b: string): number {
   const [x, y] = [luminance(a), luminance(b)].sort((m, n) => n - m);
   return (x + 0.05) / (y + 0.05);
 }
-/** مزجُ لونين بنسبة — للتدرّج الخفيف في البطاقة وللونٍ يُقرأ على الإطار البنفسجي */
-function mix(a: string, b: string, t: number): string {
-  const [p, q] = [rgbOf(a), rgbOf(b)];
-  return `#${p.map((v, i) => Math.round(v + (q[i] - v) * t).toString(16).padStart(2, "0")).join("")}`.toUpperCase();
+
+/** يكسر النصَّ أسطراً لا يتجاوز كلٌّ منها العرضَ — بالقياس لا بعدّ الحروف */
+async function wrapText(text: string, size: number, maxW: number, weight = 700): Promise<string[]> {
+  const lines: string[] = [];
+  let line = "";
+  for (const w of text.trim().split(/\s+/)) {
+    const next = line ? `${line} ${w}` : w;
+    if (line && (await textWidth(next, size, weight)) > maxW) {
+      lines.push(line);
+      line = w;
+    } else line = next;
+  }
+  if (line) lines.push(line);
+  // سطران: يُوازَن بينهما فلا تبقى كلمةٌ وحيدةٌ في الثاني
+  if (lines.length === 2) {
+    const ws = text.trim().split(/\s+/);
+    let best = lines;
+    let bestW = Infinity;
+    for (let i = 1; i < ws.length; i++) {
+      const pair = [ws.slice(0, i).join(" "), ws.slice(i).join(" ")];
+      const w = Math.max(await textWidth(pair[0], size, weight), await textWidth(pair[1], size, weight));
+      if (w <= maxW && w < bestW) [best, bestW] = [pair, w];
+    }
+    return best;
+  }
+  return lines;
 }
 
-export async function renderWelcomeCardV2(d: WelcomeCardData): Promise<Buffer> {
+/** **بطاقةُ الانضمام (العضوية)** — التصميمُ الذي اعتمده المؤسس (نوفمبر 2026)، على فكرة الملف الرسمي لا غلافِه:
+ *  - **يساراً:** أعمدةُ الأنماط الثلاثة بلون القسم بمقاس M — «موهبة» ثم «ربط» (مزاحٌ نصفَ خطوة) ثم «ابتكار».
+ *  - **يميناً:** الشعار و«تحوّل رقمي، برؤية طموحة.»، ثم «بطاقة انضمام» و«أهلاً بك في العائلة»، ثم **الاسمُ بطلاً**
+ *    وتحته خطٌّ قصيرٌ بلون القسم والمسمّى، ثم **جملةُ القسم** في لوحةٍ ناعمة، ثم كبسولاتُ القسم والصفة والتاريخ، ثم
+ *    **رحلةُ TLAQI** (مبدأُ الهوية الرسميّ: حرفٌ ومعناه بالإنجليزية والعربية)، ثم توقيع «فريق TLAQI».
+ *  - **بلا خطوطٍ فاصلة** (قرار المؤسس): لا تبدو غلافَ كتابٍ أو ملف.
+ *  - **الألوان:** صفحةٌ Beige وأنماطٌ بلون القسم؛ والإدارةُ العليا بنفسجيةٌ كاملة؛ والموارد البشرية (Beige) أنماطُها بنفسجية.
+ *
+ *  تصل مع رسالة الاعتماد وحدها: هي الإعلان أنّ صاحبها صار منّا. */
+export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   ensureFonts();
-  const card = palette(d.colorHex);
-  const accent = card.bg;
-  const frame = BRAND.temptress;
-  const beige = BRAND.beige;
-  const cream = mix(beige, "#FFFFFF", 0.45);
-  const ink = BRAND.temptress;
-  // لونُ القسم على الإطار البنفسجي: كما هو، إلا إن ذاب فيه (الإدارة العليا) فدرجةٌ أفتح منه نفسه
-  const glow = contrast(accent, frame) >= 1.6 ? accent : mix(accent, "#C9A2BC", 0.55);
-  const glowInk = themeFromColor(glow).text === BRAND.ink ? ink : beige;
-  // لونُ القسم على الخلفية الفاتحة: كما هو، إلا إن ذاب فيها (Beige) فالبنفسجي
-  const onCream = contrast(accent, cream) >= 1.5 ? accent : ink;
-  // اللونُ الثاني (الشكلُ أسفل اليمين والتفاعلُ الثالث): الأخضر، أو البرتقالي إن كان القسمُ أخضر
-  const dist = (a: string, b: string) => rgbOf(a).reduce((s, v, i) => s + (v - rgbOf(b)[i]) ** 2, 0);
-  const second = dist(accent, BRAND.greenSheen) < dist(accent, BRAND.mahogany) ? BRAND.mahogany : BRAND.greenSheen;
-  const cardInk = card.ink;
-  const cardMark = MARK_FOR[card.logo];
-
+  const accent = palette(d.colorHex).bg;
+  // ألوانُ الصفحة (قرار المؤسس): الإدارةُ العليا بنفسجيةٌ كاملة وأنماطُها Beige؛ والموارد البشرية (لونُها Beige) صفحتُها
+  // Beige وأنماطُها وحدها بنفسجية؛ وسائرُ الأقسام صفحةٌ Beige وأنماطٌ بلونها
+  const frame = contrast(accent, BRAND.temptress) < 1.25;
+  const faded = !frame && contrast(accent, BRAND.beige) < 1.5;
+  const page = frame ? BRAND.temptress : BRAND.beige;
+  const ink = frame ? BRAND.beige : BRAND.temptress;
+  const pat = frame ? BRAND.beige : faded ? BRAND.temptress : accent;
+  const onPat = themeFromColor(pat).text === BRAND.ink ? BRAND.temptress : BRAND.beige;
+  const logo: LogoFile = frame ? "on-temptress" : "on-beige";
   const dept = d.departmentName?.trim() || "TLAQI";
-  const verb = d.joinedLabel.replace(/\s*في\s*$/, "").trim() || "انضمّ";
-  // اسمُ المنصة بالإنجليزية وحدها في هذه البطاقة (قرار المؤسس): لا «تلاق» ولا «تلاقي» بالعربية
-  const brand = "TLAQI";
+  const motto = departmentBrand(d.departmentName).copy.motto;
+  const RX = CARD_W - 90; // حافةُ الكلام يميناً
+  const LX = 450; // حدُّه يساراً
+  const TW = RX - LX;
 
-  // ── النافذة
-  const WX = 72, WY = 312, WW = 936, WH = 872, WR = 34;
-  const BAR = 70;
-  const SIDE = 248;
-  const MAINR = WX + WW - SIDE; // حدُّ المنطقة الفاتحة يميناً
-  const top = WY + BAR;
-  // ── داخل المنطقة الفاتحة
-  const PR = MAINR - 37; // هامشُ النص يميناً
-  const PL = WX + 35;
-  // ── البطاقة
-  const CX0 = PL, CX1 = PR, CY0 = top + 232, CY1 = top + 638;
-  const CR = CX1 - 34, CL = CX0 + 34;
-
-  const sideFit = (s: string, size: number, min: number) => fit(s, size, SIDE - 70, min);
-  const deptCh = `# ${dept}`;
-  const fourth = dept === "الإبداع" ? "# المشاريع" : "# الإبداع";
-  const deptChSize = await sideFit(deptCh, 22, 13);
-  const memberSize = await fit(d.fullName, 20, SIDE - 80, 12);
-  const message = `${verb} ${d.fullName} إلى العائلة`;
-  const messageSize = await fit(message, 24, PR - PL - 90, 15);
-  const nameSize = await fit(d.fullName, 60, CR - CL - 20, 30, HERO);
-  const titleSize = await fit(d.title, 29, CR - CL - 20, 18);
-  const roleSize = await fit(d.roleTitle, 30, 220, 18);
-  const chipSize = await fit(dept, 24, CR - CL - 120, 15);
-  const chipW = Math.round((await textWidth(dept, chipSize)) + 44);
-  const authorW = await textWidth(brand, 23, 700, LATIN);
-  const searchAr = "ابحث في";
-  const searchArW = await textWidth(searchAr, 19, 400);
-  const searchLW = await textWidth(brand, 18, 700, LATIN);
-  const searchX = CARD_W / 2 + (searchArW + 7 + searchLW) / 2; // يمينُ عبارة البحث متمركزةً
-  const colW = Math.max(await textWidth("الصفة", 20, 400), await textWidth(d.roleTitle, roleSize));
-  const colR = CL + colW;
-
-  // ── التفاعلات: شكلٌ ورقمٌ في كبسولة، من اليمين
-  // الأنماطُ الثلاثة كلُّها: «موهبة» و«ابتكار» بلون القسم، و«ربط» باللون الثاني
-  const reactions: [kind: Motif, color: string, n: string][] = [
-    ["talent", onCream, "٢٤"],
-    ["innovation", onCream, "١٨"],
-    ["link", second, "١٢"],
+  // ── الأنماط: ثلاثةُ أعمدة، خطوتُها ١٣٠، والأوسطُ مزاحٌ نصفَ خطوة — نسيجٌ لا شبكةٌ صمّاء
+  const STEP = 130;
+  const cols: [kind: Motif, x: number, offset: number][] = [
+    ["talent", 72, 0],
+    ["link", 202, STEP / 2],
+    ["innovation", 332, 0],
   ];
-  let rx = PR;
-  const RY = CY1 + 26, RH = 48;
-  let reactionSvg = "";
-  for (const [kind, color, n] of reactions) {
-    const w = Math.round((await textWidth(n, 22)) + 78);
-    const x = rx - w;
-    reactionSvg += `<rect x="${x}" y="${RY}" width="${w}" height="${RH}" rx="${RH / 2}" fill="${onCream}" fill-opacity="0.1" stroke="${onCream}" stroke-opacity="0.35" stroke-width="1.5"/>`;
-    reactionSvg += motifIcon(kind, color, rx - 30, RY + RH / 2, 15);
-    reactionSvg += t(n, rx - 52, RY + 32, 22, ink, { weight: 700 });
-    rx = x - 12;
+  let patterns = "";
+  for (const [kind, x, offset] of cols) {
+    for (let y = 25 + offset - STEP; y < CARD_H + 60; y += STEP) {
+      patterns += kind === "link" ? linkAt(pat, x, y + 4, 36) : motifAt(kind, pat, x, y, 36);
+    }
   }
-  const IY = RY + RH + 22, IH = 54;
 
+  // ── الاسمُ بطلُ البطاقة: سطرٌ واحدٌ كبير، أو سطران متوازنان إن طال
+  const words = d.fullName.trim().split(/\s+/);
+  let nameLines = [d.fullName.trim()];
+  let nameSize = await fit(nameLines[0], 88, TW, 30, HERO);
+  if (nameSize < 62 && words.length > 1) {
+    let best: [string, string] = [words.slice(0, 1).join(" "), words.slice(1).join(" ")];
+    let bestDiff = Infinity;
+    // لا ينتهي السطرُ الأولُ بكلمةٍ تتعلّق بما بعدها («بن»، «عبد»، «أبو»، «آل»)
+    const binds = new Set(["بن", "بنت", "ابن", "عبد", "أبو", "ابو", "آل"]);
+    for (let i = 1; i < words.length; i++) {
+      if (binds.has(words[i - 1])) continue;
+      const a = words.slice(0, i).join(" ");
+      const b = words.slice(i).join(" ");
+      const diff = Math.abs(a.length - b.length);
+      if (diff < bestDiff) [best, bestDiff] = [[a, b], diff];
+    }
+    nameLines = best;
+    nameSize = Math.min(await fit(best[0], 70, TW, 40, HERO), await fit(best[1], 70, TW, 40, HERO));
+  }
+  const lineH = Math.round(nameSize * 1.2);
+  const tight = nameLines.length > 1 ? 0.6 : 1; // الاسمُ في سطرين يطوي الفراغاتِ لا المحتوى
+
+  const welcome = `${d.greeting} في العائلة`;
+  const welcomeSize = await fit(welcome, 36, TW, 24);
+  const jobSize = await fit(d.title, 27, TW, 18);
+
+  // ── المواضع من الأعلى، بفراغاتٍ متناسبة
+  let y = 300;
+  const eyebrowY = y;
+  y += 70;
+  const welcomeY = y;
+  y += Math.round(nameSize * 1.25);
+  const nameY = y;
+  y += (nameLines.length - 1) * lineH;
+  const nameEnd = y;
+  const barY = nameEnd + 30;
+  const jobY = nameEnd + 86;
+
+  // ── جملةُ القسم: لوحةٌ ناعمةٌ بلون القسم، فيها شكلُ «موهبة» صغيراً والجملةُ بخطٍّ عريض
+  const mottoSize = 27;
+  const mottoLines = await wrapText(motto, mottoSize, TW - 110);
+  const mottoTop = jobY + Math.round(46 * tight) + 14;
+  const mottoH = 52 + mottoLines.length * 44;
+  const mottoSvg =
+    `<rect x="${LX}" y="${mottoTop}" width="${TW}" height="${mottoH}" rx="22" fill="${pat}" fill-opacity="${frame ? 0.1 : 0.13}"/>` +
+    motifAt("talent", pat, RX - 36, mottoTop + 40, 15) +
+    mottoLines.map((l, i) => t(l, RX - 72, mottoTop + 52 + i * 44, mottoSize, ink, { weight: 700 })).join("");
+
+  // ── بياناتُ العضوية كبسولات: القسمُ ممتلئٌ بلونه، والصفةُ والتاريخ بإطارٍ رفيع
+  const pills: [text: string, filled: boolean][] = [
+    [dept, true],
+    [d.roleTitle, false],
+    [`${d.joinedLabel} ${cardDate(d.joinedAt)}`, false],
+  ];
+  const pillTop = mottoTop + mottoH + Math.round(34 * tight);
+  const PH = 50;
+  let px = RX;
+  let py = pillTop;
+  let pillSvg = "";
+  for (const [text, filled] of pills) {
+    const size = await fit(text, 21, TW - 40, 14);
+    const w = Math.round((await textWidth(text, size)) + 44);
+    if (px - w < LX - 1 && px !== RX) {
+      px = RX;
+      py += PH + 12;
+    }
+    pillSvg += filled
+      ? `<rect x="${px - w}" y="${py}" width="${w}" height="${PH}" rx="${PH / 2}" fill="${pat}"/>` +
+        t(text, px - 22, py + 33, size, onPat, { weight: 700 })
+      : `<rect x="${px - w}" y="${py}" width="${w}" height="${PH}" rx="${PH / 2}" fill="none" stroke="${ink}" stroke-opacity="0.35" stroke-width="1.6"/>` +
+        t(text, px - 22, py + 33, size, ink, { weight: 700 });
+    px -= w + 12;
+  }
+  const pillsEnd = py + PH;
+
+  // ── الرحلة: مبدؤنا الرسميّ من دليل الهوية — TLAQI يُقرأ كما يُكتب (T يساراً)، وتحت كلِّ حرفٍ معناه بالإنجليزية
+  // والعربية، وأولُ المحطّات «موهبة» ممتلئة: من هنا تبدأ الرحلة
+  const J = pillsEnd + Math.round(66 * tight);
+  const steps: [letter: string, en: string, ar: string][] = [
+    ["T", "TALENT", "موهبة"],
+    ["L", "LINK", "ربط"],
+    ["A", "ADVANCING", "تقدّم"],
+    ["Q", "QUALITY", "جودة"],
+    ["I", "INNOVATION", "ابتكار"],
+  ];
+  const span = TW - 64;
+  const xs = steps.map((_, i) => LX + 32 + (i * span) / (steps.length - 1));
+  let journey = t("رحلتك معنا", RX, J, 19, ink, { opacity: 0.66 });
+  for (let i = 0; i < steps.length - 1; i++) {
+    journey += `<line x1="${xs[i] + 14}" y1="${J + 78}" x2="${xs[i + 1] - 14}" y2="${J + 78}" stroke="${pat}" stroke-opacity="0.55" stroke-width="2.5" stroke-dasharray="2 8" stroke-linecap="round"/>`;
+  }
+  steps.forEach(([letter, en, ar], i) => {
+    journey += t(letter, xs[i], J + 56, 40, pat, { weight: HERO, anchor: "middle", ltr: true });
+    journey +=
+      i === 0
+        ? `<circle cx="${xs[i]}" cy="${J + 78}" r="8" fill="${pat}"/>`
+        : `<circle cx="${xs[i]}" cy="${J + 78}" r="7" fill="${page}" stroke="${pat}" stroke-width="2.5"/>`;
+    journey += t(en, xs[i], J + 112, 13, ink, { anchor: "middle", ltr: true, weight: 700, opacity: 0.7, font: LATIN });
+    journey += t(ar, xs[i], J + 142, 21, ink, { anchor: "middle", weight: i === 0 ? 700 : 400 });
+  });
+
+  // ── الختام: توقيعٌ لا سطرُ غلاف — «مع خالص الترحيب، فريق TLAQI»
+  const teamW = await textWidth("فريق", 26, HERO);
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${CARD_W}" height="${CARD_H}">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${mix(frame, "#000000", 0.18)}"/><stop offset="1" stop-color="${frame}"/></linearGradient>
-    <radialGradient id="glowA" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="${glow}" stop-opacity="0.4"/><stop offset="1" stop-color="${glow}" stop-opacity="0"/></radialGradient>
-    <linearGradient id="cardFill" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${mix(accent, "#FFFFFF", 0.07)}"/><stop offset="1" stop-color="${mix(accent, "#000000", 0.08)}"/></linearGradient>
-    <clipPath id="win"><rect x="${WX}" y="${WY}" width="${WW}" height="${WH}" rx="${WR}"/></clipPath>
-    <filter id="winShadow" x="-10%" y="-10%" width="120%" height="125%"><feGaussianBlur in="SourceAlpha" stdDeviation="22"/><feOffset dy="22"/><feComponentTransfer><feFuncA type="linear" slope="0.45"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <filter id="cardShadow" x="-15%" y="-15%" width="130%" height="145%"><feGaussianBlur in="SourceAlpha" stdDeviation="16"/><feOffset dy="14"/><feComponentTransfer><feFuncA type="linear" slope="0.22"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-  </defs>
-  <rect width="100%" height="100%" fill="url(#bg)"/>
-  <circle cx="1000" cy="360" r="480" fill="url(#glowA)"/>
-  ${/* هادئة (قرار المؤسس): لا نمطَ مكرَّراً في الخلفية ولا وهجَ ثانياً — والأنماطُ الثلاثة شكلٌ واحدٌ لكلٍّ منها */ ""}
-  ${motifAt("talent", glow, 1078, 300, 230, 0.9)}
-  ${linkAt(glow, 96, 1270, 190, 0.9)}
-  ${motifAt("innovation", second, 978, 1282, 70)}
+  <rect width="100%" height="100%" fill="${page}"/>
+  ${patterns}
 
-  <image href="${logoUri("on-temptress")}" x="${CARD_W / 2 - 135}" y="52" width="270" height="${Math.round((270 * 706) / 2400)}"/>
-  ${t("بطاقة انضمام", CARD_W / 2, 188, 26, beige, { anchor: "middle", opacity: 0.88 })}
-  ${t(`${d.greeting} في العائلة`, CARD_W / 2, 268, 68, beige, { weight: HERO, anchor: "middle" })}
+  <image href="${logoUri(logo)}" x="${RX - 280}" y="92" width="280" height="${Math.round((280 * 706) / 2400)}"/>
+  ${t("تحوّل رقمي، برؤية طموحة.", RX, 214, 21, ink, { opacity: 0.8 })}
 
-  <g filter="url(#winShadow)"><rect x="${WX}" y="${WY}" width="${WW}" height="${WH}" rx="${WR}" fill="${frame}" fill-opacity="0.55"/></g>
-  <g clip-path="url(#win)">
-    <rect x="${WX}" y="${WY}" width="${WW}" height="${WH}" fill="#FFFFFF" fill-opacity="0.07"/>
-    <line x1="${WX}" y1="${top}" x2="${WX + WW}" y2="${top}" stroke="#FFFFFF" stroke-opacity="0.1" stroke-width="1.5"/>
-    <rect x="${WX}" y="${top}" width="${MAINR - WX}" height="${WH - BAR}" fill="${cream}"/>
-  </g>
-  <rect x="${WX}" y="${WY}" width="${WW}" height="${WH}" rx="${WR}" fill="none" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="1.5"/>
+  ${t("بطاقة انضمام", RX, eyebrowY, 21, ink, { weight: 700, opacity: 0.75 })}
+  ${t(welcome, RX, welcomeY, welcomeSize, ink, { weight: 700, opacity: 0.88 })}
+  ${nameLines.map((l, i) => t(l, RX, nameY + i * lineH, nameSize, ink, { weight: HERO })).join("")}
+  <rect x="${RX - 76}" y="${barY}" width="76" height="7" rx="3.5" fill="${pat}"/>
+  ${t(d.title, RX, jobY, jobSize, ink, { opacity: 0.85 })}
 
-  <rect x="${CARD_W / 2 - 180}" y="${WY + 16}" width="360" height="39" rx="19.5" fill="#FFFFFF" fill-opacity="0.1"/>
-  ${t(searchAr, searchX, WY + 43, 19, beige, { opacity: 0.75 })}
-  ${t(brand, searchX - searchArW - 7, WY + 42, 18, beige, { opacity: 0.75, ltr: true, anchor: "right", weight: 700, font: LATIN })}
-  <circle cx="${WX + WW - 38}" cy="${WY + 35}" r="9" fill="${BRAND.mahogany}"/>
-  <circle cx="${WX + WW - 67}" cy="${WY + 35}" r="9" fill="${BRAND.greenSheen}"/>
-  <circle cx="${WX + WW - 96}" cy="${WY + 35}" r="9" fill="${beige}"/>
+  ${mottoSvg}
+  ${pillSvg}
+  ${journey}
 
-  <image href="${logoUri("on-temptress")}" x="${WX + WW - 24 - 170}" y="${top + 22}" width="170" height="${Math.round((170 * 706) / 2400)}"/>
-  ${t("القنوات", WX + WW - 23, top + 119, 17, beige, { opacity: 0.6 })}
-  <rect x="${MAINR + 21}" y="${top + 138}" width="${SIDE - 44}" height="52" rx="11" fill="${glow}"/>
-  ${t("# الترحيب", WX + WW - 38, top + 172, 22, glowInk, { weight: 700 })}
-  ${t("# عام", WX + WW - 38, top + 229, 22, beige, { opacity: 0.85 })}
-  ${t(deptCh, WX + WW - 38, top + 286, deptChSize, beige, { opacity: 0.85 })}
-  ${t(fourth, WX + WW - 38, top + 343, 22, beige, { opacity: 0.85 })}
-  ${t("الأعضاء", WX + WW - 23, top + 403, 17, beige, { opacity: 0.6 })}
-  <circle cx="${WX + WW - 40}" cy="${top + 447}" r="5.5" fill="${BRAND.greenSheen}"/>
-  ${t(d.fullName, WX + WW - 56, top + 454, memberSize, beige, { opacity: 0.9 })}
-
-  ${t("# الترحيب", PR, top + 49, 30, ink, { weight: HERO })}
-  ${t("نرحّب بأعضاء العائلة الجدد", PR, top + 79, 19, ink, { opacity: 0.68 })}
-  <line x1="${WX}" y1="${top + 94}" x2="${MAINR}" y2="${top + 94}" stroke="${ink}" stroke-opacity="0.1" stroke-width="1.5"/>
-
-  ${markAt(MARK_FOR["on-beige"], PR - 29, top + 154, 60)}
-  ${t(brand, PR - 82, top + 151, 22, ink, { weight: 700, ltr: true, anchor: "right", font: LATIN })}
-  ${t("الآن", PR - 82 - authorW - 12, top + 151, 17, ink, { opacity: 0.55 })}
-  ${t(message, PR - 82, top + 189, messageSize, ink)}
-
-  <g filter="url(#cardShadow)"><rect x="${CX0}" y="${CY0}" width="${CX1 - CX0}" height="${CY1 - CY0}" rx="26" fill="url(#cardFill)"${contrast(accent, cream) < 1.5 ? ` stroke="${ink}" stroke-opacity="0.18" stroke-width="1.5"` : ""}/></g>
-  ${markAt(cardMark, CL + 18, CY0 + 42, 42)}
-  ${t("بطاقة انضمام", CR, CY0 + 50, 20, cardInk, { opacity: 0.85 })}
-  <rect x="${CR - chipW}" y="${CY0 + 68}" width="${chipW}" height="46" rx="23" fill="${cardInk}" fill-opacity="0.14"/>
-  ${t(dept, CR - 22, CY0 + 100, chipSize, cardInk, { weight: 700 })}
-  ${t(d.fullName, CR, CY0 + 186, nameSize, cardInk, { weight: HERO })}
-  ${t(d.title, CR, CY0 + 244, titleSize, cardInk, { opacity: 0.92 })}
-  <line x1="${CL}" y1="${CY0 + 276}" x2="${CR}" y2="${CY0 + 276}" stroke="${cardInk}" stroke-opacity="0.35" stroke-width="1.5"/>
-  ${t(d.joinedLabel, CR, CY0 + 318, 20, cardInk, { opacity: 0.85 })}
-  ${t(cardDate(d.joinedAt), CR, CY0 + 366, 30, cardInk, { weight: HERO })}
-  ${t("الصفة", colR, CY0 + 318, 20, cardInk, { opacity: 0.85 })}
-  ${t(d.roleTitle, colR, CY0 + 366, roleSize, cardInk, { weight: HERO })}
-
-  ${reactionSvg}
-  <rect x="${PL}" y="${IY}" width="${PR - PL}" height="${IH}" rx="14" fill="#FFFFFF" fill-opacity="0.55" stroke="${ink}" stroke-opacity="0.16" stroke-width="1.5"/>
-  ${t("اكتب رسالة في # الترحيب", PR - 26, IY + 35, 20, ink, { opacity: 0.5 })}
-
-  ${t("تحوّل رقمي، برؤية طموحة.", CARD_W / 2, 1268, 44, beige, { weight: HERO, anchor: "middle" })}
-  ${t("@tlaqisa", CARD_W / 2, 1316, 23, beige, { anchor: "middle", ltr: true, opacity: 0.75, font: LATIN })}
+  ${t("مع خالص الترحيب،", RX, 1236, 20, ink, { opacity: 0.72 })}
+  ${t("فريق", RX, 1276, 26, ink, { weight: HERO })}
+  ${t("TLAQI", RX - teamW - 10, 1275, 25, ink, { weight: 700, ltr: true, anchor: "right", font: LATIN })}
+  ${t("@tlaqisa", LX, 1274, 21, ink, { anchor: "left", ltr: true, font: LATIN, opacity: 0.75 })}
 </svg>`;
   return toPng(svg);
 }
