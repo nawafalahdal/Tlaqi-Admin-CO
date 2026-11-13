@@ -30,12 +30,9 @@ import { avatarHasTransparency } from "@/lib/avatars";
 import { WELCOME_MAX_SENDS, resenderRoleFor } from "@/lib/welcomeResend";
 import { myCommittees } from "@/lib/org/queries";
 import { MyCommittees } from "@/app/committees/_components/MyCommittees";
-import { MyMembershipCard } from "@/components/MyMembershipCard";
+import { MyMembershipCard, MY_CARD_READY } from "@/components/MyMembershipCard";
 import { shareCardUrl, cardFingerprint } from "@/lib/bannerToken";
 import { firstName } from "@/lib/personName";
-
-/** «بطاقتي» تُعرض «قريباً» حتى يُعتمد تصميمُها مع الصورة الشخصية (قرار المؤسس، نوفمبر 2026) — `true` يُعيدها كما هي */
-const MY_CARD_READY = false;
 
 export default async function MemberPortalPage() {
   const session = await auth();

@@ -18,6 +18,9 @@ import { PersonAvatar } from "@/components/PersonAvatar";
 import { portraitColorFor } from "@/lib/portraitTone";
 import { SecurityGuidance } from "@/components/SecurityGuidance";
 import { GovernanceCharter } from "@/components/GovernanceCharter";
+import { MyMembershipCard, MY_CARD_READY } from "@/components/MyMembershipCard";
+import { shareCardUrl, cardFingerprint } from "@/lib/bannerToken";
+import { firstName } from "@/lib/personName";
 
 /** بيانات صاحب الحساب الإداري.
  *
@@ -137,6 +140,33 @@ export default async function AdminProfilePage() {
           current={avatarUrl("user", session.user.id, user.avatarVersion)}
           theme={theme}
           opaque={(await avatarHasTransparency(user.avatarData)) === false}
+        />
+
+        {/* «بطاقتي» للجميع لا للأعضاء وحدهم (قرار المؤسس): المؤسسُ والإدارةُ العليا والقادةُ هنا،
+            بطاقةُ الحساب نفسِه (`user`) — وهي «قريباً» حتى يُعتمد تصميمُها مع الصورة الشخصية */}
+        <MyMembershipCard
+          card={
+            MY_CARD_READY
+              ? {
+                  url: shareCardUrl(
+                    "welcome",
+                    { kind: "user", id: user.id },
+                    "",
+                    cardFingerprint([user.fullName, user.jobTitle, user.role, user.gender, user.department?.name, user.department?.colorHex, user.createdAt.toISOString()])
+                  ),
+                  fileName: `TLAQI-${firstName(user.fullName)}`,
+                }
+              : null
+          }
+          theme={theme}
+          L={{
+            title: t.member.myCardTitle,
+            hint: t.member.myCardHint,
+            save: t.member.myCardSave,
+            alt: t.member.myCardAlt,
+            soon: t.member.myCardSoon,
+            soonHint: t.member.myCardSoonHint,
+          }}
         />
 
         <Card className="p-5 sm:p-6" id="edit">
