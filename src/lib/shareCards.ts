@@ -423,14 +423,15 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
 // ═══════════════════════════════════════════════════════════════════════════════════════════════════
 /** **بطاقةُ العمل (Business Card)** — مقترحٌ للمعاينة، لم يُربط بصفحةٍ بعد (بانتظار اعتماد المؤسس).
  *
- *  **طوليةٌ ٥٠×٩٠ مم** (طلبُ المؤسس) بدقّة الطباعة (٦٠٠ نقطة/بوصة)، رسميةٌ متمركزة، بوجهين:
- *  - **الأمام — الهوية:** لونُ القسم كاملاً، والعلامةُ وحدها في المنتصف (الشعارُ الكاملُ لا يقلّ عن ٧٠ مم في الدليل،
- *    والبطاقةُ عرضُها ٥٠)، والأنماطُ الثلاثة توقيعاً هادئاً أسفلَها.
- *  - **الخلف — الشخص:** ترويسةٌ بلون القسم فيها الأنماطُ الثلاثة، وصورتُه على حدّها بحلقةٍ رفيعة، ثم متمركزاً:
- *    اسمُه بطلاً، فمنصبُه، فمهمّتُه، فقسمُه بنقطةٍ بلونه — والعلامةُ صغيرةً في الأسفل.
- *  - **الألوانُ بقرارات المؤسس:** الإدارةُ العليا بنفسجيةٌ كاملة؛ والموارد البشرية (Beige) شريطُها بنفسجيّ؛ وما سواهما صفحةٌ
- *    Beige وترويسةٌ بلون القسم. والنمطُ على الترويسة بزوج الدليل للونها، والكلامُ كلُّه بالحبر الصلب. */
-export const BIZ_MM = { w: 50, h: 90 } as const;
+ *  **رسميةٌ على طريقة بطاقات الجهات** (مرجعُ المؤسس، نوفمبر 2026)، بمقاس البطاقة الرسمي **CR80 طولياً (٥٤×٨٥٫٦ مم)**
+ *  وبدقّة الطباعة (٦٠٠ نقطة/بوصة):
+ *  - **الوجه:** العلامةُ أعلى اليمين، وصورةٌ شخصيةٌ مستطيلة (صورةُ هوية) بإطارٍ رفيعٍ بلون القسم، وشريطٌ عموديٌّ يساراً بلون
+ *    القسم يحمل اسمَه، وكتلةٌ سفلى بلون الهوية (Temptress) فيها الاسمُ والمنصبُ والمهمّة.
+ *  - **الظهر:** Temptress كاملاً والعلامةُ في منتصفه.
+ *  - **الأنماطُ في الخلفية كبيرةً خافتة** بقرار المؤسس — لا أشكالاً صريحةً صغيرة. (يخالف هذا قاعدتين في الدليل: «لا نمط خلف
+ *    نص» و«لا شفافية» — والقرارُ للمؤسس، ومذكورٌ في سجلّ الهوية.)
+ *  - **الألوان:** الشريطُ بلون القسم؛ والموارد البشرية (Beige) شريطُها Beige بحدٍّ بنفسجيّ كي يُرى؛ والإدارة العليا بنفسجيّ. */
+export const BIZ_MM = { w: 54, h: 85.6 } as const;
 const BIZ_PX_PER_MM = 600 / 25.4;
 const mm = (v: number) => Math.round(v * BIZ_PX_PER_MM);
 
@@ -442,95 +443,73 @@ export type BusinessCardData = {
   task: string | null;
   departmentName: string | null;
   colorHex: string | null;
-  /** صورتُه الشخصية كما رفعها (قد تكون مفرَّغةً شفافة) — وبدونها الحرفُ الأول من اسمه */
+  /** صورتُه الشخصية كما رفعها — وبدونها الحرفُ الأول من اسمه */
   photo: Buffer | null;
 };
 
-const PATTERN_HEX: Record<PatternColor, string> = {
-  beige: BRAND.beige,
-  temptress: BRAND.temptress,
-  mahogany: BRAND.mahogany,
-  "green-sheen": BRAND.greenSheen,
-};
-
-/** ألوانُ الوجه الخلفي */
-function bizScheme(colorHex: string | null) {
-  const accent = palette(colorHex).bg;
-  const senior = contrast(accent, BRAND.temptress) < 1.25;
-  const beigeDept = !senior && contrast(accent, BRAND.beige) < 1.5; // الموارد البشرية
-  const band = beigeDept ? BRAND.temptress : accent; // «الموارد البشرية: الشريطُ وحده بنفسجيّ»
-  const onBand = themeFromColor(band).text === BRAND.ink ? BRAND.temptress : BRAND.beige;
-  return {
-    senior,
-    page: senior ? BRAND.temptress : BRAND.beige,
-    ink: senior ? BRAND.beige : BRAND.temptress,
-    band,
-    onBand,
-    dot: senior ? BRAND.beige : band,
-  };
-}
-
-/** نقشُ M: البلاطةُ ١٢٫٧ مم، والشكلُ فيها نحو ٣٫٧ مم نصفَ قطر — ثلاثةٌ كاملةٌ في صفّ: موهبة · ربط · ابتكار */
-const BIZ_TILE = mm(12.7);
-const BIZ_R = mm(3.7);
-function bizMotif(kind: Motif, fill: string, cx: number, cy: number): string {
-  return kind === "link" ? linkAt(fill, cx, cy + Math.round(BIZ_R * 0.1), BIZ_R) : motifAt(kind, fill, cx, cy, BIZ_R);
-}
-function bizMotifRow(fill: string, cx: number, cy: number): string {
-  // يُقرأ من اليمين: موهبة ← ربط ← ابتكار
-  return (["innovation", "link", "talent"] as Motif[]).map((k, i) => bizMotif(k, fill, Math.round(cx + (i - 1) * BIZ_TILE), cy)).join("");
-}
 function markUri(file: string): string {
   return `data:image/png;base64,${readFileSync(join(BRAND_DIR, "2026", "logos", file)).toString("base64")}`;
 }
 
-/** **الأمام:** لونُ القسم كاملاً، والعلامةُ في المنتصف، والأنماطُ الثلاثة أسفلَها */
-export async function renderBusinessCardFront(colorHex: string | null): Promise<Buffer> {
+/** **الوجه:** الهويةُ الرسمية للشخص */
+export async function renderBusinessCard(d: BusinessCardData): Promise<Buffer> {
   ensureFonts();
   const W = mm(BIZ_MM.w);
   const H = mm(BIZ_MM.h);
-  const p = palette(colorHex);
-  // نمطُ الموارد البشرية (Beige) بنفسجيٌّ بقرار المؤسس، وما سواه زوجُ الدليل للونه
-  const pat = p.bg === BRAND.beige.toUpperCase() ? BRAND.temptress : PATTERN_HEX[p.pattern];
-  const markW = mm(22);
-  const markH = Math.round((markW * 1300) / 1200);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}">
-  <rect width="${W}" height="${H}" fill="${p.bg}"/>
-  <image href="${markUri(MARK_FOR[p.logo])}" x="${Math.round((W - markW) / 2)}" y="${Math.round(mm(40) - markH / 2)}" width="${markW}" height="${markH}"/>
-  ${bizMotifRow(pat, W / 2, mm(78))}
-</svg>`;
-  return sharp(Buffer.from(svg)).png().toBuffer();
-}
+  const page = BRAND.beige;
+  const block = BRAND.temptress;
+  const accent = palette(d.colorHex).bg;
+  const hr = contrast(accent, BRAND.beige) < 1.5; // Beige على Beige لا يُرى
+  const strip = accent;
+  const stripEdge = hr ? BRAND.temptress : contrast(accent, block) < 1.25 ? BRAND.beige : null;
+  const onStrip = themeFromColor(strip).text === BRAND.ink ? BRAND.temptress : BRAND.beige;
+  const frame = hr ? BRAND.temptress : accent;
 
-/** **الخلف:** الترويسةُ والصورةُ على حدّها، ثم الاسمُ والمنصبُ والمهمّةُ والقسم متمركزةً، والعلامةُ أسفل */
-export async function renderBusinessCardBack(d: BusinessCardData): Promise<Buffer> {
-  ensureFonts();
-  const W = mm(BIZ_MM.w);
-  const H = mm(BIZ_MM.h);
-  const c = bizScheme(d.colorHex);
-  const CX = W / 2;
+  // ── الأبعاد
+  const M = mm(5);
+  const blockTop = mm(56);
+  const stripX = mm(4);
+  const stripW = mm(6.5);
+  const stripBottom = blockTop + mm(5); // يدخل الكتلةَ قليلاً كما في بطاقات الجهات
+  const markH = mm(10);
+  const markW = Math.round((markH * 1200) / 1300);
+  const PW = mm(24);
+  const PH = mm(30);
+  const PX = W - M - mm(1) - PW;
+  const PY = mm(19);
 
-  // ── الترويسة والصورة على حدّها
-  const bandH = mm(30);
-  const D = mm(25);
-  const PCY = bandH;
-  const ringW = mm(0.9);
+  // ── النمطُ كبيراً خافتاً، والشكلُ كاملاً يُعرَف: «موهبة» (النمطُ الأساسي) في الكتلة وحدها كما في بطاقات الجهات —
+  //    والصفحةُ فوقها نظيفةٌ رسمية
+  const faint = `<g clip-path="url(#blk)">${motifAt("talent", BRAND.beige, mm(13), mm(72), mm(13), 0.1)}</g>`;
+
+  // ── الصورة: مستطيلةٌ بإطارٍ رفيعٍ وهامشٍ أبيضَ كصورة الهوية
   let portrait: string;
   if (d.photo) {
-    const png = await sharp(d.photo).resize(D, D, { fit: "cover", position: "top" }).png().toBuffer();
-    portrait = `<image href="data:image/png;base64,${png.toString("base64")}" x="${CX - D / 2}" y="${PCY - D / 2}" width="${D}" height="${D}" clip-path="url(#ph)"/>`;
+    const png = await sharp(d.photo).resize(PW, PH, { fit: "cover", position: "top" }).png().toBuffer();
+    portrait = `<image href="data:image/png;base64,${png.toString("base64")}" x="${PX}" y="${PY}" width="${PW}" height="${PH}"/>`;
   } else {
     const initial = firstName(d.fullName).trim().charAt(0) || "T";
-    portrait = t(initial, CX, PCY + mm(3.6), mm(10.5), c.onBand, { anchor: "middle", weight: HERO });
+    portrait =
+      `<rect x="${PX}" y="${PY}" width="${PW}" height="${PH}" fill="${hr ? BRAND.temptress : accent}"/>` +
+      t(initial, PX + PW / 2, PY + PH / 2 + mm(4), mm(12), hr ? BRAND.beige : onStrip, { anchor: "middle", weight: HERO });
   }
+  const pad = mm(1);
 
-  // ── الكلام متمركزاً بين الصورة والعلامة
-  const TW = W - mm(8);
+  // ── الشريط: اسمُ القسم عمودياً يُقرأ من أعلى
+  const dept = d.departmentName?.trim() || "TLAQI";
+  const deptSize = await fit(dept, mm(3.3), blockTop - mm(12), mm(2.2), 700);
+  const sx = stripX + stripW / 2;
+  const sy = blockTop / 2;
+  const stripLabel = `<g transform="translate(${sx} ${sy}) rotate(90)">${t(dept, 0, Math.round(deptSize * 0.35), deptSize, onStrip, { anchor: "middle", weight: 700 })}</g>`;
+
+  // ── الكتلة: الاسمُ والمنصبُ والمهمّة، يميناً
+  const RX = W - M;
+  const TW = RX - M;
   const name = d.fullName.trim();
   let nameLines = [name];
-  let nameSize = await fit(name, mm(4.6), TW, mm(3.2), HERO);
+  let nameSize = await fit(name, mm(4.4), TW, mm(3.2), HERO);
   const words = name.split(/\s+/);
-  if (nameSize < mm(3.8) && words.length > 1) {
+  if (nameSize < mm(3.6) && words.length > 1) {
     const binds = new Set(["بن", "بنت", "ابن", "عبد", "أبو", "ابو", "آل"]);
     let best: [string, string] = [words[0], words.slice(1).join(" ")];
     let bestDiff = Infinity;
@@ -542,58 +521,54 @@ export async function renderBusinessCardBack(d: BusinessCardData): Promise<Buffe
       if (diff < bestDiff) [best, bestDiff] = [[a, b], diff];
     }
     nameLines = best;
-    nameSize = Math.min(await fit(best[0], mm(4.2), TW, mm(3), HERO), await fit(best[1], mm(4.2), TW, mm(3), HERO));
+    nameSize = Math.min(await fit(best[0], mm(3.6), TW, mm(2.8), HERO), await fit(best[1], mm(3.6), TW, mm(2.8), HERO));
   }
-  const posSize = await fit(d.position, mm(2.9), TW, mm(2.2), 700);
+  const posSize = await fit(d.position, mm(2.8), TW, mm(2.1), 700);
   const task = d.task?.trim() || null;
-  const taskSize = task ? await fit(task, mm(2.6), TW, mm(2.1), 400) : 0;
-  const dept = d.departmentName?.trim() || "TLAQI";
-  const dot = mm(1.6);
-  const dotGap = mm(1.5);
-  const deptSize = await fit(dept, mm(2.6), TW - dot - dotGap, mm(2.1), 700);
-  const deptW = await textWidth(dept, deptSize, 700);
-
-  const markH = mm(6.5);
-  const markW = Math.round((markH * 1200) / 1300);
-  const markTop = H - mm(6) - markH;
-
+  const taskSize = task ? await fit(task, mm(2.5), TW, mm(2), 400) : 0;
   const nameStep = Math.round(nameSize * 1.2);
-  const g1 = mm(2.4); // الاسم ← المنصب
-  const g2 = mm(1.5); // المنصب ← المهمّة
-  const g3 = mm(3.2); // ← القسم
-  const blockH = nameSize + (nameLines.length - 1) * nameStep + g1 + posSize + (task ? g2 + taskSize : 0) + g3 + deptSize;
-  const zoneTop = PCY + D / 2 + ringW;
-  const zoneBottom = markTop;
-  let y = Math.round(zoneTop + (zoneBottom - zoneTop - blockH) / 2 + nameSize * 0.85);
-
+  const blockH =
+    nameSize + (nameLines.length - 1) * nameStep + mm(2.2) + posSize + (task ? mm(1.4) + taskSize : 0);
+  const zoneTop = stripBottom;
+  let y = Math.round(zoneTop + (H - zoneTop - blockH) / 2 + nameSize * 0.85);
   let text = "";
   for (const line of nameLines) {
-    text += t(line, CX, y, nameSize, c.ink, { anchor: "middle", weight: HERO });
+    text += t(line, RX, y, nameSize, BRAND.beige, { weight: HERO });
     y += nameStep;
   }
-  y += -nameStep + g1 + posSize;
-  text += t(d.position, CX, y, posSize, c.ink, { anchor: "middle", weight: 700 });
+  y += -nameStep + mm(2.2) + posSize;
+  text += t(d.position, RX, y, posSize, BRAND.beige, { weight: 700 });
   if (task) {
-    y += g2 + taskSize;
-    text += t(task, CX, y, taskSize, c.ink, { anchor: "middle" });
+    y += mm(1.4) + taskSize;
+    text += t(task, RX, y, taskSize, BRAND.beige);
   }
-  y += g3 + deptSize;
-  // النقطةُ يمينَ اسم القسم، والسطرُ كلُّه متمركز
-  const lineW = dot + dotGap + deptW;
-  const right = CX + lineW / 2;
-  text += `<circle cx="${Math.round(right - dot / 2)}" cy="${Math.round(y - deptSize * 0.32)}" r="${dot / 2}" fill="${c.dot}"/>`;
-  text += t(dept, Math.round(right - dot - dotGap), y, deptSize, c.ink, { weight: 700 });
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}">
-  <defs><clipPath id="ph"><circle cx="${CX}" cy="${PCY}" r="${D / 2}"/></clipPath></defs>
-  <rect width="${W}" height="${H}" fill="${c.page}"/>
-  <rect width="${W}" height="${bandH}" fill="${c.band}"/>
-  ${bizMotifRow(c.onBand, CX, mm(10))}
-  <circle cx="${CX}" cy="${PCY}" r="${D / 2 + ringW}" fill="${BRAND.beige}"/>
-  <circle cx="${CX}" cy="${PCY}" r="${D / 2}" fill="${c.band}"/>
+  <defs><clipPath id="blk"><rect x="0" y="${blockTop}" width="${W}" height="${H - blockTop}"/></clipPath></defs>
+  <rect width="${W}" height="${H}" fill="${page}"/>
+  <rect y="${blockTop}" width="${W}" height="${H - blockTop}" fill="${block}"/>
+  ${faint}
+  <rect x="${stripX}" y="0" width="${stripW}" height="${stripBottom}" fill="${strip}"${stripEdge ? ` stroke="${stripEdge}" stroke-width="${mm(0.3)}"` : ""}/>
+  ${stripLabel}
+  <image href="${markUri("TLAQI-mark_mahogany.png")}" x="${W - M - markW}" y="${mm(5)}" width="${markW}" height="${markH}"/>
+  <rect x="${PX - pad}" y="${PY - pad}" width="${PW + 2 * pad}" height="${PH + 2 * pad}" fill="${page}" stroke="${frame}" stroke-width="${mm(0.25)}"/>
   ${portrait}
   ${text}
-  <image href="${markUri(MARK_FOR[c.senior ? "on-temptress" : "on-beige"])}" x="${Math.round(CX - markW / 2)}" y="${markTop}" width="${markW}" height="${markH}"/>
+</svg>`;
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+/** **الظهر:** Temptress كاملاً، والعلامةُ في منتصفه، و«موهبة» كبيرةٌ خافتةٌ يقطعها الحدّ */
+export async function renderBusinessCardReverse(): Promise<Buffer> {
+  ensureFonts();
+  const W = mm(BIZ_MM.w);
+  const H = mm(BIZ_MM.h);
+  const markW = mm(18);
+  const markH = Math.round((markW * 1300) / 1200);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}">
+  <rect width="${W}" height="${H}" fill="${BRAND.temptress}"/>
+  ${motifAt("talent", BRAND.beige, W - mm(9), H - mm(13), mm(16), 0.09)}
+  <image href="${markUri("TLAQI-mark_mahogany.png")}" x="${Math.round((W - markW) / 2)}" y="${Math.round(H / 2 - markH / 2)}" width="${markW}" height="${markH}"/>
 </svg>`;
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
