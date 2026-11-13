@@ -250,7 +250,7 @@ export function approvedLogoFor(colorHex: string): { logo: LogoFile; mark: strin
 /** **بطاقةُ الاعتماد (العضوية)** — تصميمُها الأصلي الذي اختاره المؤسس (بطاقةٌ بلون القسم على خلفية الهوية)، محسَّناً:
  *  - **الأنماطُ على الجانبين:** عمودا «موهبة» و«ابتكار» بلون الدليل لخلفية القسم (كانت نقاطاً عامّة ورمزاً شفّافاً).
  *  - **الخلفيةُ والبطاقةُ بلون القسم الصافي** (واللجنةُ بلون قسمها)، والبطاقةُ تُفرَد بإطارٍ وظلّ.
- *  - **الشعاران نسخةٌ رسميةٌ واحدة لذلك اللون:** الشعارُ أعلى البطاقة وعلامتُه داخلها من ملفات الحزمة نفسها، لا تلوين.
+ *  - **رأسُها اسمُ صاحبها ثم «أهلاً بك في عائلة تلاق» مكبَّرة**، بلا شعارٍ أعلاها (قرار المؤسس، نوفمبر 2026).
  *
  *  تصل مع رسالة الاعتماد وحدها: هي الإعلان أنّ صاحبها صار منّا. */
 export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
@@ -262,9 +262,10 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   // وعلامتُه داخل البطاقة من النسخة الرسمية لذلك اللون نفسها — البنفسجي: علامةٌ برتقالية وكلمةٌ Beige؛ الـBeige: علامةٌ
   // برتقالية؛ البرتقالي: الشعارُ أبيض (Beige) كاملاً؛ الأخضر: الشعارُ بنفسجيٌّ كاملاً. والنصُّ بحبر تلك النسخة، والنمطُ
   // بلون الدليل لتلك الخلفية، والبطاقةُ تُفرَد بإطارٍ وظلّ.
+  // **رأسُ البطاقة اسمُ صاحبها (قرار المؤسس):** لا شعارَ أعلى الصفحة — الاسمُ أولاً بخطٍّ عريض، وتحته «أهلاً بك في عائلة
+  // تلاق» مكبَّرةً، فالترحيبُ هو الرسالة واسمُ تلاق فيه نصّاً. والبطاقةُ تحمل القسمَ والمسمّى وتاريخَ الانضمام والصفة.
   const page = card.bg;
   const pageInk = card.ink;
-  const pageLogo: LogoFile = card.logo;
   const cardInk = card.ink;
   const cardStroke = ` stroke="${card.ink}" stroke-width="2.5"`;
   const C = CARD_W / 2;
@@ -272,10 +273,14 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   const W = CARD_W - 2 * X;
   const R = X + W - 56;
   const IL = X + 56;
-  const nameSize = await fit(d.fullName, 92, W - 112, 50, HERO);
-  const titleSize = await fit(d.title, 40, W - 112, 26);
-  const roleSize = await fit(d.roleTitle, 32, 300, 22);
+  const welcome = `${d.greeting} في عائلة تلاق`;
+  // عرضُ الرأس محدودٌ (٦٢٠) فلا يبلغ شكلَ «موهبة» في الزاوية العليا: لا نمطَ خلف نص
+  const nameSize = await fit(d.fullName, 96, 620, 44, HERO);
+  const welcomeSize = await fit(welcome, 64, 640, 40);
   const dept = d.departmentName?.trim() || "تلاق";
+  const deptSize = await fit(dept, 60, W - 112, 34, HERO);
+  const titleSize = await fit(d.title, 36, W - 112, 24);
+  const roleSize = await fit(d.roleTitle, 32, 300, 22);
   // **نمطان كبيران خافتان في الخلفية (قرار المؤسس):** شكلُ «موهبة» في الزاوية العليا وشكلُ «ابتكار» في الزاوية السفلى
   // المقابلة، كلٌّ منهما شكلٌ واحدٌ مكبَّرٌ بنسبته (لا تمديد ولا تدوير) يخرج عن الحافة، بحبر الخلفية وبشفافيةٍ خفيفة —
   // فيُرى أثراً هادئاً لا زحمة. ويقعان خلف البطاقة والهوامش وحدها، فلا نمطَ خلف نص.
@@ -288,8 +293,8 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   // السفلى في الزاوية الحرّة — فتتوزّع الثلاثةُ على البطاقة بلا تكرار: «موهبة» أعلى، و«ابتكار» و«ربط» أسفلُ على الجانبين
   const arc = (patternTile("link", inkName).match(/<path[^>]*transform="translate\(18 18\)"[^>]*\/>/) ?? [""])[0];
   const link = arc ? `<g opacity="${faint}" transform="translate(${CARD_W - 185} ${CARD_H - 150}) scale(15) translate(-18 -18)">${arc}</g>` : "";
-  const motifs = motif("talent", CARD_W - 150, 175, 9) + motif("innovation", 150, CARD_H - 170, 9) + link;
-  const nameY = 600 + nameSize;
+  // «موهبة» مدفوعٌ إلى الزاوية العليا (يخرج نصفُه عن الحافة) فيبقى فوق الرأس وعن يمينه، لا خلفه
+  const motifs = motif("talent", CARD_W - 80, 110, 9) + motif("innovation", 150, CARD_H - 170, 9) + link;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${CARD_W}" height="${CARD_H}">
   <defs>
@@ -297,18 +302,17 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   </defs>
   <rect width="100%" height="100%" fill="${page}"/>
   ${motifs}
-  <image href="${logoUri(pageLogo)}" x="${C - 150}" y="66" width="300" height="${Math.round((300 * 706) / 2400)}"/>
-  ${t("بطاقة انضمام", C, 236, 26, pageInk, { anchor: "middle" })}
-  ${t(`${d.greeting} في العائلة`, C, 300, 48, pageInk, { weight: 700, anchor: "middle" })}
-  <g filter="url(#shadow)"><rect x="${X}" y="360" width="${W}" height="680" rx="48" fill="${card.bg}"${cardStroke}/></g>
-  ${t(dept, R, 452, 30, cardInk, { weight: 700 })}
-  ${t(d.fullName, R, nameY, nameSize, cardInk, { weight: HERO })}
-  ${t(d.title, R, nameY + 70, titleSize, cardInk)}
-  <line x1="${IL}" y1="850" x2="${R}" y2="850" stroke="${cardInk}" stroke-width="2"/>
-  ${t(d.joinedLabel, R, 912, 24, cardInk)}
-  ${t(cardDate(d.joinedAt), R, 964, 34, cardInk, { weight: 700 })}
-  ${t("الصفة", IL, 912, 24, cardInk, { anchor: "left" })}
-  ${t(d.roleTitle, IL, 964, roleSize, cardInk, { weight: 700, anchor: "left" })}
+  ${t(d.fullName, C, 250, nameSize, pageInk, { weight: HERO, anchor: "middle" })}
+  ${t(welcome, C, 362, welcomeSize, pageInk, { weight: 700, anchor: "middle" })}
+  <g filter="url(#shadow)"><rect x="${X}" y="440" width="${W}" height="530" rx="48" fill="${card.bg}"${cardStroke}/></g>
+  ${t("بطاقة انضمام", R, 525, 24, cardInk)}
+  ${t(dept, R, 615, deptSize, cardInk, { weight: HERO })}
+  ${t(d.title, R, 685, titleSize, cardInk)}
+  <line x1="${IL}" y1="765" x2="${R}" y2="765" stroke="${cardInk}" stroke-width="2"/>
+  ${t(d.joinedLabel, R, 827, 24, cardInk)}
+  ${t(cardDate(d.joinedAt), R, 880, 34, cardInk, { weight: 700 })}
+  ${t("الصفة", IL, 827, 24, cardInk, { anchor: "left" })}
+  ${t(d.roleTitle, IL, 880, roleSize, cardInk, { weight: 700, anchor: "left" })}
   ${t("تحوّل رقمي، برؤية طموحة.", C, 1166, 30, pageInk, { anchor: "middle" })}
   ${t("@tlaqisa", C, 1216, 26, pageInk, { anchor: "middle", ltr: true })}
 </svg>`;
