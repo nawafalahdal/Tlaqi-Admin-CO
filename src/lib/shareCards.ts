@@ -144,7 +144,7 @@ async function deptChip(p: ReturnType<typeof palette>, dept: string, left: numbe
  *  «موهبة» — النمطُ الأساسي — و«ابتكار» متجاوران. */
 const TILE = 72;
 const patternCache = new Map<string, string>();
-function patternTile(kind: "talent" | "innovation", color: PatternColor): string {
+function patternTile(kind: "talent" | "innovation" | "link", color: PatternColor): string {
   const key = `${kind}_${color}`;
   const hit = patternCache.get(key);
   if (hit) return hit;
@@ -295,7 +295,11 @@ export async function renderWelcomeCard(d: WelcomeCardData): Promise<Buffer> {
   const motif = (kind: "talent" | "innovation", cx: number, cy: number, scale: number) =>
     `<g opacity="${faint}" transform="translate(${cx} ${cy}) scale(${scale}) translate(-36 -36)">${patternTile(kind, inkName)}</g>`;
   // مقاسٌ يُقرأ به الشكلُ كاملاً (نحو ٣٦٠ بكسلاً)، وتقطعه الحافةُ قليلاً فيبدو ممتدّاً خارج البطاقة لا ملصقاً عليها
-  const motifs = motif("talent", CARD_W - 150, 175, 9) + motif("innovation", 150, CARD_H - 170, 9);
+  // والثالثُ «ربط» — قوسٌ يصل نقطتين (معناه في الدليل: الصلةُ بين الموهبة والجهة): قوسٌ واحدٌ كبيرٌ كالجسر، طرفاه على الحافة
+  // السفلى في الزاوية الحرّة — فتتوزّع الثلاثةُ على البطاقة بلا تكرار: «موهبة» أعلى، و«ابتكار» و«ربط» أسفلُ على الجانبين
+  const arc = (patternTile("link", inkName).match(/<path[^>]*transform="translate\(18 18\)"[^>]*\/>/) ?? [""])[0];
+  const link = arc ? `<g opacity="${faint}" transform="translate(${CARD_W - 185} ${CARD_H - 150}) scale(15) translate(-18 -18)">${arc}</g>` : "";
+  const motifs = motif("talent", CARD_W - 150, 175, 9) + motif("innovation", 150, CARD_H - 170, 9) + link;
   const nameY = 600 + nameSize;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${CARD_W}" height="${CARD_H}">
