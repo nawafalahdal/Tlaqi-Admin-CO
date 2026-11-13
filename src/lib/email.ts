@@ -1423,8 +1423,7 @@ export async function sendWelcomeEmail(opts: WelcomeEmailOpts & { to: string; at
     w.subject,
     w.content,
     "ترحيب",
-    w.theme,
-    opts.attachments
+    w.theme, opts.attachments
   );
 }
 
