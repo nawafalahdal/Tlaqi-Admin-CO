@@ -26,6 +26,8 @@ export const CARD_H = 1350;
 /** خطُّ الهوية الرسمي (قرار المؤسس، نوفمبر 2026) من `assets/fonts` — وCairo احتياطٌ إن غاب */
 const FONT = "'The Year of The Camel', Cairo, 'Noto Sans Arabic', 'DejaVu Sans', sans-serif";
 const BRAND_DIR = join(process.cwd(), "public", "brand");
+/** للنصّ اللاتيني وحده («TLAQI»، المعرّف): حروفُ خطّ الهوية اللاتينيةُ مذيَّلة، والشعارُ الرسميُّ لاتينيٌّ غير مذيَّل */
+const LATIN = "Cairo, 'DejaVu Sans', sans-serif";
 
 function escapeXml(s: string): string {
   return s.replace(/[&<>"']/g, (c) =>
@@ -56,9 +58,9 @@ function logoUri(file: string): string {
  *
  *  الاسم أكبرُ ما في البطاقة، والتقديرُ يُخطئ في العربية (الحروف
  *  المتّصلة أعرض من المنفصلة بكثير). فيُرسم مرّةً وحده ويُقاس. */
-async function textWidth(text: string, size: number, weight = 700): Promise<number> {
+async function textWidth(text: string, size: number, weight = 700, font = FONT): Promise<number> {
   const w = Math.ceil(text.length * size * 0.9) + 40;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${Math.ceil(size * 2)}"><text x="${w - 10}" y="${Math.ceil(size * 1.4)}" font-family="${FONT}" font-size="${size}" font-weight="${weight}" fill="#000" direction="rtl" text-anchor="start">${escapeXml(text)}</text></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${Math.ceil(size * 2)}"><text x="${w - 10}" y="${Math.ceil(size * 1.4)}" font-family="${font}" font-size="${size}" font-weight="${weight}" fill="#000" direction="rtl" text-anchor="start">${escapeXml(text)}</text></svg>`;
   try {
     const { info } = await sharp(Buffer.from(svg)).trim().toBuffer({ resolveWithObject: true });
     return info.width;
@@ -81,7 +83,7 @@ function t(
   y: number,
   size: number,
   fill: string,
-  opts: { weight?: number; opacity?: number; anchor?: "right" | "left" | "middle"; ltr?: boolean } = {}
+  opts: { weight?: number; opacity?: number; anchor?: "right" | "left" | "middle"; ltr?: boolean; font?: string } = {}
 ): string {
   const dir = opts.ltr ? "ltr" : "rtl";
   // في RTL: «start» هو اليمين. وفي LTR: «start» هو اليسار.
@@ -91,7 +93,7 @@ function t(
       : opts.ltr
         ? opts.anchor === "right" ? "end" : "start"
         : opts.anchor === "left" ? "end" : "start";
-  return `<text x="${x}" y="${y}" font-family="${FONT}" font-size="${size}" font-weight="${opts.weight ?? 400}" fill="${fill}"${opts.opacity !== undefined ? ` fill-opacity="${opts.opacity}"` : ""} direction="${dir}" text-anchor="${anchor}" xml:space="preserve">${escapeXml(text)}</text>`;
+  return `<text x="${x}" y="${y}" font-family="${opts.font ?? FONT}" font-size="${size}" font-weight="${opts.weight ?? 400}" fill="${fill}"${opts.opacity !== undefined ? ` fill-opacity="${opts.opacity}"` : ""} direction="${dir}" text-anchor="${anchor}" xml:space="preserve">${escapeXml(text)}</text>`;
 }
 
 /** ألوانُ البطاقة ونسخةُ الشعار ولونُ النمط — من دليل الهوية (`docs/brand/KIT-README.md`)، لا اجتهاداً.
@@ -400,9 +402,10 @@ export async function renderWelcomeCardV2(d: WelcomeCardData): Promise<Buffer> {
   const cardMark = MARK_FOR[card.logo];
   const frameMark = MARK_FILE.mahogany; // نسخةُ البنفسجي المعتمدة: علامةٌ برتقالية
 
-  const dept = d.departmentName?.trim() || "تلاق";
+  const dept = d.departmentName?.trim() || "TLAQI";
   const verb = d.joinedLabel.replace(/\s*في\s*$/, "").trim() || "انضمّ";
-  const brand = "تلاق";
+  // اسمُ المنصة بالإنجليزية وحدها في هذه البطاقة (قرار المؤسس): لا «تلاق» ولا «تلاقي» بالعربية
+  const brand = "TLAQI";
 
   // ── النافذة
   const WX = 72, WY = 312, WW = 936, WH = 872, WR = 34;
@@ -429,7 +432,11 @@ export async function renderWelcomeCardV2(d: WelcomeCardData): Promise<Buffer> {
   const roleSize = await fit(d.roleTitle, 30, 220, 18);
   const chipSize = await fit(dept, 24, CR - CL - 120, 15);
   const chipW = Math.round((await textWidth(dept, chipSize)) + 44);
-  const authorW = await textWidth(brand, 25);
+  const authorW = await textWidth(brand, 23, 700, LATIN);
+  const searchAr = "ابحث في";
+  const searchArW = await textWidth(searchAr, 19, 400);
+  const searchLW = await textWidth(brand, 18, 700, LATIN);
+  const searchX = CARD_W / 2 + (searchArW + 7 + searchLW) / 2; // يمينُ عبارة البحث متمركزةً
   const colW = Math.max(await textWidth("الصفة", 20, 400), await textWidth(d.roleTitle, roleSize));
   const colR = CL + colW;
 
@@ -489,13 +496,14 @@ export async function renderWelcomeCardV2(d: WelcomeCardData): Promise<Buffer> {
   <rect x="${WX}" y="${WY}" width="${WW}" height="${WH}" rx="${WR}" fill="none" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="1.5"/>
 
   <rect x="${CARD_W / 2 - 180}" y="${WY + 16}" width="360" height="39" rx="19.5" fill="#FFFFFF" fill-opacity="0.1"/>
-  ${t(`ابحث في ${brand}`, CARD_W / 2, WY + 43, 19, beige, { anchor: "middle", opacity: 0.75 })}
+  ${t(searchAr, searchX, WY + 43, 19, beige, { opacity: 0.75 })}
+  ${t(brand, searchX - searchArW - 7, WY + 42, 18, beige, { opacity: 0.75, ltr: true, anchor: "right", weight: 700, font: LATIN })}
   <circle cx="${WX + WW - 38}" cy="${WY + 35}" r="9" fill="${BRAND.mahogany}"/>
   <circle cx="${WX + WW - 67}" cy="${WY + 35}" r="9" fill="${BRAND.greenSheen}"/>
   <circle cx="${WX + WW - 96}" cy="${WY + 35}" r="9" fill="${beige}"/>
 
   ${markAt(frameMark, WX + WW - 40, top + 47, 40)}
-  ${t(brand, WX + WW - 70, top + 57, 29, beige, { weight: HERO })}
+  ${t(brand, WX + WW - 70, top + 56, 26, beige, { weight: 700, ltr: true, anchor: "right", font: LATIN })}
   ${t("القنوات", WX + WW - 23, top + 119, 17, beige, { opacity: 0.6 })}
   <rect x="${MAINR + 21}" y="${top + 138}" width="${SIDE - 44}" height="52" rx="11" fill="${glow}"/>
   ${t("# الترحيب", WX + WW - 38, top + 172, 22, glowInk, { weight: 700 })}
@@ -512,7 +520,7 @@ export async function renderWelcomeCardV2(d: WelcomeCardData): Promise<Buffer> {
 
   <rect x="${PR - 63}" y="${top + 123}" width="63" height="63" rx="15" fill="${frame}"/>
   ${markAt(frameMark, PR - 31.5, top + 154.5, 38)}
-  ${t(brand, PR - 82, top + 152, 25, ink, { weight: HERO })}
+  ${t(brand, PR - 82, top + 151, 22, ink, { weight: 700, ltr: true, anchor: "right", font: LATIN })}
   ${t("الآن", PR - 82 - authorW - 12, top + 151, 17, ink, { opacity: 0.55 })}
   ${t(message, PR - 82, top + 189, messageSize, ink)}
 
@@ -534,7 +542,7 @@ export async function renderWelcomeCardV2(d: WelcomeCardData): Promise<Buffer> {
   ${t("اكتب رسالة في # الترحيب", PR - 26, IY + 35, 20, ink, { opacity: 0.5 })}
 
   ${t("تحوّل رقمي، برؤية طموحة.", CARD_W / 2, 1268, 44, beige, { weight: HERO, anchor: "middle" })}
-  ${t("@tlaqisa", CARD_W / 2, 1316, 23, beige, { anchor: "middle", ltr: true, opacity: 0.75 })}
+  ${t("@tlaqisa", CARD_W / 2, 1316, 23, beige, { anchor: "middle", ltr: true, opacity: 0.75, font: LATIN })}
 </svg>`;
   return toPng(svg);
 }
