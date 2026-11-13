@@ -211,6 +211,8 @@ requestsHint: "ما تُنشئه المنصة وحدها: البانر التر�
     myCardHint: "بطاقة عضويتك في TLAQI — احفظها وشاركها.",
     myCardSave: "حفظ البطاقة",
     myCardAlt: "بطاقة العضوية",
+    myCardSoon: "قريباً",
+    myCardSoonHint: "نُجهّز بطاقة عضويتك في TLAQI — قريباً تضيف إليها صورتك الشخصية وتحفظها باسمك ومهمتك.",
     departmentFallback: "—",
     warningsTitle: "التنبيهات",
     warningsPending: "بانتظار الاطلاع",

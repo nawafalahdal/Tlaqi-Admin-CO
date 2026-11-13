@@ -34,6 +34,9 @@ import { MyMembershipCard } from "@/components/MyMembershipCard";
 import { shareCardUrl, cardFingerprint } from "@/lib/bannerToken";
 import { firstName } from "@/lib/personName";
 
+/** «بطاقتي» تُعرض «قريباً» حتى يُعتمد تصميمُها مع الصورة الشخصية (قرار المؤسس، نوفمبر 2026) — `true` يُعيدها كما هي */
+const MY_CARD_READY = false;
+
 export default async function MemberPortalPage() {
   const session = await auth();
   if (!session) redirect("/login");
@@ -129,18 +132,32 @@ export default async function MemberPortalPage() {
         </section>
 
         {/* «بطاقتي»: بطاقةُ العضوية يحفظها صاحبُها من صفحته — لم تعد تُرفق برسالة الاعتماد (قرار المؤسس).
-            والرابطُ ببصمة ما يُرسم فيها: يُخزَّن ولا يُعاد رسمُه في كل زيارة، ويتجدّد إن تغيّر الاسمُ أو القسم */}
+            والرابطُ ببصمة ما يُرسم فيها: يُخزَّن ولا يُعاد رسمُه في كل زيارة، ويتجدّد إن تغيّر الاسمُ أو القسم.
+            وهي الآن «قريباً» (`MY_CARD_READY`) حتى يُعتمد تصميمُها مع الصورة الشخصية */}
         <section>
           <MyMembershipCard
-            url={shareCardUrl(
-              "welcome",
-              { kind: "member", id: member.id },
-              "",
-              cardFingerprint([member.fullName, member.jobTitle, member.department?.name, member.department?.colorHex, member.decidedAt?.toISOString()])
-            )}
-            fileName={`TLAQI-${firstName(member.fullName)}`}
+            card={
+              MY_CARD_READY
+                ? {
+                    url: shareCardUrl(
+                      "welcome",
+                      { kind: "member", id: member.id },
+                      "",
+                      cardFingerprint([member.fullName, member.jobTitle, member.department?.name, member.department?.colorHex, member.decidedAt?.toISOString()])
+                    ),
+                    fileName: `TLAQI-${firstName(member.fullName)}`,
+                  }
+                : null
+            }
             theme={theme}
-            L={{ title: t.member.myCardTitle, hint: t.member.myCardHint, save: t.member.myCardSave, alt: t.member.myCardAlt }}
+            L={{
+              title: t.member.myCardTitle,
+              hint: t.member.myCardHint,
+              save: t.member.myCardSave,
+              alt: t.member.myCardAlt,
+              soon: t.member.myCardSoon,
+              soonHint: t.member.myCardSoonHint,
+            }}
           />
         </section>
 

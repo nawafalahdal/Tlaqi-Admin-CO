@@ -214,6 +214,8 @@ requestsHint: "What the platform creates on its own: the welcome banner on appro
     myCardHint: "Your TLAQI membership card — save it and share it.",
     myCardSave: "Save the card",
     myCardAlt: "Membership card",
+    myCardSoon: "Coming soon",
+    myCardSoonHint: "We're preparing your TLAQI membership card — soon you'll add your photo and save it with your name and role.",
     departmentFallback: "—",
     warningsTitle: "Warnings",
     warningsPending: "pending review",
