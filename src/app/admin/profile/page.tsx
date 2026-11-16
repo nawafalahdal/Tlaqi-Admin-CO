@@ -186,6 +186,11 @@ export default async function AdminProfilePage() {
             alt: t.member.myCardAlt,
             soon: t.member.myCardSoon,
             soonHint: t.member.myCardSoonHint,
+            flip: t.member.myCardFlip,
+            front: t.member.myCardFront,
+            back: t.member.myCardBack,
+            print: t.member.myCardPrint,
+            printSheet: t.member.myCardPrintSheet,
           }}
         />
 

@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { Card } from "@/components/ui";
+import { CardFlip } from "@/components/CardFlip";
 import type { themeFromColor } from "@/lib/brand";
 
 /** «بطاقتي» لكل حساب — العضو في صفحته، والمؤسسُ والإدارةُ العليا والقادةُ في «بياناتي».
@@ -18,7 +20,19 @@ export function MyMembershipCard({
 }: {
   card: { url: string; fileName: string } | null;
   theme: ReturnType<typeof themeFromColor>;
-  L: { title: string; hint: string; save: string; alt: string; soon: string; soonHint: string };
+  L: {
+    title: string;
+    hint: string;
+    save: string;
+    alt: string;
+    soon: string;
+    soonHint: string;
+    flip: string;
+    front: string;
+    back: string;
+    print: string;
+    printSheet: string;
+  };
 }) {
   if (!card) {
     return (
@@ -43,22 +57,24 @@ export function MyMembershipCard({
         <h2 className="text-base font-bold">{L.title}</h2>
         <p className="mt-1 text-xs text-black/50">{L.hint}</p>
       </div>
-      {/* eslint-disable-next-line @next/next/no-img-element -- صورةٌ مولَّدةٌ على الخادم بمقاسها، لا تحتاج تحسين next/image */}
-      <img
-        src={url}
-        alt={L.alt}
-        width={1276}
-        height={2022}
-        className="mx-auto h-auto w-full max-w-sm rounded-2xl ring-1 ring-black/10"
-      />
+      {/* **وجهان يُقلبان** (البند ٥) — الخلفيُّ من المسار الموقَّع نفسه (`?side=back`) */}
+      <CardFlip frontUrl={url} backUrl={`${url}${url.includes("?") ? "&" : "?"}side=back`} L={{ alt: L.alt, flip: L.flip, front: L.front, back: L.back }} />
+      <div className="flex flex-wrap items-center justify-center gap-2">
       <a
         href={`${url}${url.includes("?") ? "&" : "?"}download=${encodeURIComponent(fileName)}`}
         download={`${fileName}.png`}
-        className="inline-flex min-h-11 items-center justify-center self-center rounded-xl px-5 text-sm font-semibold hover:brightness-95"
+        className="inline-flex min-h-11 items-center justify-center rounded-xl px-5 text-sm font-semibold hover:brightness-95"
         style={{ background: theme.fill, color: theme.onFill }}
       >
         {L.save}
       </a>
+      <Link href="/card/print" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-black/15 px-5 text-sm font-semibold hover:bg-black/[0.04]">
+        {L.print}
+      </Link>
+      <Link href="/card/print?mode=sheet" className="inline-flex min-h-11 items-center justify-center rounded-xl px-3 text-sm text-black/60 underline">
+        {L.printSheet}
+      </Link>
+      </div>
     </Card>
   );
 }

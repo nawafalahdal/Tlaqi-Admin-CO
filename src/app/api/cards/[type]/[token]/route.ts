@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyBannerToken } from "@/lib/bannerToken";
-import { renderBusinessCard, renderInviteCard, renderWelcomeCard } from "@/lib/shareCards";
+import { renderBusinessCard, renderBusinessCardReverse, renderInviteCard, renderWelcomeCard } from "@/lib/shareCards";
 import { businessCardData } from "@/lib/businessCardData";
 import { departmentColor } from "@/lib/departmentColor";
 import { forms, gx, positionTitle, roleTitle } from "@/lib/gender";
@@ -32,7 +32,8 @@ export async function GET(
       // البطاقةُ الرسمية («بطاقتي») — من مصدرها الواحد الذي ترسمه رسالةُ الترحيب أيضاً
       const card = await businessCardData(subject);
       if (!card) return new NextResponse("غير موجود", { status: 404 });
-      png = await renderBusinessCard(card.data);
+      // **الوجهُ الخلفي** (البند ٥: القلبُ والطباعة بالوجهين) — المعتمدُ نفسُه، بالتوقيع نفسه: لا يُطلب إلا لصاحب بطاقة
+      png = new URL(request.url).searchParams.get("side") === "back" ? await renderBusinessCardReverse() : await renderBusinessCard(card.data);
     } else if (type === "invite") {
       // الدعوة للمرشّح وحده: له سجلُّ عضوٍ منذ لحظة دعوته
       if (subject.kind !== "member") return new NextResponse("غير موجود", { status: 404 });
