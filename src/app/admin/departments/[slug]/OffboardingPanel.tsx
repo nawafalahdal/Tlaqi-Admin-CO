@@ -2,14 +2,20 @@
 
 import { useActionState, useState, useTransition } from "react";
 import {
-  stepDownMemberAction,
-  markOffboardingStepAction,
-  closeOffboardingAction,
+  stepDownMemberAction as stepDownMemberAction__server,
+  markOffboardingStepAction as markOffboardingStepAction__server,
+  closeOffboardingAction as closeOffboardingAction__server,
 } from "./actions";
 import { Card, Button } from "@/components/ui";
 import { useLocale } from "@/i18n/LocaleProvider";
 import { dayCount } from "@/lib/dayCount";
 import type { themeFromColor } from "@/lib/brand";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const stepDownMemberAction = guardAction(stepDownMemberAction__server);
+const markOffboardingStepAction = guardAction(markOffboardingStepAction__server);
+const closeOffboardingAction = guardAction(closeOffboardingAction__server);
 
 export type OffboardingMember = {
   id: string;

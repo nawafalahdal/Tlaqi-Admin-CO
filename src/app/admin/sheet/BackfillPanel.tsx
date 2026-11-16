@@ -1,10 +1,14 @@
 "use client";
 
 import { useActionState } from "react";
-import { backfillSheetsAction, type BackfillState } from "./actions";
+import { backfillSheetsAction as backfillSheetsAction__server, type BackfillState } from "./actions";
 import { Card, Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const backfillSheetsAction = guardAction(backfillSheetsAction__server);
 
 const INITIAL: BackfillState = { error: null, counts: null };
 

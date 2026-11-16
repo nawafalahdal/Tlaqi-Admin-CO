@@ -26,7 +26,11 @@ import {
   type FieldKey,
 } from "@/lib/certificateTypes";
 import type { RecipientDetails } from "@/lib/certificateRegistry";
-import { issueCertificateAction, loadCertificateRecipientAction } from "./actions";
+import { issueCertificateAction as issueCertificateAction__server, loadCertificateRecipientAction as loadCertificateRecipientAction__server } from "./actions";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const issueCertificateAction = guardAction(issueCertificateAction__server);
+const loadCertificateRecipientAction = guardAction(loadCertificateRecipientAction__server);
 
 export type RecipientOption = { id: string; name: string; dept: string; role: string };
 

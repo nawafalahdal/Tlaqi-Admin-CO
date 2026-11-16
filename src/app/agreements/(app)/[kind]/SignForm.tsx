@@ -3,7 +3,11 @@
 import { useActionState, useEffect, useState } from "react";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
-import { requestOtpAction, signAction } from "../../actions";
+import { requestOtpAction as requestOtpAction__server, signAction as signAction__server } from "../../actions";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const requestOtpAction = guardAction(requestOtpAction__server);
+const signAction = guardAction(signAction__server);
 
 type Theme = ReturnType<typeof themeFromColor>;
 const field = "min-h-11 w-full rounded-xl border border-black/15 bg-white px-3.5 py-2 text-sm outline-none focus:border-black/40";

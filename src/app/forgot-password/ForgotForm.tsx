@@ -1,8 +1,12 @@
 "use client";
 
 import { useActionState } from "react";
-import { requestResetAction } from "./actions";
+import { requestResetAction as requestResetAction__server } from "./actions";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const requestResetAction = guardAction(requestResetAction__server);
 
 export function ForgotForm() {
   const [state, formAction, pending] = useActionState(requestResetAction, { sent: false });

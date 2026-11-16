@@ -2,11 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { updateRequestStatusAction } from "../../actions";
+import { updateRequestStatusAction as updateRequestStatusAction__server } from "../../actions";
 import { Card, StatusBadge } from "@/components/ui";
 import { themeFromColor } from "@/lib/brand";
 import { formatDate } from "@/lib/format";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const updateRequestStatusAction = guardAction(updateRequestStatusAction__server);
 
 /** طلبٌ موجَّهٌ لقسم — يبدأ العملُ عليه ثم يُغلق بسببٍ مكتوب.
  *

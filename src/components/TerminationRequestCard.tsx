@@ -2,10 +2,15 @@
 
 import { brandInk } from "@/lib/brand";
 import { useState, useTransition } from "react";
-import { submitTerminationAction, withdrawTerminationAction } from "@/app/admin/terminations/actions";
+import { submitTerminationAction as submitTerminationAction__server, withdrawTerminationAction as withdrawTerminationAction__server } from "@/app/admin/terminations/actions";
 import { Card, Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const submitTerminationAction = guardAction(submitTerminationAction__server);
+const withdrawTerminationAction = guardAction(withdrawTerminationAction__server);
 
 type Open = {
   id: string;

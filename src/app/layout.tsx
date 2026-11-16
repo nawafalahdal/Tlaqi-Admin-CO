@@ -4,6 +4,7 @@ import "./globals.css";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { LocaleProvider } from "@/i18n/LocaleProvider";
 import { NavDepth } from "@/components/NavDepth";
+import { ActionFailureNotice } from "@/components/ActionFailureNotice";
 import { ThemeScript } from "@/components/ThemeScript";
 import { databaseBlocked, deploymentEnv } from "@/lib/deploymentEnv";
 import { fmt } from "@/i18n/fmt";
@@ -54,6 +55,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <LocaleProvider initialLocale={locale}>
           {/* يَعدّ خطواتنا وحدها، فيعرف زرُّ الرجوع متى يَرجع ومتى يَصعد */}
           <NavDepth />
+          {/* فشلُ إرسال إجراءٍ (صفحةٌ من نسخةٍ سابقة أو انقطاع) يُقال هنا بزرّ تحديث — لا صفحةَ خطأٍ كاملة */}
+          <ActionFailureNotice />
           {G ? (
             <main className="mx-auto flex max-w-xl flex-1 flex-col justify-center gap-3 px-4 py-16">
               <h1 className="text-lg font-bold">{G.title}</h1>

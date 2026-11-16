@@ -1,12 +1,18 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { movePlanDocAction, removePlanDocAction, renamePlanDocAction } from "./actions";
+import { movePlanDocAction as movePlanDocAction__server, removePlanDocAction as removePlanDocAction__server, renamePlanDocAction as renamePlanDocAction__server } from "./actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 
 import { useTranslations } from "@/i18n/LocaleProvider";
 import { fmt } from "@/i18n/fmt";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const movePlanDocAction = guardAction(movePlanDocAction__server);
+const removePlanDocAction = guardAction(removePlanDocAction__server);
+const renamePlanDocAction = guardAction(renamePlanDocAction__server);
+
 /** أدواتُ مادةٍ واحدة: ترتيبٌ وتسميةٌ وحذف — لمن يملك المركز.
  *
  *  **والحذفُ يُؤكَّد ولا يقع بضغطة:** الوثيقةُ مرفوعةٌ لا مُشارٌ إليها،

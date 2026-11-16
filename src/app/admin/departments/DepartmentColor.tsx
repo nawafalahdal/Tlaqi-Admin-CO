@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { updateDepartmentColorAction } from "./actions";
+import { updateDepartmentColorAction as updateDepartmentColorAction__server } from "./actions";
 import { useTranslations } from "@/i18n/LocaleProvider";
 
 import { DEPARTMENT_SWATCHES as SWATCHES } from "@/lib/departmentColorSwatches";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const updateDepartmentColorAction = guardAction(updateDepartmentColorAction__server);
 
 /** تغيير لون قسم من فهرس الأقسام — في مكانه الصحيح الآن.
  *  كان داخل لوحة القسم، ولوحة القسم ما عادت تُفتح لمن يملك الهيكل. */

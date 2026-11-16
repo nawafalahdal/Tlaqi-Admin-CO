@@ -1,9 +1,15 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
-import { loginAction, requestLoginCodeAction, resendLoginCodeAction, type LoginStep1 } from "./actions";
+import { loginAction as loginAction__server, requestLoginCodeAction as requestLoginCodeAction__server, resendLoginCodeAction as resendLoginCodeAction__server, type LoginStep1 } from "./actions";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import { NavGlyph } from "@/components/icons";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const loginAction = guardAction(loginAction__server);
+const requestLoginCodeAction = guardAction(requestLoginCodeAction__server);
+const resendLoginCodeAction = guardAction(resendLoginCodeAction__server);
 
 const FIELD =
   "min-h-11 rounded-xl border border-black/10 bg-white px-4 py-3 text-sm outline-none transition-shadow placeholder:text-black/35 focus:border-[var(--brand-temptress)] focus:ring-2 focus:ring-[var(--brand-temptress)]/15";

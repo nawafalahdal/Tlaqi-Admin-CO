@@ -1,11 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { approveMemberAction, rejectMemberAction } from "./actions";
+import { approveMemberAction as approveMemberAction__server, rejectMemberAction as rejectMemberAction__server } from "./actions";
 import { themeFromColor, brandInk} from "@/lib/brand";
 import { Button, Card } from "@/components/ui";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const approveMemberAction = guardAction(approveMemberAction__server);
+const rejectMemberAction = guardAction(rejectMemberAction__server);
 
 export function ApprovalRow({
   member,

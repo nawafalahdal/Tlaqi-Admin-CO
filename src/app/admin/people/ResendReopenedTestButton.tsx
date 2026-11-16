@@ -4,7 +4,10 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
-import { resendReopenedTestAction } from "./actions";
+import { resendReopenedTestAction as resendReopenedTestAction__server } from "./actions";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const resendReopenedTestAction = guardAction(resendReopenedTestAction__server);
 
 /** «إعادة إرسال رسالة الاختبار» — لمرشّحٍ أُعيد فتحُ اختباره ولم يدخل بعد.
  *

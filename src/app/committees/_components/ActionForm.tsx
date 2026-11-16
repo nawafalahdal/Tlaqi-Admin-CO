@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useRef, useState, type ReactNode } from "react";
+import { useActionState, useMemo, useRef, useState, type ReactNode } from "react";
+import { guardAction } from "@/lib/actionGuard";
 import { Button } from "@/components/ui";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import type { themeFromColor } from "@/lib/brand";
@@ -33,7 +34,9 @@ export function ActionForm({
   confirm?: { title: string; body?: string; confirmLabel: string };
   compact?: boolean;
 }) {
-  const [state, formAction, pending] = useActionState(action, { error: null, success: false });
+  // الإجراءُ يصل من صفحة الخادم — يُحرس هنا: فشلُ النقل خطأٌ في مكانه لا صفحةُ خطأ (`lib/actionGuard`)
+  const guarded = useMemo(() => guardAction(action), [action]);
+  const [state, formAction, pending] = useActionState(guarded, { error: null, success: false });
   const ref = useRef<HTMLFormElement>(null);
   const confirmed = useRef(false);
   const submitter = useRef<HTMLButtonElement | null>(null);

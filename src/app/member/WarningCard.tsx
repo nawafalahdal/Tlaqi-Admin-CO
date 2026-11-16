@@ -1,11 +1,15 @@
 "use client";
 
 import { useTransition } from "react";
-import { acknowledgeWarningAction } from "./actions";
+import { acknowledgeWarningAction as acknowledgeWarningAction__server } from "./actions";
 import { Card, Button } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const acknowledgeWarningAction = guardAction(acknowledgeWarningAction__server);
 
 export function WarningCard({
   warning,

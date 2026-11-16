@@ -1,9 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { submitCandidateTestAction } from "./actions";
+import { submitCandidateTestAction as submitCandidateTestAction__server } from "./actions";
 import { brandInk, type themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const submitCandidateTestAction = guardAction(submitCandidateTestAction__server);
 
 type Theme = ReturnType<typeof themeFromColor>;
 type Question = { id: string; prompt: string; options: string[] };
@@ -40,7 +44,8 @@ export function CandidateTest({
   async function handleSubmit() {
     setPending(true);
     setError(null);
-    const res = await (submit ?? submitCandidateTestAction)(answers);
+    // `submit` يأتي إجراءَ خادمٍ مربوطاً من الصفحة (اختبارُ العضو القائم) — يُحرس هنا كما يُحرس المستورَد
+    const res = await (submit ? guardAction(submit) : submitCandidateTestAction)(answers);
     setPending(false);
     if (!res.ok) {
       setError(res.error ?? t.invite.genericError);

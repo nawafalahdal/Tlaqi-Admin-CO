@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { permanentlyDeleteUserAction } from "./actions";
+import { permanentlyDeleteUserAction as permanentlyDeleteUserAction__server } from "./actions";
 import { Card, Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const permanentlyDeleteUserAction = guardAction(permanentlyDeleteUserAction__server);
 
 /** حسابٌ مُنحّى — سجلٌّ يُقرأ، وللمؤسس أن يمحوه نهائياً.
  *

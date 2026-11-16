@@ -2,8 +2,12 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { resetPasswordAction } from "./actions";
+import { resetPasswordAction as resetPasswordAction__server } from "./actions";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const resetPasswordAction = guardAction(resetPasswordAction__server);
 
 export function ResetForm({ token }: { token: string }) {
   const [state, formAction, pending] = useActionState(resetPasswordAction, {

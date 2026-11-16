@@ -1,10 +1,14 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { createLeadershipRequestAction } from "./actions";
+import { createLeadershipRequestAction as createLeadershipRequestAction__server } from "./actions";
 import { Button } from "@/components/ui";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import type { themeFromColor } from "@/lib/brand";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const createLeadershipRequestAction = guardAction(createLeadershipRequestAction__server);
 
 type Dept = { id: string; name: string };
 

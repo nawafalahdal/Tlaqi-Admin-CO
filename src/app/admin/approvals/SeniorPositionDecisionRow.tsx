@@ -1,8 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { decideSeniorPositionAction } from "@/app/assessment/actions";
+import { decideSeniorPositionAction as decideSeniorPositionAction__server } from "@/app/assessment/actions";
 import { Card } from "@/components/ui";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const decideSeniorPositionAction = guardAction(decideSeniorPositionAction__server);
 
 /** تفعيلُ منصب الإدارة العليا لصاحب حسابٍ قائم بعد اختباره — قرارُ جهة الاعتماد المستقلة (ق١ وق٢) */
 export function SeniorPositionDecisionRow({

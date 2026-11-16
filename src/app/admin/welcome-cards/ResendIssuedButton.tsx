@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import { fmt } from "@/i18n/fmt";
-import { resendIssuedCertificateAction } from "./actions";
+import { resendIssuedCertificateAction as resendIssuedCertificateAction__server } from "./actions";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const resendIssuedCertificateAction = guardAction(resendIssuedCertificateAction__server);
 
 /** إعادةُ إرسال شهادةٍ من السجل لم يصل بريدها — الشهادةُ نفسها برقمها، لا ثانية */
 export function ResendIssuedButton({ id, number, name }: { id: string; number: string; name: string }) {

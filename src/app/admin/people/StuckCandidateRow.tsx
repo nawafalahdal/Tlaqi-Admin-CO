@@ -1,11 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { reopenCandidateTestAction, purgeCandidateAction } from "./actions";
+import { reopenCandidateTestAction as reopenCandidateTestAction__server, purgeCandidateAction as purgeCandidateAction__server } from "./actions";
 import { Button, Card } from "@/components/ui";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import type { themeFromColor } from "@/lib/brand";
 import { ResendReopenedTestButton } from "./ResendReopenedTestButton";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const reopenCandidateTestAction = guardAction(reopenCandidateTestAction__server);
+const purgeCandidateAction = guardAction(purgeCandidateAction__server);
 
 export type StuckCandidate = {
   id: string;

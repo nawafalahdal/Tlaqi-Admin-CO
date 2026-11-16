@@ -3,14 +3,20 @@
 import { useActionState, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import {
-  issueWarningAction,
-  resetMemberCredentialsAction,
-  markMemberExitedAction,
+  issueWarningAction as issueWarningAction__server,
+  resetMemberCredentialsAction as resetMemberCredentialsAction__server,
+  markMemberExitedAction as markMemberExitedAction__server,
 } from "./actions";
 import { Card, Button } from "@/components/ui";
 import { CredentialsReveal } from "@/components/CredentialsReveal";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const issueWarningAction = guardAction(issueWarningAction__server);
+const resetMemberCredentialsAction = guardAction(resetMemberCredentialsAction__server);
+const markMemberExitedAction = guardAction(markMemberExitedAction__server);
 
 type RosterMember = {
   id: string;

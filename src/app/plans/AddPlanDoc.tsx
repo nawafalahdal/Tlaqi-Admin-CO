@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useEffect, useState } from "react";
-import { addPlanDocAction } from "./actions";
+import { addPlanDocAction as addPlanDocAction__server } from "./actions";
 import { Button } from "@/components/ui";
 import { MAX_PLAN_FILE_BYTES, ALLOWED_PLAN_TYPES, typeLabel } from "@/lib/planFormats";
 import type { themeFromColor } from "@/lib/brand";
@@ -9,6 +9,10 @@ import { FileField } from "@/components/FileField";
 
 import { useLocale, useTranslations } from "@/i18n/LocaleProvider";
 import { fmt } from "@/i18n/fmt";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const addPlanDocAction = guardAction(addPlanDocAction__server);
+
 const ACCEPT = Object.keys(ALLOWED_PLAN_TYPES).join(",");
 const MAX_MB = (MAX_PLAN_FILE_BYTES / 1048576).toFixed(0);
 

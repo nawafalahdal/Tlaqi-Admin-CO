@@ -3,10 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { deleteUnusedInviteAction } from "./actions";
-
+import { deleteUnusedInviteAction as deleteUnusedInviteAction__server } from "./actions";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import { fmt } from "@/i18n/fmt";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const deleteUnusedInviteAction = guardAction(deleteUnusedInviteAction__server);
+
 /** حذفُ دعوةٍ لم تُستعمَل — بتأكيدٍ، ويُقال سببُ الرفض كما جاء من الخادم */
 export function DeleteInviteButton({ inviteId, name }: { inviteId: string; name: string }) {
   const L = useTranslations().rInviteDelete;

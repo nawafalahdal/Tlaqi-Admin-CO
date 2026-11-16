@@ -1,11 +1,15 @@
 "use client";
 
 import { useActionState, useRef, useEffect, useState } from "react";
-import { createMilestoneAction } from "../actions";
+import { createMilestoneAction as createMilestoneAction__server } from "../actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 
 import { useTranslations } from "@/i18n/LocaleProvider";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const createMilestoneAction = guardAction(createMilestoneAction__server);
+
 /** محطّةٌ شهرية — بنتيجةٍ متوقَّعةٍ ومعيارِ قبول، لا بقسمةٍ على الأشهر */
 export function MilestoneForm({
   goalId,

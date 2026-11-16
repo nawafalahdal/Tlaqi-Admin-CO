@@ -1,8 +1,12 @@
 "use client";
 
 import { useActionState } from "react";
-import { changePasswordAction } from "./actions";
+import { changePasswordAction as changePasswordAction__server } from "./actions";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const changePasswordAction = guardAction(changePasswordAction__server);
 
 export function ChangePasswordForm({ forced }: { forced: boolean }) {
   const [state, formAction, pending] = useActionState(changePasswordAction, { error: null });

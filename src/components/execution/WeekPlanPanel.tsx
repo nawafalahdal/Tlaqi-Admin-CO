@@ -2,15 +2,22 @@
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import {
-  createTaskAction,
-  submitPlanAction,
-  setCapacityAction,
-  ensurePlanAction,
+  createTaskAction as createTaskAction__server,
+  submitPlanAction as submitPlanAction__server,
+  setCapacityAction as setCapacityAction__server,
+  ensurePlanAction as ensurePlanAction__server,
 } from "@/app/admin/execution/actions";
 import { Button } from "@/components/ui";
 import { TaskCard, type TaskView } from "./TaskCard";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import type { themeFromColor } from "@/lib/brand";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const createTaskAction = guardAction(createTaskAction__server);
+const submitPlanAction = guardAction(submitPlanAction__server);
+const setCapacityAction = guardAction(setCapacityAction__server);
+const ensurePlanAction = guardAction(ensurePlanAction__server);
 
 /** خطةُ أسبوعِ القسم — يبنيها قائدُه ويرفعها للاعتماد.
  *
@@ -274,6 +281,9 @@ function TaskForm({
     success: false,
   });
   const ref = useRef<HTMLFormElement>(null);
+  // **مفتاحُ منع التكرار** (البند ٤): واحدٌ لهذا الالتزام — إعادةُ الإرسال بعد ضياع الردّ لا تُنشئ ثانياً.
+  // والنموذجُ يُغلق بعد النجاح (`onDone`) فيُفتح التالي بمفتاحٍ جديد
+  const [requestId] = useState(() => crypto.randomUUID());
   useEffect(() => {
     if (state.success) {
       ref.current?.reset();
@@ -284,6 +294,7 @@ function TaskForm({
   return (
     <form ref={ref} action={formAction} className="flex flex-col gap-3 rounded-xl bg-black/[0.03] p-3">
       <input type="hidden" name="planId" value={planId} />
+      <input type="hidden" name="clientRequestId" value={requestId} />
       <p className="text-xs leading-relaxed text-black/55">
         {L.formHint}
       </p>

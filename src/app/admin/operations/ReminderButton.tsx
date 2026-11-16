@@ -1,10 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { remindTicketAction, remindRequestAction } from "./actions";
+import { remindTicketAction as remindTicketAction__server, remindRequestAction as remindRequestAction__server } from "./actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const remindTicketAction = guardAction(remindTicketAction__server);
+const remindRequestAction = guardAction(remindRequestAction__server);
 
 export function ReminderButton({
   target,

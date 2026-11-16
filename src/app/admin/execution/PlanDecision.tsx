@@ -1,11 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { decidePlanAction } from "./actions";
+import { decidePlanAction as decidePlanAction__server } from "./actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 
 import { useTranslations } from "@/i18n/LocaleProvider";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const decidePlanAction = guardAction(decidePlanAction__server);
+
 /** قرارُ التنفيذي في خطةِ قسم: اعتمادٌ أو ردٌّ بسبب.
  *
  *  **والتحميلُ الزائد يُقَرّ صراحةً لا يُمرَّر صامتاً:** حين تتجاوز

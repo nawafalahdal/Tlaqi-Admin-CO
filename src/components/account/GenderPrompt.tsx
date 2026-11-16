@@ -1,9 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
-import { setMyGenderAction } from "@/lib/genderActions";
+import { setMyGenderAction as setMyGenderAction__server } from "@/lib/genderActions";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import { NavGlyph } from "../icons";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const setMyGenderAction = guardAction(setMyGenderAction__server);
 
 /** سؤالٌ واحد لمن لم يختر مخاطبته بعد — يظهر أعلى مساحة العمل حتى يُجاب.
  *

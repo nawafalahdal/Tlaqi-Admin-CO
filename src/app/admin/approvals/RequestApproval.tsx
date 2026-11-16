@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { requestApprovalAction } from "./actions";
+import { requestApprovalAction as requestApprovalAction__server } from "./actions";
 import { Card, Button } from "@/components/ui";
 
 import { useTranslations } from "@/i18n/LocaleProvider";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const requestApprovalAction = guardAction(requestApprovalAction__server);
+
 /** تعليق طلبِ اعتمادٍ على تذكرةٍ قائمة.
  *
  *  **والاعتماد اختياري لا لازم:** هذا النموذج لا يظهر في رفع التذكرة،

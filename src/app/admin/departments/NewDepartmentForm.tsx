@@ -1,13 +1,17 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { createDepartmentAction } from "./actions";
+import { createDepartmentAction as createDepartmentAction__server } from "./actions";
 import { Button } from "@/components/ui";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import type { themeFromColor } from "@/lib/brand";
 
 /** ألوانُ التمييز المعتمدة (`lib/departmentColor`) — والمحجوزُ منها لقسمٍ آخر معطَّل؛ والخادمُ يرفضه ثانيةً */
 import { DEPARTMENT_SWATCHES as SWATCHES } from "@/lib/departmentColorSwatches";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const createDepartmentAction = guardAction(createDepartmentAction__server);
 
 /** إنشاءُ قسم — أو طلبُه.
  *

@@ -1,9 +1,13 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { submitOnboardingSurveyAction, type SurveyFormState } from "./actions";
+import { submitOnboardingSurveyAction as submitOnboardingSurveyAction__server, type SurveyFormState } from "./actions";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import { fmt } from "@/i18n/fmt";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const submitOnboardingSurveyAction = guardAction(submitOnboardingSurveyAction__server);
 
 const INITIAL: SurveyFormState = { error: null, done: false };
 

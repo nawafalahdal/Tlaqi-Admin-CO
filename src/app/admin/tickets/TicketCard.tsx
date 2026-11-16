@@ -1,11 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { respondToTicketAction, withdrawTicketAction } from "../departments/[slug]/actions";
+import { respondToTicketAction as respondToTicketAction__server, withdrawTicketAction as withdrawTicketAction__server } from "../departments/[slug]/actions";
 import { Card, Button } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const respondToTicketAction = guardAction(respondToTicketAction__server);
+const withdrawTicketAction = guardAction(withdrawTicketAction__server);
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   open: { bg: "#FBE5E1", text: "#9A2E1C" },

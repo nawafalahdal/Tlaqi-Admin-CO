@@ -1,10 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { resubmitApprovalAction, advanceExecutionAction } from "./actions";
+import { resubmitApprovalAction as resubmitApprovalAction__server, advanceExecutionAction as advanceExecutionAction__server } from "./actions";
 import { Button } from "@/components/ui";
 
 import { useTranslations } from "@/i18n/LocaleProvider";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const resubmitApprovalAction = guardAction(resubmitApprovalAction__server);
+const advanceExecutionAction = guardAction(advanceExecutionAction__server);
+
 /** إجراءات صاحب الطلب — بحسب حالته، لا كلُّها في كل حال.
  *
  *  المردود للتعديل يُعاد، والمعتمَد يبدأ تنفيذه، والجاري يُعلَن إكماله.

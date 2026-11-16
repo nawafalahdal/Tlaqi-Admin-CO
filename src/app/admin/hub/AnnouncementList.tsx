@@ -1,11 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { deleteAnnouncementAction } from "./actions";
+import { deleteAnnouncementAction as deleteAnnouncementAction__server } from "./actions";
 import { Card } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const deleteAnnouncementAction = guardAction(deleteAnnouncementAction__server);
 
 type Announcement = {
   id: string;

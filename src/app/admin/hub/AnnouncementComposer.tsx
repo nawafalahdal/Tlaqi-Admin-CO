@@ -1,10 +1,14 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { publishAnnouncementAction } from "./actions";
+import { publishAnnouncementAction as publishAnnouncementAction__server } from "./actions";
 import { Button } from "@/components/ui";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import type { themeFromColor } from "@/lib/brand";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const publishAnnouncementAction = guardAction(publishAnnouncementAction__server);
 
 type Dept = { id: string; name: string };
 

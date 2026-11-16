@@ -59,8 +59,21 @@ export async function createTask(opts: {
   goalId?: string | null;
   milestoneId?: string | null;
   objectiveId?: string | null;
+  /** مفتاحُ منع التكرار من النموذج — إعادةُ الطلب نفسه تعيد الالتزامَ نفسه */
+  clientRequestId?: string | null;
   session: Session;
 }): Promise<TaskResult> {
+  // **إعادةُ الطلب نفسه لا تُنشئ ثانياً** (البند ٤): يُقرأ المفتاحُ أولاً — في الخطة نفسها وحدها
+  const requestId = opts.clientRequestId && /^[A-Za-z0-9-]{16,64}$/.test(opts.clientRequestId) ? opts.clientRequestId : null;
+  const sameRequest = async () => {
+    if (!requestId) return null;
+    const prior = await prisma.planTask.findUnique({ where: { clientRequestId: requestId }, select: { id: true, title: true, planId: true } });
+    if (!prior) return null;
+    if (prior.planId !== opts.planId) return { ok: false as const, reason: "تعذّر حفظ الالتزام — حدّث الصفحة وأعد المحاولة" };
+    return { ok: true as const, id: prior.id, message: `«${prior.title}» مضافةٌ من قبل — لم تُكرَّر` };
+  };
+  const repeated = await sameRequest();
+  if (repeated) return repeated;
   const plan = await prisma.weekPlan.findUnique({
     where: { id: opts.planId },
     select: {
@@ -101,8 +114,11 @@ export async function createTask(opts: {
   }
   const weight = Math.max(1, Math.min(100, Math.round(opts.weight ?? 1)));
 
-  const task = await prisma.planTask.create({
+  let task: { id: string; title: string };
+  try {
+    task = await prisma.planTask.create({
     data: {
+      clientRequestId: requestId,
       planId: plan.id,
       periodId: plan.periodId,
       departmentId: plan.departmentId,
@@ -124,6 +140,14 @@ export async function createTask(opts: {
     },
     select: { id: true, title: true },
   });
+  } catch (err) {
+    // طلبان متزامنان بالمفتاح نفسه: يقع أحدُهما، والآخرُ يعيد ما وقع
+    if ((err as { code?: string }).code === "P2002" && requestId) {
+      const again = await sameRequest();
+      if (again) return again;
+    }
+    throw err;
+  }
 
   return { ok: true, id: task.id, message: `أُضيفت «${task.title}» إلى خطة الأسبوع` };
 }

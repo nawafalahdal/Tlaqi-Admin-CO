@@ -1,12 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { permanentlyDeleteUserAction } from "@/app/admin/people/actions";
+import { permanentlyDeleteUserAction as permanentlyDeleteUserAction__server } from "@/app/admin/people/actions";
 import { Button } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
 
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const permanentlyDeleteUserAction = guardAction(permanentlyDeleteUserAction__server);
 
 /** شاغلُ مقعدٍ مكرّر — بوقائعه وزرِّ محوه.
  *

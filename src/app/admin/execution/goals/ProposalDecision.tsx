@@ -1,11 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { decideGoalAction, decideObjectiveAction } from "../actions";
+import { decideGoalAction as decideGoalAction__server, decideObjectiveAction as decideObjectiveAction__server } from "../actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 
 import { useTranslations } from "@/i18n/LocaleProvider";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const decideGoalAction = guardAction(decideGoalAction__server);
+const decideObjectiveAction = guardAction(decideObjectiveAction__server);
+
 /** قرارُ الإدارة في مقترَح — والردُّ لا يقع بلا سببٍ مكتوب */
 export function ProposalDecision({
   kind,

@@ -3,7 +3,10 @@
 import { startTransition, useActionState, useEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import { themeForDepartment } from "@/lib/brand";
-import { runMarketingOp, type OpState } from "../actions";
+import { runMarketingOp as runMarketingOp__server, type OpState } from "../actions";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const runMarketingOp = guardAction(runMarketingOp__server);
 
 /** نموذجُ كلِّ عمليةٍ في وكيل التسويق — حقولُه يرسمها الخادم، وهذا يرسله ويقول النتيجة.
  *

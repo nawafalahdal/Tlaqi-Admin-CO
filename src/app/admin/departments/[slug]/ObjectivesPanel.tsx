@@ -1,12 +1,16 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { proposeObjectiveAction } from "../../execution/actions";
+import { proposeObjectiveAction as proposeObjectiveAction__server } from "../../execution/actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 
 import { useTranslations } from "@/i18n/LocaleProvider";
 import { fmt } from "@/i18n/fmt";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const proposeObjectiveAction = guardAction(proposeObjectiveAction__server);
+
 export type ObjectiveRow = {
   id: string;
   title: string;

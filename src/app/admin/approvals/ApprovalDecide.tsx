@@ -1,11 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { decideApprovalAction } from "./actions";
+import { decideApprovalAction as decideApprovalAction__server } from "./actions";
 import { Button } from "@/components/ui";
 
 import { useTranslations } from "@/i18n/LocaleProvider";
 import { fmt } from "@/i18n/fmt";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const decideApprovalAction = guardAction(decideApprovalAction__server);
+
 /** قرارُ المعتمِد — والاعتماد لا يقع بضغطةٍ واحدة.
  *
  *  **نافذةُ التأكيد ليست تزييناً.** الاعتماد يُطلِق التنفيذ ويُسجَّل

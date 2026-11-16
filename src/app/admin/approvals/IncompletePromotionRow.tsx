@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { completeLeadershipPromotionAction } from "../actions";
+import { completeLeadershipPromotionAction as completeLeadershipPromotionAction__server } from "../actions";
 import { themeFromColor } from "@/lib/brand";
 import { Button, Card } from "@/components/ui";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const completeLeadershipPromotionAction = guardAction(completeLeadershipPromotionAction__server);
 
 /** اعتمادٌ قياديٌّ تعثّر: صاحبُه معتمَدٌ بلا حسابٍ إداري، فيدخل عضواً.
  *  الزرُّ يُنشئ الحسابَ الذي قُرِّر — والخادمُ يعيد فحصَ المنصب والصلاحية. */

@@ -1,11 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { deleteDepartmentAction, departmentDeletionPlanAction } from "./actions";
+import { deleteDepartmentAction as deleteDepartmentAction__server, departmentDeletionPlanAction as departmentDeletionPlanAction__server } from "./actions";
 import type { DeletionPlan } from "@/lib/departments";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const deleteDepartmentAction = guardAction(deleteDepartmentAction__server);
+const departmentDeletionPlanAction = guardAction(departmentDeletionPlanAction__server);
 
 /** حذف قسم — للمؤسس وحده، ولا يقع إلا باسمه مكتوباً.
  *

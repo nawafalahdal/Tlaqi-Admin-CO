@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { sendAwardAction } from "@/app/admin/people/actions";
+import { sendAwardAction as sendAwardAction__server } from "@/app/admin/people/actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const sendAwardAction = guardAction(sendAwardAction__server);
 
 /** زرّ التكريم — إنجازٌ وجائزةٌ وكلمة.
  *

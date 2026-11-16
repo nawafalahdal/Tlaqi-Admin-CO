@@ -1,11 +1,16 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { uploadMyAvatarAction, clearMyAvatarAction } from "@/app/structure/actions";
+import { uploadMyAvatarAction as uploadMyAvatarAction__server, clearMyAvatarAction as clearMyAvatarAction__server } from "@/app/structure/actions";
 import { Card, Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import { FileField, clearFileField } from "./FileField";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const uploadMyAvatarAction = guardAction(uploadMyAvatarAction__server);
+const clearMyAvatarAction = guardAction(clearMyAvatarAction__server);
 
 /** رفع الصورة الشخصية — معاينةٌ قبل الحفظ، وصورةٌ واحدة.
  *

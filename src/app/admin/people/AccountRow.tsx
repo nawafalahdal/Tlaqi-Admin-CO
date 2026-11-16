@@ -2,9 +2,9 @@
 
 import { useState, useTransition } from "react";
 import {
-  removeLeadershipUserAction,
-  resetUserCredentialsAction,
-  permanentlyDeleteUserAction,
+  removeLeadershipUserAction as removeLeadershipUserAction__server,
+  resetUserCredentialsAction as resetUserCredentialsAction__server,
+  permanentlyDeleteUserAction as permanentlyDeleteUserAction__server,
 } from "./actions";
 import { Card, Button } from "@/components/ui";
 import { AwardButton } from "@/components/AwardButton";
@@ -13,6 +13,12 @@ import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
 
 import { fmt } from "@/i18n/fmt";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const removeLeadershipUserAction = guardAction(removeLeadershipUserAction__server);
+const resetUserCredentialsAction = guardAction(resetUserCredentialsAction__server);
+const permanentlyDeleteUserAction = guardAction(permanentlyDeleteUserAction__server);
+
 export function AccountRow({
   account,
   theme,

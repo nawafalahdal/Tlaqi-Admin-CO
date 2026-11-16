@@ -3,12 +3,17 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { sendWelcomeToMemberAction } from "../actions";
-import { sendWelcomeToUserAction } from "../people/actions";
-import { requestWelcomeResendAction } from "./actions";
-
+import { sendWelcomeToMemberAction as sendWelcomeToMemberAction__server } from "../actions";
+import { sendWelcomeToUserAction as sendWelcomeToUserAction__server } from "../people/actions";
+import { requestWelcomeResendAction as requestWelcomeResendAction__server } from "./actions";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import { fmt } from "@/i18n/fmt";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const sendWelcomeToMemberAction = guardAction(sendWelcomeToMemberAction__server);
+const sendWelcomeToUserAction = guardAction(sendWelcomeToUserAction__server);
+const requestWelcomeResendAction = guardAction(requestWelcomeResendAction__server);
+
 /** زرُّ بطاقة الانضمام — إعادةٌ لمسؤول التشغيل، وطلبُ إعادةٍ لقيادة التسويق.
  *
  *  كلاهما يمرّ بنافذة تأكيد ثم بإجرائه الخادمي.

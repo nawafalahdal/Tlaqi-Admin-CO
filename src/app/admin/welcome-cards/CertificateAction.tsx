@@ -3,9 +3,14 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { issueAppreciationDeskAction, issueFinalCertificateDeskAction } from "./actions";
+import { issueAppreciationDeskAction as issueAppreciationDeskAction__server, issueFinalCertificateDeskAction as issueFinalCertificateDeskAction__server } from "./actions";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import { fmt } from "@/i18n/fmt";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const issueAppreciationDeskAction = guardAction(issueAppreciationDeskAction__server);
+const issueFinalCertificateDeskAction = guardAction(issueFinalCertificateDeskAction__server);
 
 /** زرُّ الشهادة في صفحة «الترحيب والتكريم».
  *

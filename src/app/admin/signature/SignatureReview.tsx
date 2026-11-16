@@ -1,12 +1,17 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { decideSignatureAction, requestSignatureAction } from "./actions";
+import { decideSignatureAction as decideSignatureAction__server, requestSignatureAction as requestSignatureAction__server } from "./actions";
 import { Button, Card } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 
 import { useTranslations } from "@/i18n/LocaleProvider";
 import { fmt } from "@/i18n/fmt";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const decideSignatureAction = guardAction(decideSignatureAction__server);
+const requestSignatureAction = guardAction(requestSignatureAction__server);
+
 type Pending = {
   id: string;
   imageData: string | null;

@@ -2,16 +2,25 @@
 
 import { useState, useTransition } from "react";
 import {
-  submitPeriodAction,
-  approvePeriodAction,
-  beginReviewAction,
-  completeReviewAction,
-  openPeriodAction,
-  reopenPeriodAction,
+  submitPeriodAction as submitPeriodAction__server,
+  approvePeriodAction as approvePeriodAction__server,
+  beginReviewAction as beginReviewAction__server,
+  completeReviewAction as completeReviewAction__server,
+  openPeriodAction as openPeriodAction__server,
+  reopenPeriodAction as reopenPeriodAction__server,
 } from "@/app/admin/execution/actions";
 import { Button } from "@/components/ui";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import type { themeFromColor } from "@/lib/brand";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const submitPeriodAction = guardAction(submitPeriodAction__server);
+const approvePeriodAction = guardAction(approvePeriodAction__server);
+const beginReviewAction = guardAction(beginReviewAction__server);
+const completeReviewAction = guardAction(completeReviewAction__server);
+const openPeriodAction = guardAction(openPeriodAction__server);
+const reopenPeriodAction = guardAction(reopenPeriodAction__server);
 
 /** أزرارُ آلةِ حالة الأسبوع — ولكلِّ حالةٍ خطوتُها التالية وحدها.
  *

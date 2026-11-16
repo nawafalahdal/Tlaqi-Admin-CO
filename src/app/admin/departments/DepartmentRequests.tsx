@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { decideDepartmentRequestAction } from "./actions";
+import { decideDepartmentRequestAction as decideDepartmentRequestAction__server } from "./actions";
 import { Button } from "@/components/ui";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import type { themeFromColor } from "@/lib/brand";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const decideDepartmentRequestAction = guardAction(decideDepartmentRequestAction__server);
 
 /** طابورُ طلبات إنشاء الأقسام — أمام المؤسس وحده.
  *

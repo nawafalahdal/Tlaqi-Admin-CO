@@ -3,8 +3,12 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createGoalWizardAction } from "../actions";
+import { createGoalWizardAction as createGoalWizardAction__server } from "../actions";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const createGoalWizardAction = guardAction(createGoalWizardAction__server);
 
 type Priority = "critical" | "high" | "normal" | "low";
 type Milestone = {

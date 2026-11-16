@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { assignMemberDepartmentAction } from "@/app/admin/departments/actions";
+import { assignMemberDepartmentAction as assignMemberDepartmentAction__server } from "@/app/admin/departments/actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const assignMemberDepartmentAction = guardAction(assignMemberDepartmentAction__server);
 
 /** تصنيف عضوٍ غير مصنّف في قسم — للمؤسس وحده.
  *

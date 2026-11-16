@@ -1,11 +1,17 @@
 "use client";
 
 import { useActionState, useRef, useEffect, useState } from "react";
-import { createExecutiveInviteAction, createDeptAdminInviteAction, createOperationsOfficerInviteAction } from "./actions";
+import { createExecutiveInviteAction as createExecutiveInviteAction__server, createDeptAdminInviteAction as createDeptAdminInviteAction__server, createOperationsOfficerInviteAction as createOperationsOfficerInviteAction__server } from "./actions";
 import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
 import { Button } from "@/components/ui";
 import { CredentialsReveal } from "@/components/CredentialsReveal";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const createExecutiveInviteAction = guardAction(createExecutiveInviteAction__server);
+const createDeptAdminInviteAction = guardAction(createDeptAdminInviteAction__server);
+const createOperationsOfficerInviteAction = guardAction(createOperationsOfficerInviteAction__server);
 
 type Dept = { id: string; name: string };
 

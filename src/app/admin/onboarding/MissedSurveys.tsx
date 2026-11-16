@@ -1,8 +1,12 @@
 "use client";
 
 import { useActionState } from "react";
-import { enableMissedSurveysAction, type OnboardingActionState } from "./actions";
+import { enableMissedSurveysAction as enableMissedSurveysAction__server, type OnboardingActionState } from "./actions";
 import { Card } from "@/components/ui";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const enableMissedSurveysAction = guardAction(enableMissedSurveysAction__server);
 
 /** **من فاته الاستبيانُ بسبب الخلل** (ق٥) — القائمةُ وعددُها قبل أي تغيير، ثم إجراءٌ صريحٌ واحد يُطلقه لهم */
 export function MissedSurveys({ rows }: { rows: { id: string; name: string; scope: string; decidedAt: string }[] }) {

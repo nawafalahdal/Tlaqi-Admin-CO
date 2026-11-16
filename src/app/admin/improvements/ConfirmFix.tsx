@@ -1,9 +1,12 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { confirmImprovementAction } from "@/app/improve/actions";
-
+import { confirmImprovementAction as confirmImprovementAction__server } from "@/app/improve/actions";
 import { useTranslations } from "@/i18n/LocaleProvider";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const confirmImprovementAction = guardAction(confirmImprovementAction__server);
+
 /** شهادةُ صاحب الملاحظة — جرّبها فزالت، أو هي كما كانت.
  *
  *  **وهذا هو الحكمُ الذي يُميّز مركزَ التحسين عن طابورِ تذاكر:** من رأى

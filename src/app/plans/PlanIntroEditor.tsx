@@ -1,12 +1,16 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { savePlanIntroAction } from "./actions";
+import { savePlanIntroAction as savePlanIntroAction__server } from "./actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 
 import { useTranslations } from "@/i18n/LocaleProvider";
 import { fmt } from "@/i18n/fmt";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const savePlanIntroAction = guardAction(savePlanIntroAction__server);
+
 /** تحريرُ النبذة والعنوان — للمؤسس والمدير التنفيذي.
  *
  *  والنصُّ يُعرَض فقراتٍ كما يُكتب: السطرُ الفارغ يفصل فقرة. ولا

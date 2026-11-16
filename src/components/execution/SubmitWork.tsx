@@ -1,12 +1,16 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { submitTaskWorkAction } from "@/app/admin/execution/actions";
+import { submitTaskWorkAction as submitTaskWorkAction__server } from "@/app/admin/execution/actions";
 import { Button } from "@/components/ui";
 import { MAX_PLAN_FILE_BYTES, ALLOWED_PLAN_TYPES } from "@/lib/planFormats";
 import type { themeFromColor } from "@/lib/brand";
 import { FileField } from "../FileField";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const submitTaskWorkAction = guardAction(submitTaskWorkAction__server);
 
 const ACCEPT = Object.keys(ALLOWED_PLAN_TYPES).join(",");
 const MAX_MB = (MAX_PLAN_FILE_BYTES / 1048576).toFixed(0);

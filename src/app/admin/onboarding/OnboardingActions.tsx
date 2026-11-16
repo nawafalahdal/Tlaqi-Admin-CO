@@ -1,8 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
-import { resolveOnboardingFollowUpAction, reopenOnboardingSurveyAction, type OnboardingActionState } from "./actions";
+import { resolveOnboardingFollowUpAction as resolveOnboardingFollowUpAction__server, reopenOnboardingSurveyAction as reopenOnboardingSurveyAction__server, type OnboardingActionState } from "./actions";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const resolveOnboardingFollowUpAction = guardAction(resolveOnboardingFollowUpAction__server);
+const reopenOnboardingSurveyAction = guardAction(reopenOnboardingSurveyAction__server);
 
 const INITIAL: OnboardingActionState = { error: null, ok: false };
 const FIELD =

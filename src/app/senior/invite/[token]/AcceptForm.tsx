@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { acceptInviteAction } from "../../actions";
+import { acceptInviteAction as acceptInviteAction__server } from "../../actions";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const acceptInviteAction = guardAction(acceptInviteAction__server);
 
 /** نموذجُ القبول — كلمةُ مرورٍ لمدعوٍّ جديد، أو دخولٌ بالحساب القائم ثم القبول. والقرارُ في الخادم. */
 export function AcceptForm({ token, needsPassword, signedIn }: { token: string; needsPassword: boolean; signedIn: boolean }) {

@@ -2,10 +2,16 @@
 
 import { brandInk } from "@/lib/brand";
 import { useActionState, useState, useTransition, useRef, useEffect } from "react";
-import { addQuestionAction, updateQuestionAction, deleteQuestionAction } from "./actions";
+import { addQuestionAction as addQuestionAction__server, updateQuestionAction as updateQuestionAction__server, deleteQuestionAction as deleteQuestionAction__server } from "./actions";
 import { Card, Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const addQuestionAction = guardAction(addQuestionAction__server);
+const updateQuestionAction = guardAction(updateQuestionAction__server);
+const deleteQuestionAction = guardAction(deleteQuestionAction__server);
 
 type Question = {
   id: string;

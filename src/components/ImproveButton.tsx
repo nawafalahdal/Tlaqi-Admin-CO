@@ -2,9 +2,13 @@
 
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { submitImprovementAction, type ImproveState } from "@/app/improve/actions";
+import { submitImprovementAction as submitImprovementAction__server, type ImproveState } from "@/app/improve/actions";
 import { SparkIcon } from "./icons";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const submitImprovementAction = guardAction(submitImprovementAction__server);
 
 /** زرُّ «تحسين» — عائمٌ دائريٌّ في زاوية كل شاشة، واحدٌ لا يتكرّر.
  *

@@ -2,9 +2,12 @@
 
 import { useActionState, useState } from "react";
 import type { ImprovementKind, ImprovementState } from "@prisma/client";
-import { advanceImprovementAction } from "@/app/improve/actions";
-
+import { advanceImprovementAction as advanceImprovementAction__server } from "@/app/improve/actions";
 import { useTranslations } from "@/i18n/LocaleProvider";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const advanceImprovementAction = guardAction(advanceImprovementAction__server);
+
 /** أزرارُ نقل الملاحظة في مسارها — ما يُنتقَل إليه فقط.
  *
  *  **والواجهةُ تُغذَّى بالحرس الذي يَفرضه الخادم:** لو عُرض كلُّ انتقالٍ

@@ -1,14 +1,19 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { resetMemberCredentialsAction } from "../departments/[slug]/actions";
-import { permanentlyDeleteMemberAction } from "./actions";
+import { resetMemberCredentialsAction as resetMemberCredentialsAction__server } from "../departments/[slug]/actions";
+import { permanentlyDeleteMemberAction as permanentlyDeleteMemberAction__server } from "./actions";
 import { AssignDepartment } from "@/components/AssignDepartment";
 import { AwardButton } from "@/components/AwardButton";
 import { Card, Button } from "@/components/ui";
 import { CredentialsReveal } from "@/components/CredentialsReveal";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const resetMemberCredentialsAction = guardAction(resetMemberCredentialsAction__server);
+const permanentlyDeleteMemberAction = guardAction(permanentlyDeleteMemberAction__server);
 
 export function MemberAccountRow({
   member,

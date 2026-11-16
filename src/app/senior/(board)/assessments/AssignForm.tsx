@@ -1,9 +1,13 @@
 "use client";
 
 import { useActionState, useEffect, useRef } from "react";
-import { assignAssessmentAction, type AssignState } from "@/app/assessment/actions";
+import { assignAssessmentAction as assignAssessmentAction__server, type AssignState } from "@/app/assessment/actions";
 import { Button } from "@/components/ui";
 import { themeFromColor, BRAND } from "@/lib/brand";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const assignAssessmentAction = guardAction(assignAssessmentAction__server);
 
 /** تكليفُ عضوٍ قائمٍ باختبار — صاحبُه وبنكُه وسببُه (والخادمُ يفحص كلَّ ذلك ثانيةً) */
 export function AssignForm({

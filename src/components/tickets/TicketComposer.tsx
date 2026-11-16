@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useMemo, useRef, useState } from "react";
 import { useTranslations } from "@/i18n/LocaleProvider";
+import { guardAction } from "@/lib/actionGuard";
 import { NavGlyph } from "../icons";
 
 export type TicketTarget = {
@@ -46,7 +47,9 @@ export function TicketComposer({
   stageDays: number;
 }) {
   const L = useTranslations().composer;
-  const [state, formAction, pending] = useActionState(action, { error: null, success: false });
+  // الإجراءُ يصل من صفحة الخادم — يُحرس هنا (`lib/actionGuard`)
+  const guarded = useMemo(() => guardAction(action), [action]);
+  const [state, formAction, pending] = useActionState(guarded, { error: null, success: false });
 
   const [step, setStep] = useState<Step>(0);
   const groups = useMemo(() => Array.from(new Set(targets.map((o) => o.group))), [targets]);

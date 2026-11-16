@@ -1,12 +1,16 @@
 "use client";
 
 import { useActionState } from "react";
-import { saveMeetingSettingsAction } from "../actions";
+import { saveMeetingSettingsAction as saveMeetingSettingsAction__server } from "../actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import type { MeetingSettings } from "@/lib/reviewMeeting";
 
 import { useTranslations } from "@/i18n/LocaleProvider";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const saveMeetingSettingsAction = guardAction(saveMeetingSettingsAction__server);
+
 // أسماءُ الأيام من القاموس (`days`) — والقيمةُ رقمُ اليوم كما يحفظه الخادم
 const DAYS = ["d0", "d1", "d2", "d3", "d4", "d5", "d6"] as const;
 

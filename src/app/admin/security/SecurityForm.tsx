@@ -1,8 +1,14 @@
 "use client";
 
 import { useState, useTransition, useActionState } from "react";
-import { startTotpSetupAction, confirmTotpSetupAction, disableTotpAction } from "./actions";
+import { startTotpSetupAction as startTotpSetupAction__server, confirmTotpSetupAction as confirmTotpSetupAction__server, disableTotpAction as disableTotpAction__server } from "./actions";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const startTotpSetupAction = guardAction(startTotpSetupAction__server);
+const confirmTotpSetupAction = guardAction(confirmTotpSetupAction__server);
+const disableTotpAction = guardAction(disableTotpAction__server);
 
 export function SecurityForm({ initialEnabled }: { initialEnabled: boolean }) {
   const dict = useTranslations();

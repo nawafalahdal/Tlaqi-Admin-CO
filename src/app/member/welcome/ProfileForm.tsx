@@ -1,11 +1,15 @@
 "use client";
 
 import { useActionState } from "react";
-import { saveCandidateProfileAction } from "./actions";
+import { saveCandidateProfileAction as saveCandidateProfileAction__server } from "./actions";
 import { Button } from "@/components/ui";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import type { themeFromColor } from "@/lib/brand";
 import { GenderField } from "@/components/GenderField";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const saveCandidateProfileAction = guardAction(saveCandidateProfileAction__server);
 
 export function ProfileForm({
   defaults,

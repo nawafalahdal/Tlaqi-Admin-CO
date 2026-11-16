@@ -2,10 +2,14 @@
 
 import { brandInk } from "@/lib/brand";
 import { useState, useTransition } from "react";
-import { reopenCandidateTestAction } from "../../people/actions";
+import { reopenCandidateTestAction as reopenCandidateTestAction__server } from "../../people/actions";
 import { Card, Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const reopenCandidateTestAction = guardAction(reopenCandidateTestAction__server);
 
 /** مرشّحٌ لم يجتز الاختبار، في لوحة قائد قسمه.
  *

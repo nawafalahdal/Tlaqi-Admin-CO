@@ -1,11 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { reportMissingWelcomeAction } from "@/app/admin/welcome-cards/actions";
-import { sendWelcomeToUserAction } from "@/app/admin/people/actions";
+import { reportMissingWelcomeAction as reportMissingWelcomeAction__server } from "@/app/admin/welcome-cards/actions";
+import { sendWelcomeToUserAction as sendWelcomeToUserAction__server } from "@/app/admin/people/actions";
 import { Card, Button } from "@/components/ui";
 import { useTranslations } from "@/i18n/LocaleProvider";
 import type { themeFromColor } from "@/lib/brand";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const reportMissingWelcomeAction = guardAction(reportMissingWelcomeAction__server);
+const sendWelcomeToUserAction = guardAction(sendWelcomeToUserAction__server);
 
 /** بطاقة الانضمام: وصلت أم لم تصل — ومن لم تصله يطلبها ممّن يعلوه.
  *

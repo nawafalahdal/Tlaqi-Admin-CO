@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { unstable_isUnrecognizedActionError } from "next/navigation";
 import { useTranslations } from "@/i18n/LocaleProvider";
 
 /** حدُّ الخطأ لكل الصفحات: جملةٌ بشرية وزرُّ إعادة — لا أثرَ مكدّسٍ ولا رسالةٌ
@@ -17,6 +18,24 @@ export default function RouteError({
   useEffect(() => {
     console.error(error);
   }, [error]);
+  // **إجراءٌ من نسخةٍ سابقة أو انقطاعٌ في الطريق** (البند ٤): لم يصل الخادمَ فلا `digest` له. يُقال ما حدث ويُحدَّث
+  // بالصفحة نفسها — «إعادة المحاولة» بلا تحديث تعيد الطلبَ القديم نفسه فيفشل ثانيةً. (والنماذجُ المحروسة
+  // بـ`guardAction` لا تبلغ هذه الصفحة أصلاً؛ هذا للباقي.)
+  const message = String((error as Error | undefined)?.message ?? "");
+  const transport = !error.digest && (unstable_isUnrecognizedActionError(error) || /Server Action|Failed to fetch|NetworkError|Load failed/i.test(message));
+  if (transport) {
+    return (
+      <main className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center gap-3 px-4 text-center">
+        <div className="state-error" role="alert">
+          <p className="text-lg font-bold">{t.shell.staleTitle}</p>
+          <p className="mt-2 text-sm leading-relaxed text-black/55">{t.shell.staleBody}</p>
+          <button type="button" onClick={() => window.location.reload()} className="btn-brand mt-5 min-h-11 rounded-xl px-5 text-sm font-semibold">
+            {t.shell.reload}
+          </button>
+        </div>
+      </main>
+    );
+  }
   return (
     <main className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center gap-3 px-4 text-center">
       <div className="state-error" role="alert">

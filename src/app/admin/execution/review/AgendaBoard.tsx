@@ -1,13 +1,19 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { markStageAction, markMeetingHeldAction, addDecisionAction } from "../actions";
+import { markStageAction as markStageAction__server, markMeetingHeldAction as markMeetingHeldAction__server, addDecisionAction as addDecisionAction__server } from "../actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import type { AgendaStageKey } from "@/lib/reviewMeeting";
 
 import { useTranslations } from "@/i18n/LocaleProvider";
 import { fmt } from "@/i18n/fmt";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const markStageAction = guardAction(markStageAction__server);
+const markMeetingHeldAction = guardAction(markMeetingHeldAction__server);
+const addDecisionAction = guardAction(addDecisionAction__server);
+
 /** أجندةُ المراجعة: مراحلُها تُعلَّم بالضغط، وتبقى غيرُ المُعلَّمة ظاهرة.
  *
  *  **ولا مرحلةَ تُعلَّم بمرور الوقت:** الاجتماعُ قد يُعقَد ولا تُراجَع

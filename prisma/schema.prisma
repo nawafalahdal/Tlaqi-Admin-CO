@@ -1695,6 +1695,10 @@ model WeekPlan {
 model PlanTask {
   id String @id @default(cuid())
 
+  /// **مفتاحُ منع التكرار** (البند ٤): يولّده النموذجُ مرّةً لكل التزامٍ يُضاف، فإعادةُ الإرسال بعد ضياع الردّ
+  /// (انقطاع، أو صفحةٌ من نسخةٍ سابقة) تعيد الالتزامَ نفسه ولا تُنشئ ثانياً. فارغٌ لما أُنشئ قبله.
+  clientRequestId String? @unique
+
   /// خطةُ الأسبوع التي هي فيها الآن، وفترتُها — تتبدّلان بالترحيل
   planId   String?
   plan     WeekPlan?        @relation(fields: [planId], references: [id], onDelete: SetNull)

@@ -1,11 +1,15 @@
 "use client";
 
 import { useActionState, useRef, useEffect, useState } from "react";
-import { createMemberInviteAction } from "./actions";
+import { createMemberInviteAction as createMemberInviteAction__server } from "./actions";
 import { Button } from "@/components/ui";
 import { CredentialsReveal } from "@/components/CredentialsReveal";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const createMemberInviteAction = guardAction(createMemberInviteAction__server);
 
 export function MemberInviteForm({
   departmentId,

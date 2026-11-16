@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { correctOrgJoinDateAction } from "@/app/admin/actions";
+import { correctOrgJoinDateAction as correctOrgJoinDateAction__server } from "@/app/admin/actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
+
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const correctOrgJoinDateAction = guardAction(correctOrgJoinDateAction__server);
 
 /** تصرّفان للمؤسس على عضوٍ بعينه: تصحيح تاريخ انضمامه، وإرسال بطاقته.
  *

@@ -2,12 +2,16 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { decideCommitteeAction } from "./actions";
+import { decideCommitteeAction as decideCommitteeAction__server } from "./actions";
 import { Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 
 import { useTranslations } from "@/i18n/LocaleProvider";
 import { fmt } from "@/i18n/fmt";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const decideCommitteeAction = guardAction(decideCommitteeAction__server);
+
 /** طابورُ اللجان المنتظِرة — أمام المدير التنفيذي (والمؤسس).
  *
  *  والردُّ لا يُقبَل بلا سببٍ مكتوب، والواجهةُ تُظهر ذلك قبل الضغط لا

@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { cancelAssessmentAction } from "@/app/assessment/actions";
+import { cancelAssessmentAction as cancelAssessmentAction__server } from "@/app/assessment/actions";
+import { guardAction } from "@/lib/actionGuard";
+// فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
+const cancelAssessmentAction = guardAction(cancelAssessmentAction__server);
 
 /** إلغاءُ تكليفٍ لم يُسلَّم — بسببٍ مكتوب، ويبقى سجلُّه */
 export function CancelAssessment({ id }: { id: string }) {

@@ -265,6 +265,7 @@ export async function createTaskAction(
       goalId: String(formData.get("goalId") ?? "") || null,
       milestoneId: String(formData.get("milestoneId") ?? "") || null,
       objectiveId: String(formData.get("objectiveId") ?? "") || null,
+      clientRequestId: String(formData.get("clientRequestId") ?? "") || null,
       session,
     });
     if (!res.ok) return { error: res.reason, success: false };
