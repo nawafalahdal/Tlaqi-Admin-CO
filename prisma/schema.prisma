@@ -372,6 +372,7 @@ model Department {
   /// فكاد فرقُ المخطّط التالي يُسقطه.)
   @@index([parentId])
   @@index([leadMemberId])
+  committeeLeadWarnings CommitteeLeadWarning[] @relation("CommitteeLeadWarnings")
 }
 
 /// حساب إداري (قائد قسم / تنفيذي / الإدارة العليا) — يُنشأ إما مباشرة (بذرة النظام)
@@ -668,6 +669,7 @@ model Member {
   // الكنس اليومي يسأل: من لم تصله شهادة تقديره؟ فيُجاب رخيصاً
   @@index([appreciationSentAt])
   assessmentAssignments AssessmentAssignment[]
+  committeeLeadWarnings CommitteeLeadWarning[]
 }
 
 /// **سجلُّ الشهادات الصادرة** — لكل شهادةٍ رقمُها وصورتُها كما طُبعت.
@@ -762,6 +764,27 @@ model TestAttempt {
 
 /// بنك أسئلة قابل للتعديل حسب المستوى: اختبار أعضاء قسم معيّن (يعدّله أدمن ذلك
 /// القسم)، اختبار قادة الأقسام (يعدّله التنفيذي), اختبار التنفيذيين (يعدّله المؤسس فقط)
+/// **تنبيهُ قائد اللجنة** (قرار المؤسس ٣.٢ وق٤) — يصدره قائدُ القسم لقائد لجنته بسببٍ مكتوب. ثلاثةٌ في فترة قيادته الحالية،
+/// بين كلٍّ منها ٢٤ ساعةً على الأقل، تجعل تغييرَه **متاحاً** لقائد القسم — لا تلقائياً. ولا صلةَ له بتنبيهات العضوية
+/// (`MemberWarning`) التي تُنهي العضويةَ عند الثالث: استعمالُها هنا ممنوعٌ (ق٤).
+model CommitteeLeadWarning {
+  id             String     @id @default(cuid())
+  committeeId    String
+  committee      Department @relation("CommitteeLeadWarnings", fields: [committeeId], references: [id], onDelete: Restrict)
+  leadMemberId   String
+  lead           Member     @relation(fields: [leadMemberId], references: [id], onDelete: Cascade)
+  issuedById     String
+  issuedByName   String
+  reason         String
+  createdAt      DateTime   @default(now())
+  /// حالةُ بريد التنبيه كما ردّها الإرسال (`sent` | `failed` | `skipped`) — الإرسالُ لا يُعدّ قراءة
+  emailStatus    String?
+  /// تأكيدُ قائد اللجنة اطّلاعَه داخل المنصة — وحده يُعدّ قراءةً (ق٤)
+  acknowledgedAt DateTime?
+
+  @@index([committeeId, leadMemberId, createdAt])
+}
+
 /// غرضُ اختبار العضو القائم
 enum AssessmentPurpose {
   /// تقييمٌ واطّلاعٌ فقط — لا يغيّر عضويةً ولا صلاحيةً ولا يعيد فتح اعتماد (ق٧)
@@ -783,9 +806,9 @@ enum AssessmentStatus {
 model AssessmentAssignment {
   id               String              @id @default(cuid())
   memberId         String?
-  member           Member?             @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  member           Member?             @relation(fields: [memberId], references: [id], onDelete: Cascade)
   userId           String?
-  user             User?               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user             User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
   trackId          String
   track            TestTrack           @relation(fields: [trackId], references: [id], onDelete: Restrict)
   purpose          AssessmentPurpose
@@ -814,7 +837,7 @@ model AssessmentAssignment {
 model AssessmentAttempt {
   id           String               @id @default(cuid())
   assignmentId String
-  assignment   AssessmentAssignment @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  assignment   AssessmentAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   answers      Json
   score        Int
   passed       Boolean

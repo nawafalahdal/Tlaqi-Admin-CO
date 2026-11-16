@@ -14,8 +14,10 @@ import {
   addMembersAction,
   removeMemberAction,
   committeeResponsibilityAction,
-  proposeChangeAction,
   decideProposalAction,
+  warnLeadAction,
+  acknowledgeLeadWarningAction,
+  replaceWarnedLeadAction,
   createTaskAction,
   taskStatusAction,
   updateTaskAction,
@@ -88,6 +90,13 @@ export function OverviewTab({ d, L, theme }: Ctx) {
       {isFrozen(d) && <Banner tone="info">{T.frozen}</Banner>}
       {!isFrozen(d) && !isActive(d) && <Banner tone="info">{T.inactive}</Banner>}
       {leadless && <Banner tone="warn">{T.leadless}</Banner>}
+      {d.role.lead && !d.role.warnLead && d.leadWarnings.some((w) => !w.acknowledgedAt) && (
+        <Banner tone="warn">
+          <Link href={`/committees/${c.id}?tab=members`} className="font-semibold underline">
+            {fmt(L.members.unreadWarnings, String(d.leadWarnings.filter((w) => !w.acknowledgedAt).length))}
+          </Link>
+        </Banner>
+      )}
       {c.statusNote && (
         <Banner tone="info">
           {T.statusNote}: {c.statusNote}
@@ -150,13 +159,100 @@ export function OverviewTab({ d, L, theme }: Ctx) {
 //  الأعضاء
 // ═════════════════════════════════════════════════════════════════════
 
+/** **تنبيهاتُ قائد اللجنة وتغييرُه بعد ثلاثة** (قرار المؤسس ٣.٢ وق٤) — قائدُ القسم يُصدر ويغيّر، والقائدُ يؤكّد
+ *  اطّلاعه، والمؤسسُ والرئيس يطّلعان. والخادمُ يفحص كلَّ ذلك ثانيةً: ما هنا عرضٌ لا إذن. */
+function LeadWarnings({ d, L, theme }: Pick<Ctx, "d" | "L" | "theme">) {
+  const M = L.members;
+  const c = d.committee;
+  const mine = d.role.lead && !d.role.warnLead && d.leadWarnings.length > 0;
+  const issuer = d.role.warnLead && (d.canWarnLead || d.nextWarnAt || d.canReplaceLead || d.leadWarnings.length > 0);
+  if (!mine && !issuer && d.leadWarnings.length === 0) return null;
+  const unread = d.leadWarnings.filter((w) => !w.acknowledgedAt).length;
+  const pool = [
+    ...d.memberships.filter((m) => m.active).map((m) => ({ id: m.memberId, fullName: m.member.fullName })),
+    ...d.candidates,
+  ].filter((p) => p.id !== c.leadMemberId);
+  return (
+    <Section title={mine ? M.myWarnings : M.warnings}>
+      <p className="text-xs text-black/55">{mine ? M.myWarningsHint : M.warningsHint}</p>
+      <p className="text-sm font-semibold">{fmt(M.warnCount, String(d.leadWarnings.length))}</p>
+      {d.leadWarnings.length === 0 ? (
+        <p className="text-xs text-black/50">{M.noWarnings}</p>
+      ) : (
+        <ol className="flex flex-col gap-2">
+          {d.leadWarnings.map((w) => (
+            <li key={w.id} className="flex flex-col gap-1.5 rounded-2xl border border-black/5 p-3.5">
+              <p className="text-sm">{w.reason}</p>
+              <p className="flex flex-wrap items-center gap-2 text-xs text-black/50">
+                {fmt(M.warnIssued, fmtWhen(w.createdAt, false), w.issuedByName)}
+                <Chip tone={w.acknowledgedAt ? "ok" : "warn"}>
+                  {w.acknowledgedAt ? fmt(M.warnRead, fmtWhen(w.acknowledgedAt, false)) : M.warnUnread}
+                </Chip>
+              </p>
+              {mine && !w.acknowledgedAt && (
+                <ActionForm action={acknowledgeLeadWarningAction} submits={[{ label: M.acknowledge, variant: "outline" }]} pendingLabel={L.overview.saving} theme={theme} compact>
+                  <Hidden d={d} />
+                  <input type="hidden" name="warningId" value={w.id} />
+                </ActionForm>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+      {d.role.warnLead && d.nextWarnAt && <Banner tone="info">{fmt(M.warnWait, fmtWhen(d.nextWarnAt, true))}</Banner>}
+      {d.canWarnLead && (
+        <ActionForm
+          action={warnLeadAction}
+          submits={[{ label: M.warnSend, variant: "outline" }]}
+          pendingLabel={M.warnSending}
+          theme={theme}
+          confirm={{ title: M.warnConfirmTitle, body: M.warnConfirmBody, confirmLabel: M.warnSend }}
+        >
+          <Hidden d={d} />
+          <Field label={M.warnReason}>
+            <textarea name="reason" required minLength={5} maxLength={200} rows={2} className={textareaCls} />
+          </Field>
+        </ActionForm>
+      )}
+      {d.canReplaceLead && (
+        <ActionForm
+          action={replaceWarnedLeadAction}
+          submits={[{ label: M.replace }]}
+          pendingLabel={M.replacing}
+          theme={theme}
+          confirm={{ title: M.replaceConfirmTitle, body: M.replaceConfirmBody, confirmLabel: M.replace }}
+        >
+          <Hidden d={d} />
+          <p className="text-xs text-black/55">{M.replaceHint}</p>
+          {unread > 0 && <Banner tone="warn">{fmt(M.replaceUnread, String(unread))}</Banner>}
+          <select name="memberId" required defaultValue="" aria-label={M.replace} className={inputCls}>
+            <option value="" disabled>
+              {M.choose}
+            </option>
+            {pool.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.fullName}
+              </option>
+            ))}
+          </select>
+          <Field label={M.replaceReason}>
+            <textarea name="reason" required minLength={5} maxLength={200} rows={2} className={textareaCls} />
+          </Field>
+        </ActionForm>
+      )}
+    </Section>
+  );
+}
+
 export function MembersTab({ d, L, theme }: Ctx) {
   const M = L.members;
   const c = d.committee;
   const active = d.memberships.filter((m) => m.active);
   const former = d.memberships.filter((m) => !m.active);
   const canEditResp = (d.role.manage || d.role.lead) && !isFrozen(d);
+  // الهيكلُ (تعيينُ القائد بعد انتهاء قيادته) لمن يدير اللجنة؛ و**الأعضاءُ لقائدها** (قرار المؤسس ٣.٣)
   const canManage = d.role.manage && !isFrozen(d);
+  const canMembers = d.role.members && !isFrozen(d);
   const pending = d.proposals.filter((p) => p.status === "pending");
   const past = d.proposals.filter((p) => p.status !== "pending");
   const leadPool = [...active.map((m) => ({ id: m.memberId, fullName: m.member.fullName })), ...d.candidates];
@@ -204,7 +300,7 @@ export function MembersTab({ d, L, theme }: Ctx) {
                       />
                     </ActionForm>
                   )}
-                  {canManage && m.memberId !== c.leadMemberId && (
+                  {canMembers && m.memberId !== c.leadMemberId && (
                     <ActionForm
                       action={removeMemberAction}
                       submits={[{ label: M.remove, variant: "ghost" }]}
@@ -229,9 +325,11 @@ export function MembersTab({ d, L, theme }: Ctx) {
       {canManage && !d.leadDeparted && !d.canAppointLead && (c.committeeStatus === "approved" || c.committeeStatus === "suspended") && (
         <Banner tone="info">{M.leadLocked}</Banner>
       )}
-      {canManage && (
+      {canManage && !canMembers && isActive(d) && <Banner tone="info">{M.managedByLead}</Banner>}
+      <LeadWarnings d={d} L={L} theme={theme} />
+      {(canMembers || (canManage && d.canAppointLead)) && (
         <div className="grid gap-5 lg:grid-cols-2">
-          {d.canAppointLead && (
+          {canManage && d.canAppointLead && (
           <Section title={c.leadMemberId ? M.handover : M.appointLead}>
             <ActionForm
               action={appointLeadAction}
@@ -262,6 +360,7 @@ export function MembersTab({ d, L, theme }: Ctx) {
             </ActionForm>
           </Section>
           )}
+          {canMembers && (
           <Section title={M.add}>
             {d.candidates.length === 0 ? (
               <p className="text-xs text-black/50">{M.noCandidates}</p>
@@ -272,52 +371,8 @@ export function MembersTab({ d, L, theme }: Ctx) {
               </ActionForm>
             )}
           </Section>
+          )}
         </div>
-      )}
-
-      {d.role.lead && isActive(d) && (
-        <Section title={M.propose}>
-          <ActionForm action={proposeChangeAction} submits={[{ label: M.send }]} pendingLabel={L.overview.saving} theme={theme} className="grid gap-3 sm:grid-cols-2">
-            <Hidden d={d} />
-            <p className="text-xs text-black/55 sm:col-span-2">{M.proposeHint}</p>
-            <Field label={M.proposalKind}>
-              <select name="kind" required className={inputCls}>
-                {(["add_member", "remove_member", "replace_member"] as const).map((k) => (
-                  <option key={k} value={k}>
-                    {L.proposalKind[k]}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label={M.proposalMember}>
-              <select name="memberId" required defaultValue="" className={inputCls}>
-                <option value="" disabled>
-                  {M.choose}
-                </option>
-                {leadPool
-                  .filter((p) => p.id !== c.leadMemberId)
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.fullName}
-                    </option>
-                  ))}
-              </select>
-            </Field>
-            <Field label={M.replacement}>
-              <select name="replacementMemberId" defaultValue="" className={inputCls}>
-                <option value="">—</option>
-                {d.candidates.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.fullName}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label={M.note}>
-              <input name="note" maxLength={200} className={inputCls} />
-            </Field>
-          </ActionForm>
-        </Section>
       )}
 
       {(pending.length > 0 || past.length > 0) && (
@@ -339,7 +394,7 @@ export function MembersTab({ d, L, theme }: Ctx) {
                   {p.decidedByName && ` · ${fmt(M.decidedBy, p.decidedByName)}`}
                   {p.decisionNote && ` · ${p.decisionNote}`}
                 </p>
-                {p.status === "pending" && d.role.manage && (
+                {p.status === "pending" && canMembers && (
                   <ActionForm
                     action={decideProposalAction}
                     submits={[

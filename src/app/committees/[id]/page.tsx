@@ -127,8 +127,12 @@ export default async function CommitteePage({
               }`}
             >
               {L.tabs[t]}
-              {t === "members" && d.proposals.some((p) => p.status === "pending") && d.role.manage && (
+              {t === "members" && d.proposals.some((p) => p.status === "pending") && d.role.members && (
                 <Chip tone="warn">{d.proposals.filter((p) => p.status === "pending").length}</Chip>
+              )}
+              {/* تنبيهاتٌ على قيادة صاحب الصفحة لم يؤكّد قراءتها (ق٤) — تُؤكَّد في «الأعضاء» */}
+              {t === "members" && d.role.lead && !d.role.warnLead && d.leadWarnings.some((w) => !w.acknowledgedAt) && (
+                <Chip tone="danger">{d.leadWarnings.filter((w) => !w.acknowledgedAt).length}</Chip>
               )}
               {t === "tasks" && d.stats.overdue > 0 && <Chip tone="danger">{d.stats.overdue}</Chip>}
             </Link>

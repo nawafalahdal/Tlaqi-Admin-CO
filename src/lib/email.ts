@@ -1656,6 +1656,49 @@ export async function sendCommitteeLeadAppointedEmail(opts: {
   );
 }
 
+/** **تنبيهُ قائد اللجنة** (قرار المؤسس ٣.٢ وق٤) — من قائد قسمها بسببٍ مكتوب. يُبلَّغ بالبريد، **والقراءةُ لا تُعدّ
+ *  إلا بتأكيده داخل المنصة**: فالرابطُ يفتح صفحةَ اللجنة حيث يؤكّد اطّلاعه. ولا صلةَ له بتنبيهات العضوية. */
+export async function sendCommitteeLeadWarningEmail(opts: {
+  to: string;
+  fullName: string;
+  committeeName: string;
+  parentName: string;
+  issuedByName: string;
+  reason: string;
+  /** ترتيبُه في فترة قيادته الحالية: ١ أو ٢ أو ٣ */
+  ordinal: number;
+  url: string;
+}) {
+  const subject = `تنبيهٌ على قيادة لجنة «${opts.committeeName}» (${opts.ordinal} من ٣)`;
+  const blocked = await suppressed("committee.lead_warning", opts.to, "تنبيه قيادة لجنة", subject);
+  if (blocked) return blocked;
+  const r = await recipientOf(opts.to);
+  return send(
+    opts.to,
+    subject,
+    {
+      tone: "alert",
+      badge: `تنبيه قيادة لجنة · ${opts.ordinal} من ٣`,
+      title: "تنبيهٌ على قيادة اللجنة",
+      lead: `${esc(opts.fullName)}، أصدر قائدُ القسم تنبيهاً رسمياً على قيادتك للجنة <b>${esc(opts.committeeName)}</b>.`,
+      quote: { label: "سبب التنبيه", text: opts.reason },
+      facts: [
+        ["اللجنة", opts.committeeName],
+        ["القسم", opts.parentName],
+        ["أصدره", opts.issuedByName],
+        ["التنبيهات في فترة قيادتك", `${opts.ordinal} من ٣`],
+      ],
+      cta: { label: "الاطّلاع وتأكيد القراءة", url: esc(opts.url) },
+      note:
+        opts.ordinal >= 3
+          ? "اكتملت ثلاثةُ تنبيهات: صار تغييرُ قائد اللجنة متاحاً لقائد القسم بقرارٍ مسبَّب — ولا يقع تغييرٌ تلقائي، وتبقى عضواً في اللجنة ما لم يُقرَّر غيرُ ذلك."
+          : "لا يُعدّ التنبيهُ مقروءاً حتى تؤكّد اطّلاعك عليه في صفحة اللجنة. وعند اكتمال ثلاثة تنبيهات يصير تغييرُ القائد متاحاً لقائد القسم — بلا تغييرٍ تلقائي.",
+    },
+    "تنبيه قيادة لجنة",
+    themeOf(r)
+  );
+}
+
 /** ضمٌّ إلى لجنة — مكتومٌ بالسياسة: اللجنةُ تظهر في بوابة صاحبها */
 export async function sendCommitteeMemberAddedEmail(opts: { to: string; fullName: string; committeeName: string; url: string }) {
   const subject = `انضممتَ إلى لجنة «${opts.committeeName}»`;

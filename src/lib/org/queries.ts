@@ -11,7 +11,7 @@ import {
   type OrgActor,
 } from "./actor";
 import { committeeContext } from "./committeeWork";
-import { departmentPeopleWhere, STATUS_TRANSITIONS } from "./committeeService";
+import { currentLeadWarnings, departmentPeopleWhere, LEAD_WARNING_GAP_MS, LEAD_WARNINGS_TO_REPLACE, STATUS_TRANSITIONS } from "./committeeService";
 
 /** صفحاتُ اللجان والقسم — قراءاتٌ محدودةٌ بما يحقّ لصاحبها، ومقسّمةٌ إلى صفحات.
  *
@@ -271,6 +271,17 @@ export async function committeeDetail(actor: OrgActor | null, committeeId: strin
     committeeStats([committeeId]),
   ]);
   const activeIds = new Set(memberships.filter((m) => m.active).map((m) => m.memberId));
+  // **تنبيهاتُ قائد اللجنة** (٣.٢ وق٤): فترةُ قيادته الحالية وحدها — يراها قائدُ القسم (مُصدِرُها)، والقائدُ نفسُه،
+  // والمؤسسُ والرئيس اطّلاعاً. ولا يراها بقيةُ الأعضاء.
+  const working = c.committeeStatus === "approved" || c.committeeStatus === "suspended";
+  const seesWarnings = ctx.role.warnLead || (ctx.role.lead && actor!.kind === "member") || actor!.isTop;
+  const leadWarnings =
+    working && ctx.leadActive && c.leadMemberId && seesWarnings
+      ? await currentLeadWarnings(prisma, { id: c.id, leadMemberId: c.leadMemberId, leadAssignedAt: c.leadAssignedAt })
+      : [];
+  const lastWarning = leadWarnings[leadWarnings.length - 1];
+  const nextWarnAt = lastWarning ? new Date(lastWarning.createdAt.getTime() + LEAD_WARNING_GAP_MS) : null;
+  const leadAccountable = working && ctx.leadActive && !!c.leadMemberId && ctx.role.warnLead;
   const candidates =
     ctx.role.manage || ctx.role.lead
       ? (await departmentPeople(c.parent!.id)).filter((p) => !activeIds.has(p.id))
@@ -298,6 +309,10 @@ export async function committeeDetail(actor: OrgActor | null, committeeId: strin
     // انتهت قيادةُ القائد (غادر، أو انتهت عضويتُه، أو عُطِّل) — واللجنةُ بيد القائم بالخلافة حتى يُعيَّن قائد
     leadDeparted: (c.committeeStatus === "approved" || c.committeeStatus === "suspended") && !ctx.leadActive,
     actingLeadName: c.actingLeadUser?.fullName ?? null,
+    leadWarnings,
+    canWarnLead: leadAccountable && leadWarnings.length < LEAD_WARNINGS_TO_REPLACE && (!nextWarnAt || nextWarnAt <= now),
+    nextWarnAt: leadAccountable && leadWarnings.length < LEAD_WARNINGS_TO_REPLACE && nextWarnAt && nextWarnAt > now ? nextWarnAt : null,
+    canReplaceLead: leadAccountable && leadWarnings.length >= LEAD_WARNINGS_TO_REPLACE,
     transitions: ctx.role.manage ? STATUS_TRANSITIONS[c.committeeStatus!] ?? [] : [],
     memberships,
     candidates,

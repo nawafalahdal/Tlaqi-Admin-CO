@@ -40,6 +40,7 @@ export type EmailEvent =
   | "announcement.broadcast"
   | "execution.work_returned"
   | "committee.lead_appointed"
+  | "committee.lead_warning"
   | "org.deputy_appointed"
   | "senior.invitation"
   | "agreement.otp"
@@ -69,6 +70,10 @@ export const EMAIL_POLICY: Record<EmailEvent, { send: boolean; why: string }> = 
   "committee.lead_appointed": {
     send: true,
     why: "تكليفٌ بقيادة لجنةٍ ومسؤوليةٌ جديدة — يجب أن يعرفه صاحبُه ولو لم يفتح المنصة",
+  },
+  "committee.lead_warning": {
+    send: true,
+    why: "تنبيهٌ رسميٌّ على قيادة لجنة يُعدّ ضمن ثلاثةٍ تُتيح تغييرَه — يجب أن يعلم به صاحبُه ولو لم يفتح المنصة (والقراءةُ تأكيدُه داخلها وحده)",
   },
   "org.deputy_appointed": {
     send: true,

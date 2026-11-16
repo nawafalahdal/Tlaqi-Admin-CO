@@ -187,6 +187,10 @@ export type CommitteeRole = {
   member: boolean;
   /** يطّلع: كلُّ من سبق، ومسؤولُ التشغيل، وقائدُ القسم ونائبُه بلا تفويض */
   view: boolean;
+  /** **يدير أعضاءها** إضافةً وإخراجاً (قرار المؤسس ٣.٣) — قائدُها الفعلي وحده (`canManageCommitteeMembers`) */
+  members: boolean;
+  /** **ينبّه قائدَها ويغيّره بعد ثلاثة تنبيهات** (٣.٢ وق٤) — قائدُ قسمها الأصيل وحده (`canWarnCommitteeLead`) */
+  warnLead: boolean;
 };
 
 /** صفُّ اللجنة كما تحتاجه الصلاحية — ومعه حالةُ قائدها الفعلية من القاعدة (`committeeLeadState`).
@@ -214,8 +218,31 @@ export function canManageCommittee(a: OrgActor | null, c: CommitteeRow): boolean
   return !leadActive && ["approved", "suspended", "awaiting_lead", "archived"].includes(c.committeeStatus ?? "");
 }
 
+/** **إدارةُ أعضاء اللجنة — لقائدها** (قرار المؤسس ٣.٣): من يقودها فعلاً يضيف ويُخرج، وقائدُ القسم لا يُخرج أحداً.
+ *  - **لجنةٌ عاملةٌ أو معلّقة:** قائدُها العضوُ النشط؛ فإن غادر فالقائمُ بقيادتها بالخلافة (٣.٤) — قائدٌ فعّالٌ واحد.
+ *  - **مرحلةُ التكوين** (مسودّة، مردودة، «بانتظار تعيين قائد»): مقترحُها يكوّنها كما كان — لا قائدَ لها بعد.
+ *  - وما سواها (بانتظار الاعتماد، مكتملة، مؤرشفة، مغلقة): لا يُعدَّل أعضاؤها.
+ *  ولا يمنحها لقبٌ: لا قائدُ القسم ولا نائبُه ولا المؤسسُ ولا الرئيسُ بصفتهم. */
+export function canManageCommitteeMembers(a: OrgActor | null, c: CommitteeRow): boolean {
+  if (!a?.role || !c.parentId) return false;
+  const status = c.committeeStatus ?? "";
+  if (status === "draft" || status === "rejected" || status === "awaiting_lead") return canProposeCommitteesOf(a, c.parentId);
+  if (status !== "approved" && status !== "suspended") return false;
+  const leadActive = c.leadActive ?? true;
+  if (a.kind === "member") return leadActive && !!c.leadMemberId && c.leadMemberId === a.id;
+  return !leadActive && !!c.actingLeadUserId && c.actingLeadUserId === a.id;
+}
+
+/** **تنبيهُ قائد اللجنة، وتغييرُه بعد ثلاثة** (قرار المؤسس ٣.٢ وق٤) — لقائد قسمها الأصيل وحده؛ ولجانُ الإدارة العليا
+ *  لقائدها الفعلي (لا قائدَ قسمٍ لها غيرُه). **ولا لنائب قائد القسم** ولو فُوِّض، ولا للمؤسس والرئيس بصفتهما. */
+export function canWarnCommitteeLead(a: OrgActor | null, c: Pick<CommitteeRow, "parentId">): boolean {
+  if (!a?.role || !c.parentId) return false;
+  if (a.leadsDepartmentId === c.parentId) return true;
+  return a.isTop && !!a.seniorDepartmentId && a.seniorDepartmentId === c.parentId;
+}
+
 export function committeeRoleFor(a: OrgActor | null, c: CommitteeRow, isActiveMember: boolean): CommitteeRole {
-  const none = { manage: false, propose: false, lead: false, member: false, view: false };
+  const none = { manage: false, propose: false, lead: false, member: false, view: false, members: false, warnLead: false };
   if (!a?.role || !c.parentId) return none;
   const manage = canManageCommittee(a, c);
   // قائدُها عضوٌ فيها — قيادةُ اللجنة دورٌ في عضويتها لا دورٌ إداري، ولا تمنح شيئاً على القسم.
@@ -227,5 +254,13 @@ export function committeeRoleFor(a: OrgActor | null, c: CommitteeRow, isActiveMe
   const view =
     // والمؤسسُ والرئيسُ يطّلعان دائماً — الإدارةُ وحدها تتبع حالةَ القائد
     manage || lead || member || a.isTop || a.isOps || a.leadsDepartmentId === c.parentId || a.deputy?.departmentId === c.parentId;
-  return { manage, propose: canProposeCommitteesOf(a, c.parentId), lead, member, view };
+  return {
+    manage,
+    propose: canProposeCommitteesOf(a, c.parentId),
+    lead,
+    member,
+    view,
+    members: canManageCommitteeMembers(a, c),
+    warnLead: canWarnCommitteeLead(a, c),
+  };
 }

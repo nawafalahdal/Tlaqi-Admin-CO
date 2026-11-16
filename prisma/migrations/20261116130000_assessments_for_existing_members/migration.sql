@@ -54,10 +54,10 @@ CREATE INDEX "AssessmentAssignment_seniorPositionId_idx" ON "AssessmentAssignmen
 CREATE INDEX "AssessmentAttempt_assignmentId_idx" ON "AssessmentAttempt"("assignmentId");
 
 -- AddForeignKey
-ALTER TABLE "AssessmentAssignment" ADD CONSTRAINT "AssessmentAssignment_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "Member"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "AssessmentAssignment" ADD CONSTRAINT "AssessmentAssignment_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "Member"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "AssessmentAssignment" ADD CONSTRAINT "AssessmentAssignment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "AssessmentAssignment" ADD CONSTRAINT "AssessmentAssignment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "AssessmentAssignment" ADD CONSTRAINT "AssessmentAssignment_trackId_fkey" FOREIGN KEY ("trackId") REFERENCES "TestTrack"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -66,5 +66,5 @@ ALTER TABLE "AssessmentAssignment" ADD CONSTRAINT "AssessmentAssignment_trackId_
 ALTER TABLE "AssessmentAssignment" ADD CONSTRAINT "AssessmentAssignment_seniorPositionId_fkey" FOREIGN KEY ("seniorPositionId") REFERENCES "SeniorPosition"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "AssessmentAttempt" ADD CONSTRAINT "AssessmentAttempt_assignmentId_fkey" FOREIGN KEY ("assignmentId") REFERENCES "AssessmentAssignment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "AssessmentAttempt" ADD CONSTRAINT "AssessmentAttempt_assignmentId_fkey" FOREIGN KEY ("assignmentId") REFERENCES "AssessmentAssignment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 

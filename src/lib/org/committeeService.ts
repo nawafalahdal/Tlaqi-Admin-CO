@@ -7,6 +7,7 @@ import {
   sendCommitteeLeadAppointedEmail,
   appointerTitle,
   sendCommitteeMemberAddedEmail,
+  sendCommitteeLeadWarningEmail,
   sendDeputyAppointedEmail,
 } from "@/lib/email";
 import { newCommitteeSlug, committeeApprover } from "@/lib/committees";
@@ -14,7 +15,9 @@ import {
   canAppointDeputy,
   canAssignResponsibilities,
   canManageCommittee,
+  canManageCommitteeMembers,
   canProposeCommitteesOf,
+  canWarnCommitteeLead,
   committeeRoleFor,
   type CommitteeRow,
   type OrgActor,
@@ -169,6 +172,7 @@ async function loadCommittee(db: Db, id: string) {
         committeeStatus: true,
         leadMemberId: true,
         actingLeadUserId: true,
+        leadAssignedAt: true,
         leadMember: { select: { id: true, fullName: true, email: true } },
         parent: { select: { id: true, name: true, parentId: true } },
       },
@@ -500,7 +504,9 @@ export async function appointCommitteeLead(
     return fail("للجنة المؤرشفة قائدُها النشط — تُسترجَع به، ولا يُستبدل وهي مؤرشفة");
   }
   if (working && c.leadActive) {
-    return fail("للجنة قائدٌ نشطٌ معتمد — لا يُغيَّر ولا يُستبدل حتى تنتهي قيادتُه (مغادرة، أو انتهاء عضوية، أو تعطيل حساب)");
+    return fail(
+      "للجنة قائدٌ نشطٌ معتمد — لا يُغيَّر حتى تنتهي قيادتُه (مغادرة، أو انتهاء عضوية، أو تعطيل حساب)، أو بعد ثلاثة تنبيهاتٍ بقرار قائد القسم المسبَّب"
+    );
   }
   if (proposal ? !canProposeCommitteesOf(actor, c.parentId!) : !canManageCommittee(actor, c)) {
     return fail("تعيينُ قائد اللجنة لقائد قسمها ونائبه المفوَّض");
@@ -613,6 +619,10 @@ export async function noteCommitteeLeadDeparture(memberId: string, reason: strin
   }
 }
 
+/** رسالةُ الرفض الموحَّدة لإدارة الأعضاء (قرار المؤسس ٣.٣) */
+const MEMBERS_DENIED =
+  "إدارةُ أعضاء اللجنة لقائدها (أو القائم بقيادتها بالخلافة) — وقبل الاعتماد لمقترحها. ولا يُخرج قائدُ القسم أعضاءها";
+
 export async function addCommitteeMembers(
   actor: OrgActor | null,
   committeeId: string,
@@ -620,7 +630,7 @@ export async function addCommitteeMembers(
 ): Promise<OrgResult<{ added: number }>> {
   const c = await loadCommittee(prisma, committeeId);
   if (!c) return fail("اللجنة غير موجودة");
-  if (!canManageCommittee(actor, c)) return fail("إضافةُ الأعضاء لقائد القسم ومن فُوِّض — ولقائد اللجنة أن يقترح");
+  if (!canManageCommitteeMembers(actor, c)) return fail(MEMBERS_DENIED);
   if (FROZEN.includes(c.committeeStatus!)) return fail("اللجنةُ مغلقة — لا يُضاف إليها أحد");
   const ids = [...new Set(memberIds.filter(Boolean))];
   if (!ids.length) return fail("اختر عضواً واحداً على الأقل");
@@ -663,7 +673,7 @@ export async function removeCommitteeMember(
 ): Promise<OrgResult> {
   const c = await loadCommittee(prisma, committeeId);
   if (!c) return fail("اللجنة غير موجودة");
-  if (!canManageCommittee(actor, c)) return fail("إزالةُ الأعضاء لقائد القسم ومن فُوِّض");
+  if (!canManageCommitteeMembers(actor, c)) return fail(MEMBERS_DENIED);
   if (FROZEN.includes(c.committeeStatus!)) return fail("اللجنةُ مغلقة — سجلُّ أعضائها يُقرأ ولا يُعدَّل");
   if (c.leadMemberId === memberId) return fail("هذا قائدُ اللجنة — عيّن قائداً غيرَه أولاً ثم أخرِجه");
   const m = await prisma.committeeMembership.findUnique({
@@ -718,6 +728,211 @@ export async function setCommitteeResponsibility(
 }
 
 // ═════════════════════════════════════════════════════════════════════
+//  تنبيهاتُ قائد اللجنة، وتغييرُه بعد ثلاثة (قرار المؤسس ٣.٢ وق٤)
+// ═════════════════════════════════════════════════════════════════════
+
+/** ثلاثةُ تنبيهاتٍ في فترة القيادة الحالية تُتيح التغيير — ولا تغييرَ تلقائي */
+export const LEAD_WARNINGS_TO_REPLACE = 3;
+/** أقلُّ فاصلٍ بين تنبيهٍ والذي يليه */
+export const LEAD_WARNING_GAP_MS = 24 * 3600_000;
+
+/** تنبيهاتُ **فترة القيادة الحالية** وحدها (ق٤): لقائدها الحالي، ومنذ تعيينه إن عُرف (`leadAssignedAt`).
+ *  فمن عُيّن ثانيةً يبدأ صفحةً جديدة، وما صدر لغيره لا يُحسب عليه. */
+export async function currentLeadWarnings(
+  db: Db,
+  c: { id: string; leadMemberId: string | null; leadAssignedAt: Date | null }
+) {
+  if (!c.leadMemberId) return [];
+  return db.committeeLeadWarning.findMany({
+    where: {
+      committeeId: c.id,
+      leadMemberId: c.leadMemberId,
+      ...(c.leadAssignedAt ? { createdAt: { gte: c.leadAssignedAt } } : {}),
+    },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, reason: true, issuedByName: true, createdAt: true, acknowledgedAt: true, emailStatus: true },
+  });
+}
+
+/** **يُصدر تنبيهاً على قائد اللجنة** — لقائد قسمها الأصيل وحده (لا النائب)، بسببٍ مكتوب، على قائدٍ عضوٍ نشطٍ في
+ *  لجنةٍ عاملةٍ أو معلّقة. وبين التنبيه والذي يليه ٢٤ ساعةً على الأقل، ولا يتجاوز الثلاثة في الفترة.
+ *  يُكتب ويُفحص الفاصلُ في معاملةٍ واحدةٍ بقفل صفّ اللجنة: طلبان متزامنان لا يُصدران تنبيهين.
+ *  والبريدُ إبلاغٌ لا قراءة — القراءةُ تأكيدُ القائد داخل المنصة (`acknowledgeCommitteeLeadWarning`). */
+export async function issueCommitteeLeadWarning(
+  actor: OrgActor | null,
+  committeeId: string,
+  reason: string,
+  now: Date = new Date()
+): Promise<OrgResult<{ ordinal: number; canReplace: boolean }>> {
+  const c = await loadCommittee(prisma, committeeId);
+  if (!c) return fail("اللجنة غير موجودة");
+  if (!canWarnCommitteeLead(actor, c)) return fail("تنبيهُ قائد اللجنة لقائد قسمها وحده — لا لنائبه");
+  if (!LEAD_REQUIRED.includes(c.committeeStatus!)) return fail("التنبيهُ لقائد لجنةٍ عاملةٍ أو معلّقة");
+  if (!c.leadMemberId || !c.leadActive || !c.leadMember) return fail("لا قائدَ عضواً نشطاً لهذه اللجنة يُنبَّه");
+  const why = text(reason, LIMITS.short);
+  if (!why || why.length < 5) return fail("التنبيهُ لا يصدر بلا سببٍ مكتوبٍ واضح");
+  const me = actor!.kind === "user" ? await prisma.user.findUnique({ where: { id: actor!.id }, select: { email: true } }) : null;
+  if (me?.email && me.email.toLowerCase() === c.leadMember.email.toLowerCase()) return fail("لا يُنبّه أحدٌ نفسَه");
+
+  const res = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Department" WHERE "id" = ${committeeId} FOR UPDATE`;
+    const fresh = await tx.department.findUniqueOrThrow({
+      where: { id: committeeId },
+      select: { leadMemberId: true, leadAssignedAt: true },
+    });
+    if (fresh.leadMemberId !== c.leadMemberId) return { error: "تغيّرت قيادةُ اللجنة للتوّ — أعِد فتح الصفحة" } as const;
+    const prior = await currentLeadWarnings(tx, { id: committeeId, ...fresh });
+    if (prior.length >= LEAD_WARNINGS_TO_REPLACE) {
+      return { error: "اكتملت ثلاثةُ تنبيهاتٍ في فترة قيادته — التغييرُ متاحٌ لك بقرارٍ مسبَّب" } as const;
+    }
+    const last = prior[prior.length - 1];
+    if (last && now.getTime() - last.createdAt.getTime() < LEAD_WARNING_GAP_MS) {
+      const hours = Math.ceil((LEAD_WARNING_GAP_MS - (now.getTime() - last.createdAt.getTime())) / 3600_000);
+      return { error: `بين التنبيه والذي يليه ٢٤ ساعةً على الأقل — المتبقّي نحو ${hours} ساعة` } as const;
+    }
+    const w = await tx.committeeLeadWarning.create({
+      data: {
+        committeeId,
+        leadMemberId: c.leadMemberId!,
+        issuedById: actor!.id,
+        issuedByName: actor!.name,
+        reason: why,
+        createdAt: now,
+      },
+      select: { id: true },
+    });
+    const ordinal = prior.length + 1;
+    await recordOrgEvent(tx, {
+      scope: "committee", entityId: committeeId, departmentId: c.parentId!, action: "committee.lead.warned",
+      actor: actor!,
+      after: { warningId: w.id, leadMemberId: c.leadMemberId, leadName: c.leadMember!.fullName, ordinal, of: LEAD_WARNINGS_TO_REPLACE },
+      note: why,
+    });
+    return { id: w.id, ordinal } as const;
+  });
+  if ("error" in res) return fail(res.error!);
+
+  let emailStatus = "skipped";
+  try {
+    const sent = await sendCommitteeLeadWarningEmail({
+      to: c.leadMember.email,
+      fullName: c.leadMember.fullName,
+      committeeName: c.name,
+      parentName: c.parent!.name,
+      issuedByName: actor!.name,
+      reason: why,
+      ordinal: res.ordinal,
+      url: `${baseUrl()}/committees/${committeeId}`,
+    });
+    emailStatus = sent.outcome.state === "accepted" ? "sent" : sent.error ? "failed" : "skipped";
+  } catch {
+    emailStatus = "failed";
+  }
+  await prisma.committeeLeadWarning.update({ where: { id: res.id }, data: { emailStatus } });
+  return { ok: true, ordinal: res.ordinal, canReplace: res.ordinal >= LEAD_WARNINGS_TO_REPLACE };
+}
+
+/** **يؤكّد قائدُ اللجنة اطّلاعَه على تنبيهٍ** — داخل المنصة وحدها، ولتنبيهه هو وحده، مرّةً واحدة (ق٤).
+ *  هذا وحده «قراءة»: وصولُ البريد لا يُعدّ. */
+export async function acknowledgeCommitteeLeadWarning(actor: OrgActor | null, warningId: string): Promise<OrgResult> {
+  if (!actor?.role || actor.kind !== "member") return fail("التأكيدُ لقائد اللجنة المنبَّه وحده");
+  const w = await prisma.committeeLeadWarning.findUnique({
+    where: { id: warningId },
+    select: { id: true, committeeId: true, leadMemberId: true, acknowledgedAt: true, committee: { select: { parentId: true } } },
+  });
+  if (!w || w.leadMemberId !== actor.id) return fail("التأكيدُ لقائد اللجنة المنبَّه وحده");
+  if (w.acknowledgedAt) return { ok: true };
+  const at = new Date();
+  await prisma.$transaction(async (tx) => {
+    const done = await tx.committeeLeadWarning.updateMany({ where: { id: w.id, acknowledgedAt: null }, data: { acknowledgedAt: at } });
+    if (!done.count) return;
+    await recordOrgEvent(tx, {
+      scope: "committee", entityId: w.committeeId, departmentId: w.committee.parentId ?? "—",
+      action: "committee.lead.warning_acknowledged", actor,
+      before: { warningId: w.id, acknowledgedAt: null }, after: { warningId: w.id, acknowledgedAt: at.toISOString() },
+    });
+  });
+  return { ok: true };
+}
+
+/** **تغييرُ قائد اللجنة بعد ثلاثة تنبيهات** (٣.٢ وق٤) — قرارٌ مسبَّبٌ لقائد قسمها الأصيل وحده، لا تلقائيّ، ولا لنائبه.
+ *  - يُفحص العددُ في المعاملة نفسها بقفل الصفّ، وتُكتب القيادةُ بحرسٍ في `where` (لا يمرّ تغييران متزامنان).
+ *  - **القائدُ السابق يبقى عضواً عادياً** في اللجنة؛ يُخرجه بعدها من يدير الأعضاء وفق صلاحيته إن شاء.
+ *  - يبدأ للقائد الجديد فترةُ قيادةٍ جديدة (`leadAssignedAt`)، فلا يرث تنبيهاتِ سلفه.
+ *  - يُسجَّل السببُ والتنبيهاتُ التي بُني عليها ومن قرّر — توثيقُ العملية كاملة. */
+export async function replaceWarnedCommitteeLead(
+  actor: OrgActor | null,
+  committeeId: string,
+  newLeadMemberId: string,
+  reason: string
+): Promise<OrgResult<{ previousLeadId: string }>> {
+  const c = await loadCommittee(prisma, committeeId);
+  if (!c) return fail("اللجنة غير موجودة");
+  if (!canWarnCommitteeLead(actor, c)) return fail("تغييرُ قائد اللجنة بعد التنبيهات لقائد قسمها وحده — لا لنائبه");
+  if (!LEAD_REQUIRED.includes(c.committeeStatus!)) return fail("التغييرُ لقائد لجنةٍ عاملةٍ أو معلّقة");
+  if (!c.leadMemberId || !c.leadActive || !c.leadMember) return fail("لا قائدَ نشطاً — يُعيَّن قائدٌ بمسار التعيين المعتاد");
+  const why = text(reason, LIMITS.short);
+  if (!why || why.length < 5) return fail("التغييرُ لا يقع بلا سببٍ مكتوبٍ واضح");
+  if (newLeadMemberId === c.leadMemberId) return fail("هذا العضوُ قائدُها بالفعل");
+  const ok = await eligibleIds(prisma, c.parentId!, [newLeadMemberId]);
+  if (!ok.has(newLeadMemberId)) return fail("قائدُ اللجنة يُختار من أعضاء القسم المعتمَدين");
+  const person = await prisma.member.findUniqueOrThrow({ where: { id: newLeadMemberId }, select: { fullName: true, email: true } });
+  const oldLead = c.leadMember;
+
+  const res = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Department" WHERE "id" = ${committeeId} FOR UPDATE`;
+    const fresh = await tx.department.findUniqueOrThrow({
+      where: { id: committeeId },
+      select: { leadMemberId: true, leadAssignedAt: true, actingLeadUserId: true, committeeStatus: true },
+    });
+    if (fresh.leadMemberId !== c.leadMemberId || fresh.actingLeadUserId) return { error: "تغيّرت قيادةُ اللجنة للتوّ — أعِد فتح الصفحة" } as const;
+    const warnings = await currentLeadWarnings(tx, { id: committeeId, leadMemberId: fresh.leadMemberId, leadAssignedAt: fresh.leadAssignedAt });
+    if (warnings.length < LEAD_WARNINGS_TO_REPLACE) {
+      return { error: `التغييرُ متاحٌ بعد ثلاثة تنبيهاتٍ في فترة قيادته — صدر ${warnings.length}` } as const;
+    }
+    const at = new Date();
+    await tx.committeeMembership.upsert({
+      where: { committeeId_memberId: { committeeId, memberId: newLeadMemberId } },
+      create: { committeeId, memberId: newLeadMemberId, addedByName: actor!.name },
+      update: { active: true, removedAt: null, removedByName: null },
+    });
+    // القائدُ السابق يبقى عضواً عادياً — عضويتُه كما هي (ق٤)
+    await tx.committeeMembership.upsert({
+      where: { committeeId_memberId: { committeeId, memberId: c.leadMemberId! } },
+      create: { committeeId, memberId: c.leadMemberId!, addedByName: actor!.name },
+      update: {},
+    });
+    const w = await tx.department.updateMany({
+      where: { id: committeeId, leadMemberId: c.leadMemberId, actingLeadUserId: null, committeeStatus: fresh.committeeStatus },
+      data: { leadMemberId: newLeadMemberId, leadAssignedAt: at, leadAssignedByName: actor!.name },
+    });
+    if (!w.count) return { error: "تغيّرت قيادةُ اللجنة للتوّ — أعِد فتح الصفحة" } as const;
+    await recordOrgEvent(tx, {
+      scope: "committee", entityId: committeeId, departmentId: c.parentId!, action: "committee.lead.replaced",
+      actor: actor!,
+      before: {
+        leadMemberId: c.leadMemberId, leadName: oldLead!.fullName,
+        warnings: warnings.map((x) => ({ id: x.id, at: x.createdAt.toISOString(), acknowledged: !!x.acknowledgedAt })),
+      },
+      after: { leadMemberId: newLeadMemberId, leadName: person.fullName, previousLeadStaysMember: true, source: "after_warnings" },
+      note: why,
+    });
+    return { ok: true } as const;
+  });
+  if ("error" in res) return fail(res.error!);
+  await sendCommitteeLeadAppointedEmail({
+    to: person.email,
+    fullName: person.fullName,
+    committeeName: c.name,
+    parentName: c.parent!.name,
+    appointedByName: actor!.name,
+    appointedByTitle: appointerTitle(actor!.role, c.parent!.name),
+    url: `${baseUrl()}/committees/${committeeId}`,
+  });
+  return { ok: true, previousLeadId: c.leadMemberId };
+}
+
+// ═════════════════════════════════════════════════════════════════════
 //  اقتراحاتُ قائد اللجنة — والقرارُ لقائد القسم
 // ═════════════════════════════════════════════════════════════════════
 
@@ -728,7 +943,9 @@ export async function proposeMembershipChange(
 ): Promise<OrgResult> {
   const c = await loadCommittee(prisma, committeeId);
   if (!c) return fail("اللجنة غير موجودة");
-  if (!isCommitteeLead(actor, c)) return fail("الاقتراحُ لقائد اللجنة — والقرارُ لقائد القسم");
+  if (!isCommitteeLead(actor, c)) return fail("الاقتراحُ لقائد اللجنة");
+  // **قرار المؤسس ٣.٣:** قائدُ اللجنة يدير أعضاءها مباشرةً — فلا اقتراحاتٍ جديدة تنتظر قائدَ القسم
+  if (canManageCommitteeMembers(actor, c)) return fail("أنت تدير أعضاءَ اللجنة مباشرةً — أضِف أو أخرِج من «الأعضاء»");
   if (c.committeeStatus !== "approved") return fail("اللجنةُ ليست نشطة");
   const active = await prisma.committeeMembership.findMany({ where: { committeeId, active: true }, select: { memberId: true } });
   const isMember = (id: string) => active.some((a) => a.memberId === id);
@@ -780,7 +997,8 @@ export async function decideProposal(
   if (!p) return fail("الاقتراح غير موجود");
   const c = await loadCommittee(prisma, p.committeeId);
   if (!c) return fail("اللجنة غير موجودة");
-  if (!canManageCommittee(actor, c)) return fail("القرارُ في الاقتراح لقائد القسم ومن فُوِّض");
+  // الاقتراحاتُ المعلّقة من قبل القرار ٣.٣ يبتّ فيها من يدير الأعضاءَ الآن — قائدُ اللجنة
+  if (!canManageCommitteeMembers(actor, c)) return fail(MEMBERS_DENIED);
   if (p.status !== "pending") return fail("قُرِّر هذا الاقتراحُ بالفعل");
   const why = text(note, LIMITS.short);
   if (!accept && !why) return fail("الردُّ لا يقع بلا سببٍ مكتوب");

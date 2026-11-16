@@ -21,6 +21,9 @@ import {
   setCommitteeResponsibility,
   proposeMembershipChange,
   decideProposal,
+  issueCommitteeLeadWarning,
+  acknowledgeCommitteeLeadWarning,
+  replaceWarnedCommitteeLead,
   appointDeputy,
   setDeputyPermission,
   revokeDeputy,
@@ -187,6 +190,23 @@ export async function decideProposalAction(_p: FormState, fd: FormData): Promise
   return run(committeePaths(id), async () =>
     decideProposal(await actor(), s(fd, "proposalId"), s(fd, "decision") === "accept", opt(fd, "note"))
   );
+}
+
+// ── تنبيهاتُ قائد اللجنة وتغييرُه بعد ثلاثة (قرار المؤسس ٣.٢ وق٤) ────────
+
+export async function warnLeadAction(_p: FormState, fd: FormData): Promise<FormState> {
+  const id = s(fd, "committeeId");
+  return run(committeePaths(id), async () => issueCommitteeLeadWarning(await actor(), id, s(fd, "reason")));
+}
+
+export async function acknowledgeLeadWarningAction(_p: FormState, fd: FormData): Promise<FormState> {
+  const id = s(fd, "committeeId");
+  return run(committeePaths(id), async () => acknowledgeCommitteeLeadWarning(await actor(), s(fd, "warningId")));
+}
+
+export async function replaceWarnedLeadAction(_p: FormState, fd: FormData): Promise<FormState> {
+  const id = s(fd, "committeeId");
+  return run(committeePaths(id), async () => replaceWarnedCommitteeLead(await actor(), id, s(fd, "memberId"), s(fd, "reason")));
 }
 
 // ── العمل: المهامّ والاجتماعات والقرارات والتقارير ─────────────────────

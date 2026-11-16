@@ -126,12 +126,28 @@ const lastToken = () => inviteUrls[inviteUrls.length - 1]?.split("/").pop() ?? "
   chk("فتحُ الرابط: «بانتظار القبول»", opened?.inviteState === "opened");
   const weak = await G.acceptSeniorInvitation(tok2, { session: null, password: "short" });
   chk("القبولُ بكلمة مرورٍ ضعيفة يُرفض", !weak.ok);
+  // تغييرُ توقّعٍ مقصود (قرار المؤسس ق٢، نوفمبر 2026): **القبولُ ليس اعتماداً** — يُنشأ مرشّحاً يختبر ببنك الإدارة العليا،
+  // ويبقى المنصبُ «بانتظار» حتى تحسمه جهةُ الاعتماد. كان القبولُ يُفعّله فيدخل المنصة بلا اختبار (البند ١.١).
+  // ومسارُه الكامل (الاختبار، ثم جهةُ الاعتماد المستقلة) في `e2e-approval-governance`؛ هنا يُعتمد ليُكمل الفحصُ ما بعده.
+  const seniorBank =
+    (await prisma.testTrack.findFirst({ where: { scope: "department_member", departmentId: senior.id } })) ??
+    (await prisma.testTrack.create({ data: { scope: "department_member", departmentId: senior.id } }));
+  if (!(await prisma.testQuestion.count({ where: { trackId: seniorBank.id } }))) {
+    await prisma.testQuestion.create({ data: { trackId: seniorBank.id, prompt: `سؤال ${TAG}`, options: ["أ", "ب", "ج", "د"], correctIndex: 1, order: 1 } });
+  }
   const acc = await G.acceptSeniorInvitation(tok2, { session: null, password: "Strong-Pass-2026" });
   const posA = await prisma.seniorPosition.findUniqueOrThrow({ where: { id: pos!.id } });
   const legal = await prisma.member.findFirst({ where: { email: legalEmail } });
-  chk("قبولُ مدعوٍّ جديد: يُنشأ حسابُه عضواً في الإدارة العليا ويُربط بتكليفه", acc.ok && acc.mode === "created" && !!legal && legal.departmentId === senior.id && posA.holderMemberId === legal.id && posA.status === "active" && posA.inviteState === "accepted", JSON.stringify(acc));
+  chk("قبولُ مدعوٍّ جديد: يُنشأ مرشّحاً في الإدارة العليا مربوطاً بتكليفه، والمنصبُ بانتظار الاختبار والاعتماد (ق٢)",
+    acc.ok && acc.mode === "created" && !!legal && legal.departmentId === senior.id && legal.approvalStatus === "pending_review" &&
+      posA.holderMemberId === legal.id && posA.status === "pending" && posA.inviteState === "accepted", JSON.stringify(acc));
   chk("والرابطُ لا يُستعمل مرّتين", posA.inviteTokenHash === null && !(await G.acceptSeniorInvitation(tok2, { session: null, password: "Strong-Pass-2026" })).ok);
   chk("والقبولُ مسجَّل", (await prisma.orgAuditEvent.count({ where: { action: "senior.invite.accept", entityId: pos!.id } })) === 1);
+  chk("ولا صلاحيةَ للمرشّح قبل اعتماده", !(await G.seniorContext(sess({ id: legal!.id, role: "member", fullName: legal!.fullName }))).capabilities.has("agreements_manage"));
+  await prisma.member.update({ where: { id: legal!.id }, data: { testStatus: "passed", testScore: 100, profileCompletedAt: new Date() } });
+  const { approveMember } = await import("@/lib/workflow");
+  await approveMember(legal!.id);
+  chk("وباعتماده يُفعَّل منصبُه", (await prisma.seniorPosition.findUniqueOrThrow({ where: { id: pos!.id } })).status === "active");
   const ctxLegal = await G.seniorContext(sess({ id: legal!.id, role: "member", fullName: legal!.fullName }));
   chk("صلاحياتُ العضو ما مُنح وحده: لوحةٌ وسجلٌّ واتفاقيات — لا قيادة", ctxLegal.capabilities.has("agreements_manage") && ctxLegal.capabilities.has("governance_log_view") && !ctxLegal.capabilities.has("committees_view") && !ctxLegal.isLeader);
   const selfEdit = await G.updateSeniorPosition(ctxLegal, pos!.id, { titleAr: "المستشار القانوني الأول", capabilities: ["board_view", "agreements_manage", "committees_view"] });
@@ -206,8 +222,12 @@ const lastToken = () => inviteUrls[inviteUrls.length - 1]?.split("/").pop() ?? "
   const evStart = dc.ok ? await prisma.orgAuditEvent.findFirst({ where: { entityId: dc.id, action: "committee.lead" }, orderBy: { createdAt: "desc" } }) : null;
   chk("وتعيينُ القائد مسجَّلٌ بحالتها الجديدة", (evStart?.after as { status?: string })?.status === "approved");
   const rmLead = dc.ok ? await C.removeCommitteeMember(aLead, dc.id, d1.id, "إخراج القائد") : null;
-  const rmLast = dc.ok ? await C.removeCommitteeMember(aLead, dc.id, d2.id, "آخر عضو") : null;
-  chk("إزالةُ آخر عضوٍ تقع وتُسجَّل، والقائدُ لا يُخرَج قبل تعيين بديله", !rmLead?.ok && !!rmLast?.ok);
+  // تغييرُ توقّعٍ مقصود (قرار المؤسس ٣.٣): إخراجُ الأعضاء من لجنةٍ عاملة لقائدها — لا لقائد القسم
+  const rmByDeptLead = dc.ok ? await C.removeCommitteeMember(aLead, dc.id, d2.id, "آخر عضو") : null;
+  const committeeLead = await orgActor({ user: { id: d1.id, role: "member", name: d1.fullName, email: d1.email, departmentId: dept.id } } as unknown as Session);
+  const rmLast = dc.ok ? await C.removeCommitteeMember(committeeLead, dc.id, d2.id, "آخر عضو") : null;
+  chk("قائدُ القسم لا يُخرج عضواً من لجنةٍ عاملة (٣.٣)", !rmByDeptLead?.ok);
+  chk("وقائدُ اللجنة يُخرج آخرَ عضوٍ فيُسجَّل، والقائدُ لا يُخرَج قبل تعيين بديله", !rmLead?.ok && !!rmLast?.ok, JSON.stringify(rmLast));
   // تزامن: أرشفتان معاً على اللجنة نفسها
   const race2 = dc.ok ? await Promise.all([C.changeCommitteeStatus(aLead, dc.id, "archived", "أرشفة أ"), C.changeCommitteeStatus(aLead, dc.id, "archived", "أرشفة ب")]) : [];
   chk("عمليتان متزامنتان على اللجنة نفسها: تقع واحدةٌ وحدها", race2.filter((r) => r.ok).length === 1);
