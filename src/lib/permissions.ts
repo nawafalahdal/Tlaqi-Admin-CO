@@ -17,6 +17,15 @@ import type { UserRole, InviteTargetRole } from "@prisma/client";
  *  والمنعُ الافتراضيّ: ما لا يرد هنا لا يحسمه أحد. */
 export type DecisionAuthority = "department_lead" | "designated_approver";
 
+/** **مرشّحٌ ينتظر قرارَ جهة الاعتماد** — اختبارُه انتهى (اجتاز أو لم يجتز) ولم يُحسم أمرُه بعد.
+ *  الحذفُ النهائيُّ لسجلّه في هذه الحال **ردٌّ بطريقٍ آخر**: ينهي ترشّحه بلا قرار المخوَّل. فيُمنع على الجميع —
+ *  المؤسسُ والرئيسُ التنفيذيُّ للاطّلاع وحده (قرار المؤسس ق١ والبند ١١) — ويُحسم أولاً قبولاً أو رفضاً. */
+export function awaitingCandidateDecision(m: { approvalStatus: string; testStatus: string }): boolean {
+  return m.approvalStatus === "pending_review" && (m.testStatus === "passed" || m.testStatus === "failed");
+}
+export const AWAITING_DECISION_REFUSAL =
+  "هذا مرشّحٌ انتهى اختبارُه وينتظر قرارَ جهة الاعتماد — الحذفُ ليس طريقَ الرد. يحسمه المخوَّل (قبولاً أو رفضاً) أولاً";
+
 /** جهةُ الحسم لمرشّحٍ بعينه — من منصبه وحال قسمه (قائدُه النشط، وهل هو الإدارة العليا) */
 export function decisionAuthorityFor(
   candidate: { targetRole: InviteTargetRole; departmentId: string | null },

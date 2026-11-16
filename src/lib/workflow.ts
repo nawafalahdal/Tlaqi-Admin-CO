@@ -1423,6 +1423,9 @@ export async function purgeCandidate(opts: {
   if (member.approvalStatus === "approved" && member.isActive) {
     throw new Error("هذا عضو معتمد نشط — أنهِ عضويته أولاً، فالحذف ليس طريق الاستبعاد");
   }
+  // مرشّحٌ ينتظر قرارَ جهة الاعتماد: حذفُه ردٌّ بلا قرارها (ق١) — يُحسم أولاً
+  const { awaitingCandidateDecision, AWAITING_DECISION_REFUSAL } = await import("@/lib/permissions");
+  if (awaitingCandidateDecision(member)) throw new Error(AWAITING_DECISION_REFUSAL);
 
   const scope = await memberScope(member);
 

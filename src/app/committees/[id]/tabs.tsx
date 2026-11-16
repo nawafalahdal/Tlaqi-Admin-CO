@@ -176,6 +176,18 @@ function LeadWarnings({ d, L, theme }: Pick<Ctx, "d" | "L" | "theme">) {
     <Section title={mine ? M.myWarnings : M.warnings}>
       <p className="text-xs text-black/55">{mine ? M.myWarningsHint : M.warningsHint}</p>
       <p className="text-sm font-semibold">{fmt(M.warnCount, String(d.leadWarnings.length))}</p>
+      {d.leadWarnings.length > 0 && (
+        // **حالتان منفصلتان** (ق٤): ما أُرسل بالبريد غيرُ ما اطّلع عليه القائد — والاطلاعُ تأكيدُه داخل المنصة وحده
+        <p className="text-xs text-black/60">
+          {fmt(
+            M.warnSummary,
+            String(d.leadWarnings.length),
+            String(d.leadWarnings.filter((w) => w.acknowledgedAt).length),
+            String(d.leadWarnings.filter((w) => !w.acknowledgedAt).length)
+          )}{" "}
+          · {M.sendIsNotRead}
+        </p>
+      )}
       {d.leadWarnings.length === 0 ? (
         <p className="text-xs text-black/50">{M.noWarnings}</p>
       ) : (
@@ -185,10 +197,25 @@ function LeadWarnings({ d, L, theme }: Pick<Ctx, "d" | "L" | "theme">) {
               <p className="text-sm">{w.reason}</p>
               <p className="flex flex-wrap items-center gap-2 text-xs text-black/50">
                 {fmt(M.warnIssued, fmtWhen(w.createdAt, false), w.issuedByName)}
-                <Chip tone={w.acknowledgedAt ? "ok" : "warn"}>
-                  {w.acknowledgedAt ? fmt(M.warnRead, fmtWhen(w.acknowledgedAt, false)) : M.warnUnread}
-                </Chip>
               </p>
+              <dl className="grid gap-1 text-xs sm:grid-cols-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <dt className="text-black/50">{M.sendStatus}</dt>
+                  <dd>
+                    <Chip tone={w.emailStatus === "sent" ? "ok" : w.emailStatus === "failed" ? "danger" : "neutral"}>
+                      {w.emailStatus === "sent" ? M.sendSent : w.emailStatus === "failed" ? M.sendFailed : w.emailStatus === "skipped" ? M.sendSkipped : M.sendPending}
+                    </Chip>
+                  </dd>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <dt className="text-black/50">{M.readStatus}</dt>
+                  <dd>
+                    <Chip tone={w.acknowledgedAt ? "ok" : "warn"}>
+                      {w.acknowledgedAt ? fmt(M.warnRead, fmtWhen(w.acknowledgedAt, true)) : M.warnUnread}
+                    </Chip>
+                  </dd>
+                </div>
+              </dl>
               {mine && !w.acknowledgedAt && (
                 <ActionForm action={acknowledgeLeadWarningAction} submits={[{ label: M.acknowledge, variant: "outline" }]} pendingLabel={L.overview.saving} theme={theme} compact>
                   <Hidden d={d} />

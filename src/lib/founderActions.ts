@@ -466,6 +466,9 @@ export async function permanentlyDeleteAccount(opts: {
       reason: "هذا عضو معتمد نشط — أنهِ عضويته أولاً، أو أكّد الحذف المباشر",
     };
   }
+  // **ولا يتجاوزه `force`:** مرشّحٌ ينتظر قرارَ جهة الاعتماد — حذفُه ردٌّ بلا قرارها (ق١، البند ١١)
+  const { awaitingCandidateDecision, AWAITING_DECISION_REFUSAL } = await import("@/lib/permissions");
+  if (awaitingCandidateDecision(member)) return { ok: false, reason: AWAITING_DECISION_REFUSAL };
 
   await eraseMember(member, { tombstone, reason, stamp, event: "حذف نهائي من قاعدة البيانات" });
 
