@@ -18,7 +18,9 @@ const sess = (id: string) => ({ user: { id } });
  *  ثم: التنفيذي يرفع إلى المؤسس. ثم: من لا يملك الاعتماد يُرفَض. */
 (async () => {
   const founder = await prisma.user.findFirstOrThrow({ where: { role: "super_admin" } });
-  const exec = await prisma.user.findFirstOrThrow({ where: { role: "executive" } });
+  // التنفيذيُّ **النشط** — قد يبقى في القاعدة حسابُ تنفيذيٍّ سابقٍ معطَّل (بياناتٌ اصطناعية)، فيُختار هو بترتيب الصفوف
+  // فيفشل الفحصُ كلُّه لسببٍ لا صلةَ له بما يُختبر (كان يسقط بذلك على الإصدار المنشور أيضاً)
+  const exec = await prisma.user.findFirstOrThrow({ where: { role: "executive", isActive: true } });
   const dept = await prisma.department.findFirstOrThrow({ where: { name: "التسويق" } });
 
   const lead = await prisma.user.create({
