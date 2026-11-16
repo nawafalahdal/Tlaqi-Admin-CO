@@ -20,8 +20,9 @@ const REMEMBER_DAYS = 30;
 
 /** نموذجُ الحساب الذي صدر به التوكن. يُرفع حين تتغيّر قواعدُ «من صاحبُ الجلسة» تغيّراً
  *  لا يحتمل انتظار الفحص الدوري — فكلُّ توكنٍ أقدم يُراجَع في طلبه التالي.
- *  ٢: تجميدُ الحساب القياديّ القديم على لجنة. */
-const ACCOUNT_MODEL = 2;
+ *  ٢: تجميدُ الحساب القياديّ القديم على لجنة.
+ *  ٣: حصرُ المرشّح قبل الاعتماد في صفحات الاختبار (`candidate` — `lib/candidateGate`): الجلسةُ الأقدم لا تحمله. */
+const ACCOUNT_MODEL = 3;
 
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -105,6 +106,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             departmentSlug: user.department?.slug ?? null,
             mustChangePassword: user.mustChangePassword,
             leadershipCandidate: false,
+            candidate: false,
             remember,
           };
         }
@@ -115,7 +117,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
         // المرشّح يدخل منذ لحظة إنشاء حسابه — قبل الاختبار وقبل الاعتماد —
         // لأن هذه هي الخطوة التي يغيّر فيها كلمة المرور المؤقتة ثم يبدأ
-        // اختباره. حارس المسارات (proxy) هو من يحصره في صفحة الاختبار حتى
+        // اختباره. حارس المسارات (proxy) هو من يحصره في صفحات الاختبار حتى
         // يُعتمد. المرفوض أو من أُنهيت عضويته لا يدخل إطلاقاً.
         // المهلة تُحسب هنا لحظياً من تاريخ إصدار الرمز، لا من حقل يضعه كنس
         // مجدول: لو تعطّل الكنس أو تأخر، يظل الرمز المنتهي مرفوضاً. هذه هي
@@ -152,6 +154,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             mustChangePassword: member.mustChangePassword,
             // مرشّحٌ لمنصبٍ قيادي: تُراجَع جلستُه في كل طلب حتى يُعتمد (انظر `jwt`)
             leadershipCandidate: member.invite.targetRole !== "member",
+            // مرشّحٌ حتى الاعتماد النهائي: يُحصَر في صفحات الاختبار والانتظار (`lib/candidateGate`، `proxy.ts`)
+            candidate: member.approvalStatus !== "approved",
             remember,
           };
         }
@@ -176,6 +180,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.departmentSlug = user.departmentSlug;
         token.mustChangePassword = user.mustChangePassword;
         token.leadershipCandidate = user.leadershipCandidate ?? false;
+        token.candidate = user.candidate ?? false;
         token.remember = user.remember ?? false;
       }
 
@@ -237,7 +242,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // **وكلُّ جلسةٍ رُوجعت قبل آخر إبطال وصولٍ تُراجَع الآن** (`lib/accessRevocation`): من أُنهيت
       // عضويتُه أو أُوقف أو تغيّر منصبُه يسقط خلال ثوانٍ، لا بعد خمس دقائق — بلا استعلامٍ لكل مستخدم
       const revokedSince = (await revocationEpoch()) > lastCheck;
-      if (token.leadershipCandidate === true || token.accountModel !== ACCOUNT_MODEL || revokedSince || now - lastCheck > CHECK_EVERY_MS) {
+      // **والمرشّحُ كذلك يُراجَع في كل طلب** حتى يُعتمد: حصرُه في صفحات الاختبار يُقرأ من القاعدة لحظياً،
+      // فيُفتح له الداخلُ لحظةَ اعتماده — ولا يبقى داخلاً بعد سحب اعتماده أو ردّه
+      if (token.leadershipCandidate === true || token.candidate === true || token.accountModel !== ACCOUNT_MODEL || revokedSince || now - lastCheck > CHECK_EVERY_MS) {
         const account = await resolveSessionAccount(token.sub, token.role);
         if (account.status === "gone" || account.status === "superseded") return null;
         if (account.status === "live") {
@@ -245,6 +252,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.departmentId = account.departmentId;
           token.departmentSlug = account.departmentSlug;
           token.leadershipCandidate = account.leadershipCandidate;
+          token.candidate = account.candidate;
         }
         token.accountCheckedAt = now;
         if (account.status === "live") token.accountModel = ACCOUNT_MODEL;
@@ -265,6 +273,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.departmentId = token.departmentId;
         session.user.departmentSlug = token.departmentSlug;
         session.user.mustChangePassword = token.mustChangePassword;
+        session.user.candidate = token.candidate === true;
       }
       if (typeof token.sessionExpiry === "number") {
         // نوع الحقل في @auth/core مُعلَن Date & string، والقيمة المنقولة

@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
+import { isCandidatePathAllowed, isCandidateSession } from "@/lib/candidateGate";
 
 export default auth((req) => {
   const session = req.auth;
@@ -23,6 +24,12 @@ export default auth((req) => {
 
   if (session?.user.mustChangePassword && pathname !== "/change-password") {
     return NextResponse.redirect(new URL("/change-password", req.nextUrl.origin));
+  }
+
+  // **المرشّحُ قبل الاعتماد النهائي لا يدخل الواجهة الداخلية** (`lib/candidateGate`): صفحاتُ رحلته وحدها، وصفحةُ
+  // قبول دعوة الإدارة العليا العامة. والحالةُ من القاعدة (تُراجَع الجلسةُ في كل طلبٍ ما دام مرشّحاً)
+  if (session && isCandidateSession(session) && !isCandidatePathAllowed(pathname) && !pathname.startsWith("/senior/invite/")) {
+    return NextResponse.redirect(new URL("/member", req.nextUrl.origin));
   }
 
   if (isProtected && session) {
@@ -49,5 +56,12 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/admin/:path*", "/member/:path*", "/marketing/:path*", "/marketing", "/committees/:path*", "/committees", "/senior/:path*", "/senior", "/agreements/:path*", "/agreements", "/change-password", "/onboarding-survey"],
+  // والصفحاتُ الداخليةُ التي لا تشترط جلسةً هنا (التقويم والهيكل والوثائق والتنبيهات والتحسين) تمرّ بالوكيل أيضاً —
+  // لحصر المرشّح وحده؛ ولا يتغيّر بها شيءٌ لغيره
+  matcher: [
+    "/admin/:path*", "/member/:path*", "/marketing/:path*", "/marketing", "/committees/:path*", "/committees",
+    "/senior/:path*", "/senior", "/agreements/:path*", "/agreements", "/change-password", "/onboarding-survey",
+    "/calendar/:path*", "/calendar", "/structure/:path*", "/structure", "/plans/:path*", "/plans",
+    "/notifications/:path*", "/notifications", "/improve/:path*", "/improve",
+  ],
 };

@@ -1,4 +1,5 @@
 "use server";
+import { mayDecideCandidate, mayViewCandidate } from "@/lib/candidateDecision";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -85,27 +86,22 @@ export async function removeLeadershipUserAction(
   }
 }
 
-/** إعادة فتح اختبار مرشّح لم يجتزه.
+/** إعادة فتح اختبار مرشّح لم يجتزه — على السجلّ نفسه وبالبريد نفسه، بلا دعوةٍ جديدة.
  *
- *  الفاوندر والتنفيذي لأي مرشّح، وقائد القسم لمرشّحي قسمه وحدهم — هذا هو
- *  معنى "ولكلٍّ بصلاحياته": من يملك اعتماد الشخص يملك إعادة اختباره. */
+ *  **يملكها من يملك حسمَ المرشّح** (`mayDecideCandidate`): إعادةُ الفتح تُعيد حالةَ الاعتماد إلى «قيد المراجعة»، فهي
+ *  قرارُ اعتماد — قائدُ قسمه، أو جهةُ الاعتماد المستقلة. **والمؤسسُ والرئيسُ التنفيذيُّ يطّلعان ولا يُعيدان** (ق١).
+ *  **ولا رسالةَ تلقائية** (ق٣): `notify` اختيارٌ صريحٌ غيرُ محدَّدٍ افتراضياً. */
 export async function reopenCandidateTestAction(
   memberId: string,
   meetingHeld: boolean,
-  note: string
-): Promise<{ error: string | null; done?: boolean }> {
+  note: string,
+  notify = false
+): Promise<{ error: string | null; done?: boolean; notified?: boolean }> {
   const L = getDictionary(await getLocale()).rPeopleActions;
   const session = await auth();
   if (!session) return { error: L.youNeedToSign };
 
-  const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
-
-  const allowed =
-    session.user.role === "super_admin" ||
-    session.user.role === "executive" ||
-    (session.user.role === "department_admin" &&
-      session.user.departmentId === member.departmentId);
-  if (!allowed) return { error: L.youAreNotAllowed };
+  if (!(await mayDecideCandidate(session, memberId))) return { error: L.youAreNotAllowed };
 
   try {
     const reopened = await reopenCandidateTest({
@@ -113,35 +109,31 @@ export async function reopenCandidateTestAction(
       meetingHeld,
       note,
       performedByName: session.user.name ?? "—",
+      notify: notify === true,
+      performedBy: { id: session.user.id, name: session.user.name ?? "—", role: session.user.role },
     });
     revalidatePath("/admin/people");
     revalidatePath("/admin");
     // لوحةُ القسم تعرض المرشّحَ في «بحاجة إلى اجتماع شرح» — يُزال منها حين يُعاد اختباره
     revalidatePath("/admin/departments", "layout");
     // فُتح الاختبار — لكن لا يُقال «وصله إشعار» ورسالتُه لم تصل: يُقال السببُ وطريقُ الإعادة
-    if (reopened.reopenEmail.skipped) {
+    if (reopened.reopenEmail?.skipped) {
       return { error: fmt(L.reopenMailFailed, reasonFor(reopened.reopenEmail.outcome)) };
     }
-    return { error: null, done: true };
+    return { error: null, done: true, notified: !!reopened.reopenEmail };
   } catch (err) {
     return { error: safeErrorMessage(err) };
   }
 }
 
-/** **إعادةُ إرسال رسالة إعادة الاختبار** — لمن أُعيد فتحُ اختباره ولم يدخل بعد.
- *  بصلاحيات الإعادة نفسها: المؤسس والتنفيذي لأي مرشّح، وقائد القسم لمرشّحي قسمه. */
+/** **إشعارُ المرشّح بإعادة فتح اختباره — إجراءٌ مستقلٌّ صريح** (قرار المؤسس، ق٣) لمن أُعيد فتحُ اختباره ولم يدخل بعد.
+ *  إشعارٌ لا قرار: لمن يطّلع على المرشّح (`mayViewCandidate` — المؤسسُ والرئيسُ التنفيذيُّ وجهةُ حسمه). */
 export async function resendReopenedTestAction(memberId: string): Promise<{ error: string | null; done?: boolean }> {
   const L = getDictionary(await getLocale()).rPeopleActions;
   const session = await auth();
   if (!session) return { error: L.youNeedToSign };
 
-  const member = await prisma.member.findUnique({ where: { id: memberId }, select: { departmentId: true } });
-  if (!member) return { error: L.youAreNotAllowed };
-  const allowed =
-    session.user.role === "super_admin" ||
-    session.user.role === "executive" ||
-    (session.user.role === "department_admin" && session.user.departmentId === member.departmentId);
-  if (!allowed) return { error: L.youAreNotAllowed };
+  if (!(await mayViewCandidate(session, memberId))) return { error: L.youAreNotAllowed };
 
   try {
     const { sent } = await resendReopenedTest({ memberId, performedByName: session.user.name ?? "—" });

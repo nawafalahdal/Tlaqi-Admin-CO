@@ -9,9 +9,10 @@ import {
   createCandidateAccount,
   rejectMember,
   syncMemberLifecycleRow,
+  type DecidedBy,
 } from "@/lib/workflow";
 import { getTrackForTarget } from "@/lib/testTracks";
-import { canDecideCandidate } from "@/lib/permissions";
+import { mayDecideCandidate } from "@/lib/candidateDecision";
 import type { InviteTargetRole } from "@prisma/client";
 import { safeErrorMessage } from "@/lib/safeError";
 import { correctMemberDate, sendWelcomeToMember } from "@/lib/founderActions";
@@ -25,17 +26,14 @@ async function requireSession() {
   return session;
 }
 
-/** يتحقق أن الجلسة الحالية تملك صلاحية إدارة قسم معيّن (الإدارة العليا والتنفيذي
- *  يديران كل الأقسام، أدمن القسم يدير قسمه فقط) */
-/** يَحسم أمرَ مرشّحٍ من يملك منحَ منصبه — انظر `canDecideCandidate` */
-function mayDecide(
-  session: Session,
-  member: { departmentId: string | null; invite: { targetRole: InviteTargetRole } }
-) {
-  return canDecideCandidate(
-    { role: session.user.role, departmentId: session.user.departmentId },
-    { targetRole: member.invite.targetRole, departmentId: member.departmentId }
-  );
+/** يَحسم أمرَ مرشّحٍ جهةُ حسمه وحدها — من القاعدة لحظةَ القرار (`lib/candidateDecision`). **والمؤسسُ والرئيسُ
+ *  التنفيذيُّ يطّلعان ولا يحسمان** (قرار المؤسس، ق١): يُرفض قرارُهما هنا ولو وصل الطلبُ مباشرةً دون واجهة. */
+async function mayDecide(session: Session, memberId: string) {
+  return mayDecideCandidate(session, memberId);
+}
+
+function decider(session: Session): DecidedBy {
+  return { id: session.user.id, name: session.user.name ?? "—", role: session.user.role };
 }
 
 /** المؤسس فقط يُصدر دعوة لحساب تنفيذي (CEO) جديد */
@@ -166,8 +164,8 @@ export async function approveMemberAction(memberId: string) {
     where: { id: memberId },
     include: { invite: { select: { targetRole: true } } },
   });
-  if (!mayDecide(session, member)) throw new Error(L.youAreNotAllowed);
-  const { tempPassword } = await approveMember(memberId);
+  if (!(await mayDecide(session, memberId))) throw new Error(L.youAreNotAllowed);
+  const { tempPassword } = await approveMember(memberId, decider(session));
   revalidatePath("/admin");
   revalidatePath("/admin/departments");
   return { tempPassword, email: member.email };
@@ -182,7 +180,7 @@ export async function completeLeadershipPromotionAction(memberId: string) {
     where: { id: memberId },
     include: { invite: { select: { targetRole: true } } },
   });
-  if (!mayDecide(session, member)) throw new Error(L.youAreNotAllowed);
+  if (!(await mayDecide(session, memberId))) throw new Error(L.youAreNotAllowed);
   await completeLeadershipPromotion(memberId, session.user.name ?? undefined);
   revalidatePath("/admin");
   revalidatePath("/admin/approvals");
@@ -197,8 +195,8 @@ export async function rejectMemberAction(memberId: string) {
     where: { id: memberId },
     include: { invite: { select: { targetRole: true } } },
   });
-  if (!mayDecide(session, member)) throw new Error(L.youAreNotAllowed);
-  await rejectMember(memberId);
+  if (!(await mayDecide(session, memberId))) throw new Error(L.youAreNotAllowed);
+  await rejectMember(memberId, decider(session));
   revalidatePath("/admin");
   revalidatePath("/admin/departments");
 }

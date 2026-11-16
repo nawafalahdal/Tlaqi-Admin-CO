@@ -12,7 +12,13 @@ import {
 } from "@/lib/workflow";
 import { getTrackForTarget } from "@/lib/testTracks";
 import { resolveSessionAccount } from "@/lib/sessionAccount";
-import { canDecideCandidate, canInviteMemberTo } from "@/lib/permissions";
+import { canDecideCandidate, canInviteMemberTo, decisionAuthorityFor } from "@/lib/permissions";
+import type { InviteTargetRole } from "@prisma/client";
+/** جهةُ الحسم لمرشّحٍ افتراضيّ: القسمُ له قائدٌ نشط (قرار المؤسس، ق١) */
+const A = (targetRole: InviteTargetRole, departmentId: string | null) => ({
+  departmentId,
+  authority: decisionAuthorityFor({ targetRole, departmentId }, departmentId ? { leadershipOnly: false, hasActiveLead: true } : null),
+});
 import { canPlanDepartment } from "@/lib/execution";
 import { orgActor, canManageCommitteesOf } from "@/lib/org/actor";
 import { createCommittee } from "@/lib/org/committeeService";
@@ -195,10 +201,12 @@ async function cleanup() {
   await prisma.member.update({ where: { id: inv.member.id }, data: { passwordHash: pwHash, mustChangePassword: false, gender: "female", testStatus: "passed", testScore: 96 } });
   const candidate = await signIn(leadEmail);
   chk("ثم تدخل بكلمتها مرشّحةً (قبل الاعتماد)", (await sessionOf(candidate))?.user?.role === "member");
-  chk("ولا يعتمدها إلا المؤسس أو التنفيذي — لا التشغيلُ ولا قائدُ قسم",
-    canDecideCandidate(founderS.user, { targetRole: "department_admin", departmentId: marketing.id }) &&
-    canDecideCandidate(ceoS.user, { targetRole: "department_admin", departmentId: marketing.id }) &&
-    !canDecideCandidate(opsS.user, { targetRole: "department_admin", departmentId: marketing.id }));
+  // قرار المؤسس (ق١، نوفمبر 2026): المؤسسُ والرئيسُ يطّلعان ولا يحسمان — يحسمها حاملُ «اعتماد العضوية»
+  chk("**ولا يعتمدها إلا جهةُ الاعتماد المستقلة — لا المؤسسُ ولا التنفيذيُّ (ق١)، ولا التشغيلُ ولا قائدُ قسم**",
+    !canDecideCandidate(founderS.user, A("department_admin", marketing.id)) &&
+    !canDecideCandidate(ceoS.user, A("department_admin", marketing.id)) &&
+    !canDecideCandidate(opsS.user, A("department_admin", marketing.id)) &&
+    canDecideCandidate({ role: "member", designatedApprover: true }, A("department_admin", marketing.id)));
   await approveMember(inv.member.id);
   const leaderUsers = await prisma.user.findMany({ where: { email: leadEmail } });
   const leader = leaderUsers[0];
@@ -254,9 +262,9 @@ async function cleanup() {
   });
   chk("ودعوتُها تُصدر حسابَ مرشّحٍ في قسمها", memberInv.invite.departmentId === marketing.id && memberInv.invite.invitedById === leader.id);
   chk("وتعتمد عضوَ قسمها (لا قائداً ولا من قسمٍ آخر)",
-    canDecideCandidate(leadS.user, { targetRole: "member", departmentId: marketing.id }) &&
-    !canDecideCandidate(leadS.user, { targetRole: "member", departmentId: other.id }) &&
-    !canDecideCandidate(leadS.user, { targetRole: "department_admin", departmentId: marketing.id }));
+    canDecideCandidate(leadS.user, A("member", marketing.id)) &&
+    !canDecideCandidate(leadS.user, A("member", other.id)) &&
+    !canDecideCandidate(leadS.user, A("department_admin", marketing.id)));
   await prisma.member.update({ where: { id: memberInv.member.id }, data: { passwordHash: pwHash, mustChangePassword: false, testStatus: "passed", testScore: 90 } });
   await approveMember(memberInv.member.id);
 
@@ -342,7 +350,7 @@ async function cleanup() {
   const memberS = asSession(ms, "member");
   chk("لا يدعو، ولا يكلّف، ولا يعتمد مرشّحاً",
     !canInviteMemberTo(memberS.user, marketing.id) && !canPlanDepartment(memberS, marketing.id) &&
-    !canDecideCandidate(memberS.user, { targetRole: "member", departmentId: marketing.id }));
+    !canDecideCandidate(memberS.user, A("member", marketing.id)));
   chk("ولا ينشئ لجنة", !(await createCommittee(await orgActor(memberS), marketing.id, { ...committeeInput, name: `${MARK} لجنة عضو` })).ok);
   const memberA = (await marketingActor(memberS))!;
   chk("وفي الوكيل: ما مُنح له فقط — لا قيادةَ ولا مرحلةَ اعتماد", !memberA.isMarketingLead && memberA.planStage === null);
@@ -359,8 +367,8 @@ async function cleanup() {
   const forgedAdmin = await page(forged, "/admin/departments/marketing");
   chk("ولا يفتح صفحةَ الإدارة", forgedAdmin.status === 307 && (forgedAdmin.location ?? "").startsWith("/login"));
   chk("والقائدةُ لا تملك ما فوق قسمها: لا اعتمادَ قادة، ولا لجانَ غيرها، ولا تخطيطَ قسمٍ آخر",
-    !canDecideCandidate(leadS.user, { targetRole: "executive", departmentId: null }) &&
-    !canDecideCandidate(leadS.user, { targetRole: "operations_officer", departmentId: null }) &&
+    !canDecideCandidate(leadS.user, A("executive", null)) &&
+    !canDecideCandidate(leadS.user, A("operations_officer", null)) &&
     !canPlanDepartment(leadS, other.id) && leadS.user.role === "department_admin");
 
   // ───────────────────────── ١١: تغيّر الحساب بعد الدخول
@@ -399,7 +407,10 @@ async function cleanup() {
   chk("يظهر في قائمة «اعتماداتٌ قيادية لم تكتمل»", (await halfApprovedLeaders()).some((m) => m.id === half.id));
   const hj = await signIn(half.email);
   chk("وقبل إكماله يدخل عضواً (هذا هو العَرَض)", (await sessionOf(hj))?.user?.role === "member");
-  chk("ولا يُكمله إلا من يملك اعتمادَ منصبه", !canDecideCandidate(leadS.user, { targetRole: "department_admin", departmentId: spare.id }) && canDecideCandidate(founderS.user, { targetRole: "department_admin", departmentId: spare.id }));
+  chk("ولا يُكمله إلا من يملك اعتمادَ منصبه — جهةُ الاعتماد المستقلة، لا قائدُ قسم ولا المؤسس (ق١)",
+    !canDecideCandidate(leadS.user, A("department_admin", spare.id)) &&
+    !canDecideCandidate(founderS.user, A("department_admin", spare.id)) &&
+    canDecideCandidate({ role: "member", designatedApprover: true }, A("department_admin", spare.id)));
   const done = await completeLeadershipPromotion(half.id, "فحص");
   const halfUsers = await prisma.user.findMany({ where: { email: half.email } });
   chk("الإكمالُ يُنشئ حسابَه القيادي في قسمه، وينقل كلمتَه", done.created && halfUsers.length === 1 && halfUsers[0].role === "department_admin" && halfUsers[0].departmentId === spare.id && (await prisma.member.findUniqueOrThrow({ where: { id: half.id } })).passwordHash === null);

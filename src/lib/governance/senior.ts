@@ -27,8 +27,17 @@ export const SENIOR_CAPABILITIES: { key: SeniorCapability; label: string; can: s
   { key: "governance_log_view", label: "سجل الحوكمة", can: "يقرأ سجلَّ العمليات الإدارية الحساسة (قراءةً فقط)" },
   { key: "agreements_view", label: "الاتفاقيات (اطّلاع)", can: "يرى الاتفاقياتِ ومن وقّع ومن لم يوقّع" },
   { key: "agreements_manage", label: "الاتفاقيات (إدارة)", can: "يُصدر إصداراً جديداً ويطلب التوقيع وإعادتَه ويراجع البلاغات" },
+  {
+    key: "membership_decide",
+    label: "اعتماد العضوية",
+    can: "جهةُ الاعتماد المستقلة: يعتمد أو يرفض المرشّحين للمناصب القيادية، وأعضاءَ الإدارة العليا، وأعضاءَ قسمٍ لا قائدَ له",
+  },
 ];
 const CAP_KEYS = new Set<SeniorCapability>(SENIOR_CAPABILITIES.map((c) => c.key));
+/** **ما لا يُمنح تلقائياً أبداً** — «اعتماد العضوية» تُكتب في تكليفٍ صراحةً، ولا تسري لمؤسسٍ ولا لرئيسٍ تنفيذيٍّ ولا
+ *  لقائد الإدارة العليا بصفته (قرار المؤسس، ق١: يطّلعان ولا يحسمان). والحسمُ نفسُه يُفحص في `lib/candidateDecision` */
+const NEVER_AUTO = new Set<SeniorCapability>(["membership_decide"]);
+const AUTO_KEYS = new Set<SeniorCapability>([...CAP_KEYS].filter((c) => !NEVER_AUTO.has(c)));
 export const INVITE_DAYS = 7;
 
 export const INVITE_STATE_LABEL: Record<string, string> = {
@@ -77,9 +86,9 @@ export async function seniorContext(session: Session | null): Promise<SeniorCont
     orderBy: { acceptedAt: "desc" },
   });
   const caps = new Set<SeniorCapability>();
-  if (isLeader || isFounder || role === "executive") for (const c of CAP_KEYS) caps.add(c);
+  if (isLeader || isFounder || role === "executive") for (const c of AUTO_KEYS) caps.add(c);
   else if (role === "operations_officer") ["board_view", "committees_view", "governance_log_view"].forEach((c) => caps.add(c as SeniorCapability));
-  for (const c of position?.capabilities ?? []) caps.add(c);
+  for (const c of position?.capabilities ?? []) if (!(NEVER_AUTO.has(c) && (isFounder || role === "executive"))) caps.add(c);
   return {
     account: { kind: isMember ? "member" : "user", id: acc.id, name: acc.fullName, role, email: acc.email },
     leadership,
@@ -97,7 +106,7 @@ export async function seniorNavCapabilities(session: Session | null): Promise<Se
   const caps = new Set<SeniorCapability>();
   const role = session?.user?.role;
   if (!session?.user?.id || !role) return caps;
-  if (role === "super_admin" || role === "executive") return new Set(CAP_KEYS);
+  if (role === "super_admin" || role === "executive") return new Set(AUTO_KEYS);
   if (role === "operations_officer") (["board_view", "committees_view", "governance_log_view"] as const).forEach((c) => caps.add(c));
   const pos = await prisma.seniorPosition.findFirst({
     where: { status: "active", ...(role === "member" ? { holderMemberId: session.user.id } : { holderUserId: session.user.id }) },

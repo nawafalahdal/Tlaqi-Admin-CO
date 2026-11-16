@@ -38,6 +38,7 @@ export function StuckCandidateRow({
   const t = dict.stuck;
   const [panel, setPanel] = useState<"none" | "reopen" | "purge">("none");
   const [meetingHeld, setMeetingHeld] = useState(false);
+  const [notify, setNotify] = useState(false);
   const [note, setNote] = useState("");
   const [confirmEmail, setConfirmEmail] = useState("");
   const [reason, setReason] = useState("");
@@ -48,7 +49,7 @@ export function StuckCandidateRow({
   function runReopen() {
     setError(null);
     startTransition(async () => {
-      const res = await reopenCandidateTestAction(candidate.id, meetingHeld, note);
+      const res = await reopenCandidateTestAction(candidate.id, meetingHeld, note, notify);
       if (res.error) setError(res.error);
       else {
         setDone(t.reopenDone);
@@ -145,6 +146,19 @@ export function StuckCandidateRow({
               className="mt-0.5 h-4 w-4 shrink-0"
             />
             <span className="font-medium text-black/70">{t.meetingHeld}</span>
+          </label>
+          {/* إشعارُ المرشّح اختيارٌ صريحٌ غيرُ محدَّدٍ افتراضياً (قرار المؤسس، ق٣) — ولا رسالةَ تلقائية */}
+          <label className="flex items-start gap-2.5 text-sm">
+            <input
+              type="checkbox"
+              checked={notify}
+              onChange={(e) => setNotify(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0"
+            />
+            <span>
+              <span className="font-medium text-black/70">{t.notifyCandidate}</span>
+              <span className="mt-0.5 block text-xs text-black/45">{t.notifyHint}</span>
+            </span>
           </label>
           <textarea
             value={note}

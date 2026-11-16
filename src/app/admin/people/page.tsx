@@ -268,7 +268,9 @@ export default async function PeoplePage({
     warningsCount: m.warningsCount,
     reopenCount: m.testReopenCount,
     // الاختبار يُعاد لمن سلّمه فرسب أو رُفض — لا لمن لم يبدأه بعد
-    canReopen: m.testStatus !== "not_started" && m.approvalStatus !== "approved",
+    // صفحةُ الأشخاص للمؤسس والرئيس التنفيذي — وهما يطّلعان ولا يحسمان (ق١): إعادةُ فتح الاختبار قرارُ اعتماد يملكه
+    // قائدُ القسم أو جهةُ الاعتماد المستقلة من صفحاتهما، والخادمُ يرفضها لهما (`mayDecideCandidate`)
+    canReopen: false,
     canResendReopen: canResendReopenedTest(m),
     twin: leaderEmails.has(m.email.toLowerCase())
       ? ("email" as const)

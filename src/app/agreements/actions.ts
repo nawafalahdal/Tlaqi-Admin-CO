@@ -1,5 +1,7 @@
 "use server";
 
+import { notCandidate } from "@/lib/candidateGate";
+
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -33,7 +35,8 @@ const s = (fd: FormData, k: string) => {
   return typeof v === "string" ? v : "";
 };
 const kindOf = (fd: FormData): AgreementKind | null => (s(fd, "kind") === "marketing" || s(fd, "kind") === "technical" ? (s(fd, "kind") as AgreementKind) : null);
-const ctx = async () => agreementContext(await auth());
+// المرشّحُ قبل الاعتماد لا يبلغ إجراءً داخلياً (`lib/candidateGate`)
+const ctx = async () => agreementContext(notCandidate(await auth()));
 
 async function run(fn: () => Promise<{ ok: true } | { ok: false; reason: string }>, message: string): Promise<FormState> {
   try {

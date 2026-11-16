@@ -1,5 +1,7 @@
 "use server";
 
+import { notCandidate } from "@/lib/candidateGate";
+
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
@@ -58,7 +60,8 @@ const riyadhDateTime = (v: string | null) => (v ? `${v.length === 16 ? v + ":00"
 const riyadhDayEnd = (v: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T23:59:00+03:00` : v);
 
 async function actor() {
-  return orgActor(await auth());
+  // المرشّحُ قبل الاعتماد لا يبلغ إجراءً داخلياً (`lib/candidateGate`)
+  return orgActor(notCandidate(await auth()));
 }
 
 async function run(paths: string[], fn: () => Promise<OrgResult>): Promise<FormState> {

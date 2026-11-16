@@ -1,5 +1,7 @@
 "use server";
 
+import { notCandidate } from "@/lib/candidateGate";
+
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import type { SeniorPositionStatus } from "@prisma/client";
@@ -40,7 +42,7 @@ function position(fd: FormData): PositionInput {
 
 async function run(fn: (ctx: Awaited<ReturnType<typeof seniorContext>>) => Promise<{ ok: true } | { ok: false; reason: string }>, message: string): Promise<FormState> {
   try {
-    const ctx = await seniorContext(await auth());
+    const ctx = await seniorContext(notCandidate(await auth()));
     const res = await fn(ctx);
     if (!res.ok) return { error: res.reason, success: false };
     revalidatePath("/senior");
@@ -97,7 +99,7 @@ export async function acceptInviteAction(_p: FormState, fd: FormData): Promise<F
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- توقيعُ useActionState يفرض المعاملين
 export async function syncGovernanceNowAction(_p: FormState, _fd: FormData): Promise<FormState> {
   try {
-    const ctx = await seniorContext(await auth());
+    const ctx = await seniorContext(notCandidate(await auth()));
     if (!ctx.account || !["super_admin", "executive"].includes(ctx.account.role)) return { error: "المزامنةُ اليدوية للمؤسس والرئيس التنفيذي", success: false };
     const { syncGovernanceSheets } = await import("@/lib/governance/sheets");
     const r = await syncGovernanceSheets(`يدوياً — ${ctx.account.name}`);

@@ -14,6 +14,8 @@ declare module "@auth/core/types" {
       departmentId: string | null;
       departmentSlug: string | null;
       mustChangePassword: boolean;
+      /** مرشّحٌ لم يُعتمد بعد (عضوٌ قبل الاعتماد النهائي) — يُحصَر في صفحات الاختبار والانتظار (`lib/candidateGate`) */
+      candidate?: boolean;
     } & DefaultSession["user"];
   }
 
@@ -26,6 +28,8 @@ declare module "@auth/core/types" {
     mustChangePassword: boolean;
     /** دخل بسجلّ ترشّحٍ لمنصبٍ قيادي لم يُعتمد بعد — تُراجَع جلستُه في كل طلب */
     leadershipCandidate?: boolean;
+    /** انظر `Session.user.candidate` */
+    candidate?: boolean;
   }
 }
 
@@ -42,6 +46,8 @@ declare module "@auth/core/jwt" {
     mustChangePassword: boolean;
     /** انظر `User.leadershipCandidate` */
     leadershipCandidate?: boolean;
+    /** مرشّحٌ لم يُعتمد بعد — تُراجَع جلستُه في كل طلب حتى يُعتمد (انظر `jwt` في `auth.ts`) */
+    candidate?: boolean;
     /** آخر مراجعةٍ للحساب من القاعدة (`lib/sessionAccount`) بالمللي ثانية */
     accountCheckedAt?: number;
     /** نموذجُ الحساب الذي صدر به التوكن (`ACCOUNT_MODEL` في `auth.ts`) */

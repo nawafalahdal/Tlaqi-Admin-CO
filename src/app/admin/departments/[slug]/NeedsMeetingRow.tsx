@@ -26,6 +26,7 @@ export function NeedsMeetingRow({
   const s = dict.stuck;
   const [open, setOpen] = useState(false);
   const [meetingHeld, setMeetingHeld] = useState(false);
+  const [notify, setNotify] = useState(false);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -33,7 +34,7 @@ export function NeedsMeetingRow({
   function reopen() {
     setError(null);
     startTransition(async () => {
-      const res = await reopenCandidateTestAction(member.id, meetingHeld, note);
+      const res = await reopenCandidateTestAction(member.id, meetingHeld, note, notify);
       if (res.error) setError(res.error);
       else setDone(true);
     });
@@ -82,6 +83,19 @@ export function NeedsMeetingRow({
               className="mt-0.5 h-4 w-4 shrink-0"
             />
             <span className="font-medium text-black/70">{s.meetingHeld}</span>
+          </label>
+          {/* إشعارُ المرشّح اختيارٌ صريحٌ غيرُ محدَّدٍ افتراضياً (قرار المؤسس، ق٣) — ولا رسالةَ تلقائية */}
+          <label className="flex items-start gap-2.5 text-sm">
+            <input
+              type="checkbox"
+              checked={notify}
+              onChange={(e) => setNotify(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0"
+            />
+            <span>
+              <span className="font-medium text-black/70">{s.notifyCandidate}</span>
+              <span className="mt-0.5 block text-xs text-black/45">{s.notifyHint}</span>
+            </span>
           </label>
           <textarea
             value={note}

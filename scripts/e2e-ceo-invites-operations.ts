@@ -20,7 +20,13 @@
 import { PrismaClient } from "@prisma/client";
 import { getTrackForTarget } from "../src/lib/testTracks";
 import { createCandidateAccount, submitTestAttempt, approveMember, findRoleSeatHolder } from "../src/lib/workflow";
-import { canDecideCandidate } from "../src/lib/permissions";
+import { canDecideCandidate, decisionAuthorityFor } from "../src/lib/permissions";
+import type { InviteTargetRole } from "@prisma/client";
+/** جهةُ الحسم لمرشّحٍ افتراضيّ: القسمُ له قائدٌ نشط ما لم يُقَل «شاغر» (قرار المؤسس، ق١) */
+const A = (targetRole: InviteTargetRole, departmentId: string | null, vacant = false) => ({
+  departmentId,
+  authority: decisionAuthorityFor({ targetRole, departmentId }, departmentId ? { leadershipOnly: false, hasActiveLead: !vacant } : null),
+});
 import { ROSTER_MEMBER_WHERE } from "../src/lib/roster";
 import { safeErrorMessage } from "../src/lib/safeError";
 
@@ -111,8 +117,11 @@ async function main() {
       chk("المرشّحُ يجتاز اختباره", result?.passed === true, `${result?.score}%`);
 
       // مصفوفةُ الحسم على هذا المرشّح بعينه
-      const cand = { targetRole: "operations_officer" as const, departmentId: null };
-      chk("الرئيسُ التنفيذيُّ يَحسمه", canDecideCandidate({ role: "executive" }, cand));
+      // قرار المؤسس (ق١، نوفمبر 2026): المؤسسُ والرئيسُ يطّلعان ولا يحسمان — يحسمه حاملُ «اعتماد العضوية»
+      const cand = A("operations_officer", null);
+      chk("**الرئيسُ التنفيذيُّ لا يَحسمه — اطّلاعٌ فقط (ق١)**", !canDecideCandidate({ role: "executive" }, cand));
+      chk("**ولا المؤسس (ق١)**", !canDecideCandidate({ role: "super_admin" }, cand));
+      chk("وجهةُ الاعتماد المستقلة تَحسمه", canDecideCandidate({ role: "member", designatedApprover: true }, cand));
       chk("وقائدُ قسمٍ لا يَحسمه", !canDecideCandidate({ role: "department_admin", departmentId: "x" }, cand));
       chk("ومسؤولُ التشغيل لا يَحسم منصبه", !canDecideCandidate({ role: "operations_officer" }, cand));
 
@@ -141,17 +150,22 @@ async function main() {
   }
 
   // ══ ٣) مصفوفةُ الحسم ══
-  const exec = { targetRole: "executive" as const, departmentId: null };
+  const exec = A("executive", null);
   chk("**الرئيسُ التنفيذيُّ لا يَعتمد مرشّحاً تنفيذياً — خَلَفَه**", !canDecideCandidate({ role: "executive" }, exec));
-  chk("والمؤسسُ يَعتمده", canDecideCandidate({ role: "super_admin" }, exec));
-  const lead = { targetRole: "department_admin" as const, departmentId: "d1" };
+  chk("**ولا المؤسسُ (ق١: اطّلاعٌ لا حسم)**", !canDecideCandidate({ role: "super_admin" }, exec));
+  chk("وجهةُ الاعتماد المستقلة تَعتمده", canDecideCandidate({ role: "operations_officer", designatedApprover: true }, exec));
+  const lead = A("department_admin", "d1");
   chk("قائدُ القسم لا يَعتمد قائداً لقسمه", !canDecideCandidate({ role: "department_admin", departmentId: "d1" }, lead));
-  const mem = { targetRole: "member" as const, departmentId: "d1" };
+  const mem = A("member", "d1");
   chk("قائدُ القسم يَعتمد عضواً في قسمه", canDecideCandidate({ role: "department_admin", departmentId: "d1" }, mem));
   chk("**ولا يَعتمد عضواً في قسمٍ غيره**", !canDecideCandidate({ role: "department_admin", departmentId: "d2" }, mem));
   chk("والعضوُ لا يَعتمد أحداً", !canDecideCandidate({ role: "member" }, mem));
   chk("ولا قائدٌ بلا قسمٍ يَعتمد عضواً بلا قسم",
-      !canDecideCandidate({ role: "department_admin", departmentId: null }, { targetRole: "member", departmentId: null }));
+      !canDecideCandidate({ role: "department_admin", departmentId: null }, A("member", null)));
+  chk("**عضوٌ في قسمٍ شاغر القائد: لجهة الاعتماد المستقلة لا للمؤسس ولا للرئيس**",
+      canDecideCandidate({ role: "member", designatedApprover: true }, A("member", "d1", true)) &&
+      !canDecideCandidate({ role: "super_admin" }, A("member", "d1", true)) &&
+      !canDecideCandidate({ role: "executive" }, A("member", "d1", true)));
 
   console.log(log.join("\n"));
   const failed = log.filter((l) => l.startsWith("✗")).length;

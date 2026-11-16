@@ -25,7 +25,6 @@ import { ticketBoardData } from "@/components/tickets/boardData";
 import { formatDate } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { scheduleDueSweeps } from "@/lib/sweepThrottle";
-import { canDecideCandidate } from "@/lib/permissions";
 import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 import { approvedGoals, canApproveGoal } from "@/lib/goals";
 import { periodStartFor, stateLabel } from "@/lib/execution";
@@ -127,14 +126,9 @@ export default async function AdminPage() {
   const annPowers = announcementPowers(session);
   const deptOptions = departments.map((d) => ({ id: d.id, name: d.name }));
 
-  // كلٌّ يرى ما يَحسمه وحده: المرشّحُ التنفيذيُّ للمؤسس لا للرئيس القائم.
-  const leadershipJoins = allLeadershipCandidates.filter((m) =>
-    canDecideCandidate(
-      { role: session.user.role, departmentId: session.user.departmentId },
-      { targetRole: m.invite.targetRole, departmentId: m.departmentId }
-    )
-  ).length;
-  const pendingJoins = leadershipJoins + memberJoins;
+  // **اطّلاعٌ لا قرار** (قرار المؤسس، ق١): النظرةُ العامة للمؤسس والرئيس التنفيذي وحدهما، وهما يطّلعان على كل
+  // طلبات الانضمام ولا يحسمانها — فتُعَدّ للاطّلاع في «بانتظار الاعتماد»، ولا تُعرض في «يحتاج قرارك»
+  const pendingJoins = allLeadershipCandidates.length + memberJoins;
 
   // **«يحتاج قرارك» لوحةٌ واحدة.** كانت النظرة العامة تَعرض الأمر نفسه
   // ثلاث مرات: بطاقةَ عدد، وقائمةً كاملة، ورابطاً في شبكة روابط. فصار
@@ -142,9 +136,6 @@ export default async function AdminPage() {
   const decisions: Alert[] = [
     ...(escalatedCount > 0
       ? [{ id: "escalated", tone: "danger" as const, title: n(to.escalTitle, escalatedCount), body: to.escalBody, href: "/admin/tickets", cta: to.escalCta }]
-      : []),
-    ...(pendingJoins > 0
-      ? [{ id: "joins", tone: "warn" as const, title: n(to.joinsTitle, pendingJoins), body: to.joinsBody, href: "/admin/approvals#joins", cta: to.joinsCta }]
       : []),
     ...(proposals > 0
       ? [{ id: "goal-proposals", tone: "warn" as const, title: n(to.goalsTitle, proposals), body: to.goalsBody, href: "/admin/execution/goals", cta: to.goalsCta }]

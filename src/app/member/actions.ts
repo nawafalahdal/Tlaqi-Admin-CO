@@ -1,5 +1,7 @@
 "use server";
 
+import { assertNotCandidate } from "@/lib/candidateGate";
+
 import { auth } from "@/auth";
 import { acknowledgeWarning } from "@/lib/workflow";
 import { raiseTicket } from "@/lib/tickets";
@@ -10,6 +12,8 @@ import { getLocale, getDictionary } from "@/i18n/server";
 export async function acknowledgeWarningAction(warningId: string) {
   const L = getDictionary(await getLocale()).rMemberActions;
   const session = await auth();
+  // المرشّحُ قبل الاعتماد لا يبلغ إجراءً داخلياً (`lib/candidateGate`)
+  assertNotCandidate(session);
   if (!session || session.user.role !== "member") throw new Error(L.notAllowed);
   await acknowledgeWarning(warningId, session.user.id);
   revalidatePath("/member");
@@ -21,6 +25,8 @@ export async function raiseTicketAction(
 ): Promise<{ error: string | null; success: boolean }> {
   const L = getDictionary(await getLocale()).rMemberActions;
   const session = await auth();
+  // المرشّحُ قبل الاعتماد لا يبلغ إجراءً داخلياً (`lib/candidateGate`)
+  assertNotCandidate(session);
   if (!session || session.user.role !== "member") return { error: L.notAllowed, success: false };
 
   const subject = String(formData.get("subject") ?? "").trim();

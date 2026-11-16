@@ -22,7 +22,7 @@ import { isCommitteeScopedLeader } from "@/lib/org/legacy";
  *  ولا يُنقَل التوكنُ من هويةٍ إلى أخرى في مكانه عمداً: الدخولُ من جديد هو ما يُثبت
  *  صاحبَ الحساب الإداري بكلمته ورمز بريده. */
 export type SessionAccount =
-  | { status: "live"; role: UserRole | "member"; departmentId: string | null; departmentSlug: string | null; leadershipCandidate: boolean }
+  | { status: "live"; role: UserRole | "member"; departmentId: string | null; departmentSlug: string | null; leadershipCandidate: boolean; candidate: boolean }
   | { status: "gone" }
   | { status: "superseded" }
   | { status: "unknown" };
@@ -37,6 +37,7 @@ export async function resolveSessionAccount(sub: unknown, role: unknown): Promis
           isActive: true,
           terminatedAt: true,
           suspendedAt: true,
+          approvalStatus: true,
           email: true,
           departmentId: true,
           department: { select: { slug: true } },
@@ -54,6 +55,8 @@ export async function resolveSessionAccount(sub: unknown, role: unknown): Promis
         departmentId: m.departmentId,
         departmentSlug: m.department?.slug ?? null,
         leadershipCandidate: m.invite.targetRole !== "member",
+        // مرشّحٌ حتى الاعتماد النهائي — مصدرُه القاعدة لا الواجهة (`lib/candidateGate`)
+        candidate: m.approvalStatus !== "approved",
       };
     }
     const u = await prisma.user.findUnique({
@@ -69,6 +72,7 @@ export async function resolveSessionAccount(sub: unknown, role: unknown): Promis
       departmentId: u.departmentId,
       departmentSlug: u.department?.slug ?? null,
       leadershipCandidate: false,
+      candidate: false,
     };
   } catch {
     return { status: "unknown" };

@@ -1,5 +1,7 @@
 "use server";
 
+import { assertNotCandidate } from "@/lib/candidateGate";
+
 import { revalidatePath } from "next/cache";
 import { avatarUrl } from "@/lib/avatarUrl";
 import { auth } from "@/auth";
@@ -24,6 +26,8 @@ export async function uploadMyAvatarAction(
 ): Promise<{ error: string | null; done?: boolean; bytes?: number; transparent?: boolean | null }> {
   const L = getDictionary(await getLocale()).rStructureActions;
   const session = await auth();
+  // المرشّحُ قبل الاعتماد لا يبلغ إجراءً داخلياً (`lib/candidateGate`)
+  assertNotCandidate(session);
   if (!session) return { error: L.youNeedToSign };
 
   const file = formData.get("avatar");
@@ -52,6 +56,8 @@ export async function uploadMyAvatarAction(
 export async function clearMyAvatarAction(): Promise<{ error: string | null; done?: boolean }> {
   const L = getDictionary(await getLocale()).rStructureActions;
   const session = await auth();
+  // المرشّحُ قبل الاعتماد لا يبلغ إجراءً داخلياً (`lib/candidateGate`)
+  assertNotCandidate(session);
   if (!session) return { error: L.youNeedToSign };
 
   try {
@@ -75,6 +81,8 @@ export async function clearMyAvatarAction(): Promise<{ error: string | null; don
  *  معاينةٍ بعد الرفع. والرابطُ يَكفي، والصورةُ في مخزَن المتصفّح أصلاً. */
 export async function myAvatar(): Promise<string | null> {
   const session = await auth();
+  // المرشّحُ قبل الاعتماد لا يبلغ إجراءً داخلياً (`lib/candidateGate`)
+  assertNotCandidate(session);
   if (!session) return null;
   const kind = session.user.role === "member" ? "member" : "user";
   const row =

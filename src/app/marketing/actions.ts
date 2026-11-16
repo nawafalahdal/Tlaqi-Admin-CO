@@ -1,5 +1,7 @@
 "use server";
 
+import { assertNotCandidate } from "@/lib/candidateGate";
+
 import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -323,6 +325,8 @@ export async function runMarketingOp(_prev: OpState, fd: FormData): Promise<OpSt
   let redirectTo: string | undefined;
   try {
     const session = await auth();
+    // المرشّحُ قبل الاعتماد لا يبلغ إجراءً داخلياً (`lib/candidateGate`)
+    assertNotCandidate(session);
     if (!session) return { ok: false, message: mk.errors.unauthenticated, at };
     const actor = await marketingActor(session);
     if (!actor) return { ok: false, message: mk.errors.no_access, at };
@@ -345,6 +349,8 @@ export async function runMarketingOp(_prev: OpState, fd: FormData): Promise<OpSt
 /** متابعةُ طلبات التوليد لمخرج — تقرأ الحالة، وتُشغّل ما حان (إعادةً مجدولة) بعد الردّ */
 export async function pollAiJobs(deliverableId: string) {
   const session = await auth();
+  // المرشّحُ قبل الاعتماد لا يبلغ إجراءً داخلياً (`lib/candidateGate`)
+  assertNotCandidate(session);
   if (!session) return null;
   const actor = await marketingActor(session);
   if (!actor) return null;
@@ -361,6 +367,8 @@ export async function pollAiJobs(deliverableId: string) {
 /** متابعةُ محادثة — تقرأ الحالة، وتُشغّل ما حان من ردودها (إعادةً مجدولة أو مهلةً انقضت) بعد الرد */
 export async function pollChat(raw: { kind: string; campaignId?: string | null; deliverableId?: string | null }) {
   const session = await auth();
+  // المرشّحُ قبل الاعتماد لا يبلغ إجراءً داخلياً (`lib/candidateGate`)
+  assertNotCandidate(session);
   if (!session) return null;
   const actor = await marketingActor(session);
   if (!actor) return null;
@@ -381,6 +389,8 @@ export async function pollChat(raw: { kind: string; campaignId?: string | null; 
 /** الإشعارُ يُعرض مرّةً واحدة: يُعلَّم «مقروءاً» من المتصفح بعد ظهوره — والعرضُ نفسُه قراءةٌ بلا كتابة */
 export async function markMarketingNoticesSeen(ids: string[]): Promise<number> {
   const session = await auth();
+  // المرشّحُ قبل الاعتماد لا يبلغ إجراءً داخلياً (`lib/candidateGate`)
+  assertNotCandidate(session);
   if (!session) return 0;
   const actor = await marketingActor(session);
   if (!actor) return 0;

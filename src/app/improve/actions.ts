@@ -1,5 +1,7 @@
 "use server";
 
+import { assertNotCandidate } from "@/lib/candidateGate";
+
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import type { ImprovementKind, ImprovementState } from "@prisma/client";
@@ -28,6 +30,8 @@ export async function submitImprovementAction(
 ): Promise<ImproveState> {
   const L = getDictionary(await getLocale()).rImproveActions;
   const session = await auth();
+  // المرشّحُ قبل الاعتماد لا يبلغ إجراءً داخلياً (`lib/candidateGate`)
+  assertNotCandidate(session);
   if (!session) return { error: L.youNeedToSign };
 
   const kind = String(formData.get("kind") ?? "");
@@ -64,6 +68,8 @@ export async function advanceImprovementAction(
 ): Promise<{ error: string | null }> {
   const L = getDictionary(await getLocale()).rImproveActions;
   const session = await auth();
+  // المرشّحُ قبل الاعتماد لا يبلغ إجراءً داخلياً (`lib/candidateGate`)
+  assertNotCandidate(session);
   if (!session) return { error: L.youNeedToSign };
 
   const result = await advanceImprovement({
@@ -83,6 +89,8 @@ export async function confirmImprovementAction(
 ): Promise<{ error: string | null }> {
   const L = getDictionary(await getLocale()).rImproveActions;
   const session = await auth();
+  // المرشّحُ قبل الاعتماد لا يبلغ إجراءً داخلياً (`lib/candidateGate`)
+  assertNotCandidate(session);
   if (!session) return { error: L.youNeedToSign };
 
   const result = await confirmImprovementFix({

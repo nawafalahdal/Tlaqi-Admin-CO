@@ -550,6 +550,9 @@ model Member {
   invite          Invite         @relation(fields: [inviteId], references: [id])
   createdAt       DateTime       @default(now())
   decidedAt       DateTime?
+  /// من حسم الاعتمادَ أو الرفض ومتى (`decidedAt`) — يُقرأ في سجلّ القرارات (اطّلاعُ المؤسس والرئيس التنفيذي)
+  decidedById     String?
+  decidedByName   String?
 
   // بيانات الدخول — تُنشأ لحظة إنشاء الحساب (قبل الاختبار)، فالمرشّح يدخل
   // بالرمز المؤقت أولاً ثم يغيّره ثم يبدأ اختباره داخل المنصة
@@ -2999,6 +3002,10 @@ enum SeniorCapability {
   governance_log_view
   agreements_view
   agreements_manage
+  /// **اعتمادُ العضوية** (قرار المؤسس، نوفمبر 2026): جهةُ الاعتماد المستقلة — تحسم المرشّحين للمناصب القيادية،
+  /// وأعضاءَ الإدارة العليا، وأعضاءَ قسمٍ لا قائدَ له. تُمنح صراحةً في تكليف، **ولا تسري لمؤسسٍ ولا لرئيسٍ تنفيذي**
+  /// ولو كُتبت لهما (`lib/candidateDecision`) — فهما يطّلعان ولا يحسمان
+  membership_decide
 }
 
 enum SeniorInviteState {

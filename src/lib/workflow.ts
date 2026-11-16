@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 import { assignMemberEmployeeNo } from "@/lib/employeeId";
 import type { Prisma } from "@prisma/client";
 import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
-import { approverFor } from "@/lib/notify";
 import { singleRecipient } from "@/lib/emailPolicy";
 import { isSigningRole } from "@/lib/signatures";
 import { clearFailedAttempts } from "@/lib/loginAttempts";
@@ -267,7 +266,9 @@ export async function submitTestAttempt(opts: { memberId: string; answers: Recor
     // طلباً ينتظره. فصار يُخبَر هو — وحده — ليفعل ما لا يفعله غيره.
     // وواحدٌ منهم لا كلُّهم: الاعتماد فعلٌ يقع مرّةً، وثلاثُ نسخٍ منه
     // ثلاثُ رسائل في خبرٍ واحد
-    const approver = await approverFor(updated.departmentId);
+    // **جهةُ حسمه وحدها** (قرار المؤسس، ق١): قائدُ قسمه، أو جهةُ الاعتماد المستقلة — لا المؤسسُ ولا الرئيسُ احتياطاً
+    const { candidateDecidersFor } = await import("@/lib/candidateDecision");
+    const approver = await candidateDecidersFor(updated);
     const approverTo = singleRecipient(approver.to);
     if (approverTo.length > 0) {
       await sendAwaitingApprovalEmail({
@@ -276,7 +277,7 @@ export async function submitTestAttempt(opts: { memberId: string; answers: Recor
         candidateEmail: updated.email,
         score,
         scopeLabel: updated.department?.name ?? roleLabel,
-        portalUrl: `${baseUrl()}/admin`,
+        portalUrl: `${baseUrl()}${approver.path}`,
       });
     }
   } else if (updated.departmentId) {
@@ -330,7 +331,10 @@ export async function submitTestAttempt(opts: { memberId: string; answers: Recor
 /** اعتماد نهائي: لعضو قسم يُسجَّل في Google Sheet وينشئ طلب بانر ترحيبي للتسويق؛
  *  لمرشح قيادي (قائد قسم/تنفيذي) يُنشئ حساب دخول إداري (User) بدلاً من ذلك.
  *  في الحالتين تُولَّد كلمة مرور مؤقتة ويُجبر المستخدم على تغييرها عند أول دخول. */
-export async function approveMember(memberId: string) {
+/** من حسم القرار — يُختم على السجلّ ويُسجَّل في سجلّ التدقيق (اطّلاعُ المؤسس والرئيس التنفيذي على «من قرّر ومتى») */
+export type DecidedBy = { id: string; name: string; role: string };
+
+export async function approveMember(memberId: string, decidedBy?: DecidedBy) {
   const candidate = await prisma.member.findUniqueOrThrow({
     where: { id: memberId },
     include: { department: true, invite: true },
@@ -339,16 +343,18 @@ export async function approveMember(memberId: string) {
   // المرشّحُ القياديُّ: يُعتمد ويُنشأ حسابُه الإداريُّ معاً أو لا يقع شيء —
   // انظر `provisionLeadershipAccount`
   if (candidate.invite.targetRole !== "member") {
-    const { member, userId } = await provisionLeadershipAccount(candidate, { approve: true });
+    const { member, userId } = await provisionLeadershipAccount(candidate, { approve: true, decidedBy });
+    if (decidedBy) await recordDecision(member, "approved", decidedBy);
     await finishLeadershipPromotion(member, userId, "اعتماد نهائي");
     return { member, tempPassword: null as string | null };
   }
 
   const member = await prisma.member.update({
     where: { id: memberId },
-    data: { approvalStatus: "approved", decidedAt: new Date() },
+    data: { approvalStatus: "approved", decidedAt: new Date(), ...decidedFields(decidedBy) },
     include: { department: true, invite: true },
   });
+  if (decidedBy) await recordDecision(member, "approved", decidedBy);
   // الاعتمادُ يجعله موظفاً: رقمُه الوظيفي التالي — قبل رسالة الترحيب التي تحمل بطاقتَه
   await assignMemberEmployeeNo(prisma, member.id);
 
@@ -419,7 +425,7 @@ function leadershipRoleFor(targetRole: string): "executive" | "operations_office
  *  (`completeLeadershipPromotion`) — الاعتمادُ مكتوبٌ من قبل، والناقصُ الحساب. */
 async function provisionLeadershipAccount(
   candidate: CandidateRecord,
-  opts: { approve: boolean }
+  opts: { approve: boolean; decidedBy?: DecidedBy }
 ): Promise<{ member: CandidateRecord; userId: string }> {
   const role = leadershipRoleFor(candidate.invite.targetRole);
 
@@ -443,7 +449,7 @@ async function provisionLeadershipAccount(
       // اعتمادان متزامنان لمرشّحٍ واحد: يمضي أحدهما، ويُردّ الثاني بسببه
       const claimed = await tx.member.updateMany({
         where: { id: candidate.id, approvalStatus: { not: "approved" } },
-        data: { approvalStatus: "approved", decidedAt },
+        data: { approvalStatus: "approved", decidedAt, ...decidedFields(opts.decidedBy) },
       });
       if (claimed.count === 0) throw new Error("حُسم أمرُ هذا المرشّح من قبل");
     }
@@ -599,11 +605,12 @@ export async function completeLeadershipPromotion(memberId: string, performedByN
   return { userId, created: true as const };
 }
 
-export async function rejectMember(memberId: string) {
+export async function rejectMember(memberId: string, decidedBy?: DecidedBy) {
   const member = await prisma.member.update({
     where: { id: memberId },
-    data: { approvalStatus: "rejected", decidedAt: new Date() },
+    data: { approvalStatus: "rejected", decidedAt: new Date(), ...decidedFields(decidedBy) },
   });
+  if (decidedBy) await recordDecision(member, "rejected", decidedBy);
   const { autoCloseRequests } = await import("@/lib/requests");
   await autoCloseRequests({ memberId, type: "meeting", note: "رُفض المرشّح — انتهت الحاجة إلى الاجتماع" });
   await appendMemberEvent({
@@ -1230,6 +1237,11 @@ export async function reopenCandidateTest(opts: {
   meetingHeld: boolean;
   note?: string;
   performedByName: string;
+  /** **إشعارُ المرشّح اختيارٌ صريح، غيرُ محدَّدٍ افتراضياً** (قرار المؤسس، ق٣): إعادةُ الفتح على السجلّ نفسه وبالبريد
+   *  نفسه، ولا تُرسل رسالةً من تلقائها — ومن أراد الإشعار اختاره هنا أو أرسله لاحقاً بإجراءٍ مستقل (`resendReopenedTest`) */
+  notify?: boolean;
+  /** من أعاد الفتح — لسجلّ التدقيق الثابت */
+  performedBy?: DecidedBy;
 }) {
   if (!opts.meetingHeld) {
     throw new Error("لا يُعاد فتح الاختبار قبل تأكيد انعقاد اجتماع الشرح");
@@ -1277,13 +1289,30 @@ export async function reopenCandidateTest(opts: {
     note: `عُقد اجتماع الشرح وأُعيد فتح الاختبار — ${member.testReopenNote} — نفّذه: ${opts.performedByName}`,
   });
 
-  // نتيجةُ البريد تعود مع الحساب: الواجهةُ لا تقول «وصله إشعار» إلا إن وصل
-  const reopenEmail = await sendTestReopenedEmail({
-    to: member.email,
-    fullName: member.fullName,
-    roleLabel: member.department?.name ?? (ROLE_LABELS[member.invite.targetRole] ?? ""),
-    loginUrl: `${baseUrl()}/login`,
-    hoursValid: CANDIDATE_WINDOW_HOURS,
+  // نتيجةُ البريد تعود مع الحساب: الواجهةُ لا تقول «وصله إشعار» إلا إن وصل — ولا رسالةَ أصلاً ما لم يُخترها المسؤول
+  const reopenEmail = opts.notify
+    ? await sendTestReopenedEmail({
+        to: member.email,
+        fullName: member.fullName,
+        roleLabel: member.department?.name ?? (ROLE_LABELS[member.invite.targetRole] ?? ""),
+        loginUrl: `${baseUrl()}/login`,
+        hoursValid: CANDIDATE_WINDOW_HOURS,
+      })
+    : null;
+
+  // في سجلّ التدقيق الثابت: من أعاد، ومتى، وسببُه، ورقمُ المحاولة، وهل أُشعر المرشّح
+  const { recordOrgEvent } = await import("@/lib/org/audit");
+  await recordOrgEvent(prisma, {
+    scope: "member",
+    entityId: member.id,
+    departmentId: member.departmentId ?? "—",
+    action: "member.test.reopened",
+    actor: opts.performedBy
+      ? { kind: opts.performedBy.role === "member" ? "member" : "user", id: opts.performedBy.id, name: opts.performedBy.name, role: opts.performedBy.role }
+      : { kind: "system", id: "system", name: opts.performedByName, role: "system" },
+    before: { testStatus: current.testStatus, approvalStatus: current.approvalStatus, testScore: current.testScore },
+    after: { testStatus: "not_started", attempt: member.testReopenCount + 1, notified: !!reopenEmail && !reopenEmail.skipped },
+    note: member.testReopenNote,
   });
 
   await appendMemberEvent({
@@ -1291,7 +1320,9 @@ export async function reopenCandidateTest(opts: {
     email: member.email,
     roleOrDepartment: await memberScope(member),
     event: "إعادة فتح الاختبار",
-    details: `المحاولة رقم ${member.testReopenCount + 1} — ${member.testReopenNote} — نفّذه: ${opts.performedByName}`,
+    details: `المحاولة رقم ${member.testReopenCount + 1} — ${member.testReopenNote} — نفّذه: ${opts.performedByName} — ${
+      reopenEmail ? (reopenEmail.skipped ? "اختير إشعارُ المرشّح ولم تصل الرسالة" : "أُشعر المرشّح بالبريد") : "بلا رسالة (لم يُختر الإشعار)"
+    }`,
     at: new Date(),
   });
 
@@ -1533,3 +1564,20 @@ export async function seatConflicts(): Promise<
  *  سطرٌ واحد. والترتيبُ هنا بالأقدم فالأقدم (الطابورُ يُعالَج من رأسه)،
  *  فما يُقطَع هو الذيلُ الذي لا يُعالَج في هذه الجلسة على كل حال. */
 export const QUEUE_TAKE = 200;
+
+function decidedFields(by?: DecidedBy) {
+  return by ? { decidedById: by.id, decidedByName: by.name } : {};
+}
+
+/** قرارُ الاعتماد أو الرفض في سجلّ التدقيق الثابت — بمن حسمه ودورِه وقتَها (ق١: «سجلّ قرارات الاعتماد وتاريخها والجهة التي اتخذتها») */
+async function recordDecision(m: { id: string; departmentId: string | null }, decision: "approved" | "rejected", by: DecidedBy) {
+  const { recordOrgEvent } = await import("@/lib/org/audit");
+  await recordOrgEvent(prisma, {
+    scope: "member",
+    entityId: m.id,
+    departmentId: m.departmentId ?? "—",
+    action: decision === "approved" ? "member.approved" : "member.rejected",
+    actor: { kind: by.role === "member" ? "member" : "user", id: by.id, name: by.name, role: by.role },
+    after: { approvalStatus: decision },
+  });
+}

@@ -26,6 +26,10 @@ const SCOPE_LABEL: Record<string, string> = {
 };
 const ACTION_LABEL: Record<string, string> = {
   "senior.leadership": "انتقالُ قيادة الإدارة العليا",
+  "member.approved": "اعتمادُ مرشّح",
+  "member.rejected": "رفضُ مرشّح",
+  "member.test.reopened": "إعادةُ فتح اختبار",
+  "candidate.results.viewed": "اطّلاعٌ على نتائج المرشّحين",
   "senior.invite.create": "إنشاءُ دعوة",
   "senior.invite.send": "إرسالُ دعوة",
   "senior.invite.resend": "إعادةُ إرسال دعوة",

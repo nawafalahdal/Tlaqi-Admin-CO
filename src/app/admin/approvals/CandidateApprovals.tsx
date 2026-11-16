@@ -2,29 +2,31 @@ import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { QUEUE_TAKE, halfApprovedLeaders } from "@/lib/workflow";
 import { canDecideCandidate } from "@/lib/permissions";
-import { BRAND } from "@/lib/brand";
+import { authoritiesFor, decisionViewer } from "@/lib/candidateDecision";
+import { BRAND, themeFromColor } from "@/lib/brand";
+import { NeedsMeetingRow } from "@/app/admin/departments/[slug]/NeedsMeetingRow";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { ApprovalQueue } from "../ApprovalQueue";
 import { IncompletePromotionRow } from "./IncompletePromotionRow";
 
-/** طلباتُ الانضمام بانتظار الاعتماد — موضعُها الواحد.
+/** **طابورُ القرار** — طلباتُ الانضمام التي يحسمها صاحبُ الجلسة وحده (`canDecideCandidate` بجهة كلِّ مرشّحٍ من
+ *  القاعدة — `lib/candidateDecision`)، والخادمُ يفرض الشرطَ ذاته عند القرار.
  *
- *  كانت قائمتاها في النظرة العامة وحدها: اللوحةُ التي يُفترض أنها ملخّص
- *  صارت المكانَ الوحيد لقرار اعتماد القادة. فنُقلتا إلى «الاعتمادات»
- *  حيث يُبحث عن كلّ ما ينتظر موافقة، والنظرة العامة تَعُدّهما وتُحيل إليهما.
- *
- *  والتصفية نفسها كما كانت: كلٌّ يرى من يَحسم أمره وحده
- *  (`canDecideCandidate`)، والخادم يفرض الشرط ذاته عند القرار. */
+ *  **ولا يحسم المؤسسُ ولا الرئيسُ التنفيذيُّ شيئاً منها** (قرار المؤسس، ق١): لهما «نتائجُ المرشّحين» للاطّلاع
+ *  (`CandidateResults`). ويَظهر هذا الطابورُ لجهة الاعتماد المستقلة («اعتماد العضوية») في `/senior/approvals`
+ *  — وقد تكون عضواً لا يدخل `/admin` — ولأيّ حسابٍ إداريٍّ يحملها في «الاعتمادات». */
 export async function CandidateApprovals({ session }: { session: Session }) {
+  const viewer = await decisionViewer(session);
   const dict = getDictionary(await getLocale());
   const ta = dict.admin;
 
-  const [allLeadership, memberQueue, allIncomplete] = await Promise.all([
+  const [allLeadership, memberQueue, allIncomplete, allFailed] = await Promise.all([
     prisma.member.findMany({
       omit: { avatarData: true },
       where: {
         approvalStatus: "pending_review",
         testStatus: "passed",
+        isActive: true,
         invite: { targetRole: { in: ["department_admin", "operations_officer", "executive"] } },
       },
       include: { department: true, invite: true },
@@ -33,24 +35,32 @@ export async function CandidateApprovals({ session }: { session: Session }) {
     }),
     prisma.member.findMany({
       omit: { avatarData: true },
-      where: { approvalStatus: "pending_review", testStatus: "passed", invite: { targetRole: "member" } },
+      where: { approvalStatus: "pending_review", testStatus: "passed", isActive: true, invite: { targetRole: "member" } },
       include: { department: true, invite: true },
       orderBy: { createdAt: "asc" },
       take: QUEUE_TAKE,
     }),
     halfApprovedLeaders(),
+    // لم يجتازوا — إعادةُ فتح اختبارهم قرارُ اعتمادٍ لجهة حسمهم (قائدُ القسم يراهم في صفحة قسمه)
+    viewer.designatedApprover
+      ? prisma.member.findMany({
+          omit: { avatarData: true },
+          where: { approvalStatus: "pending_review", testStatus: "failed", isActive: true, terminatedAt: null },
+          include: { department: true, invite: true },
+          orderBy: { createdAt: "asc" },
+          take: QUEUE_TAKE,
+        })
+      : Promise.resolve([]),
   ]);
-  const viewer = { role: session.user.role, departmentId: session.user.departmentId };
+  const authority = await authoritiesFor([...allLeadership, ...memberQueue, ...allIncomplete, ...allFailed]);
+  const mine = <T extends { id: string; departmentId: string | null }>(rows: T[]) =>
+    rows.filter((m) => canDecideCandidate(viewer, { departmentId: m.departmentId, authority: authority.get(m.id)! }));
   // اعتماداتٌ قياديةٌ تعثّرت قبل الإصلاح: أصحابُها معتمَدون يدخلون أعضاءً — يراها من يملك منصبَهم
-  const incomplete = allIncomplete.filter((m) =>
-    canDecideCandidate(viewer, { targetRole: m.invite.targetRole, departmentId: m.departmentId })
-  );
-  const leadership = allLeadership.filter((m) =>
-    canDecideCandidate(
-      { role: session.user.role, departmentId: session.user.departmentId },
-      { targetRole: m.invite.targetRole, departmentId: m.departmentId }
-    )
-  );
+  const incomplete = mine(allIncomplete);
+  const leadership = mine(allLeadership);
+  const members = mine(memberQueue);
+  const failed = mine(allFailed);
+  if (!viewer.designatedApprover && viewer.role !== "department_admin") return null;
 
   return (
     <section id="joins" className="flex scroll-mt-24 flex-col gap-5">
@@ -93,7 +103,7 @@ export async function CandidateApprovals({ session }: { session: Session }) {
         <p className="mb-3 mt-1 text-xs text-black/40">{ta.memberQueueHint}</p>
         <ApprovalQueue
           emptyMessage={ta.memberQueueEmpty}
-          members={memberQueue.map((m) => ({
+          members={members.map((m) => ({
             id: m.id,
             fullName: m.fullName,
             email: m.email,
@@ -103,6 +113,23 @@ export async function CandidateApprovals({ session }: { session: Session }) {
           }))}
         />
       </div>
+      {failed.length > 0 && (
+        <div>
+          <h2 className="text-base font-bold">لم يجتازوا الاختبار ({failed.length})</h2>
+          <p className="mb-3 mt-1 text-xs text-black/40">
+            يُعاد فتحُ الاختبار على السجلّ نفسه بعد اجتماع الشرح — بلا دعوةٍ جديدة، ولا رسالةٍ ما لم تُخترها.
+          </p>
+          <div className="flex flex-col gap-3">
+            {failed.map((m) => (
+              <NeedsMeetingRow
+                key={m.id}
+                theme={themeFromColor(m.department?.colorHex ?? BRAND.temptress)}
+                member={{ id: m.id, fullName: m.fullName, email: m.email, testScore: m.testScore }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

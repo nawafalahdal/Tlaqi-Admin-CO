@@ -1,5 +1,7 @@
 "use server";
 
+import { assertNotCandidate } from "@/lib/candidateGate";
+
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import {
@@ -33,6 +35,8 @@ export async function savePlanIntroAction(
   const L = getDictionary(await getLocale()).rPlansActions;
   try {
     const session = await auth();
+    // المرشّحُ قبل الاعتماد لا يبلغ إجراءً داخلياً (`lib/candidateGate`)
+    assertNotCandidate(session);
     if (!session) return { error: L.youNeedToSign, success: false };
     const res = await savePlanIntro({
       heading: String(formData.get("heading") ?? ""),
@@ -54,6 +58,8 @@ export async function addPlanDocAction(
   const L = getDictionary(await getLocale()).rPlansActions;
   try {
     const session = await auth();
+    // المرشّحُ قبل الاعتماد لا يبلغ إجراءً داخلياً (`lib/candidateGate`)
+    assertNotCandidate(session);
     if (!session) return { error: L.youNeedToSign, success: false };
 
     const upload = formData.get("file");
@@ -90,6 +96,8 @@ export async function renamePlanDocAction(
 ): Promise<{ error: string | null; done?: boolean }> {
   const L = getDictionary(await getLocale()).rPlansActions;
   const session = await auth();
+  // المرشّحُ قبل الاعتماد لا يبلغ إجراءً داخلياً (`lib/candidateGate`)
+  assertNotCandidate(session);
   if (!session) return { error: L.youNeedToSign };
   try {
     const res = await renamePlanDoc({ id, title, note, session });
@@ -107,6 +115,8 @@ export async function movePlanDocAction(
 ): Promise<{ error: string | null; done?: boolean }> {
   const L = getDictionary(await getLocale()).rPlansActions;
   const session = await auth();
+  // المرشّحُ قبل الاعتماد لا يبلغ إجراءً داخلياً (`lib/candidateGate`)
+  assertNotCandidate(session);
   if (!session) return { error: L.youNeedToSign };
   try {
     const res = await movePlanDoc({ id, direction, session });
@@ -123,6 +133,8 @@ export async function removePlanDocAction(
 ): Promise<{ error: string | null; done?: boolean; title?: string }> {
   const L = getDictionary(await getLocale()).rPlansActions;
   const session = await auth();
+  // المرشّحُ قبل الاعتماد لا يبلغ إجراءً داخلياً (`lib/candidateGate`)
+  assertNotCandidate(session);
   if (!session) return { error: L.youNeedToSign };
   try {
     const res = await removePlanDoc({ id, session });

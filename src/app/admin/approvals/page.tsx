@@ -15,6 +15,7 @@ import { RequesterActions } from "./RequesterActions";
 import { RequestApproval } from "./RequestApproval";
 import { myTicketsWithoutApproval } from "./actions";
 import { CandidateApprovals } from "./CandidateApprovals";
+import { CandidateResults } from "./CandidateResults";
 import type { ApprovalKind, ApprovalState } from "@prisma/client";
 
 import { getLocale, getDictionary } from "@/i18n/server";
@@ -57,8 +58,11 @@ export default async function ApprovalsPage() {
       <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-5 sm:py-8">
         <PageHeader title={L.administrativeApprovals} description={<>{L.anythingThatNeedsA}</>} />
 
-        {/* طلباتُ الانضمام: للمؤسس والرئيس التنفيذي — موضعُها الواحد */}
-        {(session.user.role === "super_admin" || session.user.role === "executive") && (
+        {/* طلباتُ الانضمام: المؤسسُ والرئيسُ التنفيذيُّ يطّلعان على النتائج ولا يحسمان (ق١)؛ وغيرُهما يرى ما يحسمه
+            وحده إن كان جهةَ اعتماد (`CandidateApprovals` تُرجع لا شيء لمن لا يحسم شيئاً) */}
+        {session.user.role === "super_admin" || session.user.role === "executive" ? (
+          <CandidateResults session={session} />
+        ) : (
           <CandidateApprovals session={session} />
         )}
 

@@ -57,16 +57,19 @@ const chk = (n: string, ok: boolean, extra = "") => checks.push(`${ok ? "✓" : 
     }
     chk("لا تُعاد الدعوة قبل تأكيد اجتماع الشرح", refused);
 
-    // ── الإعادة الفعلية: يُفتح الاختبار ويُرسَل البريد.
-    //    بلا التقاط عمداً: وضعُ الالتقاط يتجاوز سياسةَ الكتمان (للمعاينة)، فكان هذا الفحصُ يمرّ
-    //    والرسالةُ مكتومةٌ في الإنتاج — ولم تصل المرشّحَ قطّ (شكوى المؤسس، نوفمبر 2026)
-    const reopened = await W.reopenCandidateTest({ memberId: member.id, meetingHeld: true, note: "شُرحت الأسئلة", performedByName: "قائدة التسويق" });
+    // ── الإعادة الفعلية: يُفتح الاختبار على السجلّ نفسه — **ولا رسالةَ تلقائية** (قرار المؤسس، ق٣، نوفمبر 2026):
+    //    الإشعارُ إجراءٌ مستقلٌّ صريح أو اختيارٌ غيرُ محدَّدٍ افتراضياً عند الإعادة. (كان يُرسَل تلقائياً بقرارٍ سابق.)
+    const silent = await captureEmails(() =>
+      W.reopenCandidateTest({ memberId: member.id, meetingHeld: true, note: "شُرحت الأسئلة", performedByName: "قائدة التسويق" })
+    );
     const after = await prisma.member.findUniqueOrThrow({ where: { id: member.id } });
     chk("أُعيد فتح الاختبار", after.testStatus === "not_started" && after.testScore === null);
     chk("وحُسبت المحاولة", after.testReopenCount === 1);
-    chk("**ورسالةُ إعادة الفتح لا تكتمها السياسة**", reopened.reopenEmail.outcome.state !== "suppressed_policy", reopened.reopenEmail.outcome.state);
-    const policyLogged = await prisma.emailLog.count({ where: { recipient: EMAIL, kind: "إعادة اختبار", status: "لم تُرسل (سياسة التقليل)" } });
-    chk("ولا تُسجَّل «مكتومة» في سجل الرسائل", policyLogged === 0, String(policyLogged));
+    chk("**ولا رسالةَ تلقائية للمرشّح عند إعادة الفتح (ق٣)**", !silent.some((m) => m.to.includes(EMAIL)), JSON.stringify(silent.map((m) => m.subject)));
+    chk("**وإعادةُ الفتح في سجلّ التدقيق الثابت**",
+      (await prisma.orgAuditEvent.count({ where: { entityId: member.id, action: "member.test.reopened" } })) === 1);
+    chk("ولا دعوةَ ولا حسابَ جديد للبريد نفسه",
+      (await prisma.member.count({ where: { email: EMAIL } })) === 1 && (await prisma.invite.count({ where: { email: EMAIL } })) === 1);
     chk("وخرج من «بحاجة إلى اجتماع شرح»", (await failedList()) === 0);
 
     // ── إعادةُ الإرسال: لمن أُعيد فتحُ اختباره ولم يدخل — مهلةٌ جديدة ورسالةٌ تصله

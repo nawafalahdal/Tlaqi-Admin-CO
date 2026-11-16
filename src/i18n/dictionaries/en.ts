@@ -30,6 +30,7 @@ export const en: Dictionary = {
       marketing: "Marketing agent",
       senior: "Senior administration",
       governanceLog: "Governance log",
+      membershipDecide: "Membership approval",
       agreements: "Agreements",
     },
     groups: {
@@ -1121,6 +1122,8 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
     reopenTitle: "Reopen the test",
     reopenHint: "A failure is a recorded decision, and reversing it needs a reason. Confirm the explanation meeting took place; your note goes into the record.",
     meetingHeld: "The meeting was held and the failure was explained to the candidate",
+    notifyCandidate: "Notify the candidate that the test was reopened",
+    notifyHint: "No email is sent unless you choose this — you can send the notice later as a separate action.",
     notePlaceholder: "Meeting note (optional) \u2014 recorded in the live log",
     reopenConfirm: "Reopen the test",
     reopenDone: "The test was reopened and an email was sent \u2014 24 hours from now.",

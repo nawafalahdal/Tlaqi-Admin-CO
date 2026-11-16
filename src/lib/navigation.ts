@@ -62,7 +62,7 @@ export type NavGroup = (typeof NAV_GROUPS)[number];
 /** أسماءُ البنود — من القاموس (`shell.nav`)، لا مكتوبةً هنا */
 export type NavLabels = Record<
   "home" | "opsHome" | "members" | "myDeptMembers" | "approvals" | "departments" | "execution" | "calendar" |
-  "reports" | "plans" | "tickets" | "structure" | "committees" | "invites" | "messages" | "terminations" | "signature" | "welcomeCards" | "onboarding" | "sheet" | "marketing" | "senior" | "governanceLog" | "agreements",
+  "reports" | "plans" | "tickets" | "structure" | "committees" | "invites" | "messages" | "terminations" | "signature" | "welcomeCards" | "onboarding" | "sheet" | "marketing" | "senior" | "governanceLog" | "membershipDecide" | "agreements",
   string
 >;
 
@@ -80,6 +80,8 @@ export type NavViewer = {
   canSenior?: boolean;
   /** سجلُّ الحوكمة — قراءةً لمن له «governance_log_view» */
   canGovernanceLog?: boolean;
+  /** يحمل «اعتماد العضوية» — جهةُ الاعتماد المستقلة (`/senior/approvals`) */
+  canMembershipDecide?: boolean;
   /** الاتفاقيات: صفحةُ «اتفاقياتي» لكل حساب، وإدارتُها لمن له «agreements_view» */
   canAgreementsAdmin?: boolean;
 };
@@ -153,6 +155,7 @@ export function navFor(v: NavViewer, L: NavLabels): NavItem[] {
   items.push({ id: "committees", label: L.committees, href: "/committees", icon: "committee", match: ["/committees"], group: "org" });
   if (v.canSenior) items.push({ id: "senior", label: L.senior, href: "/senior", icon: "senior", match: ["/senior"], group: "org" });
   if (v.canGovernanceLog) items.push({ id: "governanceLog", label: L.governanceLog, href: "/senior/log", icon: "history", match: ["/senior/log"], group: "reports" });
+  if (v.canMembershipDecide) items.push({ id: "membershipDecide", label: L.membershipDecide, href: "/senior/approvals", icon: "approvals", match: ["/senior/approvals"], group: "org" });
   items.push({
     id: "agreements",
     label: L.agreements,
