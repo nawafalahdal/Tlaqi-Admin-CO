@@ -172,9 +172,10 @@ async function cleanup() {
   const rlView = await page(jRL, `${cPath}?tab=members`);
   chk("ولقائد القسم أدواتُه، وتُعلَن له القيادةُ مقفلة", rlView.status === 200 && hasForms(rlView.html) && rlView.html.includes("للجنة قائدٌ نشطٌ معتمد"), String(rlView.status));
   const a1 = await callAction(jFD, cPath, add, { committeeId: CM.id, memberIds: [Y.id] });
-  chk("٤/١٢ · طلبٌ مباشر: المؤسسُ لا يضيف عضواً والقائدُ نشط", refusedFor(a1, "إضافةُ الأعضاء لقائد القسم") && !(await memberOf(Y.id)), `${a1.status} ${a1.error}`);
+  // تغييرُ توقّعٍ مقصود (قرار المؤسس ٣.٣، نوفمبر 2026): سببُ الرفض صار «إدارةُ الأعضاء لقائد اللجنة» — والرفضُ نفسُه باقٍ
+  chk("٤/١٢ · طلبٌ مباشر: المؤسسُ لا يضيف عضواً والقائدُ نشط", refusedFor(a1, "إدارةُ أعضاء اللجنة لقائدها") && !(await memberOf(Y.id)), `${a1.status} ${a1.error}`);
   const r1 = await callAction(jFD, cPath, remove, { committeeId: CM.id, memberId: B.id });
-  chk("٤/١٢ · ولا يُخرج عضواً", refusedFor(r1, "إزالةُ الأعضاء لقائد القسم") && (await memberOf(B.id)), `${r1.status} ${r1.error}`);
+  chk("٤/١٢ · ولا يُخرج عضواً", refusedFor(r1, "إدارةُ أعضاء اللجنة لقائدها") && (await memberOf(B.id)), `${r1.status} ${r1.error}`);
   const s1 = await callAction(jFD, cPath, status, { committeeId: CM.id, to: "suspended", note: "طلبٌ مباشر" });
   chk("٤/١٢ · ولا يعلّق اللجنة", refusedFor(s1, "تغييرُ حالة اللجنة") && (await cRow()).committeeStatus === "approved", `${s1.status} ${s1.error}`);
   const s2 = await callAction(jFD, cPath, status, { committeeId: CM.id, to: "closed", note: "طلبٌ مباشر" });
@@ -182,8 +183,12 @@ async function cleanup() {
   const p1 = await callAction(jFD, cPath, appoint, { committeeId: CM.id, memberId: B.id });
   chk("٤/١٢ · ولا يغيّر قائدَها", refusedFor(p1, "قائدٌ نشطٌ معتمد") && (await cRow()).leadMemberId === A.id, `${p1.status} ${p1.error}`);
   // ضابطٌ إيجابي: الطلبُ نفسُه يمرّ لمن يملكه — فالرفضُ أعلاه رفضُ صلاحيةٍ لا عطبُ طلب
-  const ctl = await callAction(jRL, cPath, add, { committeeId: CM.id, memberIds: [X.id] });
-  chk("ضابط · الطلبُ المباشرُ نفسُه يمرّ لقائد القسم (صلاحيتُه باقية)", ctl.ok && (await memberOf(X.id)), `${ctl.status} ${ctl.error}`);
+  // تغييرُ توقّعٍ مقصود (٣.٣): قائدُ القسم لا يدير أعضاءَ لجنةٍ عاملة — والضابطُ الإيجابيُّ صار قائدَ اللجنة نفسَه
+  const rlAdd = await callAction(jRL, cPath, add, { committeeId: CM.id, memberIds: [X.id] });
+  chk("٣.٣ · طلبٌ مباشر: قائدُ القسم لا يضيف إلى لجنةٍ عاملة", refusedFor(rlAdd, "إدارةُ أعضاء اللجنة لقائدها") && !(await memberOf(X.id)), `${rlAdd.status} ${rlAdd.error}`);
+  const jA = await signIn(A.email);
+  const ctl = await callAction(jA, cPath, add, { committeeId: CM.id, memberIds: [X.id] });
+  chk("ضابط · الطلبُ المباشرُ نفسُه يمرّ لقائد اللجنة (٣.٣)", ctl.ok && (await memberOf(X.id)), `${ctl.status} ${ctl.error}`);
   const p2 = await callAction(jRL, cPath, appoint, { committeeId: CM.id, memberId: B.id });
   chk("٤/١٢ · ولا يغيّر قائدُ القسم نفسُه قائداً نشطاً", refusedFor(p2, "قائدٌ نشطٌ معتمد") && (await cRow()).leadMemberId === A.id, `${p2.status} ${p2.error}`);
 
@@ -194,10 +199,14 @@ async function cleanup() {
   chk("٦ · خلافةٌ آلية: قائمٌ بالخلافة واحد، ولا قائدَ عضوٌ معه", afterLead.leadMemberId === null && !!afterLead.actingLeadUserId);
   const fdView2 = await page(jFD, `${cPath}?tab=members`);
   chk("٥ · وتُعلَن للمؤسس انتهاءُ القيادة، وتظهر له أدواتُ الإدارة", fdView2.status === 200 && fdView2.html.includes("انتهت قيادةُ قائد اللجنة") && hasForms(fdView2.html));
+  // تغييرُ توقّعٍ مقصود (٣.٣ مع ٣.٤): بعد المغادرة يدير الأعضاءَ **القائمُ بالخلافة وحده** (قائدٌ فعّالٌ واحد) — لا كلُّ مؤسس.
+  // وهذا المؤسسُ المُنشأ للفحص قد لا يكون الخَلَف: فالتوقّعُ بحسب من صار قائماً بالقيادة
+  const fdIsHeir = afterLead.actingLeadUserId === FD.id;
   const a2 = await callAction(jFD, cPath, add, { committeeId: CM.id, memberIds: [Y.id] });
-  chk("٥ · طلبٌ مباشر: المؤسسُ يضيف عضواً بعد المغادرة", a2.ok && (await memberOf(Y.id)), `${a2.status} ${a2.error}`);
+  chk(`٥ · طلبٌ مباشر: إضافةُ عضوٍ بعد المغادرة للقائم بالخلافة وحده (${fdIsHeir ? "والمؤسسُ هو الخَلَف" : "والمؤسسُ ليس الخَلَف"})`,
+    fdIsHeir ? a2.ok && (await memberOf(Y.id)) : refusedFor(a2, "إدارةُ أعضاء اللجنة لقائدها") && !(await memberOf(Y.id)), `${a2.status} ${a2.error}`);
   const r2 = await callAction(jFD, cPath, remove, { committeeId: CM.id, memberId: B.id });
-  chk("٥ · ويُنهي عضوية", r2.ok && !(await memberOf(B.id)), `${r2.status} ${r2.error}`);
+  chk("٥ · وإنهاءُ العضوية كذلك", fdIsHeir ? r2.ok && !(await memberOf(B.id)) : refusedFor(r2, "إدارةُ أعضاء اللجنة لقائدها") && (await memberOf(B.id)), `${r2.status} ${r2.error}`);
   const s3 = await callAction(jFD, cPath, status, { committeeId: CM.id, to: "suspended", note: "تعليقٌ بعد مغادرة القائد" });
   const afterSusp = await cRow();
   chk("٥ · ويعلّق اللجنة — وتبقى بقائدٍ واحد", s3.ok && afterSusp.committeeStatus === "suspended" && !!afterSusp.actingLeadUserId, `${s3.status} ${s3.error}`);
