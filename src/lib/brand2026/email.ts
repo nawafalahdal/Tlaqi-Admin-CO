@@ -10,7 +10,10 @@ import { HEX, TYPEFACE, BACKGROUNDS } from "./tokens";
  *    «موهبة» بلون Mahogany على الأبيض مستقلاً (لا نمطَ خلف نص).
  *  - **الأزرار (ق9):** الأساسي Temptress بنص Beige، والثانوي حدٌّ Temptress.
  *  - **الخط (ق1، ق8):** The Year of The Camel أولاً، وTahoma/Arial احتياطاً — أغلبُ العملاء لا يحمّلون الخط.
- *  - **التذييل:** العلامة، والتوقيعُ التعريفي الرسمي «تحوّل رقمي، برؤية طموحة.» (قرار المؤسس)، والحسابات، و«إدارة تلاق».
+ *  - **الترويسة (البند ٢):** اتجاهُها صريحٌ من اليسار — **الشعارُ يساراً وجهةُ الرسالة يميناً** («قسم X»، «لجنة X — قسم Y»،
+ *    «إدارة TLAQI») — فلا يقلبها اتجاهُ الرسالة العربي في Gmail وApple Mail وOutlook.
+ *  - **التذييل:** علامةُ الشعار بلون Mahogany دائماً (قرار المؤسس — لا بلون القسم)، والعبارةُ الرسمية «نلتقي • نفكر • نصنع»
+ *    (ق٦)، والحسابات، و«إدارة تلاق».
  *  - **الجوال:** عرضٌ أقصى 600 ومرونةٌ دونه، وأزرارٌ بعرضٍ كامل على الشاشات الصغيرة.
  *
  *  **وهو قالبُ الإرسال على فرع التطوير** (`renderEmail` في `emailBrand.ts`) لمراجعة المؤسس على المعاينة قبل الاعتماد
@@ -54,8 +57,10 @@ function body(raw: EmailContent): string {
   r.push(row(`<h1 style="margin:0;font-family:${FONT};font-size:24px;line-height:1.5;font-weight:800;color:${B.mahogany}">${esc(c.title)}</h1>`, "0 0 10px"));
   if (c.lead) r.push(row(`<p style="margin:0;font-family:${FONT};font-size:16px;line-height:1.9;color:${B.temptress}">${c.lead}</p>`, "0 0 18px"));
   if (c.image) {
-    const img = `<img src="${c.image.src}" width="${c.image.width}" height="${c.image.height}" alt="${esc(c.image.alt)}" style="display:block;border:0;width:100%;max-width:${c.image.width}px;height:auto;border-radius:14px">`;
-    r.push(row(c.image.href ? `<a href="${c.image.href}" style="text-decoration:none">${img}</a>` : img, "0 0 20px"));
+    // في الوسط بعرضٍ ثابت: جدولٌ متمركز يرسمه Outlook كما يرسمه Gmail وApple Mail (البطاقةُ داخل رسالة الاعتماد — البند ٢)
+    const img = `<img src="${c.image.src}" width="${c.image.width}" height="${c.image.height}" alt="${esc(c.image.alt)}" style="display:block;border:0;width:${c.image.width}px;max-width:100%;height:auto;border-radius:14px;margin:0 auto">`;
+    const linked = c.image.href ? `<a href="${c.image.href}" style="text-decoration:none">${img}</a>` : img;
+    r.push(row(`<table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto"><tr><td align="center">${linked}</td></tr></table>`, "0 0 20px"));
   }
   for (const p of c.paragraphs ?? []) r.push(row(`<p style="margin:0;font-family:${FONT};font-size:15px;line-height:1.95;color:${B.temptress}">${p}</p>`));
   const facts = (c.facts ?? []).filter(([, v]) => v && v.trim());
@@ -119,19 +124,18 @@ export function renderEmail2026Parts(opts: {
   /** التوقيعُ التعريفي وحسابُ التواصل — من `emailBrand` (يُمرَّران فلا تدور الاستيرادات) */
   tagline?: string;
   handle?: string | null;
-  /** علامةُ الشعار في التذييل بلون القسم (`/api/brand-mark/HEX`) — وبغيابها العلامةُ الرسمية بلون Mahogany */
-  markUrl?: string | null;
+  /** جهةُ الرسالة في الترويسة (`emailSenderLabel`) — وبغيابها اسمُ القسم كما هو */
+  senderLabel?: string | null;
 }): { html: string; bodyHtml: string } {
   const a = (p: string) => `${opts.assetBase}/${p}`;
-  const dept = opts.theme?.departmentName?.trim();
+  const dept = opts.senderLabel?.trim() || opts.theme?.departmentName?.trim() || "إدارة TLAQI";
   const fontFace = opts.fontFaceBase
     ? TYPEFACE.weights.map((w) => `@font-face{font-family:'${TYPEFACE.family}';src:url('${opts.fontFaceBase}/${w.file}') format('opentype');font-weight:${w.weight};font-display:swap}`).join("")
     : "";
   const bodyHtml = body(opts.content);
-  // **قرار المؤسس (نوفمبر 2026): الرسائلُ كلُّها ثابتةٌ بالبنفسجي** — الترويسةُ والتذييلُ والشارةُ وشريطُ «موهبة» بلون
-  // Temptress، **والمتغيّرُ الوحيد الدائرةُ أسفل الرسالة** (علامةُ الشعار) بلون القسم أو اللجنة — `markUrl` من المُرسِل.
-  // واسمُ القسم نصٌّ في الترويسة لا شريطٌ ملوّن
-  const markSrc = opts.markUrl && /^(https?:|file:)/.test(opts.markUrl) ? opts.markUrl : a("email/mark-mahogany.png");
+  // **قرار المؤسس (نوفمبر 2026): الرسائلُ كلُّها ثابتةٌ بالبنفسجي**، و**علامةُ التذييل موحّدةٌ بلون Mahogany** (البند ٢ —
+  // كانت بلون القسم فتتبدّل من رسالةٍ لأخرى). وجهةُ الرسالة نصٌّ في الترويسة لا لون
+  const markSrc = a("email/mark-mahogany.png");
   const handle = opts.handle;
   const html = `<!doctype html>
 <html dir="rtl" lang="ar">
@@ -152,9 +156,9 @@ ${fontFace}
 <tr><td align="center" style="padding:0 10px">
   <table role="presentation" class="b26-card" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BACKGROUNDS.emailCard}" style="max-width:600px;background-color:${BACKGROUNDS.emailCard};border:1px solid ${B.temptress};border-radius:20px;overflow:hidden">
     <tr><td bgcolor="${B.temptress}" style="background-color:${B.temptress};${KEEP_DARK}padding:22px 26px">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
-        <td align="right"><img src="${a("email/logo-on-temptress.png")}" width="200" height="59" alt="TLAQI — Talent Link Advancing Quality Innovation" style="display:block;border:0;width:200px;height:auto"></td>
-        <td align="left" style="font-family:${FONT};font-size:13px;font-weight:bold;color:${B.beige}">${dept ? esc(dept) : ""}</td>
+      <table role="presentation" dir="ltr" width="100%" cellpadding="0" cellspacing="0" border="0" style="direction:ltr"><tr>
+        <td align="left" valign="middle" width="50%" style="text-align:left"><img src="${a("email/logo-on-temptress.png")}" width="180" height="53" alt="TLAQI — Talent Link Advancing Quality Innovation" style="display:block;border:0;width:180px;max-width:100%;height:auto"></td>
+        <td align="right" valign="middle" width="50%" dir="rtl" style="text-align:right;direction:rtl;font-family:${FONT};font-size:13px;line-height:1.6;font-weight:bold;color:${B.beige}">${esc(dept)}</td>
       </tr></table>
     </td></tr>
     <tr><td style="font-size:0;line-height:0;padding:0"><img src="${a("email/pattern-talent-temptress-on-white.png")}" width="600" height="48" alt="" style="display:block;border:0;width:100%;height:auto"></td></tr>
@@ -162,7 +166,7 @@ ${fontFace}
     <tr><td class="b26-pad" style="padding:28px 30px 24px">${bodyHtml}</td></tr>
     <tr><td bgcolor="${B.temptress}" align="center" style="background-color:${B.temptress};${KEEP_DARK}padding:22px 24px 18px">
       <img src="${markSrc}" width="40" height="43" alt="" style="display:block;border:0;width:40px;height:auto;margin:0 auto 10px">
-      <div style="font-family:${FONT};font-size:14px;font-weight:bold;color:${B.beige}">${esc(opts.tagline ?? "تحوّل رقمي، برؤية طموحة.")}</div>
+      <div style="font-family:${FONT};font-size:14px;font-weight:bold;color:${B.beige}">${esc(opts.tagline ?? "نلتقي • نفكر • نصنع")}</div>
       ${handle ? `<div dir="ltr" style="font-family:${FONT};font-size:11px;color:${B.beige};margin-top:10px">@${esc(handle)}</div>` : ""}
     </td></tr>
   </table>

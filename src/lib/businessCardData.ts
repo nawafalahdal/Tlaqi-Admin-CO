@@ -3,7 +3,9 @@ import { roleTitle } from "@/lib/gender";
 import { departmentColor } from "@/lib/departmentColor";
 import { seniorDepartment, affiliationFor } from "@/lib/seniorAffiliation";
 import { defaultPortrait } from "@/lib/defaultPortraits";
+import sharp from "sharp";
 import { renderBusinessCard, type BusinessCardData } from "@/lib/shareCards";
+import { CARD_CONTENT_ID, CARD_INLINE_WIDTH } from "@/lib/cardInline";
 import { cardFingerprint, type BannerSubject } from "@/lib/bannerToken";
 import { firstName } from "@/lib/personName";
 import { employeeIdLabel } from "@/lib/employeeId";
@@ -146,4 +148,15 @@ export async function businessCardAttachment(subject: BannerSubject): Promise<{ 
   const card = await businessCardData(subject);
   if (!card) return null;
   return { filename: businessCardFileName(card.data.fullName), content: await renderBusinessCard(card.data) };
+}
+
+/** **البطاقةُ في رسالة الاعتماد** (البند ٢): مرفقٌ كاملُ الدقّة للحفظ والطباعة كما كان، **ومعه نسخةٌ بحجم البريد تُعرض في
+ *  وسط الرسالة** بمعرّف `cid:` — Gmail وApple Mail وOutlook يعرضونها مضمّنةً بلا تحميل صورٍ خارجية. */
+export async function businessCardAttachments(
+  subject: BannerSubject
+): Promise<Array<{ filename: string; content: Buffer; contentId?: string }> | null> {
+  const full = await businessCardAttachment(subject);
+  if (!full) return null;
+  const inline = await sharp(full.content).resize({ width: CARD_INLINE_WIDTH * 2 }).png({ compressionLevel: 9 }).toBuffer();
+  return [full, { filename: `inline-${full.filename}`, content: inline, contentId: CARD_CONTENT_ID }];
 }

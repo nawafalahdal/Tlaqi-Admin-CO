@@ -112,8 +112,10 @@ export function variantForKind(kind: string): EmailVariant {
   return KIND_VARIANT[kind] ?? "default";
 }
 
-/** التوقيعُ التعريفي الرسمي (قرار المؤسس، نوفمبر 2026) — يُذيَّل به كل رسالة. ويُضبط من البيئة دون نشرٍ جديد. */
-export const TAGLINE = process.env.BRAND_TAGLINE || "تحوّل رقمي، برؤية طموحة.";
+/** **العبارةُ الرسمية في تذييل كل رسالة** (قرار المؤسس ق٦، نوفمبر 2026): «نلتقي • نفكر • نصنع» بنصّها وترتيبها في قوالب
+ *  البريد كلِّها. **ثابتةٌ في الكود لا من البيئة:** القرارُ نصٌّ بعينه، ومتغيّرُ بيئةٍ يُبدّلها صامتاً يخالفه.
+ *  ولا تمسّ هذه القيمةُ شيئاً خارج قوالب البريد (تعليماتُ مساعد التسويق وغيرُها كما هي — ق٦). */
+export const TAGLINE = "نلتقي • نفكر • نصنع";
 
 /** الوسمُ الرسمي — كان يُشتقّ من الشعار اللفظي القديم («نلتقي · نفكّر · نصنع»). وبعد اعتماد التوقيع التعريفي
  *  الجديد («تحوّل رقمي، برؤية طموحة.») لا يصلح الاشتقاقُ وسماً (مسافاتٌ وفاصلة)، فثُبّت الوسمُ القائمُ كما هو حتى
@@ -223,7 +225,26 @@ export function toneForVariant(v: EmailVariant): EmailTone {
  *
  *  القسمُ من سجلّ المستلِم أو من موضوع الرسالة — ولا يُخمَّن. ومن لا قسم
  *  له يأخذ المهوجني، لونَ الفعل في الهوية. */
-export type EmailTheme = { departmentName?: string | null; colorHex?: string | null };
+export type EmailTheme = {
+  departmentName?: string | null;
+  colorHex?: string | null;
+  /** القسمُ الأصيل إن كان `departmentName` لجنة — ليُكتب «لجنة X — قسم Y» */
+  parentName?: string | null;
+  /** الإدارةُ العليا: اسمُها يُكتب كما هو */
+  leadershipOnly?: boolean;
+};
+
+/** **جهةُ الرسالة في ترويستها** (البند ٢): «قسم X»، أو «لجنة X — قسم Y»، أو اسمُ الإدارة العليا، وبلا جهة «إدارة TLAQI».
+ *  ولا يتكرّر اللفظ: «لجنة المحتوى» لا تصير «لجنة لجنة المحتوى». */
+export function emailSenderLabel(theme?: EmailTheme | null): string {
+  const name = theme?.departmentName?.trim();
+  if (!name) return "إدارة TLAQI";
+  const prefixed = (prefix: string, n: string) => (n.startsWith(prefix) || n.startsWith("الإدارة") ? n : `${prefix} ${n}`);
+  const parent = theme?.parentName?.trim();
+  if (parent) return `${prefixed("لجنة", name)} — ${prefixed("قسم", parent)}`;
+  if (theme?.leadershipOnly) return name;
+  return prefixed("قسم", name);
+}
 
 /** محتوى الرسالة — بنيةٌ لا HTML.
  *
@@ -472,8 +493,7 @@ export function renderEmail(opts: { subject: string; content: EmailContent; them
     fontFaceBase: assetUrl("/fonts/the-year-of-the-camel"),
     tagline: TAGLINE,
     handle: SOCIAL_LINKS[0]?.handle ?? null,
-    // الدائرةُ أسفل الرسالة بلون القسم أو اللجنة — والباقي ثابتٌ بالبنفسجي (قرار المؤسس)
-    markUrl: /^#[0-9A-Fa-f]{6}$/.test(opts.theme?.colorHex?.trim() ?? "") ? assetUrl(`/api/brand-mark/${opts.theme!.colorHex!.trim().slice(1).toUpperCase()}`) : null,
+    senderLabel: emailSenderLabel(opts.theme),
   });
 }
 

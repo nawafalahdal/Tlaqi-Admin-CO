@@ -69,8 +69,14 @@ const chk = (n: string, ok: boolean, extra = "") => checks.push(`${ok ? "✓" : 
     chk("**ومعها البطاقةُ الرسمية مرفقة**", !!att && att.filename === businessCardFileName("ريم الاختبارية"), att?.filename ?? "لا مرفق");
     const attMeta = att ? await sharp(att.content).metadata() : null;
     chk("والمرفقُ صورةُ البطاقة نفسها", attMeta?.format === "png" && attMeta.width === 1276, `${attMeta?.format} ${attMeta?.width}`);
-    chk("وسطرٌ في الرسالة يذكرها بجنسها", (welcome?.content.paragraphs ?? []).some((p) => p.includes("ومرفقةٌ بهذه الرسالة بطاقتُكِ الرسمية")));
-    chk("وجسمُ الرسالة بلا صورة (نصٌّ كما اعتُمد)", !welcome?.content.image);
+    chk("وسطرٌ في الرسالة يذكرها بجنسها", (welcome?.content.paragraphs ?? []).some((p) => p.includes("بطاقتُكِ الرسمية") && p.includes("مرفقةٌ")));
+    // تغييرُ توقّعٍ مقصود (قرار المؤسس، البند ٢ — نوفمبر 2026): **البطاقةُ تُعرض في وسط رسالة الاعتماد** مع بقاء المرفق.
+    // كان: «وجسمُ الرسالة بلا صورة». والعرضُ بمعرّف `cid:` لمرفقٍ مضمّنٍ بحجم البريد — لا رابطٌ خارجي
+    const inline = welcome?.attachments?.find((a) => a.contentId === "tlaqi-card");
+    const inlineMeta = inline ? await sharp(inline.content).metadata() : null;
+    chk("**والبطاقةُ في وسط الرسالة** بمعرّف cid", welcome?.content.image?.src === "cid:tlaqi-card", JSON.stringify(welcome?.content.image));
+    chk("ويقابلها مرفقٌ مضمّنٌ بحجم البريد (٥٢٠ بكسل)", inlineMeta?.format === "png" && inlineMeta.width === 520, `${inlineMeta?.format} ${inlineMeta?.width}`);
+    chk("والمرفقُ الكامل باقٍ للحفظ والطباعة", (welcome?.attachments ?? []).some((a) => !a.contentId && a.filename === businessCardFileName("ريم الاختبارية")));
 
     // ── القائد/الإدارة العليا: بطاقتُه بقسم انتمائه، ومرفقةٌ بترحيبه
     const exec = await prisma.user.findFirst({ where: { role: "executive", isActive: true } });

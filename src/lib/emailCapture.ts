@@ -5,7 +5,8 @@ import type { EmailContent, EmailTheme } from "@/lib/emailBrand";
  *  دالتُها الحقيقية (عنوانها ومحتواها ونوعها) لتُعرض في مركز مراجعة الهوية بالقالبين القديم والجديد.
  *  فالمعاينةُ لا تكتب نصّاً موازياً للرسالة: نصُّها نصُّ الرسالة نفسها، بمتغيّراتٍ تجريبية. */
 /** ملفٌّ مرفقٌ بالرسالة — كالبطاقة الرسمية مع رسالة الترحيب */
-export type EmailAttachment = { filename: string; content: Buffer };
+/** `contentId`: مرفقٌ يُعرض داخل الرسالة (`cid:…`) — البطاقةُ الرسمية في رسالة الاعتماد */
+export type EmailAttachment = { filename: string; content: Buffer; contentId?: string };
 export type CapturedEmail = {
   to: string[];
   subject: string;

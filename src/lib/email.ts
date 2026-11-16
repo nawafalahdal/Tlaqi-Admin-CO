@@ -17,6 +17,7 @@ import { firstName } from "@/lib/personName";
 import { forms, gx, positionTitle, roleTitle, type MaybeGender } from "@/lib/gender";
 import { emailAllowed, policyReason, type EmailEvent } from "@/lib/emailPolicy";
 import { resultOf, type SendResult } from "@/lib/emailOutcome";
+import { CARD_CONTENT_ID, CARD_INLINE_HEIGHT, CARD_INLINE_WIDTH } from "@/lib/cardInline";
 import { capturingEmails, type EmailAttachment } from "@/lib/emailCapture";
 import { deploymentEnv, emailRecipientsAllowed } from "@/lib/deploymentEnv";
 
@@ -150,9 +151,13 @@ type Recipient = {
   role: string | null;
   departmentName: string | null;
   colorHex: string | null;
+  /** للترويسة: قسمُ اللجنة الأصيل، والإدارةُ العليا (`emailSenderLabel`) */
+  parentName?: string | null;
+  leadershipOnly?: boolean;
 };
 
 const NO_RECIPIENT: Recipient = { gender: null, role: null, departmentName: null, colorHex: null };
+const DEPT_SELECT = { name: true, colorHex: true, leadershipOnly: true, parent: { select: { name: true, colorHex: true } } } as const;
 
 async function recipientOf(to: string | string[]): Promise<Recipient> {
   const list = (Array.isArray(to) ? to : [to]).filter(Boolean);
@@ -161,7 +166,7 @@ async function recipientOf(to: string | string[]): Promise<Recipient> {
   try {
     const user = await prisma.user.findFirst({
       where: { email },
-      select: { gender: true, role: true, department: { select: { name: true, colorHex: true, parent: { select: { colorHex: true } } } } },
+      select: { gender: true, role: true, department: { select: DEPT_SELECT } },
     });
     if (user) {
       return {
@@ -169,6 +174,8 @@ async function recipientOf(to: string | string[]): Promise<Recipient> {
         role: user.role,
         departmentName: user.department?.name ?? null,
         colorHex: user.department ? departmentColor(user.department) : null,
+        parentName: user.department?.parent?.name ?? null,
+        leadershipOnly: !!user.department?.leadershipOnly,
       };
     }
     const member = await prisma.member.findFirst({
@@ -176,7 +183,7 @@ async function recipientOf(to: string | string[]): Promise<Recipient> {
       select: {
         gender: true,
         invite: { select: { targetRole: true } },
-        department: { select: { name: true, colorHex: true, parent: { select: { colorHex: true } } } },
+        department: { select: DEPT_SELECT },
       },
     });
     if (member) {
@@ -185,6 +192,8 @@ async function recipientOf(to: string | string[]): Promise<Recipient> {
         role: member.invite.targetRole,
         departmentName: member.department?.name ?? null,
         colorHex: member.department ? departmentColor(member.department) : null,
+        parentName: member.department?.parent?.name ?? null,
+        leadershipOnly: !!member.department?.leadershipOnly,
       };
     }
   } catch (err) {
@@ -194,7 +203,7 @@ async function recipientOf(to: string | string[]): Promise<Recipient> {
 }
 
 function themeOf(r: Recipient): EmailTheme {
-  return { departmentName: r.departmentName, colorHex: r.colorHex };
+  return { departmentName: r.departmentName, colorHex: r.colorHex, parentName: r.parentName ?? null, leadershipOnly: r.leadershipOnly ?? false };
 }
 
 
@@ -263,7 +272,9 @@ async function send(
       // النسخة النصّية ليست ترفاً: رسالة HTML بلا بديل نصّي علامةٌ معروفة
       // عند مرشّحات السبام، وتصل مشوّهة لمن يقرأ بالنص المجرّد
       text: htmlToText(bodyHtml),
-      ...(attachments?.length ? { attachments: attachments.map((a) => ({ filename: a.filename, content: a.content })) } : {}),
+      ...(attachments?.length
+        ? { attachments: attachments.map((a) => ({ filename: a.filename, content: a.content, ...(a.contentId ? { contentId: a.contentId } : {}) })) }
+        : {}),
       headers: {
         // يمنع تجميع الرسائل المتتابعة في خيط واحد عند Gmail
         "X-Entity-Ref-ID": `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -1341,6 +1352,8 @@ export async function sendLoginCodeEmail(opts: {
 export type WelcomeEmailOpts = {
   /** البطاقةُ الرسمية مرفقةٌ بالرسالة؟ — فيُذكر ذلك بسطرٍ واحد (قرار المؤسس، نوفمبر 2026) */
   withCard?: boolean;
+  /** البطاقةُ مرفقةٌ أيضاً بمعرّف `cid:` فتُعرض في وسط الرسالة (البند ٢) */
+  cardInline?: boolean;
   fullName: string;
   roleLabel: string;
   jobTitle?: string | null;
@@ -1404,8 +1417,18 @@ function welcomeContent(opts: WelcomeEmailOpts): { subject: string; content: Ema
         : `نعيد إليك رسالة اعتماد انضمامك إلى ${where} بمهمة <b>${esc(task)}</b>${since}.`,
       paragraphs: [
         `ومن اليوم ${G("أنت", "أنتِ", "أنت")} جزءٌ من فريق TLAQI — أهلاً ${f.you} بيننا، ونتطلّع إلى ما سنصنعه معاً.`,
-        ...(opts.withCard ? [`ومرفقةٌ بهذه الرسالة بطاقتُ${G("ك", "كِ", "ك")} الرسمية في TLAQI.`] : []),
+        ...(opts.withCard
+          ? [
+              opts.cardInline
+                ? `وهذه بطاقتُ${G("ك", "كِ", "ك")} الرسمية في TLAQI — ومرفقةٌ بالرسالة أيضاً بدقّتها الكاملة للحفظ والطباعة.`
+                : `ومرفقةٌ بهذه الرسالة بطاقتُ${G("ك", "كِ", "ك")} الرسمية في TLAQI.`,
+            ]
+          : []),
       ],
+      // **البطاقةُ في وسط رسالة الاعتماد** (البند ٢) — صورةٌ مضمّنةٌ بمعرّف `cid:` لا رابطٌ خارجي
+      ...(opts.withCard && opts.cardInline
+        ? { image: { src: `cid:${CARD_CONTENT_ID}`, width: CARD_INLINE_WIDTH, height: CARD_INLINE_HEIGHT, alt: `البطاقة الرسمية — ${opts.fullName}` } }
+        : {}),
     },
   };
 }
@@ -1417,7 +1440,11 @@ export function renderWelcomeEmail(opts: WelcomeEmailOpts): string {
 }
 
 export async function sendWelcomeEmail(opts: WelcomeEmailOpts & { to: string; attachments?: EmailAttachment[] }) {
-  const w = welcomeContent({ ...opts, withCard: opts.withCard ?? Boolean(opts.attachments?.length) });
+  const w = welcomeContent({
+    ...opts,
+    withCard: opts.withCard ?? Boolean(opts.attachments?.length),
+    cardInline: opts.cardInline ?? Boolean(opts.attachments?.some((a) => a.contentId === CARD_CONTENT_ID)),
+  });
   return send(
     opts.to,
     w.subject,

@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { WELCOME_MAX_SENDS } from "@/lib/welcomeResend";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { sendWelcomeEmail } from "@/lib/email";
-import { businessCardAttachment } from "@/lib/businessCardData";
+import { businessCardAttachments } from "@/lib/businessCardData";
 import { accountRoleLabel } from "@/lib/testTracks";
 import { departmentBrand } from "@/lib/departmentBrand";
 import { syncAdminAccountRow, syncMemberLifecycleRow } from "@/lib/workflow";
@@ -301,7 +301,7 @@ const ALREADY_SENT =
 /** البطاقةُ الرسمية مرفقاً لرسالة الترحيب — `null` إن تعذّر رسمُها: الترحيبُ يصل بلا مرفقٍ ولا يتعطّل لأجله */
 async function welcomeCardAttachment(subject: WelcomeSubject) {
   try {
-    return await businessCardAttachment(subject);
+    return await businessCardAttachments(subject);
   } catch (err) {
     console.error("[welcome] تعذّر رسمُ البطاقة الرسمية — يُرسَل الترحيبُ بدونها:", err instanceof Error ? err.message : err);
     return null;
@@ -339,7 +339,7 @@ export async function sendWelcomePack(
     // البطاقةُ الرسمية مرفقةً (قرار المؤسس) — وتعذُّرُ رسمها لا يمنع الترحيب
     const card = await welcomeCardAttachment(subject);
     const sent = await sendWelcomeEmail({
-      ...(card ? { attachments: [card] } : {}),
+      ...(card ? { attachments: card } : {}),
       to: user.email,
       fullName: user.fullName,
       roleLabel,
@@ -416,7 +416,7 @@ export async function sendWelcomePack(
 
   const card = await welcomeCardAttachment(subject);
   const sent = await sendWelcomeEmail({
-    ...(card ? { attachments: [card] } : {}),
+    ...(card ? { attachments: card } : {}),
     to: member.email,
     fullName: member.fullName,
     roleLabel,
