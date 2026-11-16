@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { isCandidateSession } from "@/lib/candidateGate";
 import { getDictionary, getLocale } from "@/i18n/server";
 import { shareCardUrl, type BannerSubject } from "@/lib/bannerToken";
 import { businessCardData } from "@/lib/businessCardData";
@@ -18,7 +19,8 @@ export default async function CardPrintPage({ searchParams }: { searchParams: Pr
   const session = await auth();
   if (!session) redirect("/login?callbackUrl=%2Fcard%2Fprint");
   const home = session.user.role === "member" ? "/member" : "/admin/profile";
-  if (!MY_CARD_READY) redirect(home);
+  // المرشّحُ قبل اعتماده لا بطاقةَ له — يحجبه الوكيلُ أولاً، وهنا ثانيةً (دفاعٌ في العمق كإجراءات الخادم)
+  if (isCandidateSession(session) || !MY_CARD_READY) redirect(home);
   const T = getDictionary(await getLocale()).cardPrint;
   const subject: BannerSubject = { kind: session.user.role === "member" ? "member" : "user", id: session.user.id };
   const card = await businessCardData(subject);
