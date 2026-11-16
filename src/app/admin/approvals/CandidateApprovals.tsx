@@ -5,6 +5,8 @@ import { canDecideCandidate } from "@/lib/permissions";
 import { authoritiesFor, decisionViewer } from "@/lib/candidateDecision";
 import { BRAND, themeFromColor } from "@/lib/brand";
 import { NeedsMeetingRow } from "@/app/admin/departments/[slug]/NeedsMeetingRow";
+import { SeniorPositionDecisionRow } from "./SeniorPositionDecisionRow";
+import { seniorPositionsAwaitingDecision } from "@/lib/assessments";
 import { getLocale, getDictionary } from "@/i18n/server";
 import { ApprovalQueue } from "../ApprovalQueue";
 import { IncompletePromotionRow } from "./IncompletePromotionRow";
@@ -60,6 +62,8 @@ export async function CandidateApprovals({ session }: { session: Session }) {
   const leadership = mine(allLeadership);
   const members = mine(memberQueue);
   const failed = mine(allFailed);
+  // مناصبُ الإدارة العليا لأصحاب حساباتٍ قائمة — بعد تسليم اختبارهم (جهةُ الاعتماد المستقلة وحدها)
+  const positions = viewer.designatedApprover ? await seniorPositionsAwaitingDecision() : [];
   if (!viewer.designatedApprover && viewer.role !== "department_admin") return null;
 
   return (
@@ -113,6 +117,29 @@ export async function CandidateApprovals({ session }: { session: Session }) {
           }))}
         />
       </div>
+      {positions.length > 0 && (
+        <div>
+          <h2 className="text-base font-bold">مناصبُ الإدارة العليا بانتظار التفعيل ({positions.length})</h2>
+          <p className="mb-3 mt-1 text-xs text-black/40">
+            أصحابُ حساباتٍ قائمة قبلوا منصباً واختبروا — عضويتُهم القائمة لا تُمسّ، والمنصبُ لا يُفعَّل إلا باعتمادك.
+          </p>
+          <div className="flex flex-col gap-3">
+            {positions.map((p) => (
+              <SeniorPositionDecisionRow
+                key={p.id}
+                item={{
+                  id: p.id,
+                  name: p.member?.fullName ?? p.user?.fullName ?? "—",
+                  email: p.member?.email ?? p.user?.email ?? "",
+                  title: p.seniorPosition?.titleAr ?? "",
+                  score: p.score,
+                  passed: p.status === "passed",
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
       {failed.length > 0 && (
         <div>
           <h2 className="text-base font-bold">لم يجتازوا الاختبار ({failed.length})</h2>

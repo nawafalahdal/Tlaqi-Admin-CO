@@ -72,6 +72,11 @@ export default async function SeniorInvitePage({ params }: { params: Promise<{ t
                 {p.capabilities.map((c) => <li key={c}>{CAP_LABEL[c] ?? c}</li>)}
               </ul>
             </div>
+            {/* القبولُ ليس اعتماداً (قرار المؤسس، ق٢) — يُقال قبل القبول لا بعده */}
+            <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-950">
+              بعد القبول: {hasAccount ? "يظهر لك اختبارُ الإدارة العليا في صفحتك — وعضويتُك القائمة كما هي" : "تُكمل بياناتِك ثم اختبارَ الإدارة العليا"}،
+              ثم تحسم جهةُ الاعتماد المستقلة طلبَك — ولا يُفعَّل المنصبُ قبل ذلك.
+            </p>
             <AcceptForm token={token} needsPassword={!hasAccount} signedIn={!!session} />
           </div>
         )}

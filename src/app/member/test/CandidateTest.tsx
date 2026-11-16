@@ -14,10 +14,16 @@ export function CandidateTest({
   roleLabel,
   questions,
   theme,
+  submit,
+  resultBody,
 }: {
   roleLabel: string;
   questions: Question[];
   theme: Theme;
+  /** تسليمٌ آخر غيرُ اختبار القبول — اختبارُ العضو القائم (`submitAssessmentAction` مربوطاً بتكليفه) */
+  submit?: (answers: Record<string, number>) => Promise<{ ok: boolean; score: number; passed: boolean; error?: string | null }>;
+  /** نصُّ ما بعد النتيجة إن اختلف عن اختبار القبول («بانتظار الاعتماد» لا تصدق على اختبار التقييم) */
+  resultBody?: { passed: string; failed: string };
 }) {
   const t = useTranslations();
   const [qIndex, setQIndex] = useState(0);
@@ -34,7 +40,7 @@ export function CandidateTest({
   async function handleSubmit() {
     setPending(true);
     setError(null);
-    const res = await submitCandidateTestAction(answers);
+    const res = await (submit ?? submitCandidateTestAction)(answers);
     setPending(false);
     if (!res.ok) {
       setError(res.error ?? t.invite.genericError);
@@ -66,7 +72,7 @@ export function CandidateTest({
           {t.invite.scoreLabel}: {result.score}%
         </p>
         <p className="mx-auto max-w-sm text-sm leading-relaxed text-black/60">
-          {result.passed ? t.invite.passedBody : t.invite.failedBody}
+          {result.passed ? resultBody?.passed ?? t.invite.passedBody : resultBody?.failed ?? t.invite.failedBody}
         </p>
       </div>
     );

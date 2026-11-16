@@ -355,6 +355,11 @@ export async function approveMember(memberId: string, decidedBy?: DecidedBy) {
     include: { department: true, invite: true },
   });
   if (decidedBy) await recordDecision(member, "approved", decidedBy);
+  // منصبُ الإدارة العليا الذي قبله المرشّحُ الجديد يُفعَّل باعتماده (لا بقبول الدعوة — ق٢)
+  {
+    const { settleSeniorPositionsOf } = await import("@/lib/governance/senior");
+    await settleSeniorPositionsOf(member.id, "approved", decidedBy?.name ?? "المنصة");
+  }
   // الاعتمادُ يجعله موظفاً: رقمُه الوظيفي التالي — قبل رسالة الترحيب التي تحمل بطاقتَه
   await assignMemberEmployeeNo(prisma, member.id);
 
@@ -611,6 +616,10 @@ export async function rejectMember(memberId: string, decidedBy?: DecidedBy) {
     data: { approvalStatus: "rejected", decidedAt: new Date(), ...decidedFields(decidedBy) },
   });
   if (decidedBy) await recordDecision(member, "rejected", decidedBy);
+  {
+    const { settleSeniorPositionsOf } = await import("@/lib/governance/senior");
+    await settleSeniorPositionsOf(member.id, "rejected", decidedBy?.name ?? "المنصة");
+  }
   const { autoCloseRequests } = await import("@/lib/requests");
   await autoCloseRequests({ memberId, type: "meeting", note: "رُفض المرشّح — انتهت الحاجة إلى الاجتماع" });
   await appendMemberEvent({

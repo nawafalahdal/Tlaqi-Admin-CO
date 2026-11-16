@@ -2,7 +2,6 @@ import { createHash, randomBytes } from "node:crypto";
 import type { Prisma, SeniorCapability, SeniorPositionStatus } from "@prisma/client";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
-import { assignMemberEmployeeNo } from "@/lib/employeeId";
 import { recordOrgEvent, diffFields } from "@/lib/org/audit";
 import { hashPassword } from "@/lib/credentials";
 import { appBaseUrl } from "@/lib/emailBrand";
@@ -397,13 +396,17 @@ export async function acceptSeniorInvitation(
   const email = p.inviteEmail.toLowerCase();
   const [user, member] = await Promise.all([
     prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } }, select: { id: true, isActive: true, role: true, fullName: true } }),
-    prisma.member.findFirst({ where: { email: { equals: email, mode: "insensitive" } }, select: { id: true, isActive: true, terminatedAt: true, fullName: true } }),
+    prisma.member.findFirst({ where: { email: { equals: email, mode: "insensitive" } }, select: { id: true, isActive: true, terminatedAt: true, fullName: true, approvalStatus: true } }),
   ]);
   const session = opts.session;
   let holder: { kind: "user" | "member"; id: string; name: string } | null = null;
   let mode: "linked" | "created" = "linked";
   let newPasswordHash: string | null = null;
 
+  // مرشّحٌ لم يُحسم أمرُه بعد بهذا البريد: لا يُضاف إليه منصبٌ حتى يُحسم ترشّحُه
+  if (!user?.isActive && member && member.isActive && !member.terminatedAt && member.approvalStatus !== "approved") {
+    return fail("لهذا البريد ترشّحٌ قائمٌ لم يُحسم بعد — يُقبل المنصبُ بعد حسمه");
+  }
   if (user?.isActive || (member && member.isActive && !member.terminatedAt)) {
     // حسابٌ قائمٌ بهذا البريد: يقبل صاحبُه بعد الدخول به — لا أحدٌ غيرُه
     const sid = session?.user?.id;
@@ -424,46 +427,53 @@ export async function acceptSeniorInvitation(
   const now = new Date();
   try {
     await prisma.$transaction(async (tx) => {
+      // **قبولُ الدعوة ليس اعتماداً** (قرار المؤسس، ق٢): عضوُ الإدارة العليا يختبر كغيره ببنكها، ثم تحسمه جهةُ الاعتماد
+      // المستقلة — لا المؤسسُ ولا الرئيس. والمنصبُ يبقى «بانتظار» حتى ذلك. كان القبولُ يعتمده فيدخل المنصة بلا اختبار.
+      const { seniorTrack, assignSeniorPositionAssessment } = await import("@/lib/assessments");
+      const track = await seniorTrack(tx);
+      if (!track) throw new Error("NO_SENIOR_BANK");
       if (mode === "created") {
-        // عضوٌ جديد في الإدارة العليا — الدعوةُ هي الاعتماد (لا اختبار)، والبريدُ مثبَتٌ بالرابط
-        // بنكُ الإدارة العليا نفسُها إن أُنشئ — وإلا أقدمُ بنكٍ قائم (الحقلُ إلزاميٌّ في الدعوة ولا اختبارَ هنا)
-        const track =
-          (await tx.testTrack.findFirst({ where: { scope: "department_member", departmentId: p.departmentId }, select: { id: true } })) ??
-          (await tx.testTrack.findFirst({ where: { scope: "department_member" }, orderBy: { createdAt: "asc" }, select: { id: true } }));
-        if (!track) throw new Error("NO_TRACK");
+        // مرشّحٌ جديد: حسابٌ بكلمته (البريدُ مثبَتٌ بالرابط) — يُكمل بياناتِه ثم اختبارَ الإدارة العليا، ثم يُحسم
         const inv = await tx.invite.create({
           data: { fullName: p.inviteName, email, targetRole: "member", departmentId: p.departmentId, testTrackId: track.id, invitedById: p.invitedById, status: "used" },
         });
         const m = await tx.member.create({
           data: {
             fullName: p.inviteName, email, departmentId: p.departmentId, inviteId: inv.id, passwordHash: newPasswordHash!,
-            mustChangePassword: false, approvalStatus: "approved", decidedAt: now, credentialsIssuedAt: now, isActive: true, jobTitle: p.titleAr,
+            mustChangePassword: false, approvalStatus: "pending_review", testStatus: "not_started", credentialsIssuedAt: now,
+            isActive: true, jobTitle: p.titleAr,
           },
           select: { id: true, fullName: true },
         });
-        // موظفٌ من لحظة قبوله: رقمُ حسابه الإداري إن كان له، وإلا التالي
-        const twin = await tx.user.findUnique({ where: { email }, select: { employeeNo: true, isActive: true } });
-        await assignMemberEmployeeNo(tx, m.id, twin?.isActive ? twin.employeeNo : null);
+        // الرقمُ الوظيفيُّ عند الاعتماد لا عند القبول (`approveMember`) — المرشّحُ ليس موظفاً بعد
         holder = { kind: "member", id: m.id, name: m.fullName };
       }
       const h = holder!;
       const w = await tx.seniorPosition.updateMany({
         where: { id: p.id, status: "pending", inviteState: { in: ["sent", "opened"] } },
         data: {
-          status: "active", inviteState: "accepted", acceptedAt: now, inviteTokenHash: null, startDate: p.startDate ?? now,
+          // يبقى «بانتظار» — يُفعَّل باعتماد جهة الاعتماد بعد الاختبار (`settleSeniorPositionsOf`، `decideSeniorPositionAssessment`)
+          inviteState: "accepted", acceptedAt: now, inviteTokenHash: null,
           ...(h.kind === "member" ? { holderMemberId: h.id } : { holderUserId: h.id }),
         },
       });
       if (!w.count) throw new Error("RACE");
+      // صاحبُ حسابٍ قائم: اختبارُ الإدارة العليا على حسابه هو — وعضويتُه وصلاحياتُه القائمة لا تُمسّ
+      if (mode === "linked") {
+        await assignSeniorPositionAssessment(tx, {
+          owner: { kind: h.kind, id: h.id }, positionId: p.id, trackId: track.id,
+          invitedById: p.invitedById, invitedByName: p.invitedByName, titleAr: p.titleAr,
+        });
+      }
       await recordOrgEvent(tx, {
         scope: "senior", entityId: p.id, departmentId: p.departmentId, action: "senior.invite.accept",
         actor: { kind: h.kind, id: h.id, name: h.name, role: h.kind === "member" ? "member" : null },
-        before: { state: p.inviteState }, after: { state: "accepted", holder: h.name, mode, titleAr: p.titleAr },
+        before: { state: p.inviteState }, after: { state: "accepted", holder: h.name, mode, titleAr: p.titleAr, awaiting: "test_and_approval" },
       });
     });
   } catch (e) {
     if (String(e).includes("RACE")) return fail("قُبلت الدعوة للتوّ أو تغيّرت — حدّث الصفحة");
-    if (String(e).includes("NO_TRACK")) return fail("تعذّر إنشاء الحساب — لا مسارَ في المنصة؛ تواصل مع الإدارة");
+    if (String(e).includes("NO_SENIOR_BANK")) return fail("بنكُ أسئلة الإدارة العليا بلا أسئلة بعد — يُضيفها قائدُها ثم تُقبل الدعوة");
     throw e;
   }
   return { ok: true, mode };
@@ -497,4 +507,32 @@ export async function seniorBoard(includeInvitations: boolean) {
       holderName: p.holderMember?.fullName ?? p.holderUser?.fullName ?? null,
     })),
   };
+}
+
+/** **حسمُ مناصب المرشّح الجديد مع حسم ترشّحه** — يُنادى من `approveMember` و`rejectMember`: الاعتمادُ يفعّل منصبَه
+ *  المقبول (بتاريخ بدئه أو اليوم)، والرفضُ يُنهيه بسببه. وكلاهما في سجلّ التدقيق. */
+export async function settleSeniorPositionsOf(memberId: string, decision: "approved" | "rejected", byName: string) {
+  const pending = await prisma.seniorPosition.findMany({
+    where: { holderMemberId: memberId, status: "pending", inviteState: "accepted" },
+    select: { id: true, departmentId: true, startDate: true },
+  });
+  const now = new Date();
+  for (const p of pending) {
+    const w = await prisma.seniorPosition.updateMany({
+      where: { id: p.id, status: "pending" },
+      data:
+        decision === "approved"
+          ? { status: "active", startDate: p.startDate ?? now }
+          : { status: "ended", endedAt: now, endedByName: byName, endReason: "رُفض المرشّح بعد اختبار الإدارة العليا" },
+    });
+    if (w.count) {
+      await recordOrgEvent(prisma, {
+        scope: "senior", entityId: p.id, departmentId: p.departmentId,
+        action: decision === "approved" ? "senior.position.approved" : "senior.position.rejected",
+        actor: { kind: "system", id: "system", name: byName, role: "system" },
+        before: { status: "pending" }, after: { status: decision === "approved" ? "active" : "ended", member: memberId },
+      });
+    }
+  }
+  return pending.length;
 }

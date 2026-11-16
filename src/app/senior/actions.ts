@@ -83,8 +83,9 @@ export async function setPositionStatusAction(_p: FormState, fd: FormData): Prom
 export async function acceptInviteAction(_p: FormState, fd: FormData): Promise<FormState> {
   const token = s(fd, "token");
   let mode: "linked" | "created";
+  const ses = await auth();
   try {
-    const res = await acceptSeniorInvitation(token, { session: await auth(), password: s(fd, "password") });
+    const res = await acceptSeniorInvitation(token, { session: ses, password: s(fd, "password") });
     if (!res.ok) return { error: res.reason, success: false };
     mode = res.mode;
   } catch (err) {
@@ -92,7 +93,9 @@ export async function acceptInviteAction(_p: FormState, fd: FormData): Promise<F
   }
   revalidatePath("/senior");
   await queueGovernanceSync("قبول دعوة الإدارة العليا");
-  redirect(mode === "created" ? "/login?callbackUrl=%2Fsenior" : "/senior");
+  // القبولُ لا يفعّل المنصب (ق٢): الجديدُ يدخل ليُكمل بياناته ثم اختبارَ الإدارة العليا، وصاحبُ الحساب القائم يجد
+  // اختبارَه في صفحته — ويُفعَّل المنصبُ بعد اعتماد جهة الاعتماد المستقلة
+  redirect(mode === "created" ? "/login?callbackUrl=%2Fmember" : ses?.user.role === "member" ? "/member" : "/admin/profile");
 }
 
 /** مزامنةُ تبويبات الحوكمة الآن — للمؤسس والرئيس التنفيذي (والنتيجةُ في سجل المزامنة) */

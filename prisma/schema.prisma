@@ -472,6 +472,7 @@ model User {
   committeesActingLead Department[] @relation("CommitteeActingLead")
   seniorLeaderOf       Department[]     @relation("SeniorLeader")
   seniorPositions      SeniorPosition[] @relation("SeniorPositionUser")
+  assessmentAssignments AssessmentAssignment[]
 }
 
 /// دعوة مقفلة بالاسم والإيميل — لا تسجيل عام. targetRole يحدد المسار:
@@ -666,6 +667,7 @@ model Member {
 
   // الكنس اليومي يسأل: من لم تصله شهادة تقديره؟ فيُجاب رخيصاً
   @@index([appreciationSentAt])
+  assessmentAssignments AssessmentAssignment[]
 }
 
 /// **سجلُّ الشهادات الصادرة** — لكل شهادةٍ رقمُها وصورتُها كما طُبعت.
@@ -760,6 +762,67 @@ model TestAttempt {
 
 /// بنك أسئلة قابل للتعديل حسب المستوى: اختبار أعضاء قسم معيّن (يعدّله أدمن ذلك
 /// القسم)، اختبار قادة الأقسام (يعدّله التنفيذي), اختبار التنفيذيين (يعدّله المؤسس فقط)
+/// غرضُ اختبار العضو القائم
+enum AssessmentPurpose {
+  /// تقييمٌ واطّلاعٌ فقط — لا يغيّر عضويةً ولا صلاحيةً ولا يعيد فتح اعتماد (ق٧)
+  evaluation
+  /// قبولُ منصبٍ في الإدارة العليا من صاحب حسابٍ قائم — يُحال بعد الاجتياز إلى جهة الاعتماد المستقلة لتفعيله
+  senior_position
+}
+
+enum AssessmentStatus {
+  assigned
+  passed
+  failed
+  cancelled
+}
+
+/// **اختبارٌ لعضوٍ قائم** (قرار المؤسس، نوفمبر 2026 — ١.٢): يُكلَّف به صاحبُ حسابٍ معتمدٍ قائم على حسابه هو — بلا دعوةٍ
+/// ولا حسابٍ جديد، ولا يمسّ حالةَ عضويته. ببنوك الأسئلة القائمة (`TestTrack`) وحسابها (`scoreAnswers`).
+/// صاحبُه سجلُّ عضوية أو حسابٌ إداري (قائدُ قسمٍ يقبل منصباً في الإدارة العليا) — واحدٌ منهما.
+model AssessmentAssignment {
+  id               String              @id @default(cuid())
+  memberId         String?
+  member           Member?             @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  userId           String?
+  user             User?               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  trackId          String
+  track            TestTrack           @relation(fields: [trackId], references: [id], onDelete: Restrict)
+  purpose          AssessmentPurpose
+  /// سببُ التكليف والغرضُ منه — يُكتب ولا يُفترض
+  reason           String
+  /// التكليفُ الذي ينتظر الاجتيازَ والاعتماد (`senior_position`)
+  seniorPositionId String?
+  seniorPosition   SeniorPosition?     @relation(fields: [seniorPositionId], references: [id], onDelete: Restrict)
+  status           AssessmentStatus    @default(assigned)
+  score            Int?
+  completedAt      DateTime?
+  createdById      String
+  createdByName    String
+  createdAt        DateTime            @default(now())
+  cancelledAt      DateTime?
+  cancelledByName  String?
+  cancelReason     String?
+  attempts         AssessmentAttempt[]
+
+  @@index([memberId, status])
+  @@index([userId, status])
+  @@index([seniorPositionId])
+}
+
+/// محاولةٌ في اختبار عضوٍ قائم — إجاباتُه ودرجتُه ووقتُها (لا تختلط بمحاولات القبول `TestAttempt`)
+model AssessmentAttempt {
+  id           String               @id @default(cuid())
+  assignmentId String
+  assignment   AssessmentAssignment @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  answers      Json
+  score        Int
+  passed       Boolean
+  attemptedAt  DateTime             @default(now())
+
+  @@index([assignmentId])
+}
+
 model TestTrack {
   id           String         @id @default(cuid())
   scope        TestTrackScope
@@ -771,6 +834,7 @@ model TestTrack {
   invites   Invite[]
 
   @@unique([scope, departmentId])
+  assessments AssessmentAssignment[]
 }
 
 model TestQuestion {
@@ -3070,6 +3134,7 @@ model SeniorPosition {
   @@index([status])
   @@index([holderMemberId])
   @@index([holderUserId])
+  assessmentAssignments AssessmentAssignment[]
 }
 
 // ═════════════════════════════════════════════════════════════════════

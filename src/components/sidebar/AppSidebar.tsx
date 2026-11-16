@@ -90,6 +90,7 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
     canSenior: seniorCaps.has("board_view"),
     canGovernanceLog: seniorCaps.has("governance_log_view"),
     canMembershipDecide: seniorCaps.has("membership_decide"),
+    canAssessments: session.user.role === "super_admin" || session.user.role === "executive",
     canAgreementsAdmin: seniorCaps.has("agreements_view") || seniorCaps.has("agreements_manage"),
   };
   const avatar = avatarUrl(isMember ? "member" : "user", session.user.id, stamp?.avatarVersion);

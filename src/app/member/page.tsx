@@ -12,6 +12,7 @@ import { WelcomeMailCard } from "@/components/WelcomeMailCard";
 import { SecurityGuidance } from "@/components/SecurityGuidance";
 import { AvatarUpload } from "@/components/AvatarUpload";
 import { AlertsPanel } from "@/components/AlertsPanel";
+import { MyAssessments } from "@/components/MyAssessments";
 import { alertsForMember } from "@/lib/alerts";
 import { MyTasks } from "@/components/execution/MyTasks";
 import { myTasks } from "@/lib/executionViews";
@@ -117,6 +118,9 @@ export default async function MemberPortalPage() {
 
         {/* ما ينتظره أوّلاً — ولا يُقرأ بالتجوال في الصفحات */}
         <AlertsPanel alerts={alerts} />
+
+        {/* اختبارٌ مطلوبٌ منك (تقييمٌ أو منصبٌ في الإدارة العليا) — لا يمسّ عضويتك */}
+        <MyAssessments session={session} />
 
         {/* ما عليه هذا الأسبوع — بمعاييره وأدلّته */}
         <MyTasks tasks={tasks} theme={theme} />

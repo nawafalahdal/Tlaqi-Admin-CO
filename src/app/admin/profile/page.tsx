@@ -11,6 +11,7 @@ import { formatDate } from "@/lib/format";
 import { AdminProfileForm } from "./ProfileForm";
 import { seniorDepartment, affiliationFor } from "@/lib/seniorAffiliation";
 import { PageHeader } from "@/components/PageHeader";
+import { MyAssessments } from "@/components/MyAssessments";
 import { avatarHasTransparency } from "@/lib/avatars";
 import { WELCOME_MAX_SENDS, resenderRoleFor } from "@/lib/welcomeResend";
 import { WelcomeMailCard } from "@/components/WelcomeMailCard";
@@ -63,6 +64,9 @@ export default async function AdminProfilePage() {
             <a href="#edit" className="wizard-btn-2">{L.editYourDetails}</a>
           }
         />
+
+        {/* اختبارٌ مطلوبٌ منك (اختبارُ العضو القائم أو منصبُ الإدارة العليا) — لا يمسّ حسابك */}
+        <MyAssessments session={session} />
 
         {/* الهوية في سطرٍ واحد: من أنت في الفريق — كبطاقة ملف الشخص تماماً */}
         <Card className="flex flex-wrap items-center gap-4 p-5" style={{ borderTop: `5px solid ${identityColor}` }}>

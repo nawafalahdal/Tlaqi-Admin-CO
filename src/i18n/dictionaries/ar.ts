@@ -29,6 +29,7 @@ export const ar = {
       senior: "الإدارة العليا",
       governanceLog: "سجل الحوكمة",
       membershipDecide: "اعتماد العضوية",
+      assessments: "اختبارات الأعضاء",
       agreements: "الاتفاقيات",
     },
     groups: {

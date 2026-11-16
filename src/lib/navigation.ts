@@ -62,7 +62,7 @@ export type NavGroup = (typeof NAV_GROUPS)[number];
 /** أسماءُ البنود — من القاموس (`shell.nav`)، لا مكتوبةً هنا */
 export type NavLabels = Record<
   "home" | "opsHome" | "members" | "myDeptMembers" | "approvals" | "departments" | "execution" | "calendar" |
-  "reports" | "plans" | "tickets" | "structure" | "committees" | "invites" | "messages" | "terminations" | "signature" | "welcomeCards" | "onboarding" | "sheet" | "marketing" | "senior" | "governanceLog" | "membershipDecide" | "agreements",
+  "reports" | "plans" | "tickets" | "structure" | "committees" | "invites" | "messages" | "terminations" | "signature" | "welcomeCards" | "onboarding" | "sheet" | "marketing" | "senior" | "governanceLog" | "membershipDecide" | "assessments" | "agreements",
   string
 >;
 
@@ -82,6 +82,8 @@ export type NavViewer = {
   canGovernanceLog?: boolean;
   /** يحمل «اعتماد العضوية» — جهةُ الاعتماد المستقلة (`/senior/approvals`) */
   canMembershipDecide?: boolean;
+  /** اختباراتُ الأعضاء الحاليين (`/senior/assessments`) — يكلّف القائد، ويطّلع المؤسسُ والرئيسُ التنفيذي */
+  canAssessments?: boolean;
   /** الاتفاقيات: صفحةُ «اتفاقياتي» لكل حساب، وإدارتُها لمن له «agreements_view» */
   canAgreementsAdmin?: boolean;
 };
@@ -155,6 +157,7 @@ export function navFor(v: NavViewer, L: NavLabels): NavItem[] {
   items.push({ id: "committees", label: L.committees, href: "/committees", icon: "committee", match: ["/committees"], group: "org" });
   if (v.canSenior) items.push({ id: "senior", label: L.senior, href: "/senior", icon: "senior", match: ["/senior"], group: "org" });
   if (v.canGovernanceLog) items.push({ id: "governanceLog", label: L.governanceLog, href: "/senior/log", icon: "history", match: ["/senior/log"], group: "reports" });
+  if (v.canAssessments) items.push({ id: "assessments", label: L.assessments, href: "/senior/assessments", icon: "survey", match: ["/senior/assessments"], group: "org" });
   if (v.canMembershipDecide) items.push({ id: "membershipDecide", label: L.membershipDecide, href: "/senior/approvals", icon: "approvals", match: ["/senior/approvals"], group: "org" });
   items.push({
     id: "agreements",

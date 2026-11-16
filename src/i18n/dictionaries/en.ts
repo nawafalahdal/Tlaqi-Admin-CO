@@ -31,6 +31,7 @@ export const en: Dictionary = {
       senior: "Senior administration",
       governanceLog: "Governance log",
       membershipDecide: "Membership approval",
+      assessments: "Member assessments",
       agreements: "Agreements",
     },
     groups: {

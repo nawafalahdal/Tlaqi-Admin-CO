@@ -14,7 +14,9 @@ export default auth((req) => {
     pathname === "/onboarding-survey" ||
     // الإدارةُ العليا بجلسة — إلا صفحةَ قبول الدعوة: المدعوُّ قد لا يكون له حسابٌ بعد
     (pathname.startsWith("/senior") && !pathname.startsWith("/senior/invite/")) ||
-    pathname.startsWith("/agreements");
+    pathname.startsWith("/agreements") ||
+    // اختبارُ العضو القائم — لصاحبه بجلسته (`lib/assessments`)
+    pathname.startsWith("/assessment");
 
   if (needsSession && !session) {
     const url = new URL("/login", req.nextUrl.origin);
@@ -63,5 +65,6 @@ export const config = {
     "/senior/:path*", "/senior", "/agreements/:path*", "/agreements", "/change-password", "/onboarding-survey",
     "/calendar/:path*", "/calendar", "/structure/:path*", "/structure", "/plans/:path*", "/plans",
     "/notifications/:path*", "/notifications", "/improve/:path*", "/improve",
+    "/assessment/:path*",
   ],
 };
