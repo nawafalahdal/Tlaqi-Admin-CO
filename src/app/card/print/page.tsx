@@ -33,13 +33,26 @@ export default async function CardPrintPage({ searchParams }: { searchParams: Pr
     ? `@page { size: A4 portrait; margin: 12mm; }
        .sheet { display:flex; gap:12mm; justify-content:center; padding-top:8mm; }
        .cut { position:relative; width:54mm; height:85.6mm; }
-       .cut img { width:54mm; height:85.6mm; display:block; }
+       .cut img { width:54mm; height:85.6mm; display:block; max-width:none !important; }
        .cut::before, .cut::after { content:""; position:absolute; inset:-4mm; border:0.2mm dashed #888; pointer-events:none; }
-       .cut::after { inset:0; border:0.1mm solid #bbb; }`
+       .cut::after { inset:0; border:0.1mm solid #bbb; }
+       /* السببُ نفسه في وضع الورقة (انظر ملاحظة الوجهين أدناه): LTR عند الطباعة، والترتيبُ معكوسٌ ليبقى الأماميُّ يميناً كما على الشاشة */
+       @media print { html, body { direction:ltr !important; } .sheet { flex-direction:row-reverse; } }`
     : `@page { size: 54mm 85.6mm; margin: 0; }
        .face { width:54mm; height:85.6mm; margin:0 auto 6mm; }
        .face img { width:54mm; height:85.6mm; display:block; }
-       @media print { .face { margin:0; break-after:page; page-break-after:always; } .face:last-child { break-after:auto; page-break-after:auto; } }`;
+       /* المقاسُ الدقيق عند الطباعة: لا قيدَ للصورة من قواعدها العامة (max-width/height:auto)، ولا هامشَ ولا حشوَ حولها —
+          قيست الصورةُ أصغرَ من الصفحة بنصف مليمترٍ فتُطبع بحافةٍ بيضاء.
+          والسببُ الجذري: Chromium يطبع الصفحةَ ذات الاتجاه RTL بمقاسٍ صغيرٍ (عرضٍ كسري) مصغَّرةً بنحو ٠٫٥٪ ومزاحةً؛
+          وصفحةٌ مجرّدةٌ خارج المنصة تعيد الأثرَ نفسه بـ dir="rtl" وحده. والوجهان صورتان لا نصَّ فيهما، والتعليماتُ لا تُطبع،
+          فاتجاهُ LTR عند الطباعة وحدها لا يغيّر شيئاً مرئياً ويملأ الصفحة (قيس: 53.97×85.64 مم على صفحة 54.02×85.68). */
+       @media print {
+         html, body { direction:ltr !important; }
+         html, body, main { margin:0 !important; padding:0 !important; }
+         .face { margin:0; width:54mm; height:85.6mm; overflow:hidden; break-after:page; page-break-after:always; }
+         .face:last-child { break-after:auto; page-break-after:auto; }
+         .face img { max-width:none !important; width:54mm !important; height:85.6mm !important; }
+       }`;
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-8 print:p-0">
