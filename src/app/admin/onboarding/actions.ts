@@ -40,3 +40,19 @@ export async function reopenOnboardingSurveyAction(_prev: OnboardingActionState,
     return { error: safeErrorMessage(err), ok: false };
   }
 }
+
+/** **إطلاقُ الاستبيان لمن فاتهم بسبب الخلل** (ق٥) — إجراءٌ صريحٌ بعد عرض القائمة وعددها، لمن يدير الاستبيان؛ يُسجَّل في
+ *  سجلّ التدقيق بالعدد والأسماء. لا يمسّ من أكمل رحلته، ولا يكرّر استبياناً لمن أجاب. */
+export async function enableMissedSurveysAction(_prev: OnboardingActionState): Promise<OnboardingActionState> {
+  const a = await actor();
+  if (!a) return { error: "سجّل الدخول أولاً", ok: false };
+  try {
+    const { stampMissedSurveys } = await import("@/lib/onboardingSurvey");
+    const res = await stampMissedSurveys(a);
+    if (!res.ok) return { error: res.reason, ok: false };
+    revalidatePath("/admin/onboarding", "layout");
+    return { error: null, ok: true };
+  } catch (err) {
+    return { error: safeErrorMessage(err), ok: false };
+  }
+}

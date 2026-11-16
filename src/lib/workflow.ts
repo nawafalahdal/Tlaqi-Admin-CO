@@ -375,8 +375,11 @@ export async function approveMember(memberId: string, decidedBy?: DecidedBy) {
     approvedAt: member.decidedAt ?? new Date(),
   });
 
-  // الاعتمادُ النهائي يُطلق استبيانَ الانضمام الإلزامي عند أول دخولٍ بعده
-  await prisma.member.update({ where: { id: member.id }, data: { onboardingSurveyRequiredAt: new Date() } });
+  // الاعتمادُ النهائي يُطلق استبيانَ الانضمام الإلزامي عند أول دخولٍ بعده — ومنه عضوُ الإدارة العليا (البند ٦)
+  {
+    const { requireOnboardingSurvey } = await import("@/lib/onboardingSurvey");
+    await requireOnboardingSurvey(member.id);
+  }
 
   // واجتماعُ الشرح إن كان مفتوحاً انتهت الحاجةُ إليه
   const { autoCloseRequests, hasOpenRequest } = await import("@/lib/requests");
@@ -497,6 +500,11 @@ async function provisionLeadershipAccount(
  *  لا يقع إلا بعد أن تُثبَّت المعاملة — فلا يُعلَن عن حسابٍ لم يُنشأ. */
 async function finishLeadershipPromotion(member: CandidateRecord, userId: string, event: string) {
   const role = leadershipRoleFor(member.invite.targetRole);
+  // والقائدُ له رحلةُ انضمامٍ كالعضو: استبيانُها على سجلّ عضويته التوأم (البند ٦ — كان يُستثنى)
+  {
+    const { requireOnboardingSurvey } = await import("@/lib/onboardingSurvey");
+    await requireOnboardingSurvey(member.id);
+  }
   await appendApprovedMember({
     fullName: member.fullName,
     email: member.email,

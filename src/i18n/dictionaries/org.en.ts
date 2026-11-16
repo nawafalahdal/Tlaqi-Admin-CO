@@ -179,7 +179,7 @@ export const orgEn: typeof orgAr = {
     roleView: "View only",
     submitForApproval: "Send for approval",
     submitting: "Sending…",
-    submitHint: "Requires a purpose, a type, an active lead from the department and at least one other member (and an end date if temporary). The CEO or founder approves it after submission.",
+    submitHint: "Requires a purpose, a type, an active lead from the department (and an end date if temporary) — no other member is required; the committee lead adds members after approval. The CEO or founder approves it after submission.",
     statusActions: "Change status",
     toStatus: "To “{0}”",
     statusNoteHint: "Required to suspend, close or archive.",

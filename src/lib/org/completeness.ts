@@ -6,10 +6,13 @@ type Db = Prisma.TransactionClient | typeof prisma;
 
 /** ما ينقص لجنةً لتُعتمد — **ولا تُعتمد لجنةٌ ناقصة** (ملاحظةُ المؤسس الخامسة).
  *
- *  المكتملةُ: غرضٌ مكتوب، ونوع، وقائدٌ نشطٌ من أعضاء قسمها، وعضوٌ آخر نشطٌ على الأقل،
- *  وتاريخُ نهايةٍ إن كانت مؤقّتة. ويُقرأ كلُّ ذلك من القاعدة لحظةَ القرار، لا من النموذج.
- *  والقائمةُ الفارغة تعني «مكتملة». */
-export type CommitteeGap = "purpose" | "kind" | "lead" | "members" | "endDate";
+ *  المكتملةُ: غرضٌ مكتوب، ونوع، وقائدٌ نشطٌ من أعضاء قسمها، وتاريخُ نهايةٍ إن كانت مؤقّتة. ويُقرأ كلُّ ذلك من القاعدة
+ *  لحظةَ القرار، لا من النموذج. والقائمةُ الفارغة تعني «مكتملة».
+ *
+ *  **ولا يُشترط عضوٌ آخر غيرُ القائد** (قرار المؤسس، نوفمبر 2026 — ٣.١): تُعتمد اللجنةُ وتبدأ عملها بقائدها وحده، ويضيف
+ *  قائدُها أعضاءها بعد ذلك. كان الشرطُ هنا يمنع إرسالَها واعتمادَها وبدءَها — فاللجنةُ بلا قائدٍ تُعتمد («بانتظار تعيين
+ *  قائد») واللجنةُ بقائدٍ بلا عضوٍ تُرفض: تناقضٌ صُحّح من مصدره الواحد. */
+export type CommitteeGap = "purpose" | "kind" | "lead" | "endDate";
 
 export async function committeeGaps(db: Db, committeeId: string): Promise<CommitteeGap[] | null> {
   const c = await db.department.findUnique({
@@ -35,11 +38,6 @@ export async function committeeGaps(db: Db, committeeId: string): Promise<Commit
       })
     : null;
   if (!lead || !c.committeeMemberships.some((m) => m.memberId === lead.id)) gaps.push("lead");
-  const others = c.committeeMemberships.filter((m) => m.memberId !== c.leadMemberId).map((m) => m.memberId);
-  const activeOthers = others.length
-    ? await db.member.count({ where: { id: { in: others }, ...ROSTER_MEMBER_WHERE, terminatedAt: null } })
-    : 0;
-  if (activeOthers === 0) gaps.push("members");
   return gaps;
 }
 
@@ -47,6 +45,5 @@ export const GAP_LABELS: Record<CommitteeGap, string> = {
   purpose: "الغرض",
   kind: "نوع اللجنة",
   lead: "قائدٌ نشطٌ من أعضاء القسم",
-  members: "عضوٌ نشطٌ آخر غير القائد",
   endDate: "تاريخُ النهاية للجنة المؤقّتة",
 };

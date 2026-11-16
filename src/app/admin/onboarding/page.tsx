@@ -6,7 +6,9 @@ import { PageHeader } from "@/components/PageHeader";
 import { formatDate } from "@/lib/format";
 import { fmt } from "@/i18n/fmt";
 import { getLocale, getDictionary } from "@/i18n/server";
-import { canManageOnboardingSurvey, onboardingRows, onboardingSummary, type SurveyStatus } from "@/lib/onboardingSurvey";
+import { canManageOnboardingSurvey, onboardingRows, onboardingSummary, missedSurveyRows, type SurveyStatus } from "@/lib/onboardingSurvey";
+import { accountRoleLabel } from "@/lib/testTracks";
+import { MissedSurveys } from "./MissedSurveys";
 import { StatusChip } from "./StatusChip";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +32,7 @@ export default async function OnboardingSurveyDashboard({
   const status = FILTERS.includes(sp.status as SurveyStatus) ? (sp.status as SurveyStatus | "all") : "all";
   const q = (sp.q ?? "").trim().slice(0, 80).toLowerCase();
 
-  const rows = await onboardingRows();
+  const [rows, missed] = await Promise.all([onboardingRows(), missedSurveyRows()]);
   const s = onboardingSummary(rows);
   const label: Record<SurveyStatus, string> = {
     not_completed: t.kNotCompleted,
@@ -80,6 +82,17 @@ export default async function OnboardingSurveyDashboard({
           </form>
         }
       />
+
+      {missed.length > 0 && (
+        <MissedSurveys
+          rows={missed.map((m) => ({
+            id: m.id,
+            name: m.fullName,
+            scope: m.invite.targetRole === "member" ? m.department?.name ?? "عضو" : accountRoleLabel(m.invite.targetRole),
+            decidedAt: m.decidedAt ? formatDate(m.decidedAt) : "—",
+          }))}
+        />
+      )}
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
         {tiles.map((x) => (

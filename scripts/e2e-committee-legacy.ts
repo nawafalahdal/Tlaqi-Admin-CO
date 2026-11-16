@@ -306,13 +306,11 @@ async function purge() {
   chk("٨ · قرارٌ قبل الإرسال لا يقع", !(await decideCommittee({ committeeId: nid, decision: "approved", session: sess("super_admin", founder.id, founder.fullName) })).ok);
   chk("٨ · قائدُ القسم يرسلها", (await submitCommittee(aRL3, nid)).ok);
   chk("٨ · وقائدُ القسم لا يعتمدها", !(await decideCommittee({ committeeId: nid, decision: "approved", session: sess("department_admin", RL.id, RL.fullName) })).ok);
+  // **لا يُشترط عضوٌ آخر غيرُ القائد** (قرار المؤسس، نوفمبر 2026 — ٣.١؛ كان هذا الفحصُ يتوقّع الرفضَ بالقاعدة السابقة)
   await prisma.member.update({ where: { id: M2.id }, data: { isActive: false } });
-  const incomplete = await decideCommittee({ committeeId: nid, decision: "approved", session: sess("super_admin", founder.id, founder.fullName) });
-  chk("٨ · ولا تُعتمد ناقصةً (عضوُها الوحيد معطَّل)", !incomplete.ok && incomplete.reason.includes("ناقصة"), incomplete.ok ? "" : incomplete.reason.slice(0, 80));
-  chk("٨ · وتبقى بانتظار الاعتماد", (await prisma.department.findUniqueOrThrow({ where: { id: nid } })).committeeStatus === "pending_review");
-  await prisma.member.update({ where: { id: M2.id }, data: { isActive: true } });
   const ok = await decideCommittee({ committeeId: nid, decision: "approved", session: sess("super_admin", founder.id, founder.fullName) });
-  chk("٨ · ومكتملةً يعتمدها المؤسس أو الرئيس التنفيذي", ok.ok && (await prisma.department.findUniqueOrThrow({ where: { id: nid } })).committeeStatus === "approved");
+  chk("٨ · **تُعتمد بقائدها وحده — عضوُها الوحيدُ الآخر معطَّل ولا يُشترط (٣.١)**", ok.ok && (await prisma.department.findUniqueOrThrow({ where: { id: nid } })).committeeStatus === "approved", ok.ok ? "" : ok.reason.slice(0, 80));
+  await prisma.member.update({ where: { id: M2.id }, data: { isActive: true } });
 
   await purge();
   done();

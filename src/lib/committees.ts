@@ -143,7 +143,7 @@ export async function decideCommittee(opts: {
     if (!sole) return { ok: false, reason: "لا يعتمد أحدٌ لجنةً اقترحها — يقرّر فيها الآخرُ من الرئيس التنفيذي والمؤسس" };
   }
 
-  // **ولا تُعتمد لجنةٌ ناقصة** — غرضٌ ونوعٌ وقائدٌ نشطٌ من القسم وعضوٌ آخر (وتاريخُ نهايةٍ
+  // **ولا تُعتمد لجنةٌ ناقصة** — غرضٌ ونوعٌ وقائدٌ نشطٌ من القسم (وتاريخُ نهايةٍ
   // للمؤقّتة)، من القاعدة لحظةَ القرار. والردُّ يبقى ممكناً: هو ما يُعيدها لتُستكمَل
   // **بلا قائد ⇐ «بانتظار تعيين قائد»** لا رفض: تُعتمد بغرضها ونوعها، ويُعيَّن قائدُها لاحقاً فتبدأ العمل.
   // ولها قائدٌ نشط ⇐ عاملةٌ بشروطها كاملةً (ومنها عضوٌ غيرُ القائد)
@@ -151,7 +151,7 @@ export async function decideCommittee(opts: {
   if (opts.decision === "approved" && committee.committeeStatus === "pending_review") {
     const gaps = (await committeeGaps(prisma, committee.id)) ?? [];
     if (gaps.includes("lead")) approvedAs = "awaiting_lead";
-    const blocking = approvedAs === "awaiting_lead" ? gaps.filter((g) => g !== "lead" && g !== "members") : gaps;
+    const blocking = approvedAs === "awaiting_lead" ? gaps.filter((g) => g !== "lead") : gaps;
     if (blocking.length) {
       return { ok: false, reason: `لا تُعتمد لجنةٌ ناقصة — ينقصها: ${blocking.map((g) => GAP_LABELS[g]).join("، ")}. رُدَّها ليستكملها قائدُ القسم` };
     }

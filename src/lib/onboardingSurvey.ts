@@ -1,7 +1,6 @@
 import type { Gender, OnboardingSurveyResponse, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { appendMemberEvent } from "@/lib/googleSheets";
-import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 
 /** **استبيانُ الانضمام** — أربعةُ أسئلةٍ يُجيبها العضوُ مرّةً بعد اعتماده النهائي.
  *
@@ -217,8 +216,8 @@ export async function resolveOnboardingFollowUp(actor: SurveyActor, responseId: 
 /** صفوفُ اللوحة والتصدير: كلُّ عضوٍ معتمَدٍ نشطٍ طُلب منه الاستبيان، بإجابته القائمة وسجلّه */
 export async function onboardingRows() {
   const members = await prisma.member.findMany({
-    // الأعضاءُ بصفتهم أعضاء (`ROSTER_MEMBER_WHERE`) — لا صفوفُ ترشّح القادة
-    where: { ...ROSTER_MEMBER_WHERE, onboardingSurveyRequiredAt: { not: null }, terminatedAt: null },
+    // كلُّ من طُلب منه الاستبيانُ وهو معتمَدٌ نشط — الأعضاءُ، والقادةُ بسجلّ عضويتهم التوأم (ق٥: كانوا يُستثنون)
+    where: { isActive: true, approvalStatus: "approved", onboardingSurveyRequiredAt: { not: null }, terminatedAt: null },
     select: {
       id: true,
       fullName: true,
@@ -270,4 +269,57 @@ async function logEvent(row: Parameters<typeof appendMemberEvent>[0]) {
   } catch (e) {
     console.error("[onboarding-survey] sheet event", e instanceof Error ? e.name : typeof e);
   }
+}
+
+/** **إطلاقُ الاستبيان عند الاعتماد النهائي** — من كل طريقٍ إليه: العضو، والقائد (على سجلّ عضويته التوأم)، وعضو الإدارة
+ *  العليا. كان يُختم في طريق العضو وحده فلم يظهر للإدارة العليا ولا للقادة (البند ٦). ولا يُعاد ختمُ من خُتم. */
+export async function requireOnboardingSurvey(memberId: string, now = new Date()) {
+  await prisma.member.updateMany({ where: { id: memberId, onboardingSurveyRequiredAt: null }, data: { onboardingSurveyRequiredAt: now } });
+}
+
+/** سجلُّ الاستبيان لصاحب الجلسة: العضوُ نفسُه، أو سجلُّ عضوية القائد التوأم (القادةُ دخلوا من طريق الترشّح فلهم رحلة).
+ *  والمؤسسُ لا رحلةَ انضمامٍ له — لا سجلَّ له. */
+export async function surveyMemberIdFor(session: { user?: { id?: string; role?: string; email?: string | null } } | null): Promise<string | null> {
+  const u = session?.user;
+  if (!u?.id || !u.role) return null;
+  if (u.role === "member") return u.id;
+  if (u.role === "super_admin" || !u.email) return null;
+  const twin = await prisma.member.findFirst({ where: { email: { equals: u.email, mode: "insensitive" } }, select: { id: true } });
+  return twin?.id ?? null;
+}
+
+/** أُطلق الاستبيان (الترحيل `20261109120000_onboarding_survey_requests`) — ومن اعتُمد قبله لا يُطالَب به (لا يُعاد لكل قديم) */
+export const SURVEY_LAUNCHED_AT = new Date("2026-11-09T12:00:00Z");
+
+/** **من فاته الاستبيانُ بسبب الخلل** (ق٥): اعتُمد نهائياً بعد إطلاقه، وهو من الإدارة العليا أو قائد (الطريقان اللذان لم
+ *  يُختما)، ولا ختمَ له ولا إجابة. لا يشمل الأعضاءَ القدامى الذين اكتملت رحلتُهم — ولا يُغيَّر شيءٌ قبل موافقةٍ صريحة. */
+export async function missedSurveyRows() {
+  return prisma.member.findMany({
+    where: {
+      isActive: true,
+      approvalStatus: "approved",
+      terminatedAt: null,
+      onboardingSurveyRequiredAt: null,
+      decidedAt: { gte: SURVEY_LAUNCHED_AT },
+      onboardingSurveys: { none: {} },
+      OR: [{ department: { leadershipOnly: true } }, { invite: { targetRole: { not: "member" } } }],
+    },
+    select: { id: true, fullName: true, email: true, decidedAt: true, department: { select: { name: true } }, invite: { select: { targetRole: true } } },
+    orderBy: { decidedAt: "asc" },
+  });
+}
+
+/** يُطلق الاستبيانَ لمن فاتهم — بإجراءٍ صريحٍ ممن يدير الاستبيان، ويُسجَّل في سجلّ التدقيق بعدد من شملهم وأسمائهم */
+export async function stampMissedSurveys(actor: SurveyActor, now = new Date()) {
+  if (!canManageOnboardingSurvey(actor.role)) return { ok: false as const, reason: "لمن يدير استبيان الانضمام" };
+  const rows = await missedSurveyRows();
+  if (!rows.length) return { ok: true as const, count: 0 };
+  await prisma.member.updateMany({ where: { id: { in: rows.map((r) => r.id) }, onboardingSurveyRequiredAt: null }, data: { onboardingSurveyRequiredAt: now } });
+  const { recordOrgEvent } = await import("@/lib/org/audit");
+  await recordOrgEvent(prisma, {
+    scope: "member", entityId: "onboarding-survey", departmentId: "—", action: "survey.missed.enabled",
+    actor: { kind: "user", id: actor.id, name: actor.name, role: actor.role },
+    after: { count: rows.length, members: rows.map((r) => r.fullName) },
+  });
+  return { ok: true as const, count: rows.length };
 }

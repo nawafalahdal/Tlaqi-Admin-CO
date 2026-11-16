@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { surveyPendingFrom } from "@/lib/onboardingSurvey";
+import { surveyPendingFrom, surveyPending, surveyMemberIdFor } from "@/lib/onboardingSurvey";
 import { auth, signOut } from "@/auth";
 import { canResendWelcome, canRequestWelcomeResend } from "@/lib/welcomeResend";
 import { portraitTone, portraitColorFor } from "@/lib/portraitTone";
@@ -80,6 +80,11 @@ export async function AppSidebar({ children }: { children: ReactNode }) {
   if (isMember && stamp && "onboardingSurveyRequiredAt" in stamp) {
     const m = stamp;
     if (surveyPendingFrom({ ...m, currentResponses: m._count.onboardingSurveys })) redirect("/onboarding-survey");
+  }
+  // والقائدُ بسجلّ عضويته التوأم (البند ٦) — قراءةٌ واحدة بالبريد الفريد؛ والمؤسسُ لا رحلةَ له
+  if (!isMember && session.user.role !== "super_admin") {
+    const twinId = await surveyMemberIdFor(session);
+    if (twinId && (await surveyPending(twinId))) redirect("/onboarding-survey");
   }
   const viewer = {
     role: session.user.role,

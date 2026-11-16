@@ -5,7 +5,7 @@ import { LocaleToggle } from "@/components/LocaleToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ControlGroup, ControlDivider } from "@/components/ControlGroup";
 import { getLocale, getDictionary } from "@/i18n/server";
-import { surveyPending, recentSurveySubmission } from "@/lib/onboardingSurvey";
+import { surveyPending, recentSurveySubmission, surveyMemberIdFor } from "@/lib/onboardingSurvey";
 import { SurveyForm } from "./SurveyForm";
 
 export const dynamic = "force-dynamic";
@@ -15,11 +15,14 @@ export const dynamic = "force-dynamic";
 export default async function OnboardingSurveyPage() {
   const session = await auth();
   if (!session) redirect("/login?callbackUrl=/onboarding-survey");
-  if (session.user.role !== "member") redirect("/admin");
+  // العضوُ، والقائدُ بسجلّ عضويته التوأم (البند ٦) — ومن لا رحلةَ له يعود إلى مساحته
+  const home = session.user.role === "member" ? "/member" : "/admin";
+  const memberId = await surveyMemberIdFor(session);
+  if (!memberId) redirect(home);
   // أُجيب للتوّ: تبقى الصفحةُ (والمكوّنُ نفسُه) فيظهر الشكر — وإلا فلا شأنَ له هنا
-  const pending = await surveyPending(session.user.id);
-  const recent = pending ? null : await recentSurveySubmission(session.user.id);
-  if (!pending && !recent) redirect("/member");
+  const pending = await surveyPending(memberId);
+  const recent = pending ? null : await recentSurveySubmission(memberId);
+  if (!pending && !recent) redirect(home);
   const t = getDictionary(await getLocale());
 
   return (

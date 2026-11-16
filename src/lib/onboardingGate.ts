@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import type { Session } from "next-auth";
-import { surveyPending } from "@/lib/onboardingSurvey";
+import { surveyPending, surveyMemberIdFor } from "@/lib/onboardingSurvey";
 
 /** **حارسُ استبيان الانضمام على مستوى الصفحة.**
  *
@@ -9,5 +9,7 @@ import { surveyPending } from "@/lib/onboardingSurvey";
  *  فتحَ استبيانه وهو يتصفّح كان يواصل حتى أوّل تحميلٍ كامل. والصفحةُ تُرسَم في كلّ تنقّل، فيُسأل هنا
  *  أيضاً — والحسابُ واحد (`surveyPending`)، فلا يختلف الحارسان. */
 export async function requireOnboardingSurveyDone(session: Session | null): Promise<void> {
-  if (session?.user.role === "member" && (await surveyPending(session.user.id))) redirect("/onboarding-survey");
+  // العضو، والقائدُ بسجلّ عضويته التوأم (البند ٦) — والمؤسسُ لا رحلةَ له
+  const memberId = await surveyMemberIdFor(session);
+  if (memberId && (await surveyPending(memberId))) redirect("/onboarding-survey");
 }
