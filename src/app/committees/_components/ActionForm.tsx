@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useRef, useState, type ReactNode } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { guardAction } from "@/lib/actionGuard";
 import { Button } from "@/components/ui";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -41,20 +41,29 @@ export function ActionForm({
   const confirmed = useRef(false);
   const submitter = useRef<HTMLButtonElement | null>(null);
   const [asking, setAsking] = useState(false);
+  const [, startSubmit] = useTransition();
+  // **يُفرَّغ النموذجُ بعد النجاح وحده** — `action=` يُفرغه بعد كل ردٍّ (سلوكُ React 19)، فيضيع ما كُتب حين يفشل
+  // الطلبُ أو يُردّ بخطأ ويُطلب تصحيحُه. فالإرسالُ هنا بيدنا، والتفريغُ بعد النجاح
+  useEffect(() => {
+    if (state.success) ref.current?.reset();
+  }, [state]);
 
   return (
     <form
       ref={ref}
-      action={formAction}
       className={className}
       onSubmit={(e) => {
-        if (!confirm || confirmed.current) {
-          confirmed.current = false;
+        e.preventDefault();
+        const by = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+        if (confirm && !confirmed.current) {
+          submitter.current = by;
+          setAsking(true);
           return;
         }
-        e.preventDefault();
-        submitter.current = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-        setAsking(true);
+        confirmed.current = false;
+        // الزرُّ يحمل قيمتَه (`name=value`) كما في الإرسال المعتاد
+        const fd = new FormData(e.currentTarget, by ?? submitter.current ?? undefined);
+        startSubmit(() => formAction(fd));
       }}
     >
       {children}

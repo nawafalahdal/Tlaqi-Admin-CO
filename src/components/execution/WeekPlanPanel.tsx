@@ -284,6 +284,7 @@ function TaskForm({
   // **مفتاحُ منع التكرار** (البند ٤): واحدٌ لهذا الالتزام — إعادةُ الإرسال بعد ضياع الردّ لا تُنشئ ثانياً.
   // والنموذجُ يُغلق بعد النجاح (`onDone`) فيُفتح التالي بمفتاحٍ جديد
   const [requestId] = useState(() => crypto.randomUUID());
+  const [, startSubmit] = useTransition();
   useEffect(() => {
     if (state.success) {
       ref.current?.reset();
@@ -292,7 +293,17 @@ function TaskForm({
   }, [state.success, onDone]);
 
   return (
-    <form ref={ref} action={formAction} className="flex flex-col gap-3 rounded-xl bg-black/[0.03] p-3">
+    <form
+      ref={ref}
+      // **ما كُتب يبقى حين يفشل الطلب** (البند ٤): `action=` يُفرغ النموذج بعد كل ردٍّ (React 19) فيضيع الالتزامُ المكتوب
+      // ويُعاد كتابتُه؛ والإرسالُ هنا بيدنا، والتفريغُ بعد النجاح وحده. والمفتاحُ نفسُه يجعل الإعادةَ آمنة
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        startSubmit(() => formAction(fd));
+      }}
+      className="flex flex-col gap-3 rounded-xl bg-black/[0.03] p-3"
+    >
       <input type="hidden" name="planId" value={planId} />
       <input type="hidden" name="clientRequestId" value={requestId} />
       <p className="text-xs leading-relaxed text-black/55">
