@@ -47,6 +47,8 @@ export async function authoritiesFor(cands: CandidateRef[]): Promise<Map<string,
   const deptIds = [...new Set(cands.map((c) => c.departmentId).filter((d): d is string => !!d))];
   const [depts, leads] = deptIds.length
     ? await Promise.all([
+        // department-scope: all — قراءةٌ بمعرّفات أقسام المرشّحين أنفسهم لحسم جهة القرار، لا قائمةٌ تُعرض: والنطاقُ هنا
+        // يُسقط قسمَ المرشّح الفعلي فتُحسب له جهةٌ غيرُ جهته
         prisma.department.findMany({ where: { id: { in: deptIds } }, select: { id: true, leadershipOnly: true } }),
         prisma.user.findMany({
           where: { isActive: true, role: "department_admin", departmentId: { in: deptIds } },

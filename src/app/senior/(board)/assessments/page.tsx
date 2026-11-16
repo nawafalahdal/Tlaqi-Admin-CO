@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui";
 import { DataTable } from "@/components/DataTable";
@@ -28,7 +29,8 @@ export default async function AssessmentsPage() {
     assessmentRegister(),
     canAssign
       ? prisma.member.findMany({
-          where: { isActive: true, approvalStatus: "approved", terminatedAt: null },
+          // الأعضاءُ بصفتهم أعضاء (`ROSTER_MEMBER_WHERE`): القائدُ المرقّى يُكلَّف بحسابه الإداري أدناه — لا بسجلّ ترشّحه التوأم مرّةً ثانية
+          where: { ...ROSTER_MEMBER_WHERE, terminatedAt: null },
           select: { id: true, fullName: true, department: { select: { name: true } } },
           orderBy: { fullName: "asc" },
         })

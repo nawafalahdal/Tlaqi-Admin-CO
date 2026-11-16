@@ -215,6 +215,7 @@ export async function resolveOnboardingFollowUp(actor: SurveyActor, responseId: 
 
 /** صفوفُ اللوحة والتصدير: كلُّ عضوٍ معتمَدٍ نشطٍ طُلب منه الاستبيان، بإجابته القائمة وسجلّه */
 export async function onboardingRows() {
+  // member-roster: all — استبيانُ القائد على سجلّ ترشّحه التوأم (ق٥): فالقائمةُ تقصد القادةَ المرقَّين أيضاً، لا الأعضاءَ وحدهم
   const members = await prisma.member.findMany({
     // كلُّ من طُلب منه الاستبيانُ وهو معتمَدٌ نشط — الأعضاءُ، والقادةُ بسجلّ عضويتهم التوأم (ق٥: كانوا يُستثنون)
     where: { isActive: true, approvalStatus: "approved", onboardingSurveyRequiredAt: { not: null }, terminatedAt: null },

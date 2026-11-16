@@ -232,7 +232,16 @@ async function cleanup() {
   const leadS = asSession(ls, leader.fullName);
   chk("والخادمُ يحسم هويتَها من القاعدة: سجلُّ الترشّح «حلّ محلَّه حسابٌ إداري»، والحسابُ حيٌّ بدوره وقسمه",
     (await resolveSessionAccount(inv.member.id, "member")).status === "superseded" &&
-    JSON.stringify(await resolveSessionAccount(leader.id, "department_admin")) === JSON.stringify({ status: "live", role: "department_admin", departmentId: marketing.id, departmentSlug: "marketing", leadershipCandidate: false }));
+    // تغييرُ توقّعٍ مقصود (البوابةُ المركزية للمرشّحين، نوفمبر 2026): الحسابُ يحمل حالةَ «مرشّح» أيضاً — والقائدُ ليس مرشّحاً
+    JSON.stringify(await resolveSessionAccount(leader.id, "department_admin")) === JSON.stringify({ status: "live", role: "department_admin", departmentId: marketing.id, departmentSlug: "marketing", leadershipCandidate: false, candidate: false }));
+
+  // تغييرُ توقّعٍ مقصود (قرار المؤسس، البند ٦ وق٥): **القائدُ المعتمد يُكمل استبيانَ الانضمام أولاً** — على سجلّ ترشّحه التوأم.
+  // كان يدخل لوحته مباشرةً؛ فيُفحص التحويلُ إلى الاستبيان، ثم يُجاب ويُكمَل الفحصُ كما كان
+  const firstVisit = await page(lj, "/admin");
+  chk("**القائدةُ المعتمدة تُحوَّل أولاً إلى استبيان الانضمام** (البند ٦)", firstVisit.status === 307 && (firstVisit.location ?? "").startsWith("/onboarding-survey"), `${firstVisit.status} ${firstVisit.location}`);
+  const { submitOnboardingSurvey } = await import("@/lib/onboardingSurvey");
+  const answered = await submitOnboardingSurvey(inv.member.id, { journeyRating: "5", roleClarityRating: "5", bannerReceived: "yes", gender: "female" });
+  chk("وتُجيبه على سجلّها التوأم مرّةً واحدة", answered.ok, JSON.stringify(answered));
 
   // ───────────────────────── ٣: الهوية في الواجهة
   section("٣) الملفُّ والقائمة يعرّفانها قائدةً لقسم التسويق");
