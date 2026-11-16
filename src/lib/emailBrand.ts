@@ -7,7 +7,9 @@
  */
 
 import { contrastRatio, liftForDark, readableTextOn, shade } from "@/lib/colors";
-import { renderEmail2026Parts } from "@/lib/brand2026/email";
+import { renderEmail2026Parts, type EmailImageSources } from "@/lib/brand2026/email";
+import { EMAIL_BRAND_ASSETS } from "@/lib/brand2026/emailAssets.generated";
+import type { EmailAttachment } from "@/lib/emailCapture";
 
 const BRAND = {
   temptress: "#341D2B",
@@ -264,8 +266,10 @@ export type EmailContent = {
   title: string;
   lead?: string;
   paragraphs?: string[];
-  /** صورةٌ في رأس المتن (ملصق الدعوة، بطاقة العضوية) */
+  /** صورةٌ في المتن (ملصق الدعوة، بطاقة العضوية) */
   image?: { src: string; width: number; height: number; alt: string; href?: string };
+  /** موضعُ الصورة: بعد الافتتاح (الافتراضي)، أو بعد النصّ الذي يقدّمها — فلا يأتي «وهذه بطاقتك» بعد البطاقة */
+  imageAt?: "afterLead" | "afterText";
   facts?: Array<[string, string | null | undefined]>;
   quote?: { label?: string; text: string } | null;
   code?: { value: string; caption?: string };
@@ -483,18 +487,69 @@ function darkStyles(a: ReturnType<typeof accentOf>): string {
  *  الحديث، وهذه وحدها تُرسَم كما كُتبت. */
 /** **قالبُ الإرسال — هوية تلاق 2026** (`lib/brand2026/email`): المحتوى نفسُه (روابطُه ومتغيّراتُه ومعناه) بالتصميم الجديد.
  *  الخطُّ الرسمي من المنصة نفسها لعملاء البريد الذين يحمّلون الخطوط، وTahoma/Arial لغيرهم (قيدٌ تقنيٌّ معروض على المؤسس). */
-export function renderEmail(opts: { subject: string; content: EmailContent; theme?: EmailTheme; preheader?: string }): { html: string; bodyHtml: string } {
+/** حساباتُ التذييل الرسمية: المعرّفُ موحّدٌ فيُكتب مرّةً تحت أسماء المنصات، وإلا كُتب كلٌّ بمعرّفه */
+function footerLinks() {
+  const same = SOCIAL_LINKS.length > 0 && SOCIAL_LINKS.every((s) => s.handle === SOCIAL_LINKS[0].handle);
+  return {
+    links: SOCIAL_LINKS.map((s) => ({ label: same ? s.label : `${s.label} @${s.handle}`, url: `${s.url}${s.handle}` })),
+    handle: same ? SOCIAL_LINKS[0].handle : null,
+  };
+}
+
+export function renderEmail(opts: {
+  subject: string;
+  content: EmailContent;
+  theme?: EmailTheme;
+  preheader?: string;
+  /** في ملفات المعاينة وحدها: صورُ الهوية بياناتٍ مباشرة بدل `cid:` */
+  images?: EmailImageSources;
+}): { html: string; bodyHtml: string } {
+  const f = footerLinks();
+  const site = appBaseUrl();
   return renderEmail2026Parts({
     subject: opts.subject,
     content: opts.content,
     theme: opts.theme,
     preheader: opts.preheader,
-    assetBase: assetUrl("/brand/2026"),
-    fontFaceBase: assetUrl("/fonts/the-year-of-the-camel"),
+    images: opts.images,
     tagline: TAGLINE,
-    handle: SOCIAL_LINKS[0]?.handle ?? null,
+    links: f.links,
+    handle: f.handle,
+    site: { label: site.replace(/^https?:\/\/(www\.)?/, ""), url: site },
     senderLabel: emailSenderLabel(opts.theme),
   });
+}
+
+/** صورُ الهوية مرفقاتٌ مضمّنة (`cid:`) — تُرفق بكل رسالة، فلا تعتمد الرسالةُ على تحميل صورةٍ خارجية */
+export function brandInlineAttachments(): EmailAttachment[] {
+  return Object.values(EMAIL_BRAND_ASSETS).map((a) => ({ filename: a.filename, content: Buffer.from(a.base64, "base64"), contentId: a.cid }));
+}
+
+/** **الرسالةُ كما تُرسَل** — نصُّها وHTMLها ومرفقاتُها معاً، في دالةٍ واحدة يستعملها الإرسالُ وملفاتُ المعاينة،
+ *  فلا تختلف المعاينةُ عمّا يصل. والنبرةُ إن لم تحدّدها الرسالة تُشتقّ من وسم نوعها. */
+export function composeEmail(opts: {
+  subject: string;
+  content: EmailContent;
+  kind: string;
+  theme?: EmailTheme;
+  attachments?: EmailAttachment[];
+}): { html: string; text: string; attachments: EmailAttachment[] } {
+  const { html, bodyHtml } = renderEmail({
+    subject: opts.subject,
+    content: { ...opts.content, tone: opts.content.tone ?? toneForVariant(variantForKind(opts.kind)) },
+    theme: opts.theme,
+    preheader: opts.subject,
+  });
+  const own = opts.attachments ?? [];
+  const brand = brandInlineAttachments().filter((b) => html.includes(`cid:${b.contentId}`) && !own.some((a) => a.contentId === b.contentId));
+  return { html, text: htmlToText(bodyHtml), attachments: [...own, ...brand] };
+}
+
+/** ملفُّ معاينةٍ يُفتح في أي متصفح أو عارض: كلُّ `cid:` يُستبدل ببيانات صورته — فلا صورةَ تعتمد على الشبكة */
+export function inlineForPreview(html: string, attachments: EmailAttachment[]): string {
+  return attachments
+    .filter((a) => a.contentId)
+    .reduce((h, a) => h.split(`cid:${a.contentId}`).join(`data:image/png;base64,${a.content.toString("base64")}`), html);
 }
 
 /** القالبُ السابق — محفوظٌ للرجوع إليه إن لزم، ولا يُستعمل في الإرسال */

@@ -42,9 +42,17 @@ export const TYPEFACE = {
     { weight: 700, name: "Bold", file: "TheYearofTheCamel-Bold.otf" },
     { weight: 800, name: "ExtraBold", file: "TheYearofTheCamel-ExtraBold.otf" },
   ],
-  /** احتياطٌ لا بديل: يظهر حيث يتعذّر الخط (البريد، أو قبل تحميله) */
+  /** احتياطٌ لا بديل: يظهر حيث يتعذّر الخط (قبل تحميله) */
   fallback: "Tahoma, Arial, sans-serif",
 } as const;
+
+/** **خطُّ البريد: خطُّ النظام — Apple أولاً** (طلب المؤسس، نوفمبر 2026). عملاءُ البريد لا يحمّلون خطاً خارجياً بثبات (Gmail لا
+ *  يحمّله أصلاً)، فكان «The Year of The Camel» يظهر في Apple Mail وحده ويختلف الخطُّ من عميلٍ لآخر. فالبريدُ بخطّ الجهاز:
+ *  SF Arabic على أجهزة Apple، ثم Segoe UI على ويندوز، وNoto Sans Arabic على أندرويد، ثم Tahoma/Arial. والشعارُ صورةٌ فلا يتأثّر،
+ *  والمنصةُ باقيةٌ على خطّها. (Outlook على ويندوز يُفرض عليه Tahoma بجزءٍ خاصٍّ في القالب.) والاقتباسُ مفرد: القالبُ يضعه
+ *  داخل `style="…"`. */
+export const EMAIL_FONT_STACK =
+  "-apple-system,BlinkMacSystemFont,'SF Arabic','SF Pro Text','Geeza Pro','Segoe UI','Noto Sans Arabic',Tahoma,Arial,sans-serif";
 
 export const LOGOS = {
   full: [

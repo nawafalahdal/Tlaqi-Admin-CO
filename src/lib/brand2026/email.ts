@@ -1,35 +1,46 @@
 import type { EmailContent, EmailTheme } from "@/lib/emailBrand";
-import { HEX, TYPEFACE, BACKGROUNDS } from "./tokens";
+import { HEX, EMAIL_FONT_STACK } from "./tokens";
+import { EMAIL_BRAND_ASSETS, type EmailBrandAssetKey } from "./emailAssets.generated";
 
-/** **قالبُ البريد — هوية تلاق 2026 (معاينة).** يرسم المحتوى نفسَه الذي تبنيه دوالُّ الرسائل (`EmailContent`)
- *  — فلا تتغيّر روابطُها ولا متغيّراتُها ولا معناها — بتصميمٍ جديد من الحزمة وحدها:
+/** **قالبُ البريد — هوية تلاق ممتدةً على الرسالة كلها** (طلب المؤسس، نوفمبر 2026: «لا إطارَ أبيض خارجي»).
  *
- *  - **الخلفيةُ بيضاء كما هي اليوم (قرار المؤسس)**، وفي العناصر الألوانُ الأربعة وحدها: النصُّ Temptress، والعنوانُ
- *    الكبير Mahogany، والشارةُ Green Sheen بنص Temptress (7.0:1)، والحدودُ Temptress رفيعة.
- *  - **الترويسة:** Temptress بالشعار الرسمي «على الداكن» (صورةٌ من ملفه، لا رسم)، ثم **شريطُ النمط**
- *    «موهبة» بلون Mahogany على الأبيض مستقلاً (لا نمطَ خلف نص).
- *  - **الأزرار (ق9):** الأساسي Temptress بنص Beige، والثانوي حدٌّ Temptress.
- *  - **الخط (ق1، ق8):** The Year of The Camel أولاً، وTahoma/Arial احتياطاً — أغلبُ العملاء لا يحمّلون الخط.
- *  - **الترويسة (البند ٢):** اتجاهُها صريحٌ من اليسار — **الشعارُ يساراً وجهةُ الرسالة يميناً** («قسم X»، «لجنة X — قسم Y»،
- *    «إدارة TLAQI») — فلا يقلبها اتجاهُ الرسالة العربي في Gmail وApple Mail وOutlook.
- *  - **التذييل:** علامةُ الشعار بلون Mahogany دائماً (قرار المؤسس — لا بلون القسم)، والعبارةُ الرسمية «نلتقي • نفكر • نصنع»
- *    (ق٦)، والحسابات، و«إدارة تلاق».
- *  - **الجوال:** عرضٌ أقصى 600 ومرونةٌ دونه، وأزرارٌ بعرضٍ كامل على الشاشات الصغيرة.
+ *  **السببُ الجذري للإطار الأبيض كان في هذا القالب نفسه** — لا في لونِ عنصرٍ واحد: كانت الرسالةُ «بطاقةً عائمة» داخل صفحة:
+ *  خلفيةُ صفحةٍ (`#FAF8F4`، ليست من ألوان الهوية) بحشوٍ 24px أعلاه و10px على جانبيه (50px وأكثر على الكمبيوتر)، وبطاقةٌ بحدٍّ
+ *  وزوايا مستديرة متنُها أبيض `#FFFFFF`، وسطرُ «مُرسَلة من» خارج البطاقة يترك تحتها فراغاً. فتُبنى الآن **أشرطةً بعرض الشاشة**
+ *  بلا صفحةٍ حولها ولا حدٍّ ولا حشوٍ خارجي:
  *
- *  **وهو قالبُ الإرسال على فرع التطوير** (`renderEmail` في `emailBrand.ts`) لمراجعة المؤسس على المعاينة قبل الاعتماد
- *  النهائي؛ والقالبُ السابق محفوظٌ باسم `renderEmailLegacy` للرجوع. */
+ *  1. الترويسة — Temptress: الشعارُ الرسمي يساراً وجهةُ الرسالة يميناً (اتجاهٌ صريح لا يقلبه عميلُ البريد).
+ *  2. نمطُ «موهبة» الرسمي — Mahogany على Beige، يصل الترويسةَ بالمتن.
+ *  3. المتن — **Beige** (الخلفيةُ الأساسية في ملف الهوية؛ نصُّ Temptress عليه 13.9:1).
+ *  4. التذييل — Temptress: العلامةُ Mahogany، و«نلتقي • نفكر • نصنع»، والحساباتُ الرسمية، وجهةُ الإرسال — داخله لا تحته.
+ *  وخلفيةُ الجسم Temptress: ما يلي التذييل في شاشةٍ أطول من الرسالة امتدادٌ له لا بياض.
+ *  والمحتوى في عمودٍ أقصاه 600px يتوسّط الأشرطة (وجدولٌ ثابتٌ لـOutlook على ويندوز)، وعلى الجوال يملأ العرض.
+ *
+ *  **ما لا يملكه القالب:** تطبيقُ Gmail يحيط أيَّ رسالةٍ بهامشٍ أبيض من واجهته هو (نحو 14 نقطة في iOS) — خارج HTML الرسالة.
+ *
+ *  **الصور مضمّنةٌ بمعرّف `cid:`** (`emailAssets.generated.ts`) — كانت روابطَ خارجية فيرسم كلُّ عارضٍ يحجبها مربّعاً فارغاً.
+ *  **والخط:** خطُّ النظام (Apple أولاً) ببدائل لكل جهاز، وجزءٌ خاصٌّ لـOutlook يفرض Tahoma (وإلا رسم Times New Roman).
+ *  ولا خطَّ يُحمَّل من الخارج: Gmail لا يحمّله أصلاً، فكان الخطُّ يختلف من عميلٍ لآخر. */
 
 const B = HEX;
-const FONT = `'${TYPEFACE.family}',${TYPEFACE.fallback.replace(/, /g, ",")}`;
+const FONT = EMAIL_FONT_STACK;
+const BODY_BG = B.beige;
+const BAND_BG = B.temptress;
 
 function esc(v: string): string {
   return v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-/** الترويسةُ والتذييلُ يبقيان داكنين في Gmail: لا يقلب صورةَ الخلفية، فتُرسَم بتدرّجٍ من لونٍ واحد فوق اللون الصريح */
-const KEEP_DARK = `background-image:linear-gradient(${HEX.temptress},${HEX.temptress});`;
+/** الأشرطةُ الداكنة تبقى داكنةً في Gmail: لا يقلب صورةَ الخلفية، فتُرسَم بتدرّجٍ من لونٍ واحد فوق اللون الصريح */
+const KEEP_DARK = `background-image:linear-gradient(${B.temptress},${B.temptress});`;
 
-const row = (html: string, pad = "0 0 16px") => `<tr><td style="padding:${pad}">${html}</td></tr>`;
+/** مصادرُ صور الهوية: `cid:` في البريد (الافتراضي)، وبياناتٌ مباشرة في ملفات المعاينة */
+export type EmailImageSources = Record<EmailBrandAssetKey, string>;
+export const CID_IMAGE_SOURCES: EmailImageSources = {
+  logo: `cid:${EMAIL_BRAND_ASSETS.logo.cid}`,
+  pattern: `cid:${EMAIL_BRAND_ASSETS.pattern.cid}`,
+  mark: `cid:${EMAIL_BRAND_ASSETS.mark.cid}`,
+};
 
 /** شهادةُ التعيين (رسالة قائد اللجنة) تُرسم بالبنية الموحَّدة نفسها: عنوانٌ وحقائقُ وبيانٌ وخطوات */
 function normalize(c: EmailContent): EmailContent {
@@ -48,64 +59,87 @@ function normalize(c: EmailContent): EmailContent {
   };
 }
 
+/** صفُّ محتوى بمسافته بعده — والصفُّ الأخير بلا مسافةٍ بعده: لا فراغَ متراكمٌ بين آخر سطرٍ والتذييل */
+type Row = { html: string; top?: number; bottom: number };
+
+const P = (size: number, extra = "") => `margin:0;font-family:${FONT};font-size:${size}px;line-height:1.85;color:${B.temptress};${extra}`;
+
 function body(raw: EmailContent): string {
   const c = normalize(raw);
-  const r: string[] = [];
+  const r: Row[] = [];
   const badge = c.badge ?? { action: "إجراءٌ مطلوب", security: "أمان الحساب", celebrate: "تهنئة", info: "إشعار", alert: "تنبيه", farewell: "وداع" }[c.tone ?? "info"];
-  r.push(row(`<span style="display:inline-block;background-color:${B.temptress};color:${B.beige};font-family:${FONT};font-size:12px;font-weight:bold;padding:5px 14px;border-radius:999px">${esc(badge)}</span>`, "0 0 14px"));
-  if (raw.appointment) r.push(row(`<div dir="ltr" style="font-family:${FONT};font-size:11px;letter-spacing:3px;color:${B.temptress};text-align:right">CERTIFICATE OF APPOINTMENT</div>`, "0 0 6px"));
-  r.push(row(`<h1 style="margin:0;font-family:${FONT};font-size:24px;line-height:1.5;font-weight:800;color:${B.mahogany}">${esc(c.title)}</h1>`, "0 0 10px"));
-  if (c.lead) r.push(row(`<p style="margin:0;font-family:${FONT};font-size:16px;line-height:1.9;color:${B.temptress}">${c.lead}</p>`, "0 0 18px"));
-  if (c.image) {
-    // في الوسط بعرضٍ ثابت: جدولٌ متمركز يرسمه Outlook كما يرسمه Gmail وApple Mail (البطاقةُ داخل رسالة الاعتماد — البند ٢)
-    const img = `<img src="${c.image.src}" width="${c.image.width}" height="${c.image.height}" alt="${esc(c.image.alt)}" style="display:block;border:0;width:${c.image.width}px;max-width:100%;height:auto;border-radius:14px;margin:0 auto">`;
+  r.push({ html: `<span style="display:inline-block;background-color:${B.temptress};color:${B.beige};font-family:${FONT};font-size:12px;font-weight:bold;line-height:1.5;padding:4px 14px;border-radius:999px">${esc(badge)}</span>`, bottom: 12 });
+  if (raw.appointment) r.push({ html: `<div dir="ltr" style="font-family:${FONT};font-size:11px;letter-spacing:3px;color:${B.temptress};text-align:right">CERTIFICATE OF APPOINTMENT</div>`, bottom: 4 });
+  r.push({ html: `<h1 style="margin:0;font-family:${FONT};font-size:24px;line-height:1.45;font-weight:800;color:${B.mahogany}">${esc(c.title)}</h1>`, bottom: 10 });
+  if (c.lead) r.push({ html: `<p style="${P(16)}">${c.lead}</p>`, bottom: 12 });
+
+  const image = () => {
+    if (!c.image) return;
+    // في الوسط بعرضٍ ثابت: جدولٌ متمركز يرسمه Outlook كما يرسمه Gmail وApple Mail. وحدٌّ رفيعٌ Temptress (ق10) يحفظ حافةَ
+    // البطاقة على متنٍ Beige (أعلاها Beige أيضاً)
+    const img = `<img src="${c.image.src}" width="${c.image.width}" height="${c.image.height}" alt="${esc(c.image.alt)}" style="display:block;border:1px solid ${B.temptress};width:${c.image.width}px;max-width:100%;height:auto;border-radius:14px;margin:0 auto">`;
     const linked = c.image.href ? `<a href="${c.image.href}" style="text-decoration:none">${img}</a>` : img;
-    r.push(row(`<table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto"><tr><td align="center">${linked}</td></tr></table>`, "0 0 20px"));
-  }
-  for (const p of c.paragraphs ?? []) r.push(row(`<p style="margin:0;font-family:${FONT};font-size:15px;line-height:1.95;color:${B.temptress}">${p}</p>`));
+    r.push({ html: `<table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto"><tr><td align="center">${linked}</td></tr></table>`, top: 6, bottom: 18 });
+  };
+  if ((c.imageAt ?? "afterLead") === "afterLead") image();
+  for (const p of c.paragraphs ?? []) r.push({ html: `<p style="${P(16)}">${p}</p>`, bottom: 12 });
+  if (c.imageAt === "afterText") image();
+
   const facts = (c.facts ?? []).filter(([, v]) => v && v.trim());
   if (facts.length) {
     const fr = facts
       .map(
         ([k, v], i) => `<tr>
-  <td style="padding:11px 16px;${i ? `border-top:1px solid ${B.temptress};` : ""}font-family:${FONT};font-size:13px;color:${B.temptress};white-space:nowrap;vertical-align:top">${esc(k)}</td>
-  <td align="left" style="padding:11px 16px;${i ? `border-top:1px solid ${B.temptress};` : ""}font-family:${FONT};font-size:14px;font-weight:bold;color:${B.temptress};text-align:left;word-break:break-word;overflow-wrap:anywhere">${esc(v!.trim())}</td>
+  <td style="padding:10px 16px;${i ? `border-top:1px solid ${B.temptress};` : ""}font-family:${FONT};font-size:13px;color:${B.temptress};white-space:nowrap;vertical-align:top">${esc(k)}</td>
+  <td align="left" style="padding:10px 16px;${i ? `border-top:1px solid ${B.temptress};` : ""}font-family:${FONT};font-size:14px;font-weight:bold;color:${B.temptress};text-align:left;word-break:break-word;overflow-wrap:anywhere">${esc(v!.trim())}</td>
 </tr>`
       )
       .join("");
-    r.push(row(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid ${B.temptress};border-radius:14px;border-collapse:separate">${fr}</table>`, "4px 0 18px"));
+    r.push({ html: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid ${B.temptress};border-radius:14px;border-collapse:separate">${fr}</table>`, top: 4, bottom: 16 });
   }
   if (c.quote?.text.trim()) {
-    r.push(
-      row(
-        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-right:4px solid ${B.mahogany};padding:12px 16px;font-family:${FONT};font-size:14px;line-height:1.9;color:${B.temptress}">
+    r.push({
+      html: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-right:4px solid ${B.mahogany};padding:10px 16px;font-family:${FONT};font-size:15px;line-height:1.85;color:${B.temptress}">
 ${c.quote.label ? `<div style="font-size:12px;font-weight:bold;margin-bottom:4px">${esc(c.quote.label)}</div>` : ""}<div style="white-space:pre-wrap">${esc(c.quote.text.trim())}</div></td></tr></table>`,
-        "0 0 18px"
-      )
-    );
+      bottom: 16,
+    });
   }
   if (c.code) {
-    r.push(
-      row(
-        `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" bgcolor="${B.temptress}" style="background-color:${B.temptress};border-radius:16px;padding:22px 12px">
-<div dir="ltr" style="font-family:'Courier New',Consolas,monospace;font-size:38px;font-weight:bold;letter-spacing:10px;color:${B.beige}">${esc(c.code.value)}</div>
-${c.code.caption ? `<div style="margin-top:8px;font-family:${FONT};font-size:12px;color:${B.beige}">${esc(c.code.caption)}</div>` : ""}</td></tr></table>`,
-        "4px 0 18px"
-      )
-    );
+    // الرمزُ بخطّ الرسالة نفسه (لا خطٌّ ثالث) بأرقامٍ متساوية العرض
+    r.push({
+      html: `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" bgcolor="${B.temptress}" style="background-color:${B.temptress};${KEEP_DARK}border-radius:16px;padding:20px 12px">
+<div dir="ltr" style="font-family:${FONT};font-size:38px;font-weight:bold;letter-spacing:10px;font-variant-numeric:tabular-nums;color:${B.beige}">${esc(c.code.value)}</div>
+${c.code.caption ? `<div style="margin-top:6px;font-family:${FONT};font-size:13px;color:${B.beige}">${esc(c.code.caption)}</div>` : ""}</td></tr></table>`,
+      top: 4,
+      bottom: 16,
+    });
   }
   if (c.cta || c.secondary) {
     const btn = c.cta
-      ? `<a href="${c.cta.url}" class="b26-btn" style="display:inline-block;background-color:${B.temptress};color:${B.beige};font-family:${FONT};font-size:15px;font-weight:bold;text-decoration:none;padding:14px 32px;border-radius:12px">${esc(c.cta.label)}</a>`
+      ? `<a href="${c.cta.url}" class="t-btn" style="display:inline-block;background-color:${B.temptress};color:${B.beige};font-family:${FONT};font-size:16px;font-weight:bold;line-height:1.4;text-decoration:none;padding:14px 32px;border-radius:12px">${esc(c.cta.label)}</a>`
       : "";
     const sec = c.secondary
-      ? `<a href="${c.secondary.url}" class="b26-btn" style="display:inline-block;color:${B.temptress};font-family:${FONT};font-size:14px;font-weight:bold;text-decoration:none;padding:12px 24px;border-radius:12px;border:1.5px solid ${B.temptress};margin-top:10px">${esc(c.secondary.label)}</a>`
+      ? `<a href="${c.secondary.url}" class="t-btn" style="display:inline-block;color:${B.temptress};font-family:${FONT};font-size:15px;font-weight:bold;line-height:1.4;text-decoration:none;padding:12px 24px;border-radius:12px;border:1.5px solid ${B.temptress};margin-top:10px">${esc(c.secondary.label)}</a>`
       : "";
-    r.push(row(`<div style="text-align:center">${btn}${btn && sec ? "<br>" : ""}${sec}</div>`, "6px 0 18px"));
+    r.push({ html: `<div style="text-align:center">${btn}${btn && sec ? "<br>" : ""}${sec}</div>`, top: 4, bottom: 16 });
   }
-  for (const p of c.after ?? []) r.push(row(`<p style="margin:0;font-family:${FONT};font-size:14px;line-height:1.9;color:${B.temptress}">${p}</p>`, "0 0 10px"));
-  if (c.note) r.push(row(`<p style="margin:0;font-family:${FONT};font-size:12px;line-height:1.8;color:${B.temptress};text-align:center">${esc(c.note)}</p>`, "6px 0 0"));
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl">${r.join("")}</table>`;
+  for (const p of c.after ?? []) r.push({ html: `<p style="${P(15)}">${p}</p>`, bottom: 8 });
+  if (c.note) r.push({ html: `<p style="${P(13, "line-height:1.75;text-align:center")}">${esc(c.note)}</p>`, top: 6, bottom: 0 });
+
+  if (r.length) r[r.length - 1].bottom = 0;
+  const rows = r.map((x) => `<tr><td style="padding:${x.top ?? 0}px 0 ${x.bottom}px">${x.html}</td></tr>`).join("");
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl">${rows}</table>`;
+}
+
+/** شريطٌ بعرض الشاشة بلونٍ واحد، ومحتواه في عمودٍ أقصاه 600px (وجدولٌ ثابتٌ لـOutlook على ويندوز) */
+function band(bg: string, inner: string, opts: { pad: string; dark?: boolean; cls?: string }): string {
+  return `<tr><td align="center" bgcolor="${bg}" style="background-color:${bg};${opts.dark ? KEEP_DARK : ""}padding:0">
+<!--[if mso]><table role="presentation" width="600" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+<table role="presentation" width="100%" align="center" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;margin:0 auto">
+<tr><td${opts.cls ? ` class="${opts.cls}"` : ""} style="padding:${opts.pad}">${inner}</td></tr>
+</table>
+<!--[if mso]></td></tr></table><![endif]-->
+</td></tr>`;
 }
 
 export function renderEmail2026(opts: Parameters<typeof renderEmail2026Parts>[0]): string {
@@ -116,64 +150,61 @@ export function renderEmail2026Parts(opts: {
   subject: string;
   content: EmailContent;
   theme?: EmailTheme;
-  /** مسارُ الأصول: في المعاينة مجلّدُ الحزمة محلياً، وبعد الاعتماد عنوانُ المنصة العام */
-  assetBase: string;
-  /** في المعاينة وحدها: تحميلُ الخط المعتمد لرؤية القصد (أغلبُ العملاء لا يحمّلونه — ق1، ق8) */
-  fontFaceBase?: string | null;
+  /** مصادرُ صور الهوية — `cid:` في البريد (الافتراضي)، وبياناتٌ مباشرة في ملفات المعاينة */
+  images?: EmailImageSources;
   preheader?: string;
-  /** التوقيعُ التعريفي وحسابُ التواصل — من `emailBrand` (يُمرَّران فلا تدور الاستيرادات) */
+  /** التوقيعُ التعريفي وحساباتُ التواصل — من `emailBrand` (تُمرَّر فلا تدور الاستيرادات) */
   tagline?: string;
+  links?: { label: string; url: string }[];
   handle?: string | null;
+  /** موقعُ المنصة الرسمي في التذييل */
+  site?: { label: string; url: string } | null;
   /** جهةُ الرسالة في الترويسة (`emailSenderLabel`) — وبغيابها اسمُ القسم كما هو */
   senderLabel?: string | null;
 }): { html: string; bodyHtml: string } {
-  const a = (p: string) => `${opts.assetBase}/${p}`;
+  const img = opts.images ?? CID_IMAGE_SOURCES;
+  const A = EMAIL_BRAND_ASSETS;
   const dept = opts.senderLabel?.trim() || opts.theme?.departmentName?.trim() || "إدارة TLAQI";
-  const fontFace = opts.fontFaceBase
-    ? TYPEFACE.weights.map((w) => `@font-face{font-family:'${TYPEFACE.family}';src:url('${opts.fontFaceBase}/${w.file}') format('opentype');font-weight:${w.weight};font-display:swap}`).join("")
-    : "";
   const bodyHtml = body(opts.content);
-  // **قرار المؤسس (نوفمبر 2026): الرسائلُ كلُّها ثابتةٌ بالبنفسجي**، و**علامةُ التذييل موحّدةٌ بلون Mahogany** (البند ٢ —
-  // كانت بلون القسم فتتبدّل من رسالةٍ لأخرى). وجهةُ الرسالة نصٌّ في الترويسة لا لون
-  const markSrc = a("email/mark-mahogany.png");
-  const handle = opts.handle;
+  const linkStyle = `color:${B.beige};text-decoration:none;font-family:${FONT};font-size:13px;font-weight:bold`;
+  const dot = `<span style="color:${B.beige};font-family:${FONT};font-size:13px;padding:0 8px">•</span>`;
+  const links = [...(opts.links ?? []), ...(opts.site ? [opts.site] : [])]
+    .map((l) => `<a href="${esc(l.url)}" style="${linkStyle}">${esc(l.label)}</a>`)
+    .join(dot);
+
+  const header = `<table role="presentation" dir="ltr" width="100%" cellpadding="0" cellspacing="0" border="0" style="direction:ltr"><tr>
+  <td align="left" valign="middle" width="55%" style="text-align:left"><img src="${img.logo}" width="${A.logo.width}" height="${A.logo.height}" alt="TLAQI — Talent Link Advancing Quality Innovation" class="t-logo" style="display:block;border:0;width:${A.logo.width}px;max-width:100%;height:auto"></td>
+  <td align="right" valign="middle" width="45%" dir="rtl" style="text-align:right;direction:rtl;font-family:${FONT};font-size:14px;line-height:1.5;font-weight:bold;color:${B.beige}">${esc(dept)}</td>
+</tr></table>`;
+  const footer = `<img src="${img.mark}" width="${A.mark.width}" height="${A.mark.height}" alt="TLAQI" style="display:block;border:0;width:${A.mark.width}px;height:auto;margin:0 auto 12px">
+<div style="font-family:${FONT};font-size:16px;line-height:1.6;font-weight:bold;color:${B.beige}">${esc(opts.tagline ?? "نلتقي • نفكر • نصنع")}</div>
+${links ? `<div dir="ltr" style="margin-top:12px;line-height:1.8">${links}</div>` : ""}
+${opts.handle ? `<div dir="ltr" style="margin-top:2px;font-family:${FONT};font-size:12px;color:${B.beige}">@${esc(opts.handle)}</div>` : ""}
+<div style="margin-top:14px;font-family:${FONT};font-size:12px;line-height:1.7;color:${B.beige}">مُرسَلة من إدارة تلاق لأن لك حساباً في منصّتها الداخلية.</div>`;
+
   const html = `<!doctype html>
-<html dir="rtl" lang="ar">
+<html dir="rtl" lang="ar" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="x-apple-disable-message-reformatting">
+<meta name="format-detection" content="telephone=no,date=no,address=no,email=no">
 <meta name="color-scheme" content="light only">
 <meta name="supported-color-schemes" content="light only">
 <title>${esc(opts.subject)}</title>
+<!--[if mso]><style>body,table,td,div,p,a,span,h1{font-family:Tahoma,Arial,sans-serif !important}</style><![endif]-->
 <style>
-${fontFace}
-@media (max-width:620px){ .b26-card{border-radius:0!important;border-left:0!important;border-right:0!important} .b26-pad{padding:22px 18px!important} .b26-btn{display:block!important;text-align:center!important} }
+html,body{margin:0!important;padding:0!important;width:100%!important;background-color:${BAND_BG}}
+@media (max-width:620px){ .t-pad{padding-left:20px!important;padding-right:20px!important} .t-logo{width:150px!important} .t-btn{display:block!important;text-align:center!important} }
 </style>
 </head>
-<body style="margin:0;padding:0;background-color:${BACKGROUNDS.emailPage}" bgcolor="${BACKGROUNDS.emailPage}">
-<div style="display:none;max-height:0;overflow:hidden">${esc(opts.preheader ?? opts.subject)}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BACKGROUNDS.emailPage}" style="background-color:${BACKGROUNDS.emailPage};padding:24px 0">
-<tr><td align="center" style="padding:0 10px">
-  <table role="presentation" class="b26-card" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BACKGROUNDS.emailCard}" style="max-width:600px;background-color:${BACKGROUNDS.emailCard};border:1px solid ${B.temptress};border-radius:20px;overflow:hidden">
-    <tr><td bgcolor="${B.temptress}" style="background-color:${B.temptress};${KEEP_DARK}padding:22px 26px">
-      <table role="presentation" dir="ltr" width="100%" cellpadding="0" cellspacing="0" border="0" style="direction:ltr"><tr>
-        <td align="left" valign="middle" width="50%" style="text-align:left"><img src="${a("email/logo-on-temptress.png")}" width="180" height="53" alt="TLAQI — Talent Link Advancing Quality Innovation" style="display:block;border:0;width:180px;max-width:100%;height:auto"></td>
-        <td align="right" valign="middle" width="50%" dir="rtl" style="text-align:right;direction:rtl;font-family:${FONT};font-size:13px;line-height:1.6;font-weight:bold;color:${B.beige}">${esc(dept)}</td>
-      </tr></table>
-    </td></tr>
-    <tr><td style="font-size:0;line-height:0;padding:0"><img src="${a("email/pattern-talent-temptress-on-white.png")}" width="600" height="48" alt="" style="display:block;border:0;width:100%;height:auto"></td></tr>
-    <tr><td style="height:1px;background-color:${B.temptress};font-size:0;line-height:0">&nbsp;</td></tr>
-    <tr><td class="b26-pad" style="padding:28px 30px 24px">${bodyHtml}</td></tr>
-    <tr><td bgcolor="${B.temptress}" align="center" style="background-color:${B.temptress};${KEEP_DARK}padding:22px 24px 18px">
-      <img src="${markSrc}" width="40" height="43" alt="" style="display:block;border:0;width:40px;height:auto;margin:0 auto 10px">
-      <div style="font-family:${FONT};font-size:14px;font-weight:bold;color:${B.beige}">${esc(opts.tagline ?? "نلتقي • نفكر • نصنع")}</div>
-      ${handle ? `<div dir="ltr" style="font-family:${FONT};font-size:11px;color:${B.beige};margin-top:10px">@${esc(handle)}</div>` : ""}
-    </td></tr>
-  </table>
-  <div style="max-width:600px;margin:14px auto 0;font-family:${FONT};font-size:11px;line-height:1.8;color:${B.temptress};text-align:center">
-    مُرسَلة من إدارة تلاق — لأن لك حساباً في منصّتها الداخلية.
-  </div>
-</td></tr>
+<body style="margin:0;padding:0;width:100%;background-color:${BAND_BG};font-family:${FONT}" bgcolor="${BAND_BG}">
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${esc(opts.preheader ?? opts.subject)}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BAND_BG}" style="width:100%;background-color:${BAND_BG};${KEEP_DARK}font-family:${FONT}">
+${band(BAND_BG, header, { pad: "22px 24px", dark: true, cls: "t-pad" })}
+${band(BODY_BG, `<img src="${img.pattern}" width="${A.pattern.width}" height="${A.pattern.height}" alt="" style="display:block;border:0;width:100%;max-width:${A.pattern.width}px;height:auto">`, { pad: "0" })}
+${band(BODY_BG, bodyHtml, { pad: "22px 24px 30px", cls: "t-pad" })}
+${band(BAND_BG, footer, { pad: "28px 24px 30px", dark: true, cls: "t-pad" }).replace('<td class="t-pad" style="', '<td class="t-pad" align="center" style="text-align:center;')}
 </table>
 </body>
 </html>`;

@@ -15,6 +15,7 @@
 import { readFileSync } from "fs";
 import { inkForBackground, certificateFrame, serviceDurationAr, CERTIFICATE_PAPER } from "../src/lib/certificate";
 import { renderEmail } from "../src/lib/emailBrand";
+import { EMAIL_BRAND_ASSETS } from "../src/lib/brand2026/emailAssets.generated";
 import { approvedLogoFor } from "../src/lib/shareCards";
 import { appointerTitle, committeeLeadAppointedContent } from "../src/lib/email";
 
@@ -70,7 +71,8 @@ const female = committeeLeadAppointedContent(base, "female");
 const male = committeeLeadAppointedContent({ ...base, fullName: "فيصل ناصر" }, "male");
 const neutral = committeeLeadAppointedContent({ ...base, committeeName: "لجنة المحتوى الرقمي" }, null);
 const html = renderEmail({ subject: female.title, content: female, theme: { departmentName: "التسويق", colorHex: "#C34900" } }).html;
-check("الترويسة بالشعار الرسمي (هوية 2026) على Temptress", html.includes("/brand/2026/email/logo-on-temptress.png") && html.includes('alt="TLAQI — Talent Link Advancing Quality Innovation"'));
+// تغييرُ توقّعٍ مقصود (طلب المؤسس، نوفمبر 2026): الشعارُ مضمّنٌ `cid:tlaqi-logo` من الملف نفسه لا رابطٌ خارجي (كان يُرسم مربّعاً فارغاً حيث تُحجب الصور)
+check("الترويسة بالشعار الرسمي (هوية 2026) على Temptress", html.includes("cid:tlaqi-logo") && EMAIL_BRAND_ASSETS.logo.source.endsWith("logo-on-temptress.png") && html.includes('alt="TLAQI — Talent Link Advancing Quality Innovation"'));
 check("الاسمُ العربي بكتابته المعتمدة «تلاق» وحدها", !/تَـــلاقِ|تلاقي/.test(html) && html.includes("تلاق"));
 check("لا الجملة القديمة ولا أي هاشتاق (رسالةٌ إدارية)", !html.includes("نلتقي") && !/#[\u0600-\u06FF]/.test(html));
 check("شهادة التعيين: العنوان والاسم والصفة بصيغة المؤنث", ["شهادة تعيين", "CERTIFICATE OF APPOINTMENT", "سارة عبدالله المثال", "قائدةً للجنة المحتوى الرقمي"].every((t) => html.includes(t)));
@@ -85,7 +87,8 @@ check("اسم اللجنة يُهرَّب", !renderEmail({ subject: "x", content
 const techHtml = renderEmail({ subject: "x", content: male, theme: { departmentName: "التقنية", colorHex: "#67C090" } }).html;
 check("لا نصَّ بأخضر القسم الباهت (Green Sheen للكتل لا للنص)", !/[^-]color:#67C090/i.test(techHtml));
 check("الوضع الداكن: الترويسة والتذييل يبقيان داكنين في Gmail", (html.match(/linear-gradient\(#341D2B,#341D2B\)/g) ?? []).length >= 2);
-check("والخلفيةُ بيضاء كما كانت (قرار المؤسس)", html.includes("#FFFFFF") && html.includes("#FAF8F4"));
+// تغييرُ توقّعٍ مقصود: قرارُ «الخلفيةُ بيضاء» (12 نوفمبر) نقضه المؤسس للبريد («لا أريد أن يظهر البريد كصفحة بيضاء») — الهويةُ ممتدة: المتنُ Beige الرسمي بلا صفحةٍ خارجية
+check("والخلفيةُ هويةٌ ممتدة لا صفحةٌ بيضاء (طلب المؤسس)", !html.includes("#FFFFFF") && !html.includes("#FAF8F4") && html.includes('bgcolor="#EEF6DF"'));
 eq("موقع مُصدِر التعيين: الرئاسة التنفيذية", appointerTitle("executive", "التسويق"), "الرئاسة التنفيذية");
 eq("ولا موقع لغير القيادة (يُكتب الاسم وحده)", appointerTitle("member", "التسويق"), null);
 

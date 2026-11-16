@@ -6,9 +6,7 @@ import { appendEmailLog } from "@/lib/googleSheets";
 import { prisma } from "@/lib/prisma";
 import {
   renderEmail,
-  htmlToText,
-  variantForKind,
-  toneForVariant,
+  composeEmail,
   appBaseUrl,
   type EmailContent,
   type EmailTheme,
@@ -254,12 +252,8 @@ async function send(
     // الهوية تُضاف هنا لا في كل دالة: الدالةُ تصف ما حدث بنيةً، والقالبُ
     // الموحَّد يرسمها — فلا تتفرّق الهوية على ثلاثين دالة ولا تُنسى في واحدة.
     // والنبرةُ إن لم تحدّدها الرسالة تُشتقّ من وسم نوعها.
-    const { html, bodyHtml } = renderEmail({
-      subject,
-      content: { ...content, tone: content.tone ?? toneForVariant(variantForKind(kind)) },
-      theme,
-      preheader: subject,
-    });
+    // وصورُ الهوية مرفقاتٌ مضمّنة معها (`composeEmail`) — لا روابطَ خارجية يحجبها عميلُ البريد فيرسم مربّعاً فارغاً
+    const composed = composeEmail({ subject, content, kind, theme, attachments });
     // Resend لا يرمي استثناءً عند رفض الـAPI: يرجع `{ data, error }`.
     // فكان كل رفضٍ — مفتاحٌ خاطئ، نطاقٌ غير موثّق، حدُّ إرسال، مستلمٌ
     // غير مقبول — يُسجَّل «أُرسلت» ويُقال لصاحب الشأن إنها وصلت. وهذا
@@ -268,13 +262,11 @@ async function send(
       from: FROM,
       to: recipients,
       subject,
-      html,
+      html: composed.html,
       // النسخة النصّية ليست ترفاً: رسالة HTML بلا بديل نصّي علامةٌ معروفة
       // عند مرشّحات السبام، وتصل مشوّهة لمن يقرأ بالنص المجرّد
-      text: htmlToText(bodyHtml),
-      ...(attachments?.length
-        ? { attachments: attachments.map((a) => ({ filename: a.filename, content: a.content, ...(a.contentId ? { contentId: a.contentId } : {}) })) }
-        : {}),
+      text: composed.text,
+      attachments: composed.attachments.map((a) => ({ filename: a.filename, content: a.content, ...(a.contentId ? { contentId: a.contentId } : {}) })),
       headers: {
         // يمنع تجميع الرسائل المتتابعة في خيط واحد عند Gmail
         "X-Entity-Ref-ID": `${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -1404,6 +1396,20 @@ function welcomeContent(opts: WelcomeEmailOpts): { subject: string; content: Ema
   const dept = opts.departmentName?.trim();
   const where = dept ? `TLAQI في ${esc(dept)}` : "TLAQI";
   const since = opts.joinedAt ? `، اعتباراً من ${esc(arabicDate(opts.joinedAt))}` : "";
+  const k = G("ك", "كِ", "ك");
+
+  // **نصٌّ واحدٌ مترابط** (طلب المؤسس، نوفمبر 2026): كانت الرسالةُ ثلاثَ جملٍ متفرّقة بفراغاتٍ بينها، وجملةُ «وهذه بطاقتك»
+  // تأتي بعد البطاقة لا قبلها. فصارت فقرةً واحدة تقدّم البطاقة، ثم البطاقةُ نفسُها. والمعلوماتُ كلُّها باقية: الاعتماد،
+  // والجهة، والمهمة، والتاريخ، وأن البطاقة مرفقةٌ بدقّتها الكاملة للحفظ والطباعة.
+  const opening = approved
+    ? `يسعدنا اعتمادُ انضمام${k} إلى ${where} بمهمة <b>${esc(task)}</b>${since}، ومن اليوم ${G("أنت", "أنتِ", "أنت")} جزءٌ من فريقنا.`
+    : `نعيد إلي${k} رسالةَ اعتماد انضمام${k} إلى ${where} بمهمة <b>${esc(task)}</b>${since}، ${G("فأنت", "فأنتِ", "فأنت")} جزءٌ من فريقنا ونسعد بوجود${k} معنا.`;
+  const card = !opts.withCard
+    ? ""
+    : opts.cardInline
+      ? ` ${G("تجد", "تجدين", "تجد")} بطاقتَ${k} الرسمية أدناه، ومرفقةً بالرسالة أيضاً بدقّتها الكاملة للحفظ والطباعة${approved ? "، ونتطلّع إلى ما سنصنعه معاً." : "."}`
+      : ` وبطاقتُ${k} الرسمية مرفقةٌ بهذه الرسالة بدقّتها الكاملة للحفظ والطباعة${approved ? "، ونتطلّع إلى ما سنصنعه معاً." : "."}`;
+  const closing = !opts.withCard && approved ? " ونتطلّع إلى ما سنصنعه معاً." : "";
 
   return {
     subject: welcomeEmailSubject(opts.fullName, opts.occasion ?? "approved"),
@@ -1412,22 +1418,10 @@ function welcomeContent(opts: WelcomeEmailOpts): { subject: string; content: Ema
       tone: "celebrate",
       badge: approved ? "اعتُمد انضمامك" : "رسالة الاعتماد",
       title: `أهلاً ${f.you} في العائلة، ${first}`,
-      lead: approved
-        ? `اعتُمد انضمامك إلى ${where} بمهمة <b>${esc(task)}</b>${since}.`
-        : `نعيد إليك رسالة اعتماد انضمامك إلى ${where} بمهمة <b>${esc(task)}</b>${since}.`,
-      paragraphs: [
-        `ومن اليوم ${G("أنت", "أنتِ", "أنت")} جزءٌ من فريق TLAQI — أهلاً ${f.you} بيننا، ونتطلّع إلى ما سنصنعه معاً.`,
-        ...(opts.withCard
-          ? [
-              opts.cardInline
-                ? `وهذه بطاقتُ${G("ك", "كِ", "ك")} الرسمية في TLAQI — ومرفقةٌ بالرسالة أيضاً بدقّتها الكاملة للحفظ والطباعة.`
-                : `ومرفقةٌ بهذه الرسالة بطاقتُ${G("ك", "كِ", "ك")} الرسمية في TLAQI.`,
-            ]
-          : []),
-      ],
-      // **البطاقةُ في وسط رسالة الاعتماد** (البند ٢) — صورةٌ مضمّنةٌ بمعرّف `cid:` لا رابطٌ خارجي
+      lead: `${opening}${card}${closing}`,
+      // **البطاقةُ بعد النصّ الذي يقدّمها** — صورةٌ مضمّنةٌ بمعرّف `cid:` لا رابطٌ خارجي
       ...(opts.withCard && opts.cardInline
-        ? { image: { src: `cid:${CARD_CONTENT_ID}`, width: CARD_INLINE_WIDTH, height: CARD_INLINE_HEIGHT, alt: `البطاقة الرسمية — ${opts.fullName}` } }
+        ? { imageAt: "afterText" as const, image: { src: `cid:${CARD_CONTENT_ID}`, width: CARD_INLINE_WIDTH, height: CARD_INLINE_HEIGHT, alt: `البطاقة الرسمية — ${opts.fullName}` } }
         : {}),
     },
   };

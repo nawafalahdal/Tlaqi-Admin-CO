@@ -29,18 +29,13 @@ const encWord = (s: string) => `=?UTF-8?B?${Buffer.from(s, "utf8").toString("bas
 (async () => {
   const { captureEmails } = await import("@/lib/emailCapture");
   const { sendWelcomePack } = await import("@/lib/welcome");
-  const { renderEmail, htmlToText, toneForVariant, variantForKind } = await import("@/lib/emailBrand");
+  const { composeEmail, inlineForPreview } = await import("@/lib/emailBrand");
   const member = await prisma.member.findFirstOrThrow({ where: { email }, select: { id: true, fullName: true } });
   const mails = await captureEmails(() => sendWelcomePack({ kind: "member", id: member.id }, "approved"));
   const mail = mails.find((m) => m.kind === "ترحيب");
   if (!mail) throw new Error("لم تُبنَ رسالةُ الاعتماد");
-  const { html, bodyHtml } = renderEmail({
-    subject: mail.subject,
-    content: { ...mail.content, tone: mail.content.tone ?? toneForVariant(variantForKind(mail.kind)) },
-    theme: mail.theme,
-    preheader: mail.subject,
-  });
-  const atts = mail.attachments ?? [];
+  // الدالةُ نفسُها التي يرسل بها المسار (`composeEmail`): HTMLُ الرسالة ونصُّها ومرفقاتُها مع صور الهوية المضمّنة
+  const { html, text, attachments: atts } = composeEmail({ subject: mail.subject, content: mail.content, kind: mail.kind, theme: mail.theme, attachments: mail.attachments });
   const inline = atts.filter((a) => a.contentId);
   const files = atts.filter((a) => !a.contentId);
   const B = { mixed: "=_tlaqi_mixed", related: "=_tlaqi_related", alt: "=_tlaqi_alt" };
@@ -65,7 +60,7 @@ const encWord = (s: string) => `=?UTF-8?B?${Buffer.from(s, "utf8").toString("bas
     "Content-Type: text/plain; charset=UTF-8",
     "Content-Transfer-Encoding: base64",
     "",
-    b64(htmlToText(bodyHtml)),
+    b64(text),
     `--${B.alt}`,
     "Content-Type: text/html; charset=UTF-8",
     "Content-Transfer-Encoding: base64",
@@ -95,7 +90,7 @@ const encWord = (s: string) => `=?UTF-8?B?${Buffer.from(s, "utf8").toString("bas
   ];
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, "test-email.eml"), lines.join("\r\n"));
-  const preview = inline.reduce((h, a) => h.split(`cid:${a.contentId}`).join(`data:image/png;base64,${a.content.toString("base64")}`), html);
+  const preview = inlineForPreview(html, atts);
   writeFileSync(join(outDir, "test-email-preview.html"), preview);
   const manifest = {
     sent: false,
@@ -107,7 +102,8 @@ const encWord = (s: string) => `=?UTF-8?B?${Buffer.from(s, "utf8").toString("bas
     attachments: files.map((a) => ({ file: a.filename, bytes: a.content.length })),
     imageInBody: mail.content.image?.src ?? null,
     tagline: html.includes("نلتقي • نفكر • نصنع"),
-    mahoganyMark: html.includes("email/mark-mahogany.png"),
+    mahoganyMark: html.includes("cid:tlaqi-mark"),
+    remoteImages: [...html.matchAll(/<img[^>]+src="(https?:[^"]+)"/g)].map((m) => m[1]),
     headerLtr: /<table[^>]*dir="ltr"/.test(html),
   };
   writeFileSync(join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2));

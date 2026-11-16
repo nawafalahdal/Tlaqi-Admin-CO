@@ -69,7 +69,9 @@ const chk = (n: string, ok: boolean, extra = "") => checks.push(`${ok ? "✓" : 
     chk("**ومعها البطاقةُ الرسمية مرفقة**", !!att && att.filename === businessCardFileName("ريم الاختبارية"), att?.filename ?? "لا مرفق");
     const attMeta = att ? await sharp(att.content).metadata() : null;
     chk("والمرفقُ صورةُ البطاقة نفسها", attMeta?.format === "png" && attMeta.width === 1276, `${attMeta?.format} ${attMeta?.width}`);
-    chk("وسطرٌ في الرسالة يذكرها بجنسها", (welcome?.content.paragraphs ?? []).some((p) => p.includes("بطاقتُكِ الرسمية") && p.includes("مرفقةٌ")));
+    // تغييرُ توقّعٍ مقصود (طلب المؤسس، نوفمبر 2026 — «نصٌّ مترابط»): الرسالةُ فقرةٌ واحدة في `lead` تقدّم البطاقةَ قبلها،
+    // لا جملةٌ منفصلة في `paragraphs`. والمقصودُ نفسُه: سطرٌ يذكر البطاقةَ بجنس صاحبتها وأنها مرفقة
+    chk("وسطرٌ في الرسالة يذكرها بجنسها", [welcome?.content.lead ?? "", ...(welcome?.content.paragraphs ?? [])].some((p) => p.includes("بطاقتَكِ الرسمية") && p.includes("ومرفقةً بالرسالة")));
     // تغييرُ توقّعٍ مقصود (قرار المؤسس، البند ٢ — نوفمبر 2026): **البطاقةُ تُعرض في وسط رسالة الاعتماد** مع بقاء المرفق.
     // كان: «وجسمُ الرسالة بلا صورة». والعرضُ بمعرّف `cid:` لمرفقٍ مضمّنٍ بحجم البريد — لا رابطٌ خارجي
     const inline = welcome?.attachments?.find((a) => a.contentId === "tlaqi-card");
