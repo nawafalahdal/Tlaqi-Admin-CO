@@ -26,7 +26,10 @@ try {
 
   // ── الترويسة: الشعارُ يساراً والجهةُ يميناً — باتجاهٍ صريح
   const h = header(plain);
-  chk("**جدولُ الترويسة باتجاهٍ صريح من اليسار**", /<table[^>]*dir="ltr"[^>]*style="direction:ltr"/.test(h), h.slice(0, 200));
+  chk("**جدولُ الترويسة باتجاهٍ صريح من اليسار**", /<table[^>]*dir="ltr"[^>]*style="direction:ltr;table-layout:fixed"/.test(h), h.slice(0, 200));
+  // تغييرُ توقّعٍ مقصود (Gmail على iPhone): الشعارُ بعرضٍ ثابت داخل خلية كان يفرض في WebKit عرضاً أوسعَ من الشاشة، فيصغّر Gmail
+  // البريدَ كلَّه ويترك تحته فراغاً أبيض — فصار 100% بسقف عرضه، والجدولُ ثابتُ التخطيط
+  chk("**والشعارُ مرنٌ بسقف عرضه** (لا يفرض عرضَ الترويسة)", /cid:tlaqi-logo"[^>]*style="[^"]*width:100%;max-width:\d+px/.test(h));
   chk("الشعارُ أولاً وفي اليسار", h.indexOf('align="left"') > -1 && h.indexOf('align="left"') < h.indexOf("cid:tlaqi-logo") && h.indexOf("cid:tlaqi-logo") < h.indexOf("قسم التقنية"));
   chk("والجهةُ ثانياً وفي اليمين بنصٍّ عربي", /<td align="right"[^>]*dir="rtl"[^>]*>قسم التقنية<\/td>/.test(h));
 
@@ -108,8 +111,11 @@ try {
   chk("**البطاقةُ في رسالة الاعتماد بمعرّف cid**", iImg > -1);
   // تغييرُ توقّعٍ مقصود: البطاقةُ بعد الفقرة التي تقدّمها (كانت قبلها فجاءت «وهذه بطاقتك» بعدها) وقبل التذييل
   chk("**بعد الفقرة التي تقدّمها** وقبل التذييل", iImg > welcome.indexOf("أدناه") && iImg < welcome.indexOf("cid:tlaqi-mark"));
-  chk("ومتمركزةٌ بعرضٍ ثابت (Outlook)", /<table role="presentation" align="center"[^>]*><tr><td align="center"><img src="cid:tlaqi-card" width="260"/.test(welcome));
-  chk("وبحدٍّ رفيعٍ Temptress يحفظ حافتَها على المتن الـBeige", /src="cid:tlaqi-card"[^>]*border:1px solid #341D2B/.test(welcome));
+  // تغييرُ توقّعٍ مقصود (Gmail على iPhone): كانت بعرضٍ ثابت 260px داخل جدولٍ متمركز — فصارت 100% من إطارٍ سقفُه عرضُها،
+  // تملؤه على الشاشة العريضة وتنكمش على الضيقة. وOutlook يأخذ سمةَ العرض (260) كما كان
+  chk("**ومتمركزةٌ بسقف عرضها، مرنةٌ على الشاشة الضيقة**", /<div style="max-width:260px;margin:0 auto;[^"]*"><img src="cid:tlaqi-card" width="260"[^>]*style="[^"]*width:100%;height:auto/.test(welcome));
+  chk("وبحدٍّ رفيعٍ Temptress يحفظ حافتَها على المتن الـBeige", /<div style="max-width:260px;[^"]*border:1px solid #341D2B[^"]*"><img src="cid:tlaqi-card"/.test(welcome));
+  chk("**ولا صورةَ في الرسالة بعرضٍ ثابتٍ أوسعَ من شاشة هاتف**", !/<img[^>]*style="[^"]*(?<!max-)width:(2[0-9]{2}|[3-9][0-9]{2})px/.test(welcome));
   chk("**ونصُّها فقرةٌ واحدة** (لا جملٌ متفرّقة)", (welcome.match(/<p style=/g) ?? []).length === 1, String((welcome.match(/<p style=/g) ?? []).length));
   chk("ومعلوماتُها كلُّها باقية: الجهة والمهمة والحفظ والطباعة", ["TLAQI في التقنية", "<b>عضو</b>", "جزءٌ من فريقنا", "للحفظ والطباعة", "ونتطلّع إلى ما سنصنعه معاً"].every((t) => welcome.includes(t)));
   chk("وبصيغة المؤنث", welcome.includes("انضمامكِ") && welcome.includes("أنتِ جزءٌ") && welcome.includes("تجدين بطاقتَكِ"));

@@ -79,11 +79,13 @@ function body(raw: EmailContent): string {
 
   const image = () => {
     if (!c.image) return;
-    // في الوسط بعرضٍ ثابت: جدولٌ متمركز يرسمه Outlook كما يرسمه Gmail وApple Mail. وحدٌّ رفيعٌ Temptress (ق10) يحفظ حافةَ
-    // البطاقة على متنٍ Beige (أعلاها Beige أيضاً)
-    const img = `<img src="${c.image.src}" width="${c.image.width}" height="${c.image.height}" alt="${esc(c.image.alt)}" style="display:block;border:1px solid ${B.temptress};width:${c.image.width}px;max-width:100%;height:auto;border-radius:14px;margin:0 auto">`;
-    const linked = c.image.href ? `<a href="${c.image.href}" style="text-decoration:none">${img}</a>` : img;
-    r.push({ html: `<table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto"><tr><td align="center">${linked}</td></tr></table>`, top: 6, bottom: 18 });
+    // **عرضٌ مرن بسقفٍ لا عرضٌ ثابت** (عطبٌ رآه المؤسس في Gmail على iPhone): الصورةُ بعرضٍ ثابت داخل خلية جدول تفرض في
+    // WebKit عرضَ الجدول كلِّه (`max-width:100%` لا يصغّر الحدَّ الأدنى للخلية هناك) — فيتّسع البريد عن الشاشة، ويصغّره Gmail
+    // ليتّسع، ويُبقي ارتفاعَه الأصلي فراغاً أبيضَ تحته. فالإطارُ كتلةٌ سقفُها عرضُ الصورة، والصورةُ 100% منه: تملأ سقفَها على
+    // الشاشة العريضة وتنكمش على الضيقة. وحدٌّ رفيعٌ Temptress (ق10) يحفظ حافةَ البطاقة على متنٍ Beige. وOutlook يأخذ سمةَ العرض.
+    const img = `<img src="${c.image.src}" width="${c.image.width}" height="${c.image.height}" alt="${esc(c.image.alt)}" style="display:block;border:0;width:100%;height:auto;border-radius:13px">`;
+    const linked = c.image.href ? `<a href="${c.image.href}" style="display:block;text-decoration:none">${img}</a>` : img;
+    r.push({ html: `<div style="max-width:${c.image.width}px;margin:0 auto;border:1px solid ${B.temptress};border-radius:14px;overflow:hidden;font-size:0;line-height:0">${linked}</div>`, top: 6, bottom: 18 });
   };
   if ((c.imageAt ?? "afterLead") === "afterLead") image();
   for (const p of c.paragraphs ?? []) r.push({ html: `<p style="${P(16)}">${p}</p>`, bottom: 12 });
@@ -174,8 +176,9 @@ export function renderEmail2026Parts(opts: {
     .map((l) => `<a href="${esc(l.url)}" style="${linkStyle}">${esc(l.label)}</a>`)
     .join(dot);
 
-  const header = `<table role="presentation" dir="ltr" width="100%" cellpadding="0" cellspacing="0" border="0" style="direction:ltr"><tr>
-  <td align="left" valign="middle" width="55%" style="text-align:left"><img src="${img.logo}" width="${A.logo.width}" height="${A.logo.height}" alt="TLAQI — Talent Link Advancing Quality Innovation" class="t-logo" style="display:block;border:0;width:${A.logo.width}px;max-width:100%;height:auto"></td>
+  // `table-layout:fixed` والشعارُ 100% بسقف عرضه: لا يفرض الشعارُ عرضَ الترويسة على الشاشة الضيقة (WebKit — انظر صورةَ المتن)
+  const header = `<table role="presentation" dir="ltr" width="100%" cellpadding="0" cellspacing="0" border="0" style="direction:ltr;table-layout:fixed"><tr>
+  <td align="left" valign="middle" width="55%" style="text-align:left"><img src="${img.logo}" width="${A.logo.width}" height="${A.logo.height}" alt="TLAQI — Talent Link Advancing Quality Innovation" class="t-logo" style="display:block;border:0;width:100%;max-width:${A.logo.width}px;height:auto"></td>
   <td align="right" valign="middle" width="45%" dir="rtl" style="text-align:right;direction:rtl;font-family:${FONT};font-size:14px;line-height:1.5;font-weight:bold;color:${B.beige}">${esc(dept)}</td>
 </tr></table>`;
   const footer = `<img src="${img.mark}" width="${A.mark.width}" height="${A.mark.height}" alt="TLAQI" style="display:block;border:0;width:${A.mark.width}px;height:auto;margin:0 auto 12px">
@@ -197,7 +200,7 @@ ${opts.handle ? `<div dir="ltr" style="margin-top:2px;font-family:${FONT};font-s
 <!--[if mso]><style>body,table,td,div,p,a,span,h1{font-family:Tahoma,Arial,sans-serif !important}</style><![endif]-->
 <style>
 html,body{margin:0!important;padding:0!important;width:100%!important;background-color:${END_BG}}
-@media (max-width:620px){ .t-pad{padding-left:20px!important;padding-right:20px!important} .t-logo{width:150px!important} .t-btn{display:block!important;text-align:center!important} }
+@media (max-width:620px){ .t-pad{padding-left:20px!important;padding-right:20px!important} .t-logo{max-width:150px!important} .t-btn{display:block!important;text-align:center!important} }
 </style>
 </head>
 <body style="margin:0;padding:0;width:100%;background-color:${END_BG};font-family:${FONT}" bgcolor="${END_BG}">
