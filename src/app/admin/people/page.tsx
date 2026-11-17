@@ -341,6 +341,8 @@ export default async function PeoplePage({
     dept: { id: string; name: string; colorHex: string } | null;
     since: Date;
     avatar: string | null;
+    /** جنسُه المسجَّل — للهيئة الافتراضية الرسمية حين لا صورة */
+    gender: string | null;
     status: { label: string; tone: "ok" | "warn" };
     welcome: { label: string; tone: "ok" | "warn" | "bad" };
     leader: boolean;
@@ -373,6 +375,7 @@ export default async function PeoplePage({
             eid: employeeIdLabel(me.employeeNo),
             since: me.createdAt,
             avatar: avatarUrl("user", me.id, me.avatarVersion),
+            gender: me.gender,
             status: statusOf(me.email, me.totpEnabled),
             welcome: welcomeOf(me.email, me.welcomeEmailSentAt),
             leader: true,
@@ -394,6 +397,7 @@ export default async function PeoplePage({
       eid: employeeIdLabel(a.employeeNo),
       since: a.createdAt,
       avatar: avatarUrl("user", a.id, a.avatarVersion),
+      gender: a.gender,
       status: statusOf(a.email, a.totpEnabled),
       welcome: welcomeOf(a.email, a.welcomeEmailSentAt),
       leader: true,
@@ -410,6 +414,7 @@ export default async function PeoplePage({
     eid: employeeIdLabel(m.employeeNo),
     since: m.orgJoinDate ?? m.decidedAt ?? m.joinDate,
     avatar: avatarUrl("member", m.id, m.avatarVersion),
+    gender: m.gender,
     status: statusOf(m.email, null),
     welcome: welcomeOf(m.email, m.welcomeEmailSentAt),
     leader: false,
@@ -524,6 +529,7 @@ export default async function PeoplePage({
                   <span className="flex items-center gap-2.5">
                     <PersonAvatar
                       src={r.avatar}
+                      gender={r.gender}
                       name={r.name}
                       color={portraitColorFor(null, r.dept)}
                       className="h-9 w-9"

@@ -6,9 +6,11 @@ import { join } from "path";
  *  هيئتان بلا ملامح يزوّدنا بهما المؤسس: **رجلٌ بثوبٍ وشماغ** و**امرأةٌ بحجاب** — بجنس صاحب الحساب كما اختاره عند
  *  تسجيله. تُحفظان كما هما في `public/brand/2026/portraits/` (`default-male` و`default-female`، PNG أو JPG) — لا
  *  تُرسمان هنا. وإن غابت إحداهما، أو لم يُحدَّد جنسُ صاحب الحساب، بقيت البطاقةُ على الحرف الأول من اسمه. */
-export type PortraitGender = "male" | "female";
+import { DEFAULT_PORTRAIT_DIR, type PortraitGender } from "@/lib/portrait";
+export type { PortraitGender };
 
-const DIR = join(process.cwd(), "public", "brand", "2026", "portraits");
+/** المجلّدُ نفسُه الذي يقرأ منه الهيكلُ وصفحةُ الأشخاص (`lib/portrait`) — مصدرٌ واحدٌ للهيئتين */
+const DIR = join(process.cwd(), "public", ...DEFAULT_PORTRAIT_DIR.split("/"));
 const cache = new Map<PortraitGender, Buffer | null>();
 
 /** الهيئةُ الافتراضية بجنس صاحبها — `null` إن لم يُحدَّد جنسُه أو لم تُضَف صورتُها بعد */

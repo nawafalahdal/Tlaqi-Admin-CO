@@ -73,6 +73,7 @@ export default async function AdminProfilePage() {
           <PersonAvatar
             src={avatarUrl("user", session.user.id, user.avatarVersion)}
             name={user.fullName}
+            gender={user.gender}
             color={portraitColorFor(user.role, shownDepartment)}
             className="h-20 w-20"
             textClassName="text-2xl"

@@ -1347,3 +1347,7 @@ body:has(.app-sidebar) main > section > div:first-child > h2:first-child {
 }
 .file-field:has(.file-field__input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
 .file-field[data-disabled="true"] { opacity: 0.55; }
+
+/* الهيكلُ التنظيمي: انتقالاتٌ ناعمةٌ قصيرة للوحة التفاصيل — وتُلغى لمن طلب تقليلَ الحركة (`motion-safe:`) */
+@keyframes org-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes org-rise { from { opacity: 0; transform: translateY(18px) } to { opacity: 1; transform: none } }

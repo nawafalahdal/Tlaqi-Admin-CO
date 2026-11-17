@@ -198,7 +198,7 @@ export default async function PersonPage({
         </div>
 
         <Card className="flex flex-wrap items-center gap-4 p-5" style={{ borderTop: `5px solid ${color}` }}>
-          <PersonAvatar src={avatar} name={person.fullName} color={portraitColor} className="h-20 w-20" textClassName="text-2xl" />
+          <PersonAvatar src={avatar} gender={person.gender} name={person.fullName} color={portraitColor} className="h-20 w-20" textClassName="text-2xl" />
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-bold">{person.fullName}</h1>
             <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-black/60">
