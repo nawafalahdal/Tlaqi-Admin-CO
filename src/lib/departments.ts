@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { colorHolder, lockDepartmentColors, normalizeHex } from "@/lib/departmentColor";
-import type { Prisma } from "@prisma/client";
+import type { CommitteeStatus, Prisma } from "@prisma/client";
 import { appendMemberEvent } from "@/lib/googleSheets";
 import { SENIOR_ROLES, seniorDepartment } from "@/lib/seniorAffiliation";
+import { ROSTER_MEMBER_WHERE } from "@/lib/roster";
 import type { Session } from "next-auth";
 
 /** من يملك إنشاء قسم: الفاوندر والمدير التنفيذي.
@@ -298,12 +299,99 @@ export async function departmentDeletionPlan(departmentId: string): Promise<Dele
   return { mode, blockers, lead: lead ? { id: lead.id, fullName: lead.fullName } : null, preserved };
 }
 
+/** **حذفُ لجنة** — كان يسقط بـ«حدث خطأٌ غير متوقع» (عطبٌ رآه المؤسس في الإنتاج، 17 نوفمبر 2026).
+ *
+ *  **السببُ الجذري:** فحصُ اللجنة قبل الحذف كان يعدّ سبعةَ أنواعٍ من السجلات (الحسابات والأعضاء والدعوات…) ولا يعدّ
+ *  **سجلاتِ اللجنة نفسِها** — عضوياتِها (`CommitteeMembership`) واجتماعاتِها وقراراتِها ومهامَّها وتقاريرَها ومقترحاتِها
+ *  وتنبيهاتِ قائدها. وكلُّها مقيَّدةٌ في القاعدة (`onDelete: Restrict`) عمداً: «لجنةٌ تحمل سجلّاً لا يُحذف صفُّها — تُغلَق
+ *  وتُؤرشَف ولا تُمحى». فيمرّ الفحصُ، ويرفض Postgres الحذفَ (23001)، ويصل الخطأُ الخامُ إلى الواجهة.
+ *
+ *  **والآن — بقاعدة المنصة نفسِها:**
+ *  - مَن بيتُه اللجنةُ (حسابٌ قياديٌّ نشط أو عضوٌ نشط قسمُه اللجنة) يمنع، باسمه — لا يُترك أحدٌ بلا قسم.
+ *  - **بلا أيّ سجلّ:** تُحذف نهائياً كما كانت.
+ *  - **ولها سجلّ:** تُؤرشَف (`archived`، ومن أين أُرشفت) — تغيب من القوائم والهيكل، ويبقى سجلُّها كاملاً، وتُسترجَع من
+ *    صفحة اللجان. ويُكتب الحدثُ في سجل التدقيق في المعاملة نفسِها.
+ *  - **وحارسٌ أخير:** لو أُضيف لاحقاً جدولٌ يشير إلى اللجنة ولم يُعدّ هنا، فرفضُ القاعدة (P2003/23001) يحوّل الحذفَ أرشفةً
+ *    — لا خطأً خاماً. */
+async function deleteCommittee(
+  dept: { id: string; name: string; slug: string; colorHex: string; parentId: string; committeeStatus: CommitteeStatus | null },
+  holdings: DepartmentHoldings,
+  actor: { id: string | null; name: string; role: string }
+): Promise<{ ok: true; name: string; mode: "delete" | "archive" } | { ok: false; reason: string }> {
+  const [activeAdmins, activeHome, memberships, meetings, decisions, tasks, reports, proposals, warnings] = await Promise.all([
+    prisma.user.count({ where: { departmentId: dept.id, isActive: true } }),
+    // العضوُ من دُعي عضواً (`ROSTER_MEMBER_WHERE`) — لا صفُّ ترشّح قائدٍ رُقّي (حسابُه القياديُّ يُعدّ في السطر قبله)
+    prisma.member.count({ where: { departmentId: dept.id, ...ROSTER_MEMBER_WHERE } }),
+    prisma.committeeMembership.count({ where: { committeeId: dept.id } }),
+    prisma.committeeMeeting.count({ where: { committeeId: dept.id } }),
+    prisma.committeeDecision.count({ where: { committeeId: dept.id } }),
+    prisma.committeeTask.count({ where: { committeeId: dept.id } }),
+    prisma.committeeReport.count({ where: { committeeId: dept.id } }),
+    prisma.committeeProposal.count({ where: { committeeId: dept.id } }),
+    prisma.committeeLeadWarning.count({ where: { committeeId: dept.id } }),
+  ]);
+  const blockers: string[] = [];
+  if (activeAdmins > 0) blockers.push(`${activeAdmins} حساب قيادي نشط قسمُه هذه اللجنة`);
+  if (activeHome > 0) blockers.push(`${activeHome} عضو نشط قسمُه هذه اللجنة — يُنقل إلى قسمٍ أولاً`);
+  if (blockers.length > 0) return { ok: false, reason: `لا تُحذف اللجنة وفيها: ${blockers.join("، ")}.` };
+
+  const records = memberships + meetings + decisions + tasks + reports + proposals + warnings + deleteBlockers(holdings, 0).length;
+  if (records === 0) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.announcement.deleteMany({ where: { departmentId: dept.id } });
+        await tx.testTrack.deleteMany({ where: { departmentId: dept.id } });
+        await tx.department.delete({ where: { id: dept.id } });
+      });
+      await appendMemberEvent({
+        fullName: actor.name,
+        email: "",
+        roleOrDepartment: dept.name,
+        event: "حذف لجنة نهائياً",
+        details: `المعرّف: ${dept.slug} — اللون: ${dept.colorHex} — لا سجلّ لها عند الحذف`,
+        at: new Date(),
+      });
+      return { ok: true, name: dept.name, mode: "delete" };
+    } catch (e) {
+      // جدولٌ يشير إلى اللجنة لم يُعدّ أعلاه: تُؤرشف ولا يصل خطأٌ خام
+      // (Prisma يصفه P2003 حين يعرفه، ونصّاً خاماً بـ23001 restrict أو 23503 foreign_key حين لا يعرفه — كما في سجل الإنتاج)
+      const code = (e as { code?: string }).code;
+      const raw = String((e as Error)?.message ?? "");
+      if (code !== "P2003" && !raw.includes("23001") && !raw.includes("23503")) throw e;
+    }
+  }
+
+  const { recordOrgEvent } = await import("@/lib/org/audit");
+  const note = `حذفها ${actor.name} من الأقسام — أُرشفت حفظاً لسجلّها (${memberships} عضوية، ${meetings} اجتماع، ${tasks} مهمة، ${decisions} قرار)`;
+  const written = await prisma.$transaction(async (tx) => {
+    const w = await tx.department.updateMany({
+      where: { id: dept.id, OR: [{ committeeStatus: null }, { committeeStatus: { not: "archived" } }] },
+      data: { committeeStatus: "archived", archivedFromStatus: dept.committeeStatus ?? "closed", statusChangedAt: new Date(), statusNote: note },
+    });
+    if (w.count) {
+      await recordOrgEvent(tx, {
+        scope: "committee",
+        entityId: dept.id,
+        departmentId: dept.parentId,
+        action: "committee.archive",
+        actor: { id: actor.id ?? "system", name: actor.name, kind: actor.id ? "user" : "system", role: actor.role },
+        before: { status: dept.committeeStatus },
+        after: { status: "archived" },
+        note,
+      });
+    }
+    return w.count;
+  });
+  if (!written) return { ok: false, reason: "تغيّرت حالةُ اللجنة للتوّ — أعِد فتح الصفحة" };
+  return { ok: true, name: dept.name, mode: "archive" };
+}
+
 /** يحذف قسماً — وللمؤسس وحده، ولا يحذف قسماً فيه أحدٌ غير قائده.
  *
  *  - **القسمُ الأصيل:** بخطّته (`departmentDeletionPlan`) — يُرفض بما يمنعه مسمّىً، أو
  *    يُؤرشف حافظاً سجلّه، أو يُحذف نهائياً إن لم يكن له تاريخ.
- *  - **اللجنة:** بقاعدتها القديمة كما هي — لها دورةُ حياتها في وحدة اللجان (إغلاقٌ ثم
- *    أرشفة)، ولا تُحذف إلا فارغةً تماماً. */
+ *  - **اللجنة** (`deleteCommittee`): بلا أيّ سجلٍّ تُحذف نهائياً؛ ولها سجلٌّ (عضويات، اجتماعات،
+ *    قرارات، مهام، تنبيهات…) تُؤرشَف — دورةُ حياتها نفسُها في وحدة اللجان، ولا تُمحى. */
 export async function deleteDepartment(opts: {
   departmentId: string;
   /** يُكتب اسم القسم كاملاً: الحذف لا يقع بنقرةٍ في المكان الخطأ */
@@ -339,29 +427,13 @@ export async function deleteDepartment(opts: {
     return { ok: false, reason: "الاسم المكتوب لا يطابق اسم القسم — لم يُحذف شيء" };
   }
 
-  // ── اللجنة: القاعدةُ القديمة كما هي
+  // ── اللجنة: تُحذف إن لم يكن لها سجلّ، وتُؤرشَف إن كان (`deleteCommittee`)
   if (dept.parentId) {
-    const blockers = deleteBlockers(dept._count, 0);
-    if (blockers.length > 0) {
-      return {
-        ok: false,
-        reason: `القسم ما زال يحمل: ${blockers.join("، ")}. فرّغه أولاً — ولا يُهدَر سجلٌّ ليُفرَّغ قسم.`,
-      };
-    }
-    await appendMemberEvent({
-      fullName: opts.actorName,
-      email: "",
-      roleOrDepartment: dept.name,
-      event: "حذف قسم نهائياً",
-      details: `المعرّف: ${dept.slug} — اللون: ${dept.colorHex} — كان فارغاً عند الحذف`,
-      at: new Date(),
+    return deleteCommittee({ id: dept.id, name: dept.name, slug: dept.slug, colorHex: dept.colorHex, parentId: dept.parentId, committeeStatus: dept.committeeStatus }, dept._count, {
+      id: opts.actorId ?? null,
+      name: opts.actorName,
+      role: opts.actorRole,
     });
-    await prisma.$transaction(async (tx) => {
-      await tx.announcement.deleteMany({ where: { departmentId: dept.id } });
-      await tx.testTrack.deleteMany({ where: { departmentId: dept.id } });
-      await tx.department.delete({ where: { id: dept.id } });
-    });
-    return { ok: true, name: dept.name, mode: "delete" };
   }
 
   // ── القسمُ الأصيل: بخطّته
