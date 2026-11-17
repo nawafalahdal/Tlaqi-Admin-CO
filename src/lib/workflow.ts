@@ -5,7 +5,7 @@ import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
 import { singleRecipient } from "@/lib/emailPolicy";
 import { isSigningRole } from "@/lib/signatures";
 import { clearFailedAttempts } from "@/lib/loginAttempts";
-import { shareCardUrl } from "@/lib/bannerToken";
+import { inviteCardAttachment } from "@/lib/inviteCard";
 import { appendApprovedMember, appendMemberEvent, appendTestResult, upsertMemberLifecycleRow, upsertAdminAccountRow } from "@/lib/googleSheets";
 import {
   sendCredentialsEmail,
@@ -996,7 +996,8 @@ export async function createCandidateAccount(opts: {
     targetRole: opts.targetRole,
     invitedByName: inviter?.fullName ?? null,
     departmentColorHex: department?.colorHex ?? null,
-    inviteCardUrl: shareCardUrl("invite", { kind: "member", id: member.id }, baseUrl()),
+    // الملصقُ مضمّنٌ في الرسالة (`cid:`) لا رابطٌ خارجي يحجبه العارض — من مصدره الواحد (`lib/inviteCard`)
+    inviteCard: await inviteCardAttachment(member.id),
     // الدعوة تقول إنها دعوة: القسم والمسمّى كما سجّلتهما الإدارة،
     // والخطوات، والمهلة — لا «تهانينا، تم اعتماد انضمامك».
     occasion: "invitation",

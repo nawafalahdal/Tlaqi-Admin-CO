@@ -12,6 +12,7 @@ import {
   type EmailTheme,
 } from "@/lib/emailBrand";
 import { firstName } from "@/lib/personName";
+import { INVITE_INLINE_WIDTH, INVITE_INLINE_HEIGHT } from "@/lib/inviteCard";
 import { forms, gx, positionTitle, roleTitle, type MaybeGender } from "@/lib/gender";
 import { emailAllowed, policyReason, type EmailEvent } from "@/lib/emailPolicy";
 import { resultOf, type SendResult } from "@/lib/emailOutcome";
@@ -323,8 +324,8 @@ export async function sendCredentialsEmail(opts: {
   targetRole?: string | null;
   /** من أصدر الدعوة — يُذكَر باسمه في الرسالة وعلى الملصق */
   invitedByName?: string | null;
-  /** رابطُ ملصق الدعوة الموقَّع */
-  inviteCardUrl?: string | null;
+  /** ملصقُ الدعوة مرفقاً مضمّناً (`cid:tlaqi-invite`) — من `inviteCardAttachment`؛ وبغيابه تصل الدعوةُ بلا صورة لا بصورةٍ مكسورة */
+  inviteCard?: EmailAttachment | null;
   /** مهلة أول دخول بالساعات */
   hoursValid?: number;
 }) {
@@ -354,25 +355,28 @@ export async function sendCredentialsEmail(opts: {
 
   const dept = opts.departmentName?.trim() || null;
   const position = opts.targetRole ? positionTitle(opts.targetRole, dept) : opts.roleLabel?.trim() || null;
-  const where = dept ? (dept === "الإدارة العليا" ? "الإدارة العليا" : `قسم ${dept}`) : "فريق تلاق";
+  const where = dept ? (dept === "الإدارة العليا" ? "الإدارة العليا" : `قسم ${dept}`) : "فريق TLAQI";
   const by = opts.invitedByName?.trim();
   const hours = opts.hoursValid ?? 24;
+  const first = firstName(opts.fullName);
+  const poster = opts.inviteCard?.contentId ? opts.inviteCard : null;
 
+  // **نصٌّ مترابط** (طلب المؤسس، نوفمبر 2026): الدعوةُ فقرة، والخطواتُ جملةٌ واحدة متصلة لا قائمةً مرقّمة، وما بعد الزرّ
+  // صار في جملتها (الاعتمادُ ليس تلقائياً، والبطاقةُ عند الاعتماد). والمحتوى كما كان كلُّه: الجهةُ الداعية، والموقع،
+  // والمسمّى، وبياناتُ الدخول، والخطواتُ الأربع، والمهلة. والمدعوُّ لا جنسَ معروفاً له بعد — فالصيغُ لا تفترضه.
   return send(
     opts.to,
-    `دعوة للانضمام إلى تلاق${dept ? ` — ${dept}` : ""}`,
+    dept ? `${first}، دعوة للانضمام إلى ${where} في TLAQI` : `${first}، دعوة للانضمام إلى فريق TLAQI`,
     {
       tone: "action",
-      badge: "دعوة خاصّة",
-      title: `${firstName(opts.fullName)}، هذه دعوتك إلى تلاق`,
-      lead: `${by ? `دعاك <b>${esc(by)}</b>` : "دعتك إدارة <b>تلاق</b>"} للانضمام إلى ${esc(where)}${position ? ` في موقع <b>${esc(position)}</b>` : ""}. وهذه دعوةٌ خاصّة باسمك، وبياناتُها سجّلتها الجهة الداعية.`,
-      image: opts.inviteCardUrl
-        ? // صورةٌ تُحفظ لا رابط: الضغطُ عليها كان يفتح المنصة بدل أن تُحفظ —
-          // والدخولُ للزرّ وحده (قرار المؤسس)
-          { src: opts.inviteCardUrl, width: 544, height: 680, alt: `دعوة خاصّة — ${opts.fullName}` }
-        : undefined,
+      title: `أهلاً ${first}، هذه دعوتك إلى TLAQI`,
+      lead: `${by ? `دعاك <b>${esc(by)}</b>` : "تدعوك إدارة <b>TLAQI</b>"} للانضمام إلى ${esc(where)}${position ? ` في موقع <b>${esc(position)}</b>` : ""}، وهذه دعوةٌ خاصة باسمك سجّلت الجهةُ الداعية بياناتها.`,
+      // الملصقُ مضمّنٌ لا رابطٌ خارجي، وصورةٌ تُحفظ لا رابطٌ يُفتح (الدخولُ للزرّ وحده — قرار المؤسس)
+      ...(poster
+        ? { image: { src: `cid:${poster.contentId}`, width: INVITE_INLINE_WIDTH, height: INVITE_INLINE_HEIGHT, alt: `دعوة خاصة — ${opts.fullName}` } }
+        : {}),
       paragraphs: [
-        `<b>الخطوات من هنا:</b><br>١. الدخول بالبيانات أدناه وتغيير كلمة المرور.<br>٢. استكمال البيانات الشخصية.<br>٣. اجتياز اختبار القبول — وهو شرط النظر في الانضمام.<br>٤. عرض النتيجة على الإدارة المختصّة لقرار الاعتماد.`,
+        "تبدأ الخطوات بالدخول بالبيانات أدناه وتغيير كلمة المرور، ثم استكمال البيانات الشخصية، ثم اجتياز اختبار القبول وهو شرطُ النظر في الانضمام، ثم تُعرض النتيجةُ على الإدارة المختصة لقرار الاعتماد. والاعتمادُ ليس تلقائياً، وبطاقةُ العضوية تصل عند صدوره.",
       ],
       facts: [
         ["الموقع", position],
@@ -381,13 +385,11 @@ export async function sendCredentialsEmail(opts: {
         ["كلمة المرور المؤقتة", opts.tempPassword],
       ],
       cta: { label: "الدخول وبدء الخطوات", url: esc(opts.loginUrl) },
-      after: [
-        "<b>الاعتماد ليس تلقائياً:</b> اجتياز الاختبار يرفع الطلب للمراجعة، وبطاقةُ العضوية تصل عند الاعتماد.",
-      ],
-      note: `للدعوة مهلة ${hours} ساعة؛ إن انقضت دون دخولٍ سقطت ووجب إصدارها من جديد.`,
+      note: `تبقى الدعوة صالحةً ${hours} ساعة، وإذا انقضت المهلة دون دخولٍ احتاجت إلى إصدارٍ جديد.`,
     },
     "دعوة",
-    { departmentName: dept, colorHex: opts.departmentColorHex ?? null }
+    { departmentName: dept, colorHex: opts.departmentColorHex ?? null },
+    poster ? [poster] : undefined
   );
 }
 
@@ -1326,15 +1328,18 @@ export async function sendLoginCodeEmail(opts: {
   minutesValid: number;
 }) {
   const r = await recipientOf(opts.to);
+  const G = (m: string, f: string, n?: string) => gx(r.gender, m, f, n);
+  // نصٌّ مترابط (طلب المؤسس، نوفمبر 2026): سطرُ الطلب، ثم الرمز، ثم تنبيهُ الأمان جملةً واحدة — ومحتواه كما كان: المهلة،
+  // والاستعمالُ مرّةً، وأن الفريق لا يطلب الرمز، وأن الرمزَ الجديد يُبطله
   return send(
     opts.to,
-    `رمز دخولك: ${opts.code} — تلاق`,
+    `رمز الدخول إلى TLAQI: ${opts.code}`,
     {
       tone: "security",
       title: "رمز الدخول",
-      lead: `${esc(opts.fullName)}، وصلنا طلب دخولٍ إلى حسابك. هذا الرمز يُكمل الدخول:`,
-      code: { value: opts.code, caption: `صالح ${opts.minutesValid} دقائق · يُستخدم مرّة واحدة` },
-      note: "لا يُشارَك هذا الرمز مع أحدٍ مهما كان — فريق تلاق لا يطلبه أبداً، لا بمكالمة ولا برسالة. وطلبُ رمزٍ جديد يُبطل هذا فوراً.",
+      lead: `مرحباً ${esc(firstName(opts.fullName))}، تلقّينا طلباً لتسجيل الدخول إلى حساب${G("ك", "كِ", "ك")}، وهذا رمزُ التحقّق لإكماله:`,
+      code: { value: opts.code, caption: `صالحٌ ${opts.minutesValid} دقائق ولمرّةٍ واحدة` },
+      note: `لا ${G("تشارك", "تشاركي", "تشارك")} هذا الرمز مع أحد، ففريق TLAQI لا يطلبه أبداً بمكالمةٍ ولا برسالة. وإن لم ${G("تطلب", "تطلبي", "تطلب")} الدخول ${G("فتجاهل", "فتجاهلي", "فتجاهل")} هذه الرسالة، وأيُّ رمزٍ جديد يُبطل هذا الرمز تلقائياً.`,
     },
     "رمز الدخول",
     themeOf(r)
@@ -1371,8 +1376,10 @@ export type WelcomeEmailOpts = {
   occasion?: "approved" | "resend";
 };
 
+/** عنوانُ رسالة الاعتماد: باسمه الأول، والخبرُ نفسُه مباشرة (طلب المؤسس، نوفمبر 2026 — عناوين واضحة مختصرة بلا شَرطات) */
 export function welcomeEmailSubject(fullName: string, occasion: "approved" | "resend" = "approved") {
-  return occasion === "approved" ? `اعتماد انضمامك إلى TLAQI — ${fullName}` : `رسالة اعتماد انضمامك — ${fullName}`;
+  const first = firstName(fullName);
+  return occasion === "approved" ? `${first}، اعتُمد انضمامك إلى TLAQI` : `${first}، رسالة اعتماد انضمامك إلى TLAQI`;
 }
 
 /** التاريخ بالأرقام العربية والشهر باسمه — كما في البطاقة: «٢٠ نوفمبر ٢٠٢٦» */
@@ -1416,7 +1423,6 @@ function welcomeContent(opts: WelcomeEmailOpts): { subject: string; content: Ema
     theme: { departmentName: opts.departmentName ?? null, colorHex: opts.departmentColorHex ?? null },
     content: {
       tone: "celebrate",
-      badge: approved ? "اعتُمد انضمامك" : "رسالة الاعتماد",
       title: `أهلاً ${f.you} في العائلة، ${first}`,
       lead: `${opening}${card}${closing}`,
       // **البطاقةُ بعد النصّ الذي يقدّمها** — صورةٌ مضمّنةٌ بمعرّف `cid:` لا رابطٌ خارجي
@@ -1578,8 +1584,16 @@ export function appointerTitle(role: string | null | undefined, departmentName?:
 
 /** عنوانُ رسالة تعيين قائد اللجنة بجنس صاحبها — «شهادة تعيين: قائدة لجنة المحتوى الرقمي».
  *  ولمن لم يختر جنسه: «شهادة تعيين: قيادة لجنة …» — صيغةٌ محايدة لا مذكّرٌ مفترض. */
+/** «في قسم التسويق» — والإدارةُ العليا باسمها، ولا يتكرّر لفظ «قسم» */
+function parentLabel(parent: string): string {
+  const p = parent.trim();
+  return p === "الإدارة العليا" || p.startsWith("قسم ") ? p : `قسم ${p}`;
+}
+
+/** عنوانُ التعيين — الخبرُ نفسُه مباشرةً بصيغة صاحبه (طلب المؤسس، نوفمبر 2026 — عناوين واضحة مختصرة) */
 export function committeeLeadAppointedSubject(committeeName: string, gender: MaybeGender): string {
-  return `شهادة تعيين: ${gx(gender, "قائد", "قائدة", "قيادة")} ${committeeNamed(committeeName)}`;
+  const named = committeeNamed(committeeName);
+  return gx(gender, `تعيينك قائداً ل${named}`, `تعيينكِ قائدةً ل${named}`, `قرار التعيين لقيادة ${named}`);
 }
 
 /** محتوى رسالة تعيين قائد اللجنة بجنس صاحبها — دالةٌ خالصة تُرسَم وتُختبر بلا قاعدة ولا بريد.
@@ -1619,10 +1633,13 @@ export function committeeLeadAppointedContent(
         ["المسمى القيادي", G("قائد اللجنة", "قائدة اللجنة", "قيادة اللجنة")],
         ["تاريخ التعيين", date],
       ],
+      // **البيانُ فقرةٌ واحدة مترابطة** (طلب المؤسس، نوفمبر 2026): صاحبُ التعيين (`{name}`) ومُصدِرُه (`{issuer}`) وموضعُه
+      // في جملةٍ واحدة — يُستبدلان في القالب بعد تهريب النص
       statement: G(
-        "ثقةً بكفاءتك، وتطلّعاً إلى ما ستقوده من عملٍ يجمع أعضاء اللجنة على هدفٍ واحد ويصنع أثراً يليق بالفريق.",
-        "ثقةً بكفاءتكِ، وتطلّعاً إلى ما ستقودينه من عملٍ يجمع أعضاء اللجنة على هدفٍ واحد ويصنع أثراً يليق بالفريق.",
-        "ثقةً بالكفاءة، وتطلّعاً إلى عملٍ يجمع أعضاء اللجنة على هدفٍ واحد ويصنع أثراً يليق بالفريق."
+        // (العنوانُ يحمل التعيينَ واللجنة، والحقائقُ القسمَ والتاريخ — فالبيانُ لا يكرّرهما)
+        `{name}، يسرّنا إبلاغك بهذا التعيين الصادر من {issuer} في ${parentLabel(opts.parentName)}، ثقةً بكفاءتك وتطلّعاً إلى ما ستقوده من عملٍ يجمع أعضاء اللجنة على هدفٍ واحد ويصنع أثراً يليق بالفريق.`,
+        `{name}، يسرّنا إبلاغكِ بهذا التعيين الصادر من {issuer} في ${parentLabel(opts.parentName)}، ثقةً بكفاءتكِ وتطلّعاً إلى ما ستقودينه من عملٍ يجمع أعضاء اللجنة على هدفٍ واحد ويصنع أثراً يليق بالفريق.`,
+        `{name}، يسرّنا إبلاغك بهذا التعيين الصادر من {issuer} في ${parentLabel(opts.parentName)}، ثقةً بالكفاءة وتطلّعاً إلى عملٍ يجمع أعضاء اللجنة على هدفٍ واحد ويصنع أثراً يليق بالفريق.`
       ),
       issuer: { name: opts.appointedByName, title: opts.appointedByTitle ?? null },
       steps: {
@@ -1630,7 +1647,7 @@ export function committeeLeadAppointedContent(
         items: [
           G("افتح صفحة اللجنة وتعرّف على أعضائها.", "افتحي صفحة اللجنة وتعرّفي على أعضائها.", "فتحُ صفحة اللجنة والتعرّفُ على أعضائها."),
           G("حدّد موعد الاجتماع الأول واكتب أهدافه.", "حدّدي موعد الاجتماع الأول واكتبي أهدافه.", "تحديدُ موعد الاجتماع الأول وكتابةُ أهدافه."),
-          G("وزّع أولى المهامّ، وتابعها من لوحة اللجنة.", "وزّعي أولى المهامّ، وتابعيها من لوحة اللجنة.", "توزيعُ أولى المهامّ ومتابعتُها من لوحة اللجنة."),
+          G("وزّع أولى المهامّ وتابعها من لوحة اللجنة.", "وزّعي أولى المهامّ وتابعيها من لوحة اللجنة.", "توزيعُ أولى المهامّ ومتابعتُها من لوحة اللجنة."),
         ],
       },
       note: G(
@@ -1668,13 +1685,8 @@ export async function sendCommitteeLeadAppointedEmail(opts: {
   if (blocked) return blocked;
   const r = await recipientOf(opts.to);
   const content = committeeLeadAppointedContent(opts, r.gender);
-  return send(
-    opts.to,
-    content.title,
-    content,
-    "تكليف لجنة",
-    themeOf(r)
-  );
+  // جهةُ الرسالة: القسمُ الذي أصدر التعيين (قسمُ اللجنة الأصيل) — لا قسمُ المستلِم في سجلّه
+  return send(opts.to, content.title, content, "تكليف لجنة", { departmentName: opts.parentName, colorHex: null });
 }
 
 /** **تنبيهُ قائد اللجنة** (قرار المؤسس ٣.٢ وق٤) — من قائد قسمها بسببٍ مكتوب. يُبلَّغ بالبريد، **والقراءةُ لا تُعدّ

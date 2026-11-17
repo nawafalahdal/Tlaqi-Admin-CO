@@ -16,6 +16,7 @@ const chk = (n: string, ok: boolean, extra = "") => checks.push(`${ok ? "✓" : 
 // تغييرُ توقّعٍ مقصود: الشعارُ والنمطُ صارا `cid:` بدل روابط `/brand/2026/email/*.png` — فالترويسةُ تُحدّ بمعرّفيهما
 const header = (html: string) => html.slice(html.indexOf("cid:tlaqi-logo") - 600, html.indexOf("cid:tlaqi-pattern"));
 
+(async () => {
 try {
   // ── العبارةُ بنصّها وترتيبها (ق٦)
   chk("**العبارةُ «نلتقي • نفكر • نصنع» بنصّها**", TAGLINE === "نلتقي • نفكر • نصنع", TAGLINE);
@@ -51,7 +52,8 @@ try {
   chk("**لا خلفيةَ صفحةٍ خارجية** (`#FAF8F4` ليست من ألوان الهوية)", !/FAF8F4/i.test(plain));
   chk("**ولا متنَ أبيض** — المتنُ Beige الرسمي", !/#FFFFFF/i.test(plain) && plain.includes(`bgcolor="${HEX.beige}"`));
   chk("ولا بطاقةَ عائمة بحدٍّ وزوايا (`b26-card`)", !plain.includes("b26-card") && !/border-radius:20px/.test(plain));
-  chk("**والجسمُ والغلافُ بلون الهوية** (ما بعد التذييل امتدادٌ له لا بياض)", plain.includes(`<body style="margin:0;padding:0;width:100%;background-color:${HEX.temptress}`) && /<table role="presentation" width="100%"[^>]*bgcolor="#341D2B"/.test(plain));
+  // تغييرُ توقّعٍ مقصود (قرار المؤسس: التدرّجُ السفلي إلى Mahogany): ما بعد الرسالة امتدادٌ لطرف التدرّج الأسفل
+  chk("**والجسمُ والغلافُ بلون الهوية** (ما بعد التدرّج امتدادٌ له لا بياض)", plain.includes(`<body style="margin:0;padding:0;width:100%;background-color:${HEX.mahogany}`) && /<table role="presentation" width="100%"[^>]*bgcolor="#C34900"/.test(plain));
   chk("ولا حشوَ خارجي حول الأشرطة", !/padding:24px 0/.test(plain) && !/padding:0 10px/.test(plain));
   const bands = [...plain.matchAll(/<tr><td align="center" bgcolor="([^"]+)"[^>]*padding:0">/g)].map((m) => m[1]);
   chk(`**أربعةُ أشرطةٍ بعرض الشاشة:** ترويسةٌ داكنة، نمطٌ وBeige، متنٌ Beige، تذييلٌ داكن (${bands.join(" ")})`, bands.join(",") === [HEX.temptress, HEX.beige, HEX.beige, HEX.temptress].join(","));
@@ -62,16 +64,33 @@ try {
   chk("**لا صورةَ خارجيةً في القالب**", ![...plain.matchAll(/<img[^>]+src="([^"]+)"/g)].some((m) => /^https?:/.test(m[1])));
   const composed = composeEmail({ subject: "فحص", content: { title: "عنوان", lead: "متن" }, kind: "عام" });
   const cids = [...composed.html.matchAll(/src="cid:([^"]+)"/g)].map((m) => m[1]);
-  chk("**وكلُّ `cid:` في الرسالة له مرفقٌ مضمّن** (الشعار، النمط، العلامة)", cids.length === 3 && cids.every((id) => composed.attachments.some((a) => a.contentId === id)), JSON.stringify(cids));
-  for (const a of Object.values(EMAIL_BRAND_ASSETS)) {
+  chk("**وكلُّ `cid:` في الرسالة له مرفقٌ مضمّن** (الشعار، النمط، العلامة، التدرّج)", cids.length === 4 && cids.every((id) => composed.attachments.some((a) => a.contentId === id)), JSON.stringify(cids));
+  for (const a of Object.values(EMAIL_BRAND_ASSETS).filter((x) => !x.source.startsWith("generated:"))) {
     const file = readFileSync(a.source);
     chk(`والمضمَّنُ يطابق الملفَّ الأصلي بايتاً ببايت (${a.source.split("/").pop()})`, createHash("sha256").update(file).digest("hex") === a.sha256 && Buffer.from(a.base64, "base64").equals(file));
   }
   const preview = inlineForPreview(composed.html, composed.attachments);
-  chk("وملفُّ المعاينة لا يطلب شيئاً من الشبكة", !preview.includes("cid:") && (preview.match(/src="data:image\/png;base64,/g) ?? []).length === 3);
+  chk("وملفُّ المعاينة لا يطلب شيئاً من الشبكة", !preview.includes("cid:") && (preview.match(/src="data:image\/png;base64,/g) ?? []).length === 4);
   chk("والنصُّ البديل موجود", composed.text.includes("عنوان") && composed.text.includes("متن"));
   const withOwn = composeEmail({ subject: "x", content: { title: "x" }, kind: "عام", attachments: [{ filename: "c.png", content: Buffer.from("x"), contentId: CARD_CONTENT_ID }] });
-  chk("ومرفقاتُ الرسالة نفسها تبقى أولاً ولا تتكرّر صورُ الهوية", withOwn.attachments[0].contentId === CARD_CONTENT_ID && withOwn.attachments.length === 4);
+  chk("ومرفقاتُ الرسالة نفسها تبقى أولاً ولا تتكرّر صورُ الهوية", withOwn.attachments[0].contentId === CARD_CONTENT_ID && withOwn.attachments.length === 5);
+
+  // ═══ قرارات المؤسس (نوفمبر 2026): لا أبيض، تدرّجٌ سفلي، لا شارة، X وLinkedIn وحدهما ═══
+  chk("**لا أبيضَ في القالب** (لا #FFF ولا white)", !/#fff(fff)?\b|\bwhite\b/i.test(plain.replace(/<!--[\s\S]*?-->/g, "")));
+  const g = EMAIL_BRAND_ASSETS.gradient;
+  const gpx = await (async () => {
+    const sharp = (await import("sharp")).default;
+    const { data, info } = await sharp(Buffer.from(g.base64, "base64")).raw().toBuffer({ resolveWithObject: true });
+    const at = (y: number) => "#" + [0, 1, 2].map((c) => data[(y * info.width) * info.channels + c].toString(16).padStart(2, "0")).join("").toUpperCase();
+    return { top: at(0), bottom: at(info.height - 1) };
+  })();
+  chk(`**التدرّجُ السفلي من Temptress إلى Mahogany** (${gpx.top} ← ${gpx.bottom})`, gpx.top === HEX.temptress.toUpperCase() && gpx.bottom === HEX.mahogany.toUpperCase());
+  chk("وهو آخرُ ما في الرسالة، بعد التذييل وبعرض الشاشة", plain.lastIndexOf("cid:tlaqi-gradient") > plain.lastIndexOf("مُرسَلة من إدارة تلاق") && /src="cid:tlaqi-gradient"[^>]*width:100%/.test(plain));
+  chk("**ولا شارةَ فوق العنوان** ولا سطرَ إنجليزي", !/border-radius:999px/.test(plain) && !composeEmail({ subject: "x", content: { title: "x", badge: "شارة", tone: "security" }, kind: "عام" }).html.includes("شارة") && !plain.includes("CERTIFICATE"));
+  const footerHtml = plain.slice(plain.indexOf("cid:tlaqi-mark"));
+  const fl = [...footerHtml.matchAll(/<a href="([^"]+)"[^>]*>([^<]+)<\/a>/g)].map((m) => `${m[2]}=${m[1]}`);
+  chk(`**التذييل: X وLinkedIn وحدهما** (${fl.join(" ، ")})`, fl.length === 2 && fl[0] === "X=https://x.com/tlaqisa" && fl[1] === "LinkedIn=https://linkedin.com/company/tlaqisa", fl.join(" | "));
+  chk("ولا رابطَ للموقع ولا Instagram في التذييل", !footerHtml.includes("tlaqiteam.site") && !footerHtml.includes("instagram"));
 
   // ═══ الخط: خطُّ النظام — Apple أولاً — بلا خطٍّ خارجي ═══
   chk("**خطُّ Apple أولاً ببدائل لكل جهاز**", EMAIL_FONT_STACK.startsWith("-apple-system,BlinkMacSystemFont,'SF Arabic'") && EMAIL_FONT_STACK.endsWith("Tahoma,Arial,sans-serif"));
@@ -96,6 +115,19 @@ try {
   chk("وبصيغة المؤنث", welcome.includes("انضمامكِ") && welcome.includes("أنتِ جزءٌ") && welcome.includes("تجدين بطاقتَكِ"));
   const noCard = renderWelcomeEmail({ fullName: "ريم", roleLabel: "عضو", withCard: true, cardInline: false } as never);
   chk("وبلا نسخةٍ مضمّنة لا صورةَ مكسورة", !noCard.includes("cid:tlaqi-card") && noCard.includes("مرفقةٌ بهذه الرسالة"));
+  // ═══ عناوينُ الرسائل الأربع (Subject) — واضحةٌ مختصرة بلا شَرطات (قرار المؤسس، نوفمبر 2026) ═══
+  const E = await import("@/lib/email");
+  chk("عنوانُ الاعتماد باسمه الأول", E.welcomeEmailSubject("ريم الاختبارية") === "ريم، اعتُمد انضمامك إلى TLAQI" && E.welcomeEmailSubject("ريم الاختبارية", "resend") === "ريم، رسالة اعتماد انضمامك إلى TLAQI");
+  chk("وعنوانُ التعيين بصيغة صاحبه", E.committeeLeadAppointedSubject("المحتوى الرقمي", "female") === "تعيينكِ قائدةً للجنة المحتوى الرقمي" && E.committeeLeadAppointedSubject("لجنة المحتوى الرقمي", null) === "قرار التعيين لقيادة لجنة المحتوى الرقمي");
+  const { captureEmails } = await import("@/lib/emailCapture");
+  const poster = { filename: "TLAQI-invitation.png", content: Buffer.from("x"), contentId: "tlaqi-invite" };
+  const [inv] = await captureEmails(() => E.sendCredentialsEmail({ to: "x@example.invalid", fullName: "ريم الاختبارية", tempPassword: "Tq-0000", loginUrl: "https://example.test/login", occasion: "invitation", departmentName: "التسويق", invitedByName: "نورة", inviteCard: poster }));
+  chk("**وعنوانُ الدعوة بالاسم والقسم**", inv?.subject === "ريم، دعوة للانضمام إلى قسم التسويق في TLAQI", inv?.subject);
+  chk("**وملصقُ الدعوة مضمّنٌ (`cid:`) لا رابطٌ خارجي**", inv?.content.image?.src === "cid:tlaqi-invite" && inv?.attachments?.[0]?.contentId === "tlaqi-invite");
+  const [invNo] = await captureEmails(() => E.sendCredentialsEmail({ to: "x@example.invalid", fullName: "ريم", tempPassword: "Tq-0000", loginUrl: "https://example.test/login", occasion: "invitation" }));
+  chk("وبلا ملصقٍ لا صورةَ (لا صورةَ مكسورة)", !invNo?.content.image && !invNo?.attachments?.length && invNo?.subject === "ريم، دعوة للانضمام إلى فريق TLAQI");
+  chk("ونصُّ الدعوة مترابط: الخطواتُ جملةٌ واحدة لا قائمة", (inv?.content.paragraphs ?? []).length === 1 && !(inv?.content.paragraphs ?? [""])[0].includes("<br>") && !inv?.content.after);
+
   const resend = renderWelcomeEmail({ fullName: "ريم", roleLabel: "عضو", withCard: true, cardInline: true, occasion: "resend" } as never);
   chk("وإعادةُ الإرسال لا تُعلن خبراً قديماً كأنه جديد", resend.includes("نعيد إليك رسالةَ اعتماد") && !resend.includes("يسعدنا اعتمادُ"));
 } catch (e) {
@@ -106,3 +138,4 @@ try {
   console.log(`\n${checks.length - failedN}/${checks.length}`);
   process.exit(failedN ? 1 : 0);
 }
+})();

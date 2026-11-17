@@ -19,22 +19,44 @@ const ASSETS = [
   { key: "mark", file: "mark-mahogany.png", cid: "tlaqi-mark", width: 40, height: 43 },
 ] as const;
 
-const entries = ASSETS.map((a) => {
-  const buf = readFileSync(`${DIR}/${a.file}`);
-  if (!buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) throw new Error(`${a.file}: ليس PNG`);
+const entry = (key: string, cid: string, source: string, width: number, height: number, buf: Buffer) => {
+  if (!buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) throw new Error(`${key}: ليس PNG`);
   const sha = createHash("sha256").update(buf).digest("hex");
-  return `  ${a.key}: {
-    cid: "${a.cid}",
-    filename: "${a.cid}.png",
-    source: "${DIR}/${a.file}",
-    width: ${a.width},
-    height: ${a.height},
+  return `  ${key}: {
+    cid: "${cid}",
+    filename: "${cid}.png",
+    source: "${source}",
+    width: ${width},
+    height: ${height},
     sha256: "${sha}",
     base64:
       "${buf.toString("base64")}",
   },`;
-});
+};
 
+/** **التدرّجُ السفلي** (قرار المؤسس، نوفمبر 2026: «تدرّجٌ انسيابي في الأسفل من البنفسجي الداكن إلى البرتقالي الرسمي») —
+ *  من Temptress إلى Mahogany عمودياً، صورةٌ مضمّنة لا تدرّجُ CSS: دعمُ `linear-gradient` يختلف بين عملاء البريد (Outlook على
+ *  ويندوز لا يرسمه)، والصورةُ المضمّنة تُرسم في كلٍّ منها كما هي. ولأن التدرّجَ عموديٌّ فمطُّها أفقياً لعرض الشاشة لا يغيّرها. */
+const GRADIENT = { from: [0x34, 0x1d, 0x2b], to: [0xc3, 0x49, 0x00], width: 600, height: 120 } as const;
+
+(async () => {
+  const sharp = (await import("sharp")).default;
+  const entries = ASSETS.map((a) => entry(a.key, a.cid, `${DIR}/${a.file}`, a.width, a.height, readFileSync(`${DIR}/${a.file}`)));
+  const { width: W, height: H, from, to } = GRADIENT;
+  const raw = Buffer.alloc(W * H * 3);
+  for (let y = 0; y < H; y++) {
+    // انسيابٌ ناعم (smoothstep) لا خطّيٌّ حادّ عند الطرفين
+    const t0 = y / (H - 1);
+    const t = t0 * t0 * (3 - 2 * t0);
+    const c = from.map((f, i) => Math.round(f + (to[i] - f) * t));
+    for (let x = 0; x < W; x++) raw.set(c, (y * W + x) * 3);
+  }
+  const gradient = await sharp(raw, { raw: { width: W, height: H, channels: 3 } }).png({ compressionLevel: 9 }).toBuffer();
+  entries.push(entry("gradient", "tlaqi-gradient", "generated:temptress-to-mahogany", W, H, gradient));
+  write(entries);
+})();
+
+function write(entries: string[]) {
 writeFileSync(
   OUT,
   `/* eslint-disable */
@@ -47,4 +69,5 @@ ${entries.join("\n")}
 export type EmailBrandAssetKey = keyof typeof EMAIL_BRAND_ASSETS;
 `
 );
-console.log(`${OUT}: ${ASSETS.map((a) => a.cid).join(", ")}`);
+console.log(`${OUT}: ${ASSETS.map((a) => a.cid).join(", ")}, tlaqi-gradient`);
+}

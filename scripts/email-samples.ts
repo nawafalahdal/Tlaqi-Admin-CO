@@ -18,7 +18,9 @@ if (process.env.VERCEL || process.env.RESEND_API_KEY) {
   console.error("محلياً فقط والبريد معطّل");
   process.exit(1);
 }
-const [outDir, welcomeEmail] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const only = (args.find((a) => a.startsWith("--only="))?.slice(7).split(",") ?? []).filter(Boolean);
+const [outDir, welcomeEmail] = args.filter((a) => !a.startsWith("--"));
 if (!outDir) {
   console.error("الاستعمال: email-samples.ts <مجلّد الخرج> [بريد حسابٍ اصطناعي]");
   process.exit(1);
@@ -36,10 +38,19 @@ const encWord = (s: string) => `=?UTF-8?B?${Buffer.from(s, "utf8").toString("bas
   const { captureEmails } = await import("@/lib/emailCapture");
   const { composeEmail, inlineForPreview } = await import("@/lib/emailBrand");
   const { sendWelcomePack } = await import("@/lib/welcome");
+  // ملصقُ دعوةٍ اصطناعي — بالرسّام نفسه وبالحجم نفسه الذي ترسله المنصة (`lib/inviteCard`)
+  const syntheticInvitePoster = async () => {
+    const sharp = (await import("sharp")).default;
+    const { renderInviteCard } = await import("@/lib/shareCards");
+    const { INVITE_CONTENT_ID, INVITE_INLINE_WIDTH } = await import("@/lib/inviteCard");
+    const png = await renderInviteCard({ fullName: P.fullName, position: "عضوية قسم التسويق", jobTitle: "صانعة محتوى", departmentName: "التسويق", colorHex: "#C34900", invitedByName: "نورة سعد", issuedAt: D });
+    return { filename: "TLAQI-invitation.png", content: await sharp(png).resize({ width: INVITE_INLINE_WIDTH * 2 }).png({ compressionLevel: 9 }).toBuffer(), contentId: INVITE_CONTENT_ID };
+  };
 
   const samples: [string, string, () => Promise<unknown>][] = [
-    ["01-invitation", "دعوة الانضمام", () => E.sendCredentialsEmail({ ...P, tempPassword: "Tq-Preview-0000", loginUrl: U + "login", occasion: "invitation", departmentName: "التسويق", jobTitle: "صانعة محتوى", invitedByName: "الإدارة", hoursValid: 72 })],
-    ["02-login-code", "رمز الدخول", () => E.sendLoginCodeEmail({ ...P, code: "482913", minutesValid: 10 })],
+    ["01-invitation", "دعوة الانضمام", async () => E.sendCredentialsEmail({ ...P, tempPassword: "Tq-Preview-0000", loginUrl: U + "login", occasion: "invitation", targetRole: "member", departmentName: "التسويق", jobTitle: "صانعة محتوى", invitedByName: "نورة سعد", hoursValid: 72, inviteCard: await syntheticInvitePoster() })],
+    // المخاطبةُ بالجنس تُقرأ من سجلّ المستلِم: الحسابُ الاصطناعيُّ إن مُرّر (يُلتقط ولا يُرسل؛ ومستلمُ ملفّ ‎.eml يبقى ‎.invalid)
+    ["02-login-code", "رمز الدخول", () => E.sendLoginCodeEmail({ ...P, to: welcomeEmail ?? TO, code: "482913", minutesValid: 10 })],
     ["03-password-reset", "استعادة كلمة المرور", () => E.sendPasswordResetEmail({ ...P, resetUrl: U + "reset-password/preview", minutesValid: 30 })],
     ["04-test-reopened", "إعادة فتح الاختبار", () => E.sendTestReopenedEmail({ ...P, roleLabel: "عضوة", loginUrl: U + "login", hoursValid: 48 })],
     ["05-awaiting-approval", "مرشّح ينتظر الاعتماد", () => E.sendAwaitingApprovalEmail({ to: TO, candidateName: "سارة أحمد", candidateEmail: "candidate@example.invalid", score: 86, scopeLabel: "قسم التقنية", portalUrl: U + "admin/approvals" })],
@@ -70,7 +81,7 @@ const encWord = (s: string) => `=?UTF-8?B?${Buffer.from(s, "utf8").toString("bas
     ["30-farewell", "ختام التجربة", () => E.sendFarewellEmail({ ...P, roleLabel: "عضوة", departmentName: "التسويق", joinDate: new Date("2026-03-01"), endDate: D, withCertificate: true })],
     ["31-committee-request", "طلب لجنة", () => E.sendCommitteeRequestEmail({ to: TO, approverName: "الرئيس التنفيذي", committeeName: "لجنة المحتوى الرقمي", parentName: "التسويق", leadTitle: "قائدة اللجنة", requestedByName: "نورة سعد", reviewUrl: U + "senior" })],
     ["32-committee-decision", "قرار لجنة", () => E.sendCommitteeDecisionEmail({ to: TO, fullName: P.fullName, committeeName: "لجنة المحتوى الرقمي", parentName: "التسويق", approved: true, note: "اعتُمدت اللجنة.", decidedByName: "الرئيس التنفيذي", boardUrl: U + "committees" })],
-    ["33-committee-lead", "تعيين قائد لجنة", () => E.sendCommitteeLeadAppointedEmail({ ...P, committeeName: "لجنة المحتوى الرقمي", parentName: "التسويق", appointedByName: "نورة سعد", appointedByTitle: "قيادة قسم التسويق", url: U + "committees", appointedAt: D })],
+    ["33-committee-lead", "تعيين قائد لجنة", () => E.sendCommitteeLeadAppointedEmail({ ...P, to: welcomeEmail ?? TO, committeeName: "لجنة المحتوى الرقمي", parentName: "التسويق", appointedByName: "نورة سعد", appointedByTitle: "قيادة قسم التسويق", url: U + "committees", appointedAt: D })],
     ["34-committee-lead-warning", "تنبيه قائد لجنة", () => E.sendCommitteeLeadWarningEmail({ ...P, committeeName: "لجنة المحتوى الرقمي", parentName: "التسويق", issuedByName: "نورة سعد", reason: "تأخّر محضر الاجتماع الأسبوعي.", ordinal: 1, url: U + "committees" })],
     ["35-committee-member", "الانضمام إلى لجنة", () => E.sendCommitteeMemberAddedEmail({ ...P, committeeName: "لجنة المحتوى الرقمي", url: U + "committees" })],
     ["36-deputy", "تعيين نائب", () => E.sendDeputyAppointedEmail({ ...P, departmentName: "التسويق", permissions: ["متابعة خطط الأسبوع", "مراجعة التسليمات"], appointedByName: "نورة سعد", url: U })],
@@ -83,7 +94,7 @@ const encWord = (s: string) => `=?UTF-8?B?${Buffer.from(s, "utf8").toString("bas
 
   mkdirSync(outDir, { recursive: true });
   const report: Record<string, unknown>[] = [];
-  for (const [key, title, fn] of samples) {
+  for (const [key, title, fn] of samples.filter(([k]) => !only.length || only.includes(k))) {
     const mails = await captureEmails(fn);
     const mail = key === "00-approval" ? mails.find((m) => m.kind === "ترحيب") : mails[0];
     if (!mail) {

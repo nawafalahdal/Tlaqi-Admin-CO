@@ -12,8 +12,10 @@ import { EMAIL_BRAND_ASSETS, type EmailBrandAssetKey } from "./emailAssets.gener
  *  1. الترويسة — Temptress: الشعارُ الرسمي يساراً وجهةُ الرسالة يميناً (اتجاهٌ صريح لا يقلبه عميلُ البريد).
  *  2. نمطُ «موهبة» الرسمي — Mahogany على Beige، يصل الترويسةَ بالمتن.
  *  3. المتن — **Beige** (الخلفيةُ الأساسية في ملف الهوية؛ نصُّ Temptress عليه 13.9:1).
- *  4. التذييل — Temptress: العلامةُ Mahogany، و«نلتقي • نفكر • نصنع»، والحساباتُ الرسمية، وجهةُ الإرسال — داخله لا تحته.
- *  وخلفيةُ الجسم Temptress: ما يلي التذييل في شاشةٍ أطول من الرسالة امتدادٌ له لا بياض.
+ *  4. التذييل — Temptress: العلامةُ Mahogany، و«نلتقي • نفكر • نصنع»، وحسابا X وLinkedIn الرسميان، وجهةُ الإرسال — داخله.
+ *  5. **التدرّجُ السفلي** من Temptress إلى Mahogany (قرار المؤسس، نوفمبر 2026) — صورةٌ مضمّنة بعرض الشاشة.
+ *  وخلفيةُ الجسم Mahogany: ما يلي التدرّجَ في شاشةٍ أطول من الرسالة امتدادٌ له. **ولا أبيضَ في القالب أصلاً** (قرار المؤسس):
+ *  أفتحُ لونٍ فيه Beige الرسمي. ولا شارةَ فوق العنوان (قرار المؤسس): العنوانُ أولُ ما في المتن.
  *  والمحتوى في عمودٍ أقصاه 600px يتوسّط الأشرطة (وجدولٌ ثابتٌ لـOutlook على ويندوز)، وعلى الجوال يملأ العرض.
  *
  *  **ما لا يملكه القالب:** تطبيقُ Gmail يحيط أيَّ رسالةٍ بهامشٍ أبيض من واجهته هو (نحو 14 نقطة في iOS) — خارج HTML الرسالة.
@@ -26,6 +28,8 @@ const B = HEX;
 const FONT = EMAIL_FONT_STACK;
 const BODY_BG = B.beige;
 const BAND_BG = B.temptress;
+/** ما بعد التدرّج — يكمل طرفَه الأسفل */
+const END_BG = B.mahogany;
 
 function esc(v: string): string {
   return v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -40,21 +44,24 @@ export const CID_IMAGE_SOURCES: EmailImageSources = {
   logo: `cid:${EMAIL_BRAND_ASSETS.logo.cid}`,
   pattern: `cid:${EMAIL_BRAND_ASSETS.pattern.cid}`,
   mark: `cid:${EMAIL_BRAND_ASSETS.mark.cid}`,
+  gradient: `cid:${EMAIL_BRAND_ASSETS.gradient.cid}`,
 };
 
-/** شهادةُ التعيين (رسالة قائد اللجنة) تُرسم بالبنية الموحَّدة نفسها: عنوانٌ وحقائقُ وبيانٌ وخطوات */
+/** **رسالةُ التعيين** (قائد اللجنة) بالبنية الموحَّدة نفسها، **ونصُّها مترابط** (طلب المؤسس، نوفمبر 2026): البيانُ فقرةٌ واحدة
+ *  تسمّي صاحبَ التعيين ومُصدِرَه وموضعَه (`{name}` و`{issuer}` يُستبدلان بعد تهريب النص)، ثم الخطواتُ الأولى جملةً واحدة
+ *  متصلة لا قائمةً مرقّمة، ثم الحقائقُ الأربع، ثم الزرّ. ولا شارةَ ولا سطرَ إنجليزيَّ فوق العنوان. */
 function normalize(c: EmailContent): EmailContent {
   const a = c.appointment;
   if (!a) return c;
+  const issuer = `<b>${esc(a.issuer.name)}</b>${a.issuer.title ? ` (${esc(a.issuer.title)})` : ""}`;
+  const steps = a.steps.items.map((s) => esc(s.trim().replace(/[.،]+$/, ""))).join("، ثم ");
   return {
     ...c,
-    badge: c.badge ?? "قرار تعيين",
     title: c.title,
-    lead: `<b>${esc(a.name)}</b> — ${esc(a.role)}`,
+    lead: esc(a.statement).replace("{name}", `<b>${esc(a.name)}</b>`).replace("{issuer}", issuer),
+    paragraphs: [`${esc(a.steps.title)}: ${steps}.`],
     // التاريخُ مرّةً واحدة: الحقائقُ تحمل «تاريخ التعيين» عادةً
     facts: a.facts.some(([k]) => k.includes("تاريخ")) ? a.facts : [...a.facts, ["التاريخ", a.date]],
-    paragraphs: [esc(a.statement), `صدر التعيين من: <b>${esc(a.issuer.name)}</b>${a.issuer.title ? ` — ${esc(a.issuer.title)}` : ""}`],
-    after: [`<b>${esc(a.steps.title)}</b>`, ...a.steps.items.map((s, i) => `${i + 1}. ${esc(s)}`)],
     note: a.note ?? c.note,
   };
 }
@@ -67,9 +74,6 @@ const P = (size: number, extra = "") => `margin:0;font-family:${FONT};font-size:
 function body(raw: EmailContent): string {
   const c = normalize(raw);
   const r: Row[] = [];
-  const badge = c.badge ?? { action: "إجراءٌ مطلوب", security: "أمان الحساب", celebrate: "تهنئة", info: "إشعار", alert: "تنبيه", farewell: "وداع" }[c.tone ?? "info"];
-  r.push({ html: `<span style="display:inline-block;background-color:${B.temptress};color:${B.beige};font-family:${FONT};font-size:12px;font-weight:bold;line-height:1.5;padding:4px 14px;border-radius:999px">${esc(badge)}</span>`, bottom: 12 });
-  if (raw.appointment) r.push({ html: `<div dir="ltr" style="font-family:${FONT};font-size:11px;letter-spacing:3px;color:${B.temptress};text-align:right">CERTIFICATE OF APPOINTMENT</div>`, bottom: 4 });
   r.push({ html: `<h1 style="margin:0;font-family:${FONT};font-size:24px;line-height:1.45;font-weight:800;color:${B.mahogany}">${esc(c.title)}</h1>`, bottom: 10 });
   if (c.lead) r.push({ html: `<p style="${P(16)}">${c.lead}</p>`, bottom: 12 });
 
@@ -157,8 +161,6 @@ export function renderEmail2026Parts(opts: {
   tagline?: string;
   links?: { label: string; url: string }[];
   handle?: string | null;
-  /** موقعُ المنصة الرسمي في التذييل */
-  site?: { label: string; url: string } | null;
   /** جهةُ الرسالة في الترويسة (`emailSenderLabel`) — وبغيابها اسمُ القسم كما هو */
   senderLabel?: string | null;
 }): { html: string; bodyHtml: string } {
@@ -168,7 +170,7 @@ export function renderEmail2026Parts(opts: {
   const bodyHtml = body(opts.content);
   const linkStyle = `color:${B.beige};text-decoration:none;font-family:${FONT};font-size:13px;font-weight:bold`;
   const dot = `<span style="color:${B.beige};font-family:${FONT};font-size:13px;padding:0 8px">•</span>`;
-  const links = [...(opts.links ?? []), ...(opts.site ? [opts.site] : [])]
+  const links = (opts.links ?? [])
     .map((l) => `<a href="${esc(l.url)}" style="${linkStyle}">${esc(l.label)}</a>`)
     .join(dot);
 
@@ -194,17 +196,18 @@ ${opts.handle ? `<div dir="ltr" style="margin-top:2px;font-family:${FONT};font-s
 <title>${esc(opts.subject)}</title>
 <!--[if mso]><style>body,table,td,div,p,a,span,h1{font-family:Tahoma,Arial,sans-serif !important}</style><![endif]-->
 <style>
-html,body{margin:0!important;padding:0!important;width:100%!important;background-color:${BAND_BG}}
+html,body{margin:0!important;padding:0!important;width:100%!important;background-color:${END_BG}}
 @media (max-width:620px){ .t-pad{padding-left:20px!important;padding-right:20px!important} .t-logo{width:150px!important} .t-btn{display:block!important;text-align:center!important} }
 </style>
 </head>
-<body style="margin:0;padding:0;width:100%;background-color:${BAND_BG};font-family:${FONT}" bgcolor="${BAND_BG}">
+<body style="margin:0;padding:0;width:100%;background-color:${END_BG};font-family:${FONT}" bgcolor="${END_BG}">
 <div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${esc(opts.preheader ?? opts.subject)}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${BAND_BG}" style="width:100%;background-color:${BAND_BG};${KEEP_DARK}font-family:${FONT}">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${END_BG}" style="width:100%;background-color:${END_BG};font-family:${FONT}">
 ${band(BAND_BG, header, { pad: "22px 24px", dark: true, cls: "t-pad" })}
 ${band(BODY_BG, `<img src="${img.pattern}" width="${A.pattern.width}" height="${A.pattern.height}" alt="" style="display:block;border:0;width:100%;max-width:${A.pattern.width}px;height:auto">`, { pad: "0" })}
 ${band(BODY_BG, bodyHtml, { pad: "22px 24px 30px", cls: "t-pad" })}
 ${band(BAND_BG, footer, { pad: "28px 24px 30px", dark: true, cls: "t-pad" }).replace('<td class="t-pad" style="', '<td class="t-pad" align="center" style="text-align:center;')}
+<tr><td bgcolor="${BAND_BG}" style="background-color:${BAND_BG};padding:0;font-size:0;line-height:0"><img src="${img.gradient}" width="${A.gradient.width}" height="96" alt="" style="display:block;border:0;width:100%;height:96px"></td></tr>
 </table>
 </body>
 </html>`;

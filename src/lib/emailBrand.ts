@@ -487,12 +487,16 @@ function darkStyles(a: ReturnType<typeof accentOf>): string {
  *  الحديث، وهذه وحدها تُرسَم كما كُتبت. */
 /** **قالبُ الإرسال — هوية تلاق 2026** (`lib/brand2026/email`): المحتوى نفسُه (روابطُه ومتغيّراتُه ومعناه) بالتصميم الجديد.
  *  الخطُّ الرسمي من المنصة نفسها لعملاء البريد الذين يحمّلون الخطوط، وTahoma/Arial لغيرهم (قيدٌ تقنيٌّ معروض على المؤسس). */
-/** حساباتُ التذييل الرسمية: المعرّفُ موحّدٌ فيُكتب مرّةً تحت أسماء المنصات، وإلا كُتب كلٌّ بمعرّفه */
+/** **حساباتُ التذييل: X وLinkedIn وحدهما** (قرار المؤسس، نوفمبر 2026 — لا موقعَ المنصة ولا حساباتٍ أخرى). والرابطان من
+ *  إعداد المشروع نفسه (`SOCIAL_LINKS`: المعرّف `tlaqisa` افتراضاً، ويُغيَّر من البيئة `SOCIAL_X`/`SOCIAL_LINKEDIN` بلا نشر)
+ *  لا تخمين. المعرّفُ الموحّد يُكتب مرّةً تحت اسمَي المنصتين، وإلا كُتب كلٌّ بمعرّفه. */
+export const EMAIL_FOOTER_SOCIAL = SOCIAL_LINKS.filter((s) => s.label === "X" || s.label === "LinkedIn");
 function footerLinks() {
-  const same = SOCIAL_LINKS.length > 0 && SOCIAL_LINKS.every((s) => s.handle === SOCIAL_LINKS[0].handle);
+  const list = EMAIL_FOOTER_SOCIAL;
+  const same = list.length > 0 && list.every((s) => s.handle === list[0].handle);
   return {
-    links: SOCIAL_LINKS.map((s) => ({ label: same ? s.label : `${s.label} @${s.handle}`, url: `${s.url}${s.handle}` })),
-    handle: same ? SOCIAL_LINKS[0].handle : null,
+    links: list.map((s) => ({ label: same ? s.label : `${s.label} @${s.handle}`, url: `${s.url}${s.handle}` })),
+    handle: same ? list[0].handle : null,
   };
 }
 
@@ -505,7 +509,6 @@ export function renderEmail(opts: {
   images?: EmailImageSources;
 }): { html: string; bodyHtml: string } {
   const f = footerLinks();
-  const site = appBaseUrl();
   return renderEmail2026Parts({
     subject: opts.subject,
     content: opts.content,
@@ -515,7 +518,6 @@ export function renderEmail(opts: {
     tagline: TAGLINE,
     links: f.links,
     handle: f.handle,
-    site: { label: site.replace(/^https?:\/\/(www\.)?/, ""), url: site },
     senderLabel: emailSenderLabel(opts.theme),
   });
 }

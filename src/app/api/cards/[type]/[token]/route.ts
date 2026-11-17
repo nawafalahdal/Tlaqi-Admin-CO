@@ -3,8 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { verifyBannerToken } from "@/lib/bannerToken";
 import { renderBusinessCard, renderBusinessCardReverse, renderInviteCard, renderWelcomeCard } from "@/lib/shareCards";
 import { businessCardData } from "@/lib/businessCardData";
+import { inviteCardData } from "@/lib/inviteCard";
 import { departmentColor } from "@/lib/departmentColor";
-import { forms, gx, positionTitle, roleTitle } from "@/lib/gender";
+import { forms, gx, roleTitle } from "@/lib/gender";
 
 /** sharp يحتاج Node لا Edge */
 export const runtime = "nodejs";
@@ -37,27 +38,10 @@ export async function GET(
     } else if (type === "invite") {
       // الدعوة للمرشّح وحده: له سجلُّ عضوٍ منذ لحظة دعوته
       if (subject.kind !== "member") return new NextResponse("غير موجود", { status: 404 });
-      const m = await prisma.member.findUnique({
-        where: { id: subject.id },
-        select: {
-          fullName: true,
-          jobTitle: true,
-          credentialsIssuedAt: true,
-          createdAt: true,
-          department: { select: { name: true, colorHex: true, parent: { select: { colorHex: true } } } },
-          invite: { select: { targetRole: true, invitedBy: { select: { fullName: true } } } },
-        },
-      });
-      if (!m) return new NextResponse("غير موجود", { status: 404 });
-      png = await renderInviteCard({
-        fullName: m.fullName,
-        position: positionTitle(m.invite.targetRole, m.department?.name),
-        jobTitle: m.jobTitle,
-        departmentName: m.department?.name ?? null,
-        colorHex: m.department ? departmentColor(m.department) : null,
-        invitedByName: m.invite.invitedBy?.fullName ?? null,
-        issuedAt: m.credentialsIssuedAt ?? m.createdAt,
-      });
+      // من مصدره الواحد الذي ترسم منه رسالةُ الدعوة ملصقَها المضمّن (`lib/inviteCard`)
+      const data = await inviteCardData(subject.id);
+      if (!data) return new NextResponse("غير موجود", { status: 404 });
+      png = await renderInviteCard(data);
     } else {
       const row =
         subject.kind === "member"
