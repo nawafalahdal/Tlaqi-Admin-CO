@@ -25,6 +25,7 @@ const SCOPE_LABEL: Record<string, string> = {
   account: "حساب",
 };
 const ACTION_LABEL: Record<string, string> = {
+  "employee_no.reordered": "ترتيبُ الرقم الوظيفي (المؤسس 001، الرئيس 002، التشغيل 003)",
   "senior.leadership": "انتقالُ قيادة الإدارة العليا",
   "member.approved": "اعتمادُ مرشّح",
   "member.rejected": "رفضُ مرشّح",
