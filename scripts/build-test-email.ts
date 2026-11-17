@@ -29,13 +29,14 @@ const encWord = (s: string) => `=?UTF-8?B?${Buffer.from(s, "utf8").toString("bas
 (async () => {
   const { captureEmails } = await import("@/lib/emailCapture");
   const { sendWelcomePack } = await import("@/lib/welcome");
-  const { composeEmail, inlineForPreview } = await import("@/lib/emailBrand");
+  const { inlineForPreview } = await import("@/lib/emailBrand");
+  const { composeEmailWithHeader } = await import("@/lib/emailHeader");
   const member = await prisma.member.findFirstOrThrow({ where: { email }, select: { id: true, fullName: true } });
   const mails = await captureEmails(() => sendWelcomePack({ kind: "member", id: member.id }, "approved"));
   const mail = mails.find((m) => m.kind === "ترحيب");
   if (!mail) throw new Error("لم تُبنَ رسالةُ الاعتماد");
   // الدالةُ نفسُها التي يرسل بها المسار (`composeEmail`): HTMLُ الرسالة ونصُّها ومرفقاتُها مع صور الهوية المضمّنة
-  const { html, text, attachments: atts } = composeEmail({ subject: mail.subject, content: mail.content, kind: mail.kind, theme: mail.theme, attachments: mail.attachments });
+  const { html, text, attachments: atts } = await composeEmailWithHeader({ subject: mail.subject, content: mail.content, kind: mail.kind, theme: mail.theme, attachments: mail.attachments });
   const inline = atts.filter((a) => a.contentId);
   const files = atts.filter((a) => !a.contentId);
   const B = { mixed: "=_tlaqi_mixed", related: "=_tlaqi_related", alt: "=_tlaqi_alt" };

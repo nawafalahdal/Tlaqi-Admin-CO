@@ -36,7 +36,8 @@ const encWord = (s: string) => `=?UTF-8?B?${Buffer.from(s, "utf8").toString("bas
   const { prisma } = await import("@/lib/prisma");
   const E = await import("@/lib/email");
   const { captureEmails } = await import("@/lib/emailCapture");
-  const { composeEmail, inlineForPreview } = await import("@/lib/emailBrand");
+  const { inlineForPreview } = await import("@/lib/emailBrand");
+  const { composeEmailWithHeader } = await import("@/lib/emailHeader");
   const { sendWelcomePack } = await import("@/lib/welcome");
   // ملصقُ دعوةٍ اصطناعي — بالرسّام نفسه وبالحجم نفسه الذي ترسله المنصة (`lib/inviteCard`)
   const syntheticInvitePoster = async () => {
@@ -101,7 +102,7 @@ const encWord = (s: string) => `=?UTF-8?B?${Buffer.from(s, "utf8").toString("bas
       report.push({ key, title, error: "لم تُلتقط رسالة (قد تكون محجوبةً بسياسة الإشعارات)" });
       continue;
     }
-    const c = composeEmail({ subject: mail.subject, content: mail.content, kind: mail.kind, theme: mail.theme, attachments: mail.attachments });
+    const c = await composeEmailWithHeader({ subject: mail.subject, content: mail.content, kind: mail.kind, theme: mail.theme, attachments: mail.attachments });
     writeFileSync(join(outDir, `${key}.html`), inlineForPreview(c.html, c.attachments));
     const inline = c.attachments.filter((a) => a.contentId);
     const files = c.attachments.filter((a) => !a.contentId);

@@ -507,6 +507,8 @@ export function renderEmail(opts: {
   preheader?: string;
   /** في ملفات المعاينة وحدها: صورُ الهوية بياناتٍ مباشرة بدل `cid:` */
   images?: EmailImageSources;
+  /** الترويسةُ المرسومة بجهتها (`emailHeader`) — وبغيابها القاعدةُ والجهةُ نصٌّ تحتها */
+  headerSrc?: string;
 }): { html: string; bodyHtml: string } {
   const f = footerLinks();
   return renderEmail2026Parts({
@@ -515,6 +517,7 @@ export function renderEmail(opts: {
     theme: opts.theme,
     preheader: opts.preheader,
     images: opts.images,
+    headerSrc: opts.headerSrc,
     tagline: TAGLINE,
     links: f.links,
     handle: f.handle,
@@ -535,14 +538,17 @@ export function composeEmail(opts: {
   kind: string;
   theme?: EmailTheme;
   attachments?: EmailAttachment[];
+  /** الترويسةُ المرسومة بجهتها (`emailHeaderAttachment`) — تُرفق مع الرسالة. وبغيابها القاعدةُ المولَّدة والجهةُ نصٌّ تحتها */
+  header?: EmailAttachment | null;
 }): { html: string; text: string; attachments: EmailAttachment[] } {
   const { html, bodyHtml } = renderEmail({
     subject: opts.subject,
     content: { ...opts.content, tone: opts.content.tone ?? toneForVariant(variantForKind(opts.kind)) },
     theme: opts.theme,
     preheader: opts.subject,
+    headerSrc: opts.header?.contentId ? `cid:${opts.header.contentId}` : undefined,
   });
-  const own = opts.attachments ?? [];
+  const own = [...(opts.attachments ?? []), ...(opts.header?.contentId ? [opts.header] : [])];
   const brand = brandInlineAttachments().filter((b) => html.includes(`cid:${b.contentId}`) && !own.some((a) => a.contentId === b.contentId));
   return { html, text: htmlToText(bodyHtml), attachments: [...own, ...brand] };
 }

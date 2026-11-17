@@ -72,7 +72,8 @@ const male = committeeLeadAppointedContent({ ...base, fullName: "فيصل ناص
 const neutral = committeeLeadAppointedContent({ ...base, committeeName: "لجنة المحتوى الرقمي" }, null);
 const html = renderEmail({ subject: female.title, content: female, theme: { departmentName: "التسويق", colorHex: "#C34900" } }).html;
 // تغييرُ توقّعٍ مقصود (طلب المؤسس، نوفمبر 2026): الشعارُ مضمّنٌ `cid:tlaqi-logo` من الملف نفسه لا رابطٌ خارجي (كان يُرسم مربّعاً فارغاً حيث تُحجب الصور)
-check("الترويسة بالشعار الرسمي (هوية 2026) على Temptress", html.includes("cid:tlaqi-logo") && EMAIL_BRAND_ASSETS.logo.source.endsWith("logo-on-temptress.png") && html.includes('alt="TLAQI — Talent Link Advancing Quality Innovation"'));
+// تغييرُ توقّعٍ مقصود (طلب المؤسس، 17 نوفمبر 2026 «لا إطار أبيض»): الترويسةُ صورةٌ مولَّدة من الشعار الرسمي على Temptress
+check("الترويسة بالشعار الرسمي (هوية 2026) على Temptress", html.includes("cid:tlaqi-header-base") && EMAIL_BRAND_ASSETS.headerBase.source === "generated:header-base" && EMAIL_BRAND_ASSETS.logo.source.endsWith("logo-on-temptress.png"));
 check("الاسمُ العربي بكتابته المعتمدة «تلاق» وحدها", !/تَـــلاقِ|تلاقي/.test(html) && html.includes("تلاق"));
 check("لا الجملة القديمة ولا أي هاشتاق (رسالةٌ إدارية)", !html.includes("نلتقي") && !/#[\u0600-\u06FF]/.test(html));
 // تغييرُ توقّعٍ مقصود (قرار المؤسس، نوفمبر 2026): لا شارةَ ولا سطرَ إنجليزيَّ فوق العنوان، والعنوانُ الخبرُ نفسُه بصيغة صاحبه
@@ -89,9 +90,11 @@ check("الصيغة المحايدة لا تفترض مذكّراً", neutral.ap
 check("اسم اللجنة يُهرَّب", !renderEmail({ subject: "x", content: committeeLeadAppointedContent({ ...base, committeeName: "<b>x</b>" }, "female") }).html.includes("<b>x</b>"));
 const techHtml = renderEmail({ subject: "x", content: male, theme: { departmentName: "التقنية", colorHex: "#67C090" } }).html;
 check("لا نصَّ بأخضر القسم الباهت (Green Sheen للكتل لا للنص)", !/[^-]color:#67C090/i.test(techHtml));
-check("الوضع الداكن: الترويسة والتذييل يبقيان داكنين في Gmail", (html.match(/linear-gradient\(#341D2B,#341D2B\)/g) ?? []).length >= 2);
+// تغييرُ توقّعٍ مقصود (17 نوفمبر 2026): الترويسةُ والتذييلُ صورتان — لا يقلب الصورَ أيُّ عميل، فتبقيان داكنتين في الوضعين
+check("الوضع الداكن: الترويسة والتذييل يبقيان داكنين في Gmail", /<img src="cid:tlaqi-header-base"/.test(html) && /<img src="cid:tlaqi-footer"/.test(html) && html.includes("@media (prefers-color-scheme:dark)"));
 // تغييرُ توقّعٍ مقصود: قرارُ «الخلفيةُ بيضاء» (12 نوفمبر) نقضه المؤسس للبريد («لا أريد أن يظهر البريد كصفحة بيضاء») — الهويةُ ممتدة: المتنُ Beige الرسمي بلا صفحةٍ خارجية
-check("والخلفيةُ هويةٌ ممتدة لا صفحةٌ بيضاء (طلب المؤسس)", !html.includes("#FFFFFF") && !html.includes("#FAF8F4") && html.includes('bgcolor="#EEF6DF"'));
+// تغييرُ توقّعٍ مقصود (طلب المؤسس، 17 نوفمبر 2026 «خلّه على خلفية الإيميل»): لا خلفيةَ في الرسالة أصلاً — فلا إطارَ أبيض حولها
+check("والخلفيةُ هويةٌ ممتدة لا صفحةٌ بيضاء (طلب المؤسس)", !html.includes("#FFFFFF") && !html.includes("#FAF8F4") && !/bgcolor=/i.test(html.replace(/<!--[\s\S]*?-->/g, "")));
 eq("موقع مُصدِر التعيين: الرئاسة التنفيذية", appointerTitle("executive", "التسويق"), "الرئاسة التنفيذية");
 eq("ولا موقع لغير القيادة (يُكتب الاسم وحده)", appointerTitle("member", "التسويق"), null);
 

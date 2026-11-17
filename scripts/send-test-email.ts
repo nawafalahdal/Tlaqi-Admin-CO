@@ -38,7 +38,8 @@ const D = new Date("2026-11-20T09:00:00+03:00");
   const { prisma } = await import("@/lib/prisma");
   const E = await import("@/lib/email");
   const { captureEmails } = await import("@/lib/emailCapture");
-  const { composeEmail } = await import("@/lib/emailBrand");
+  
+  const { composeEmailWithHeader } = await import("@/lib/emailHeader");
   const { sendWelcomePack } = await import("@/lib/welcome");
   const sharp = (await import("sharp")).default;
   const { renderInviteCard } = await import("@/lib/shareCards");
@@ -70,7 +71,7 @@ const D = new Date("2026-11-20T09:00:00+03:00");
     const mails = await captureEmails(fn);
     const mail = key === "approval" ? mails.find((m) => m.kind === "ترحيب") : mails[0];
     if (!mail) stop(`لم تُبنَ رسالة: ${key}`);
-    const c = composeEmail({ subject: mail.subject, content: mail.content, kind: mail.kind, theme: mail.theme, attachments: mail.attachments });
+    const c = await composeEmailWithHeader({ subject: mail.subject, content: mail.content, kind: mail.kind, theme: mail.theme, attachments: mail.attachments });
     const subject = `[تجربة] ${mail.subject}`;
     const size = Buffer.byteLength(c.html) + c.attachments.reduce((n, a) => n + a.content.length, 0);
     console.log(`- ${key}: «${subject}» — ${Math.round(size / 1024)} ك.ب، مرفقات: ${c.attachments.map((a) => a.contentId ?? a.filename).join("، ")}`);

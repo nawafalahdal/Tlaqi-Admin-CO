@@ -6,7 +6,7 @@
  *  فتُضمَّن صورُ الهوية بالطريقة نفسها: بايتاتُها في الكود (لا قراءةَ ملفٍّ وقت الإرسال — ملفاتُ `public` لا تُحزَم مع دوالّ
  *  الخادم على Vercel)، ويُرفقها مسارُ الإرسال الواحد بكل رسالة.
  *
- *  تشغيل (بعد تغيير أيٍّ من الصور الثلاث): npx tsx scripts/gen-email-brand-assets.ts
+ *  تشغيل (بعد تغيير أيٍّ من الصور أو إطارَي البريد): npx tsx --tsconfig tsconfig.json scripts/gen-email-brand-assets.ts
  *  ويتحقّق `scripts/e2e-email-template.ts` أن الملفَّ المولَّد يطابق الصورَ الأصلية بايتاً ببايت. */
 import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -53,6 +53,17 @@ const GRADIENT = { from: [0x34, 0x1d, 0x2b], to: [0xc3, 0x49, 0x00], width: 600,
   }
   const gradient = await sharp(raw, { raw: { width: W, height: H, channels: 3 } }).png({ compressionLevel: 9 }).toBuffer();
   entries.push(entry("gradient", "tlaqi-gradient", "generated:temptress-to-mahogany", W, H, gradient));
+
+  // **إطارا البريد صورتين** (طلب المؤسس، 17 نوفمبر 2026): قاعدةُ الترويسة (تُرسم عليها الجهةُ وقتَ الإرسال) والتذييل
+  const F = await import("../src/lib/brand2026/emailFrames");
+  const { TAGLINE, EMAIL_FOOTER_SOCIAL } = await import("../src/lib/emailBrand");
+  const headerBase = await F.renderHeaderBase({
+    logoOnTemptress: readFileSync(`${DIR}/logo-on-temptress.png`),
+    patternOnTemptress: readFileSync(`${DIR}/pattern-talent-on-temptress.png`),
+  });
+  entries.push(entry("headerBase", "tlaqi-header-base", "generated:header-base", F.FRAME_DISPLAY_W, F.HEADER_DISPLAY_H, headerBase));
+  const footer = await F.renderFooter({ markMahogany: readFileSync(`${DIR}/mark-mahogany.png`) }, { tagline: TAGLINE, handle: `@${EMAIL_FOOTER_SOCIAL[0].handle}` });
+  entries.push(entry("footer", "tlaqi-footer", "generated:footer", F.FRAME_DISPLAY_W, F.FOOTER_DISPLAY_H, footer));
   write(entries);
 })();
 
@@ -69,5 +80,5 @@ ${entries.join("\n")}
 export type EmailBrandAssetKey = keyof typeof EMAIL_BRAND_ASSETS;
 `
 );
-console.log(`${OUT}: ${ASSETS.map((a) => a.cid).join(", ")}, tlaqi-gradient`);
+console.log(`${OUT}: ${ASSETS.map((a) => a.cid).join(", ")}, tlaqi-gradient, tlaqi-header-base, tlaqi-footer`);
 }

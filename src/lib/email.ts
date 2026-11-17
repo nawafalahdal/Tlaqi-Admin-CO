@@ -6,11 +6,11 @@ import { appendEmailLog } from "@/lib/googleSheets";
 import { prisma } from "@/lib/prisma";
 import {
   renderEmail,
-  composeEmail,
   appBaseUrl,
   type EmailContent,
   type EmailTheme,
 } from "@/lib/emailBrand";
+import { composeEmailWithHeader } from "@/lib/emailHeader";
 import { firstName } from "@/lib/personName";
 import { INVITE_INLINE_WIDTH, INVITE_INLINE_HEIGHT } from "@/lib/inviteCard";
 import { forms, gx, positionTitle, roleTitle, type MaybeGender } from "@/lib/gender";
@@ -254,7 +254,8 @@ async function send(
     // الموحَّد يرسمها — فلا تتفرّق الهوية على ثلاثين دالة ولا تُنسى في واحدة.
     // والنبرةُ إن لم تحدّدها الرسالة تُشتقّ من وسم نوعها.
     // وصورُ الهوية مرفقاتٌ مضمّنة معها (`composeEmail`) — لا روابطَ خارجية يحجبها عميلُ البريد فيرسم مربّعاً فارغاً
-    const composed = composeEmail({ subject, content, kind, theme, attachments });
+    // والترويسةُ ترسم جهةَ الرسالة بخطّ الهوية (`emailHeader`) — وإن تعذّر رسمُها أُرسلت بالقاعدة والجهةُ نصّ
+    const composed = await composeEmailWithHeader({ subject, content, kind, theme, attachments });
     // Resend لا يرمي استثناءً عند رفض الـAPI: يرجع `{ data, error }`.
     // فكان كل رفضٍ — مفتاحٌ خاطئ، نطاقٌ غير موثّق، حدُّ إرسال، مستلمٌ
     // غير مقبول — يُسجَّل «أُرسلت» ويُقال لصاحب الشأن إنها وصلت. وهذا

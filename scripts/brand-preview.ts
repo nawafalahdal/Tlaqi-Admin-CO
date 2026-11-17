@@ -27,7 +27,8 @@ const P = { to: "preview@example.test", fullName: "سارة أحمد", url: "htt
 (async () => {
   const E = await import("@/lib/email");
   const { captureEmails } = await import("@/lib/emailCapture");
-  const { composeEmail, inlineForPreview } = await import("@/lib/emailBrand");
+  const { inlineForPreview } = await import("@/lib/emailBrand");
+  const { composeEmailWithHeader } = await import("@/lib/emailHeader");
   const T = await import("@/lib/brand2026/tokens");
 
   const emails: [string, string, () => Promise<unknown>][] = [
@@ -53,7 +54,7 @@ const P = { to: "preview@example.test", fullName: "سارة أحمد", url: "htt
     const [m] = await captureEmails(fn);
     if (!m) throw new Error(`لم تُلتقط رسالة: ${key}`);
     // القالبُ واحد: ما يُرسَل هو ما يُعاين (`composeEmail`)، وصورُه مضمّنةٌ بياناتٍ مباشرة في الملف
-    const composed = composeEmail({ subject: m.subject, content: m.content, kind: m.kind, theme: m.theme, attachments: m.attachments });
+    const composed = await composeEmailWithHeader({ subject: m.subject, content: m.content, kind: m.kind, theme: m.theme, attachments: m.attachments });
     const next = inlineForPreview(composed.html, composed.attachments);
     const current = next;
     writeFileSync(join(OUT, "emails", `${key}.new.html`), next);
