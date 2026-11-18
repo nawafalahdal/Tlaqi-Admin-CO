@@ -168,6 +168,7 @@ export async function purgeCandidateAction(
       confirmEmail,
       reason: reason.trim(),
       performedByName: session.user.name ?? "—",
+      actor: { id: session.user.id, role: session.user.role },
     });
     revalidatePath("/admin/people");
     revalidatePath("/admin");

@@ -1412,6 +1412,8 @@ export async function purgeCandidate(opts: {
   confirmEmail: string;
   reason: string;
   performedByName: string;
+  /** من يحذف — يُكتب في سجل التدقيق مع إنهاء مناصبه في الإدارة العليا (`releaseSeniorPositions`) */
+  actor?: { id: string; role: string };
 }) {
   const member = await prisma.member.findUniqueOrThrow({
     where: { id: opts.memberId },
@@ -1432,6 +1434,33 @@ export async function purgeCandidate(opts: {
 
   // السجل يُختم في الشيت قبل الحذف لا بعده: بعد الحذف لا يبقى ما يُكتب
   await syncMemberLifecycleRow(member.id);
+
+  // **في معاملةٍ واحدة — يقع كلُّه أو لا يقع شيء** (كان يُكتب خطوةً خطوة، فإن رُفض محوُ الصفّ بقي ما قبله محذوفاً)
+  const { releaseSeniorPositions, eraseRefusal } = await import("@/lib/governance/seniorRelease");
+  try {
+    await prisma.$transaction(async (tx) => {
+      // التذاكر لا تُحذف: هي سجل عمل يخص أطرافاً أخرى، فيُفكّ ارتباطها فقط
+      await tx.ticket.updateMany({ where: { memberId: member.id }, data: { memberId: null } });
+      await tx.ticket.updateMany({ where: { targetMemberId: member.id }, data: { targetMemberId: null } });
+      await tx.request.updateMany({ where: { linkedMemberId: member.id }, data: { linkedMemberId: null } });
+      await tx.testAttempt.deleteMany({ where: { memberId: member.id } });
+      await tx.memberWarning.deleteMany({ where: { memberId: member.id } });
+      await retireMarketingProfile(tx, { memberId: member.id }, member.fullName);
+      // مرشّحٌ قبِل دعوةً إلى الإدارة العليا يحمل منصبَه — يُنهى ويُفَكّ عنه، وإلا رفضت القاعدةُ المحو
+      await releaseSeniorPositions(
+        tx,
+        { holderMemberId: member.id },
+        { actor: { id: opts.actor?.id ?? "system", name: opts.performedByName, role: opts.actor?.role ?? "super_admin" }, reason: opts.reason, stamp: new Date() }
+      );
+      await tx.member.delete({ where: { id: member.id } });
+      await tx.invite.delete({ where: { id: member.inviteId } });
+    });
+  } catch (err) {
+    const refusal = eraseRefusal(err);
+    if (refusal) throw new Error(refusal);
+    throw err;
+  }
+  // سطرُ الحذف في السجل الحي بعد وقوعه — لا «حُذف» لصفٍّ رفضت القاعدةُ محوَه
   await appendMemberEvent({
     fullName: member.fullName,
     email: member.email,
@@ -1443,22 +1472,6 @@ export async function purgeCandidate(opts: {
       `نفّذه: ${opts.performedByName}. السجل محفوظ هنا والبريد تحرّر لدعوة جديدة.`,
     at: new Date(),
   });
-
-  // التذاكر لا تُحذف: هي سجل عمل يخص أطرافاً أخرى، فيُفكّ ارتباطها فقط
-  await prisma.ticket.updateMany({ where: { memberId: member.id }, data: { memberId: null } });
-  await prisma.ticket.updateMany({
-    where: { targetMemberId: member.id },
-    data: { targetMemberId: null },
-  });
-  await prisma.request.updateMany({
-    where: { linkedMemberId: member.id },
-    data: { linkedMemberId: null },
-  });
-  await prisma.testAttempt.deleteMany({ where: { memberId: member.id } });
-  await prisma.memberWarning.deleteMany({ where: { memberId: member.id } });
-  await retireMarketingProfile(prisma, { memberId: member.id }, member.fullName);
-  await prisma.member.delete({ where: { id: member.id } });
-  await prisma.invite.delete({ where: { id: member.inviteId } });
 
   return { email: member.email, fullName: member.fullName, warningsCount: member.warningsCount };
 }

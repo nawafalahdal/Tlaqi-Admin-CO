@@ -7,6 +7,7 @@ import { accountRoleLabel } from "@/lib/testTracks";
 import type { Session } from "next-auth";
 import { mayResendTo, resenderRoleFor, RESENDER_LABEL } from "@/lib/welcomeResend";
 import { retireMarketingProfile } from "@/lib/marketing/team";
+import { REDACTED_EMAIL, releaseSeniorPositions, eraseRefusal } from "@/lib/governance/seniorRelease";
 
 /** تصرّفات المؤسس وحده — وتُحرَس في الخادم لا بإخفاء زرّ.
  *
@@ -214,20 +215,51 @@ export async function sendWelcomeToUser(opts: {
   return { ok: true, to: res.to };
 }
 
-/** البريد لا يُكتب في الشاهدة (انظر `permanentlyDeleteAccount`). */
-const REDACTED_EMAIL = "— (حُرِّر البريد لإعادة الدعوة)";
+/** البريد لا يُكتب في الشاهدة (انظر `permanentlyDeleteAccount`) — `REDACTED_EMAIL` من `governance/seniorRelease`. */
 
 type ErasableMember = NonNullable<Awaited<ReturnType<typeof loadErasableMember>>>;
 const loadErasableMember = (where: { id: string } | { email: string }) =>
   prisma.member.findUnique({ where, include: { department: true, invite: true } });
 
+type EraseActor = { id: string; name: string; role: string };
+
 /** محوُ سجلّ عضويةٍ نهائياً — الطريقُ الواحد لكلا الحذفين.
  *
- *  الشاهدةُ في الشيت أولاً (بعد الحذف لا يبقى صفٌّ يُقرأ)، ثم يُفَكّ ما يخصّ
- *  أطرافاً أخرى (التذاكر والطلبات) ولا يُحذف، ثم يُحذف ما لا معنى له بلا
- *  صاحبه، ثم الصفّ ودعوتُه — فيتحرّر البريد ويُدعى صاحبُه عضواً جديداً. */
-async function eraseMember(member: ErasableMember, ctx: { tombstone: string; reason: string; stamp: Date; event: string }) {
+ *  الشاهدةُ في الشيت أولاً (بعد الحذف لا يبقى صفٌّ يُقرأ)، ثم يُفَكّ ما يخصّ أطرافاً أخرى (التذاكر والطلبات ومناصبُ الإدارة
+ *  العليا) ولا يُحذف، ثم يُحذف ما لا معنى له بلا صاحبه، ثم الصفّ ودعوتُه — فيتحرّر البريد ويُدعى صاحبُه عضواً جديداً.
+ *
+ *  **وكلُّه في معاملةٍ واحدة — يقع كلُّه أو لا يقع شيء.** كانت الخطواتُ تُكتب واحدةً واحدة، فإن رفضت القاعدةُ الخطوةَ الأخيرة
+ *  (محوَ الصفّ) بقي ما قبلها: محاولاتُ اختباره وتنبيهاتُه محذوفة، والشيتُ يقول «حُذف» والصفُّ قائم. والآن يُردّ كلُّ شيء،
+ *  وتُعاد حالتُه الحيّة في الشيت، ويُكتب سطرُ الحذف في السجل الحي بعد وقوعه لا قبله. */
+async function eraseMember(member: ErasableMember, ctx: { tombstone: string; reason: string; stamp: Date; event: string; actor: EraseActor }) {
+  // قيادةُ لجانه العاملة تُخلَف قبل محو صفّه: لا تبقى لجنةٌ نشطةٌ بلا قائد (قيدُ القاعدة يرفض المحو وإلا)
+  const { succeedCommitteesLedBy } = await import("@/lib/org/committeeLeadership");
+  await succeedCommitteesLedBy(member.id, "حذفٌ نهائيٌّ لحساب القائد");
+
   await syncMemberLifecycleRow(member.id, ctx.tombstone);
+  try {
+    await prisma.$transaction(async (tx) => {
+      // التذاكر سجلُّ عملٍ يخصّ أطرافاً أخرى: تُفَكّ ولا تُحذف.
+      // والشهادات أثرُ حوكمةٍ مضت، وهي على الصفّ نفسه فتزول معه — ولهذا
+      // كُتب كل ما فيها في الشيت قبل الحذف.
+      await tx.ticket.updateMany({ where: { memberId: member.id }, data: { memberId: null } });
+      await tx.ticket.updateMany({ where: { targetMemberId: member.id }, data: { targetMemberId: null } });
+      await tx.request.updateMany({ where: { linkedMemberId: member.id }, data: { linkedMemberId: null } });
+      await tx.testAttempt.deleteMany({ where: { memberId: member.id } });
+      await tx.memberWarning.deleteMany({ where: { memberId: member.id } });
+      await tx.terminationRequest.deleteMany({ where: { memberId: member.id } });
+      await tx.memberDateEdit.deleteMany({ where: { memberId: member.id } });
+      await retireMarketingProfile(tx, { memberId: member.id }, member.fullName);
+      await releaseSeniorPositions(tx, { holderMemberId: member.id }, ctx);
+      await tx.member.delete({ where: { id: member.id } });
+      await tx.invite.delete({ where: { id: member.inviteId } });
+    });
+  } catch (err) {
+    // لم يقع شيءٌ في القاعدة — فتعود حالتُه الحيّة في الشيت بدل شاهدةٍ تقول «حُذف» وصفُّه قائم
+    await syncMemberLifecycleRow(member.id).catch(() => undefined);
+    throw err;
+  }
+
   await appendMemberEvent({
     fullName: member.fullName,
     email: REDACTED_EMAIL,
@@ -239,24 +271,8 @@ async function eraseMember(member: ErasableMember, ctx: { tombstone: string; rea
       `السجل محفوظ هنا، والبريد لم يُقيَّد فيه ليُدعى صاحبه من جديد بنفس بياناته.`,
     at: ctx.stamp,
   });
-
-  // التذاكر سجلُّ عملٍ يخصّ أطرافاً أخرى: تُفَكّ ولا تُحذف.
-  // والشهادات أثرُ حوكمةٍ مضت، وهي على الصفّ نفسه فتزول معه — ولهذا
-  // كُتب كل ما فيها في الشيت قبل الحذف.
-  await prisma.ticket.updateMany({ where: { memberId: member.id }, data: { memberId: null } });
-  await prisma.ticket.updateMany({ where: { targetMemberId: member.id }, data: { targetMemberId: null } });
-  await prisma.request.updateMany({ where: { linkedMemberId: member.id }, data: { linkedMemberId: null } });
-  await prisma.testAttempt.deleteMany({ where: { memberId: member.id } });
-  await prisma.memberWarning.deleteMany({ where: { memberId: member.id } });
-  await prisma.terminationRequest.deleteMany({ where: { memberId: member.id } });
-  await prisma.memberDateEdit.deleteMany({ where: { memberId: member.id } });
-  await retireMarketingProfile(prisma, { memberId: member.id }, member.fullName);
-  // قيادةُ لجانه العاملة تُخلَف قبل محو صفّه: لا تبقى لجنةٌ نشطةٌ بلا قائد (قيدُ القاعدة يرفض المحو وإلا)
-  const { succeedCommitteesLedBy } = await import("@/lib/org/committeeLeadership");
-  await succeedCommitteesLedBy(member.id, "حذفٌ نهائيٌّ لحساب القائد");
-  await prisma.member.delete({ where: { id: member.id } });
-  await prisma.invite.delete({ where: { id: member.inviteId } });
 }
+
 
 /** الحذف النهائي لحساب — للمؤسس وحده، وهو الملاذ الأخير.
  *
@@ -316,6 +332,7 @@ export async function permanentlyDeleteAccount(opts: {
 
   const stamp = new Date();
   const tombstone = `حُذف نهائياً ${stamp.toISOString().slice(0, 10)} — ${opts.actorName}`;
+  const eraseActor: EraseActor = { id: opts.actorId, name: opts.actorName, role: opts.actorRole };
 
   /** البريد لا يُكتب في الشاهدة.
    *
@@ -406,7 +423,11 @@ export async function permanentlyDeleteAccount(opts: {
     const { reassignActingLeads } = await import("@/lib/org/committeeLeadership");
     await reassignActingLeads(user.id, "حذفٌ نهائيٌّ لحساب القائم بالخلافة", opts.actorName);
     try {
-      await prisma.user.delete({ where: { id: user.id } });
+      // مناصبُه في الإدارة العليا تُنهى وتُفَكّ عنه مع المحو نفسِه — يقعان معاً أو لا يقع شيء (`releaseSeniorPositions`)
+      await prisma.$transaction(async (tx) => {
+        await releaseSeniorPositions(tx, { holderUserId: user.id }, { actor: eraseActor, reason, stamp });
+        await tx.user.delete({ where: { id: user.id } });
+      });
     } catch (err) {
       // الشاهدة كُتبت وتوقّع الحذفَ ولم يقع: تُعاد الحالة الحيّة، فلا
       // يُقرأ في الشيت «حُذف» وصفُّه قائم. والخطأ يُسمّى لا يُعمَّم.
@@ -427,7 +448,7 @@ export async function permanentlyDeleteAccount(opts: {
     const twin = await loadErasableMember({ email: user.email });
     if (twin) {
       try {
-        await eraseMember(twin, { tombstone, reason, stamp, event: "حذف نهائي لسجلّ العضوية المرافق لحسابه الإداري" });
+        await eraseMember(twin, { tombstone, reason, stamp, event: "حذف نهائي لسجلّ العضوية المرافق لحسابه الإداري", actor: eraseActor });
       } catch {
         return {
           ok: true,
@@ -470,7 +491,13 @@ export async function permanentlyDeleteAccount(opts: {
   const { awaitingCandidateDecision, AWAITING_DECISION_REFUSAL } = await import("@/lib/permissions");
   if (awaitingCandidateDecision(member)) return { ok: false, reason: AWAITING_DECISION_REFUSAL };
 
-  await eraseMember(member, { tombstone, reason, stamp, event: "حذف نهائي من قاعدة البيانات" });
+  try {
+    await eraseMember(member, { tombstone, reason, stamp, event: "حذف نهائي من قاعدة البيانات", actor: eraseActor });
+  } catch (err) {
+    const refusal = eraseRefusal(err);
+    if (refusal) return { ok: false, reason: refusal };
+    throw err;
+  }
 
   // لا حسابَ إداريَّ بالبريد نفسه (وإلا ذهب الطلبُ إليه)، فالبريدُ حرٌّ الآن
   return { ok: true, email: member.email, fullName: member.fullName, emailFreed: true, heldBy: null };

@@ -40,6 +40,7 @@ const ACTION_LABEL: Record<string, string> = {
   "senior.position.update": "تعديلُ تكليف",
   "senior.position.permissions": "تعديلُ صلاحيات تكليف",
   "senior.position.status": "تغييرُ حالة تكليف",
+  "senior.position.erased": "إنهاءُ تكليفٍ بحذف صاحبه نهائياً",
   "senior.position.approved": "اعتمادُ تكليفٍ بعد الاختبار",
   "senior.position.rejected": "رفضُ تكليفٍ بعد الاختبار",
   "committee.archive": "أرشفةُ لجنة",
