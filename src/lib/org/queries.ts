@@ -11,7 +11,7 @@ import {
   type OrgActor,
 } from "./actor";
 import { committeeContext } from "./committeeWork";
-import { currentLeadWarnings, departmentPeopleWhere, LEAD_WARNING_GAP_MS, LEAD_WARNINGS_TO_REPLACE, STATUS_TRANSITIONS } from "./committeeService";
+import { canPurgeCommittee, currentLeadWarnings, departmentPeopleWhere, LEAD_WARNING_GAP_MS, LEAD_WARNINGS_TO_REPLACE, STATUS_TRANSITIONS } from "./committeeService";
 
 /** صفحاتُ اللجان والقسم — قراءاتٌ محدودةٌ بما يحقّ لصاحبها، ومقسّمةٌ إلى صفحات.
  *
@@ -314,6 +314,8 @@ export async function committeeDetail(actor: OrgActor | null, committeeId: strin
     nextWarnAt: leadAccountable && leadWarnings.length < LEAD_WARNINGS_TO_REPLACE && nextWarnAt && nextWarnAt > now ? nextWarnAt : null,
     canReplaceLead: leadAccountable && leadWarnings.length >= LEAD_WARNINGS_TO_REPLACE,
     transitions: ctx.role.manage ? STATUS_TRANSITIONS[c.committeeStatus!] ?? [] : [],
+    // الحذفُ النهائيُّ للمؤرشفة — للمؤسس وحده (`purgeArchivedCommittee` يفحصها ثانيةً)
+    canPurge: c.committeeStatus === "archived" && canPurgeCommittee(actor),
     memberships,
     candidates,
     tasks,

@@ -44,6 +44,7 @@ const ACTION_LABEL: Record<string, string> = {
   "senior.position.rejected": "رفضُ تكليفٍ بعد الاختبار",
   "committee.archive": "أرشفةُ لجنة",
   "committee.restore": "استرجاعُ لجنة",
+  "committee.purge": "حذفُ لجنةٍ مؤرشفة نهائياً",
   "committee.lead": "تعيينُ قائد لجنة",
   "committee.lead.warned": "تنبيهٌ على قائد لجنة",
   "committee.lead.warning_acknowledged": "تأكيدُ قراءة تنبيه",

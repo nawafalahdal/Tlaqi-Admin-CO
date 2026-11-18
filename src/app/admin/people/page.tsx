@@ -7,6 +7,7 @@ import { Card } from "@/components/ui";
 import { SeatConflicts } from "@/components/SeatConflicts";
 import { RemovedAccountRow } from "./RemovedAccountRow";
 import { MemberAccountRow } from "./MemberAccountRow";
+import { InactivePurgeButton } from "./InactivePurgeButton";
 import { StuckCandidateRow, type StuckCandidate } from "./StuckCandidateRow";
 import { DataTable } from "@/components/DataTable";
 import { Pager, pageParam } from "@/components/Pager";
@@ -310,6 +311,8 @@ export default async function PeoplePage({
         stage: <StageBadge label={stageOf(m)} />,
         score: m.testScore === null ? "—" : `${m.testScore}%`,
         created: formatDate(m.createdAt),
+        // المتوقفُ والمرفوضُ يُحذف نهائياً — للمؤسس وحده، والخادمُ يفرضها (`permanentlyDeleteAccount`)
+        ...(isSuperAdmin ? { actions: <InactivePurgeButton member={{ id: m.id, fullName: m.fullName, email: m.email }} /> } : {}),
       },
     }));
 
@@ -320,6 +323,7 @@ export default async function PeoplePage({
     { key: "stage", label: tm.colStage },
     { key: "score", label: tm.colScore },
     { key: "created", label: tm.colCreated },
+    ...(isSuperAdmin ? [{ key: "actions", label: tm.colActions }] : []),
   ];
 
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);

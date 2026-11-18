@@ -15,6 +15,7 @@ import {
   submitCommittee,
   changeCommitteeStatus,
   restoreCommittee,
+  purgeArchivedCommittee,
   appointCommitteeLead,
   addCommitteeMembers,
   removeCommitteeMember,
@@ -134,6 +135,21 @@ export async function submitCommitteeAction(_p: FormState, fd: FormData): Promis
 export async function restoreCommitteeAction(_p: FormState, fd: FormData): Promise<FormState> {
   const id = s(fd, "committeeId");
   return run([...committeePaths(id), "/admin/departments"], async () => restoreCommittee(await actor(), id, opt(fd, "note")));
+}
+
+/** **الحذفُ النهائيُّ للجنةٍ مؤرشفة** — للمؤسس وحده، باسمها مكتوباً وسببٍ (`purgeArchivedCommittee` يفرض ذلك كلَّه).
+ *  وبعده لا صفحةَ للجنة: يُعاد المؤسسُ إلى قائمة اللجان */
+export async function purgeCommitteeAction(_p: FormState, fd: FormData): Promise<FormState> {
+  const id = s(fd, "committeeId");
+  try {
+    const res = await purgeArchivedCommittee(await actor(), id, { confirmName: s(fd, "confirmName"), reason: s(fd, "reason") });
+    if (!res.ok) return { error: res.reason, success: false };
+    for (const p of [...committeePaths(id), "/admin/departments", "/senior/log"]) revalidatePath(p);
+    await queueGovernanceSync("حذفُ لجنةٍ مؤرشفة نهائياً");
+  } catch (err) {
+    return { error: safeErrorMessage(err), success: false };
+  }
+  redirect("/committees");
 }
 
 export async function changeCommitteeStatusAction(_p: FormState, fd: FormData): Promise<FormState> {

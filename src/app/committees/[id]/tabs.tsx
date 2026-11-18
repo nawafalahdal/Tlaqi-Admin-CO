@@ -9,6 +9,7 @@ import {
   submitCommitteeAction,
   changeCommitteeStatusAction,
   restoreCommitteeAction,
+  purgeCommitteeAction,
   updateCommitteeAction,
   appointLeadAction,
   addMembersAction,
@@ -1011,6 +1012,27 @@ export function SettingsTab({ d, L, theme }: Ctx) {
             <p className="text-xs leading-relaxed text-black/55">{T.restoreHint}</p>
             <Field label={T.restoreNote} required>
               <input name="note" required minLength={3} maxLength={200} className={inputCls} />
+            </Field>
+          </ActionForm>
+        </Section>
+      )}
+      {d.canPurge && (
+        <Section title={T.purge}>
+          <ActionForm
+            action={purgeCommitteeAction}
+            submits={[{ label: T.purge }]}
+            pendingLabel={L.overview.saving}
+            theme={theme}
+            className="flex flex-col gap-3 rounded-2xl bg-red-50/70 p-4 ring-1 ring-red-200"
+            confirm={{ title: T.purgeConfirmTitle, body: T.purgeConfirmBody, confirmLabel: T.purge }}
+          >
+            <Hidden d={d} />
+            <p className="text-xs leading-relaxed text-red-900/80">{T.purgeHint}</p>
+            <Field label={T.purgeName} required>
+              <input name="confirmName" required maxLength={120} autoComplete="off" placeholder={c.name} className={inputCls} />
+            </Field>
+            <Field label={T.purgeReason} required>
+              <input name="reason" required minLength={5} maxLength={200} className={inputCls} />
             </Field>
           </ActionForm>
         </Section>

@@ -51,7 +51,8 @@ export default async function CommitteePage({
   const theme = themeFromColor(c.parent?.colorHex ?? "#c34900");
 
   const showLog = d.role.manage || d.role.lead || actor.isTop || actor.isOps;
-  const visible = TABS.filter((t) => (t === "log" ? showLog : t === "settings" ? d.role.manage : true));
+  // والإعداداتُ للمؤسس أيضاً على المؤرشفة: فيها حذفُها النهائي (`canPurge`) ولو لم يملك إدارتَها
+  const visible = TABS.filter((t) => (t === "log" ? showLog : t === "settings" ? d.role.manage || d.canPurge : true));
   const tab: Tab = visible.includes(rawTab as Tab) ? (rawTab as Tab) : "overview";
   const roleLabel = d.role.manage
     ? L.detail.roleManage

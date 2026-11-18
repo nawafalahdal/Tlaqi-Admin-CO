@@ -464,6 +464,100 @@ export async function restoreCommittee(actor: OrgActor | null, committeeId: stri
   return written ? { ok: true, status: target } : fail("تغيّرت حالةُ اللجنة للتوّ — أعِد فتح الصفحة");
 }
 
+/** هل يملك صاحبُ الطلب **الحذفَ النهائي** للجان المؤرشفة؟ — المؤسسُ وحده (حسابٌ قياديٌّ نشط بدوره) */
+export const canPurgeCommittee = (actor: OrgActor | null) => !!actor && actor.kind === "user" && actor.role === "super_admin";
+
+/** **الحذفُ النهائيُّ للجنةٍ مؤرشفة** — للمؤسس وحده (طلبُ المؤسس، 18 نوفمبر 2026: «صلاحيةُ حذف الأرشيف نهائياً للجان»).
+ *
+ *  الأرشفةُ تحفظ سجلَّ اللجنة (`deleteCommittee` ← أرشفة)، وهذا هو الخطوةُ التي بعدها: **يمحو اللجنةَ وكلَّ سجلّاتها** —
+ *  العضويات والاجتماعات وحضورَها والقرارات والمهام والتقارير والمقترحات وتنبيهاتِ قائدها — ولا يُسترجَع.
+ *  - **المؤرشفةُ وحدها:** اللجنةُ العاملة تُؤرشف أولاً، فلا يمحو أحدٌ لجنةً عاملةً بنقرة.
+ *  - **باسمها مكتوباً وسببٍ:** لا يقع بنقرةٍ في المكان الخطأ.
+ *  - **ولا يُترك أحدٌ بلا قسم:** مَن بيتُه اللجنةُ (حسابٌ أو عضوٌ نشط) يمنع باسمه، وكذا طلبٌ موجَّهٌ إليها أو منصبٌ فيها.
+ *  - **والأعضاءُ أنفسُهم لا يُمسّون:** تُمحى عضويتُهم في اللجنة لا صفوفُهم — يبقون في أقسامهم.
+ *  - **ويبقى أثرُه:** حدثٌ في سجل التدقيق (`committee.purge`) بالاسم وأعداد ما مُحي والسبب، وسطرٌ في الشيت. */
+export async function purgeArchivedCommittee(
+  actor: OrgActor | null,
+  committeeId: string,
+  input: { confirmName: string; reason: string }
+): Promise<OrgResult<{ name: string; parentId: string }>> {
+  if (!canPurgeCommittee(actor)) return fail("الحذفُ النهائيُّ للجان للمؤسس وحده");
+  const c = await prisma.department.findUnique({
+    where: { id: committeeId },
+    select: { id: true, name: true, slug: true, parentId: true, committeeStatus: true, archivedFromStatus: true },
+  });
+  if (!c || !c.parentId) return fail("اللجنة غير موجودة");
+  if (c.committeeStatus !== "archived") return fail("لا يُحذف نهائياً إلا لجنةٌ مؤرشفة — أرشفها أولاً");
+  if (input.confirmName.trim() !== c.name.trim()) return fail("الاسمُ المكتوب لا يطابق اسمَ اللجنة — لم يُحذف شيء");
+  const why = text(input.reason, LIMITS.short);
+  if (!why || why.length < 5) return fail("اكتب سببَ الحذف");
+
+  const [homeUsers, homeMembers, requests, seats, children] = await Promise.all([
+    prisma.user.count({ where: { departmentId: c.id, isActive: true } }),
+    prisma.member.count({ where: { departmentId: c.id, isActive: true } }),
+    prisma.request.count({ where: { targetDepartmentId: c.id } }),
+    prisma.seniorPosition.count({ where: { departmentId: c.id } }),
+    prisma.department.count({ where: { parentId: c.id } }),
+  ]);
+  const blockers: string[] = [];
+  if (homeUsers) blockers.push(`${homeUsers} حساب قيادي نشط قسمُه هذه اللجنة`);
+  if (homeMembers) blockers.push(`${homeMembers} عضو نشط قسمُه هذه اللجنة — يُنقل إلى قسمٍ أولاً`);
+  if (requests) blockers.push(`${requests} طلب موجَّه إليها`);
+  if (seats) blockers.push(`${seats} منصب في الإدارة العليا مرتبط بها`);
+  if (children) blockers.push(`${children} لجنة تحتها`);
+  if (blockers.length) return fail(`لا تُحذف اللجنة نهائياً وفيها: ${blockers.join("، ")}.`);
+
+  const where = { committeeId: c.id };
+  try {
+    const counts = await prisma.$transaction(async (tx) => {
+      // الأبناءُ قبل الآباء: الحضورُ قبل الاجتماعات، وكلُّ سجلٍّ قبل اللجنة (القيودُ `Restrict` عمداً)
+      const attendance = await tx.committeeAttendance.deleteMany({ where: { meeting: where } });
+      const decisions = await tx.committeeDecision.deleteMany({ where });
+      const tasks = await tx.committeeTask.deleteMany({ where });
+      const reports = await tx.committeeReport.deleteMany({ where });
+      const proposals = await tx.committeeProposal.deleteMany({ where });
+      const warnings = await tx.committeeLeadWarning.deleteMany({ where });
+      const memberships = await tx.committeeMembership.deleteMany({ where });
+      const meetings = await tx.committeeMeeting.deleteMany({ where });
+      await tx.announcement.deleteMany({ where: { departmentId: c.id } });
+      await tx.testTrack.deleteMany({ where: { departmentId: c.id } });
+      // الحذفُ بشرط الحالة: لجنةٌ استُرجعت للتوّ لا تُمحى
+      const gone = await tx.department.deleteMany({ where: { id: c.id, committeeStatus: "archived" } });
+      if (!gone.count) throw new PurgeRace();
+      const n = {
+        memberships: memberships.count, meetings: meetings.count, attendance: attendance.count, decisions: decisions.count,
+        tasks: tasks.count, reports: reports.count, proposals: proposals.count, warnings: warnings.count,
+      };
+      await recordOrgEvent(tx, {
+        scope: "committee", entityId: c.id, departmentId: c.parentId!, action: "committee.purge",
+        actor: actor!, before: { status: "archived", archivedFrom: c.archivedFromStatus, name: c.name, slug: c.slug, ...n }, after: null, note: why,
+      });
+      return n;
+    });
+    await appendMemberEvent({
+      fullName: actor!.name,
+      email: "",
+      roleOrDepartment: c.name,
+      event: "حذف لجنة مؤرشفة نهائياً",
+      details:
+        `المعرّف: ${c.slug} — السبب: ${why} — مُحي معها: ${counts.memberships} عضوية، ${counts.meetings} اجتماع، ` +
+        `${counts.decisions} قرار، ${counts.tasks} مهمة، ${counts.reports} تقرير، ${counts.proposals} مقترح، ${counts.warnings} تنبيه`,
+      at: new Date(),
+    });
+    return { ok: true, name: c.name, parentId: c.parentId };
+  } catch (e) {
+    if (e instanceof PurgeRace) return fail("تغيّرت حالةُ اللجنة للتوّ — أعِد فتح الصفحة");
+    // جدولٌ يشير إلى اللجنة لم يُعدّ هنا: لا خطأَ خاماً، ولا يُمحى شيء (المعاملةُ كلُّها تُردّ)
+    const code = (e as { code?: string }).code;
+    const raw = String((e as Error)?.message ?? "");
+    if (code === "P2003" || raw.includes("23001") || raw.includes("23503")) {
+      return fail("ما زال في القاعدة سجلٌّ مرتبطٌ بهذه اللجنة يمنع محوَها — لم يُحذف شيء");
+    }
+    throw e;
+  }
+}
+class PurgeRace extends Error {}
+
 // ═════════════════════════════════════════════════════════════════════
 //  القائد والأعضاء
 // ═════════════════════════════════════════════════════════════════════
