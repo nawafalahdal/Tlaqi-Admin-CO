@@ -26,7 +26,7 @@ const BG =
   "radial-gradient(1100px 520px at 50% -8%, var(--accent-soft), transparent 62%), radial-gradient(900px 480px at 88% 14%, rgba(195,73,0,0.06), transparent 60%), var(--surface)";
 const PANEL = "rounded-[26px] bg-white shadow-[0_20px_44px_-30px_rgba(52,29,43,0.32)] ring-1 ring-black/[0.07]";
 
-export function OrgExplorer({ graph, L, pdf }: { graph: OrgGraph; L: L; pdf: { ready: boolean; href: string } }) {
+export function OrgExplorer({ graph, L, pdf, download }: { graph: OrgGraph; L: L; pdf: { ready: boolean; href: string }; download?: string | null }) {
   const [sel, setSel] = useState<Sel>(null);
   const open = useCallback<Open>((s) => setSel(s), []);
   const P = graph.people;
@@ -56,6 +56,16 @@ export function OrgExplorer({ graph, L, pdf }: { graph: OrgGraph; L: L; pdf: { r
             <Stat value={graph.counts.people} label={L.people} />
             <Stat value={graph.counts.departments} label={L.departments} />
             <Stat value={graph.counts.committees} label={L.committees} />
+            {/* تنزيلُ الهيكل بالموجود (ولو ناقصاً) — للمؤسس وحده، والخادمُ يفرضه (`/structure/download`). بلا سمة `download`:
+                الخادمُ يقول «مرفق» باسم الملف (Content-Disposition)، والسمةُ كانت تغلبه باسم الرابط */}
+            {download && (
+              <a href={download} className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-[#341D2B] px-4 font-bold text-on-brand transition hover:bg-[#4a2a3e] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C34900]">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" />
+                </svg>
+                {L.downloadPdf}
+              </a>
+            )}
             {pdf.ready ? (
               <Link href={pdf.href} className="inline-flex min-h-10 items-center rounded-full bg-[#C34900] px-4 font-bold text-on-brand transition hover:bg-[#a83f00] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C34900]">
                 {L.officialPdf}

@@ -2546,6 +2546,7 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
     openDepartment: "Department {0} details",
     issuesTitle: "Data cases needing review ({0})",
     issuesNote: "Nothing is invented for them: they are shown as they are until corrected at the source.",
+    downloadPdf: "Download structure (PDF)",
     officialPdf: "Official version (PDF)",
     pdfNotReady: "The official PDF becomes available once the chart is complete",
     lead: "Lead",

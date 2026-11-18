@@ -29,7 +29,7 @@ export default async function StructurePage() {
   const isMember = session.user.role === "member";
   return (
     <main className="mx-auto max-w-[1240px] px-2 py-3 sm:px-4 sm:py-6">
-      <OrgExplorer graph={isMember ? { ...graph, issues: [] } : graph} L={L} pdf={{ ready: chart.readiness.ready, href: "/structure/pdf" }} />
+      <OrgExplorer graph={isMember ? { ...graph, issues: [] } : graph} L={L} pdf={{ ready: chart.readiness.ready, href: "/structure/pdf" }} download={session.user.role === "super_admin" ? "/structure/download" : null} />
     </main>
   );
 }

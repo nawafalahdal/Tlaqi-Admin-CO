@@ -29,6 +29,11 @@ const nextConfig: NextConfig = {
     "/api/cards/[type]/[token]": ["./public/brand/**", "./assets/fonts/**"],
     // علامةُ الشعار بلون القسم تُلوَّن من ملفّها الرسمي في `public/brand/2026/email`
     "/api/brand-mark/[hex]": ["./public/brand/2026/email/**"],
+    // تنزيلُ الهيكل PDF: الهيئتان الافتراضيتان من `public/brand/2026/portraits`، والنصُّ بخطّ الهوية
+    "/structure/download": ["./public/brand/2026/portraits/**", "./assets/fonts/**"],
+    // **ترويسةُ البريد تُرسم بخطّ الهوية وقتَ الإرسال** (`emailHeader`) — والبريدُ يُرسَل من إجراءاتٍ وصفحاتٍ كثيرة، فيُحزم
+    // الخطُّ العريض (وCairo للحروف اللاتينية) مع كل دالّة. بدونه يُرسم اسمُ الجهة في الإنتاج بلا خطٍّ عربي (مربّعات)
+    "**": ["./assets/fonts/TheYearofTheCamel-Bold.otf", "./assets/fonts/Cairo-Bold.ttf"],
   },
 
   /** حدُّ حجم طلب Server Action — صورةُ وجهٍ من جوّالٍ حديث تتجاوز
