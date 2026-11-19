@@ -37,6 +37,10 @@ export async function decisionViewer(session: Session): Promise<DecisionViewer> 
     role: session.user.role,
     departmentId: session.user.departmentId,
     designatedApprover: await isDesignatedApprover(session),
+    // قائدُ الإدارة العليا يحسم أعضاءها — والدورُ من الجلسة، والقيادةُ من القاعدة لحظتَها
+    seniorLeader:
+      session.user.role === "executive" &&
+      (await (await import("@/lib/governance/leadership")).isSeniorLeader({ kind: "user", id: session.user.id })),
   };
 }
 
@@ -96,6 +100,7 @@ export async function mayViewCandidate(session: Session, memberId: string): Prom
 export const AUTHORITY_LABEL: Record<DecisionAuthority, string> = {
   department_lead: "قائدُ القسم",
   designated_approver: "جهةُ الاعتماد المستقلة (اعتماد العضوية)",
+  senior_leader: "قائدُ الإدارة العليا",
 };
 
 /** **من يُخبَر أن مرشّحاً ينتظر الحسم** — جهةُ حسمه وحدها: قائدُ قسمه، أو حمَلةُ «اعتماد العضوية». **ولا يُحال إلى المؤسس
@@ -113,6 +118,12 @@ export async function candidateDecidersFor(m: CandidateRef): Promise<{ to: strin
       because: "قائدُ القسم يحسم أعضاءه",
       path: leads[0]?.department?.slug ? `/admin/departments/${leads[0].department.slug}` : "/admin",
     };
+  }
+  if (authority === "senior_leader") {
+    const { currentSeniorLeadership } = await import("@/lib/governance/leadership");
+    const leaderId = (await currentSeniorLeadership())?.leader?.id;
+    const leader = leaderId ? await prisma.user.findFirst({ where: { id: leaderId, isActive: true, role: "executive" }, select: { email: true } }) : null;
+    if (leader) return { to: [leader.email], because: "قائدُ الإدارة العليا يحسم أعضاءها", path: "/admin/approvals" };
   }
   const holders = await prisma.seniorPosition.findMany({
     where: { status: "active", capabilities: { has: "membership_decide" } },

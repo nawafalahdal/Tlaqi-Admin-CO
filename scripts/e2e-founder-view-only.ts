@@ -55,7 +55,9 @@ const sess = (u: { id: string; role: string; fullName: string; email: string; de
     // ═══ الحسمُ والاطّلاع لكل نوع ═══
     for (const [who, s] of tops) {
       for (const [kind, c] of cands) {
-        chk(`${who} لا يحسم ${kind}`, !(await CD.mayDecideCandidate(s, c.id)));
+        // عضوُ الإدارة العليا يحسمه قائدُها الرئيسُ التنفيذي (19 نوفمبر 2026) — والمؤسسُ يطّلع وحده
+        if (c === cSenior && who === "الرئيس التنفيذي") chk(`${who} (قائدُ الإدارة العليا) يحسم ${kind}`, await CD.mayDecideCandidate(s, c.id));
+        else chk(`${who} لا يحسم ${kind}`, !(await CD.mayDecideCandidate(s, c.id)));
         chk(`${who} يطّلع على ${kind}`, await CD.mayViewCandidate(s, c.id));
       }
     }

@@ -44,7 +44,7 @@ export async function CandidateApprovals({ session }: { session: Session }) {
     }),
     halfApprovedLeaders(),
     // لم يجتازوا — إعادةُ فتح اختبارهم قرارُ اعتمادٍ لجهة حسمهم (قائدُ القسم يراهم في صفحة قسمه)
-    viewer.designatedApprover
+    viewer.designatedApprover || viewer.seniorLeader
       ? prisma.member.findMany({
           omit: { avatarData: true },
           where: { approvalStatus: "pending_review", testStatus: "failed", isActive: true, terminatedAt: null },
@@ -64,7 +64,9 @@ export async function CandidateApprovals({ session }: { session: Session }) {
   const failed = mine(allFailed);
   // مناصبُ الإدارة العليا لأصحاب حساباتٍ قائمة — بعد تسليم اختبارهم (جهةُ الاعتماد المستقلة وحدها)
   const positions = viewer.designatedApprover ? await seniorPositionsAwaitingDecision() : [];
-  if (!viewer.designatedApprover && viewer.role !== "department_admin") return null;
+  if (!viewer.designatedApprover && !viewer.seniorLeader && viewer.role !== "department_admin") return null;
+  // قائدُ الإدارة العليا (الرئيسُ التنفيذي) لا يُعرض له طابورٌ فارغ — يرى ما يحسمه حين يوجد
+  if (viewer.seniorLeader && !viewer.designatedApprover && members.length + failed.length === 0) return null;
 
   return (
     <section id="joins" className="flex scroll-mt-24 flex-col gap-5">

@@ -57,7 +57,9 @@ const sess = (u: { id: string; role: string; fullName: string; email: string; de
     // ══ ١) المؤسسُ والرئيسُ يطّلعان ولا يحسمان — في كل حال
     for (const [label, c] of [["عضو قسمٍ له قائد", cLed], ["عضو قسمٍ شاغر", cVac], ["عضو الإدارة العليا", cSen], ["مرشّح قائد قسم", cLeadRole]] as const) {
       chk(`**المؤسسُ لا يحسم ${label}**`, !(await CD.mayDecideCandidate(fS, c.id)));
-      chk(`**ولا الرئيسُ التنفيذيُّ (${label})**`, !(await CD.mayDecideCandidate(cS, c.id)));
+      // إلا عضوَ الإدارة العليا: يحسمه قائدُها — الرئيسُ التنفيذي (طلبُ المؤسس، 19 نوفمبر 2026)
+      if (c === cSen) chk(`**والرئيسُ التنفيذيُّ قائدُ الإدارة العليا يحسم ${label}**`, await CD.mayDecideCandidate(cS, c.id));
+      else chk(`**ولا الرئيسُ التنفيذيُّ (${label})**`, !(await CD.mayDecideCandidate(cS, c.id)));
       chk(`ويطّلعان على نتيجته (${label})`, (await CD.mayViewCandidate(fS, c.id)) && (await CD.mayViewCandidate(cS, c.id)));
     }
 
@@ -146,7 +148,7 @@ const sess = (u: { id: string; role: string; fullName: string; email: string; de
     await prisma.member.update({ where: { id: newM.id }, data: { profileCompletedAt: new Date() } });
     const sub = await W.submitTestAttempt({ memberId: newM.id, answers });
     chk("يجتاز اختبارَ الإدارة العليا", sub?.passed === true, String(sub?.score));
-    chk("**ولا يحسمه المؤسس ولا الرئيس**", !(await CD.mayDecideCandidate(fS, newM.id)) && !(await CD.mayDecideCandidate(cS, newM.id)));
+    chk("**ولا يحسمه المؤسس**، ويحسمه الرئيسُ قائدُ الإدارة العليا", !(await CD.mayDecideCandidate(fS, newM.id)) && (await CD.mayDecideCandidate(cS, newM.id)));
     chk("بل جهةُ الاعتماد", await CD.mayDecideCandidate(aS, newM.id));
     await W.approveMember(newM.id, { id: approver.id, name: approver.fullName, role: "member" });
     const pActive = await prisma.seniorPosition.findUniqueOrThrow({ where: { id: pNew.p.id } });

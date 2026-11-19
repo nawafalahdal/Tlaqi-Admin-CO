@@ -15,7 +15,9 @@ import type { UserRole, InviteTargetRole } from "@prisma/client";
  *  تنفيذي ولو كُتبت لهما (`lib/candidateDecision`). فإن لم يحملها أحدٌ انتظر المرشّحُ جهتَه: لا يحسمه غيرُها.
  *
  *  والمنعُ الافتراضيّ: ما لا يرد هنا لا يحسمه أحد. */
-export type DecisionAuthority = "department_lead" | "designated_approver";
+/** `senior_leader`: **عضوٌ في الإدارة العليا يحسمه قائدُها** (طلبُ المؤسس، 19 نوفمبر 2026 — «الرئيسُ التنفيذي قائدُ الإدارة
+ *  العليا فيعتمد أعضاءها»). المناصبُ القيادية وأعضاءُ قسمٍ بلا قائد باقون لجهة الاعتماد المستقلة. */
+export type DecisionAuthority = "department_lead" | "designated_approver" | "senior_leader";
 
 /** **مرشّحٌ ينتظر قرارَ جهة الاعتماد** — اختبارُه انتهى (اجتاز أو لم يجتز) ولم يُحسم أمرُه بعد.
  *  الحذفُ النهائيُّ لسجلّه في هذه الحال **ردٌّ بطريقٍ آخر**: ينهي ترشّحه بلا قرار المخوَّل. فيُمنع على الجميع —
@@ -32,7 +34,8 @@ export function decisionAuthorityFor(
   department: { leadershipOnly: boolean; hasActiveLead: boolean } | null
 ): DecisionAuthority {
   if (candidate.targetRole !== "member") return "designated_approver";
-  if (!candidate.departmentId || !department || department.leadershipOnly || !department.hasActiveLead) {
+  if (candidate.departmentId && department?.leadershipOnly) return "senior_leader";
+  if (!candidate.departmentId || !department || !department.hasActiveLead) {
     return "designated_approver";
   }
   return "department_lead";
@@ -43,13 +46,20 @@ export type DecisionViewer = {
   departmentId?: string | null;
   /** يحمل «اعتماد العضوية» في تكليفٍ نشط — يحسبه الخادم (`lib/candidateDecision`)، ولا يُصدَّق من الواجهة */
   designatedApprover?: boolean;
+  /** **قائدُ الإدارة العليا الآن وهو الرئيسُ التنفيذي** — يحسبه الخادم (`isSeniorLeader`). والمؤسسُ لا يحسم ولو قادها (ق١) */
+  seniorLeader?: boolean;
 };
 
 export function canDecideCandidate(
   viewer: DecisionViewer,
   candidate: { departmentId: string | null; authority: DecisionAuthority }
 ): boolean {
-  // اطّلاعٌ لا حسم — في كل الأحوال
+  // أعضاءُ الإدارة العليا: قائدُها (الرئيسُ التنفيذي)، أو حاملُ «اعتماد العضوية» كما كان
+  if (candidate.authority === "senior_leader") {
+    if (viewer.role === "super_admin") return false;
+    return (viewer.role === "executive" && viewer.seniorLeader === true) || viewer.designatedApprover === true;
+  }
+  // وما سواهم اطّلاعٌ لا حسم للمؤسس والرئيس التنفيذي (ق١)
   if (viewer.role === "super_admin" || viewer.role === "executive") return false;
   if (candidate.authority === "department_lead") {
     return viewer.role === "department_admin" && !!candidate.departmentId && viewer.departmentId === candidate.departmentId;

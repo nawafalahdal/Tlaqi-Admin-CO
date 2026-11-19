@@ -76,6 +76,7 @@ export async function CandidateResults({ session }: { session: Session }) {
   const roleLabel = (r: string) => dict.roles[r as keyof typeof dict.roles] ?? r;
   const decider = (m: (typeof pending)[number]) => {
     if (authority.get(m.id) === "department_lead") return `قائدُ القسم${leadOf.get(m.departmentId) ? ` — ${leadOf.get(m.departmentId)}` : ""}`;
+    if (authority.get(m.id) === "senior_leader") return "قائدُ الإدارة العليا (الرئيسُ التنفيذي)";
     return approvers > 0 ? "جهةُ الاعتماد المستقلة" : "جهةُ الاعتماد المستقلة — لم تُعيَّن بعد (ينتظر)";
   };
 
@@ -83,8 +84,8 @@ export async function CandidateResults({ session }: { session: Session }) {
     <section id="joins" className="flex scroll-mt-24 flex-col gap-5">
       <Card className="border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950">
         <b>للاطّلاع وحده.</b> يطّلع المؤسسُ والرئيسُ التنفيذيُّ على نتائج المرشّحين في كل الأقسام واللجان، ولا يحسمانها:
-        يحسم كلَّ مرشّحٍ قائدُ قسمه، أو جهةُ الاعتماد المستقلة («اعتماد العضوية» في الإدارة العليا) للمناصب القيادية
-        وأعضاءِ الإدارة العليا وأعضاءِ قسمٍ لا قائدَ له.
+        يحسم كلَّ مرشّحٍ قائدُ قسمه، و<b>أعضاءَ الإدارة العليا قائدُها (الرئيسُ التنفيذي)</b>، وجهةُ الاعتماد المستقلة
+        («اعتماد العضوية») للمناصب القيادية وأعضاءِ قسمٍ لا قائدَ له.
         {approvers === 0 && (
           <span className="mt-1 block font-semibold">
             لم تُمنح «اعتماد العضوية» لأحدٍ بعد — فمن يحسمه هذه الجهة ينتظر حتى تُعيَّن، ولا يحسمه غيرُها.

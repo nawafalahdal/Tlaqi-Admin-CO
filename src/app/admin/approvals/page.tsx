@@ -61,7 +61,11 @@ export default async function ApprovalsPage() {
         {/* طلباتُ الانضمام: المؤسسُ والرئيسُ التنفيذيُّ يطّلعان على النتائج ولا يحسمان (ق١)؛ وغيرُهما يرى ما يحسمه
             وحده إن كان جهةَ اعتماد (`CandidateApprovals` تُرجع لا شيء لمن لا يحسم شيئاً) */}
         {session.user.role === "super_admin" || session.user.role === "executive" ? (
-          <CandidateResults session={session} />
+          <>
+            {/* والرئيسُ التنفيذيُّ قائدُ الإدارة العليا: يحسم أعضاءها (`senior_leader`) — يظهر طابورُه إن كان */}
+            {session.user.role === "executive" && <CandidateApprovals session={session} />}
+            <CandidateResults session={session} />
+          </>
         ) : (
           <CandidateApprovals session={session} />
         )}
