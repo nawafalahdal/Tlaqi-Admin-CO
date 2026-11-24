@@ -1,0 +1,272 @@
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+import { OPEN_DEPARTMENT_WHERE, DEPARTMENT_TAKE } from "@/lib/committees";
+import { Card } from "@/components/ui";
+import { DataTable } from "@/components/DataTable";
+import { AccountStageBadge } from "@/components/AccountStageBadge";
+import { CandidateWindow } from "@/components/CandidateWindow";
+import {
+  ExecutiveInviteForm,
+  DeptAdminInviteForm,
+  OperationsOfficerInviteForm,
+} from "../LeadershipInviteForms";
+import { formatDate } from "@/lib/format";
+import {
+  CANDIDATE_EXPIRY_REASON,
+  candidateHoursLeft,
+  findRoleSeatHolder,
+  sweepExpiredCandidateAccounts,
+} from "@/lib/workflow";
+import { SeatOccupied } from "@/components/SeatOccupied";
+import { InviteReadiness, type ReadinessRow } from "@/components/InviteReadiness";
+import { getLocale, getDictionary } from "@/i18n/server";
+import { scheduleDueSweeps } from "@/lib/sweepThrottle";
+import { DeleteInviteButton } from "./DeleteInviteButton";
+import { isUnusedInvite } from "@/lib/founderActions";
+import { isSeniorLeader } from "@/lib/governance/leadership";
+
+export async function InvitesView() {
+  const session = await auth();
+  if (!session) redirect("/login");
+  if (session.user.role !== "super_admin" && session.user.role !== "executive") {
+    redirect("/admin");
+  }
+
+  const isSuperAdmin = session.user.role === "super_admin";
+
+  scheduleDueSweeps({ candidate_expiry: () => sweepExpiredCandidateAccounts() });
+
+  const [departments, invites, execSeat, opsSeat, tracks] = await Promise.all([
+    prisma.department.findMany({
+      // اللجنةُ ليست وجهةً لشخصٍ ولا لدعوةٍ ولا لخطةٍ ولا لتذكرة — الأقسامُ الأصيلة وحدها
+      where: { ...OPEN_DEPARTMENT_WHERE, parentId: null },
+      orderBy: { name: "asc" },
+      take: DEPARTMENT_TAKE,
+    }),
+    prisma.invite.findMany({
+      include: { department: true, member: true },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
+    findRoleSeatHolder("executive", null),
+    findRoleSeatHolder("operations_officer", null),
+    // جاهزيةُ الدعوات: عددُ أسئلة كل بنك — الرقمُ وحده، لا الأسئلة
+    prisma.testTrack.findMany({
+      select: { scope: true, departmentId: true, _count: { select: { questions: true } } },
+    }),
+  ]);
+
+  // المناصب الفردية: يُعرض شاغلها بدل النموذج، فلا يملأ أحد حقولاً ستُرفض
+  const deptSeats = new Map(
+    (
+      await Promise.all(
+        departments.map(async (d) => [d.id, await findRoleSeatHolder("department_admin", d.id)] as const)
+      )
+    ).filter(([, holder]) => holder)
+  );
+
+  function seatLine(holder: { fullName: string; kind: string } | null) {
+    if (!holder) return "";
+    return (holder.kind === "active" ? ts.occupiedBy : ts.occupiedCandidate).replace(
+      "{name}",
+      holder.fullName
+    );
+  }
+
+  const dict = getDictionary(await getLocale());
+  const t = dict.invitesPage;
+  const ta = dict.admin;
+  const tw = dict.candidateWindow;
+  const ts = dict.seats;
+
+  // البنكُ غير المُنشأ كالفارغ: الخادمُ يرفض الدعوة إليه بالقدر نفسه
+  const count = (scope: string, departmentId: string | null = null) =>
+    tracks.find((tr) => tr.scope === scope && tr.departmentId === departmentId)?._count.questions ?? 0;
+  const isExecutive = session.user.role === "executive";
+  const seniorLead = await isSeniorLeader({ kind: "user", id: session.user.id });
+  const readiness: ReadinessRow[] = [
+    {
+      key: "executive",
+      label: dict.roles.executive,
+      owner: t.readinessOwnerFounder,
+      questions: count("executive"),
+      editHref: isSuperAdmin ? "/admin/tests/executive" : undefined,
+    },
+    {
+      key: "operations_officer",
+      label: dict.roles.operations_officer,
+      owner: t.readinessOwnerCeo,
+      questions: count("operations_officer"),
+      editHref: isExecutive ? "/admin/tests/operations" : undefined,
+    },
+    {
+      key: "department_admin",
+      label: dict.roles.department_admin,
+      owner: t.readinessOwnerCeo,
+      questions: count("department_admin"),
+      editHref: isExecutive ? "/admin/tests/leads" : undefined,
+    },
+    // بنوكُ الأعضاء لقادة أقسامها — تُعرض هنا ليعرف صاحبُ الدعوة أيُّ قسمٍ جاهزٌ لاستقبال أعضائه، ولا رابط:
+    // صفحةُ القسم لقائده وحده. إلا الإدارةَ العليا: قائدُها الرئيسُ التنفيذي (أو المؤسسُ بالخلافة) — فرابطُها له
+    ...departments.map((d) => ({
+      key: `member-${d.id}`,
+      label: t.readinessMembersOf.replace("{dept}", d.name),
+      owner: d.leadershipOnly ? t.readinessOwnerSeniorLeader : t.readinessOwnerLead,
+      questions: count("department_member", d.id),
+      editHref: d.leadershipOnly && seniorLead ? `/admin/departments/${d.slug}/test` : undefined,
+    })),
+  ];
+
+  return (
+    <div className="min-h-screen bg-page">
+
+      <main className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-6 sm:px-5 sm:py-8">
+        <div>
+          <h1 className="text-lg font-bold sm:text-xl">{t.title}</h1>
+          <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+            {ts.governance}
+          </p>
+          <p className="mt-1 text-sm text-black/50">
+            {t.subtitle}
+          </p>
+        </div>
+
+        <InviteReadiness
+          rows={readiness}
+          // هل البريدُ مضبوط؟ — نعم/لا فقط، لا قيمةُ المفتاح
+          emailEnabled={Boolean(process.env.RESEND_API_KEY)}
+          labels={{
+            title: t.readinessTitle,
+            hint: t.readinessHint,
+            allReady: t.readinessAllReady,
+            someEmpty: t.readinessSomeEmpty,
+            ready: t.readinessReady,
+            empty: t.readinessEmpty,
+            edit: t.readinessEdit,
+            email: t.readinessEmail,
+            emailOn: t.readinessEmailOn,
+            emailOff: t.readinessEmailOff,
+          }}
+        />
+
+        {isSuperAdmin && (
+          <section>
+            <h2 className="mb-1 text-base font-bold sm:text-lg">{ta.createExecTitle}</h2>
+            <p className="mb-3 text-sm text-black/50">
+              {ta.createExecSubtitle}
+            </p>
+            {execSeat ? (
+              <SeatOccupied
+                title={ts.occupiedTitle}
+                holderLine={seatLine(execSeat)}
+                hint={ts.occupiedHint}
+              />
+            ) : (
+              <Card className="p-4 sm:p-6">
+                <ExecutiveInviteForm />
+              </Card>
+            )}
+          </section>
+        )}
+
+        {/* مسؤول التشغيل ذراع التنفيذي: بنك أسئلته له، ودعوته له.
+            ودعوةُ المؤسس له تجعل التنفيذي مسؤولاً عمّن لم يَختَره. */}
+        {!isSuperAdmin && (
+        <section>
+          <h2 className="mb-1 text-base font-bold sm:text-lg">{t.createOpsTitle}</h2>
+          <p className="mb-3 text-sm text-black/50">
+            {t.createOpsSubtitle}
+          </p>
+          {opsSeat ? (
+            <SeatOccupied
+              title={ts.occupiedTitle}
+              holderLine={seatLine(opsSeat)}
+              hint={ts.occupiedHint}
+            />
+          ) : (
+            <Card className="p-4 sm:p-6">
+              <OperationsOfficerInviteForm />
+            </Card>
+          )}
+        </section>
+        )}
+
+        <section>
+          <h2 className="mb-1 text-base font-bold sm:text-lg">{ta.createLeadTitle}</h2>
+          <p className="mb-3 text-sm text-black/50">
+            {ta.createLeadSubtitle}
+          </p>
+          <Card className="p-4 sm:p-6">
+            {/* الإدارةُ العليا يقودها الرئيسُ التنفيذي: لا تُعرض هنا وجهةً لقائد قسم (ويرفضها الخادمُ أيضاً) */}
+            <DeptAdminInviteForm
+              departments={departments.filter((d) => !deptSeats.has(d.id) && !d.leadershipOnly)}
+            />
+          </Card>
+          {deptSeats.size > 0 && (
+            <p className="mt-2 text-xs leading-relaxed text-black/40">
+              {ts.occupiedHint}
+            </p>
+          )}
+        </section>
+
+        <section>
+          <h2 className="mb-3 text-base font-bold sm:text-lg">{t.issuedTitle}</h2>
+          <p className="mb-2 -mt-2 text-xs text-black/40">{t.issuedHint}</p>
+          <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+            {tw.governanceNote}
+          </p>
+          <DataTable
+            emptyLabel={ta.invitesEmpty}
+            columns={[
+              { key: "name", label: ta.colName, primary: true },
+              { key: "track", label: ta.colTrack },
+              { key: "status", label: t.colAccountStatus },
+              { key: "createdAt", label: ta.colIssuedAt },
+              { key: "firstLogin", label: t.colWindow },
+              ...(isSuperAdmin ? [{ key: "actions", label: "" }] : []),
+            ]}
+            rows={invites.map((inv) => ({
+              id: inv.id,
+              cells: {
+                name: inv.fullName,
+                track: `${dict.roles[inv.targetRole]}${inv.department ? ` — ${inv.department.name}` : ""}`,
+                status: (
+                  <AccountStageBadge
+                    approvalStatus={inv.member?.approvalStatus ?? null}
+                    testStatus={inv.member?.testStatus ?? null}
+                  />
+                ),
+                createdAt: formatDate(inv.createdAt),
+                firstLogin: (
+                  <CandidateWindow
+                    firstLoginAt={inv.member?.firstLoginAt?.toISOString() ?? null}
+                    hoursLeft={
+                      inv.member?.credentialsIssuedAt
+                        ? candidateHoursLeft(inv.member.credentialsIssuedAt)
+                        : null
+                    }
+                    lapsed={
+                      !!inv.member &&
+                      !inv.member.isActive &&
+                      inv.member.exitReason === CANDIDATE_EXPIRY_REASON
+                    }
+                    notApplicable={
+                      !inv.member ||
+                      !inv.member.credentialsIssuedAt ||
+                      inv.member.approvalStatus === "approved"
+                    }
+                  />
+                ),
+                // الدعوةُ غيرُ المستعمَلة تُحذف بيد المؤسس — والشرطُ يُعاد في الخادم
+                ...(isSuperAdmin && isUnusedInvite(inv)
+                  ? { actions: <DeleteInviteButton inviteId={inv.id} name={inv.fullName} /> }
+                  : {}),
+              },
+            }))}
+          />
+        </section>
+      </main>
+    </div>
+  );
+}

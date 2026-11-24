@@ -1,699 +1,94 @@
+import Link from "next/link";
+import type { Session } from "next-auth";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { OPEN_DEPARTMENT_WHERE } from "@/lib/committees";
-import { themeFromColor, SUPER_ADMIN_THEME } from "@/lib/brand";
-import { Card } from "@/components/ui";
-import { SeatConflicts } from "@/components/SeatConflicts";
-import { RemovedAccountRow } from "./RemovedAccountRow";
-import { MemberAccountRow } from "./MemberAccountRow";
-import { InactivePurgeButton } from "./InactivePurgeButton";
-import { awaitingCandidateDecision, canPurgeMembers } from "@/lib/permissions";
-import { StuckCandidateRow, type StuckCandidate } from "./StuckCandidateRow";
-import { DataTable } from "@/components/DataTable";
-import { Pager, pageParam } from "@/components/Pager";
-import { PageHeader } from "@/components/PageHeader";
-import Link from "next/link";
-import { RosterRowActions } from "./RosterRowActions";
-import { roleTitle } from "@/lib/gender";
-import { avatarUrl } from "@/lib/avatarUrl";
-import { formatDate, sinceLabel } from "@/lib/format";
 import { getLocale, getDictionary } from "@/i18n/server";
-import {
-  CANDIDATE_EXPIRY_REASON, canResendReopenedTest,
-  sweepExpiredCandidateAccounts,
-  candidateWindowExpired,
-} from "@/lib/workflow";
-import { accountRoleLabel } from "@/lib/testTracks";
-import { loginHealthFor, loginHealthNotes, loginHealthBlocked } from "@/lib/loginHealth";
-import { scheduleDueSweeps } from "@/lib/sweepThrottle";
-import { isRosterMember } from "@/lib/roster";
-import { leftoverLeaderIds } from "@/lib/leftoverLeaders";
-import { affiliationFor } from "@/lib/seniorAffiliation";
-import { PersonAvatar } from "@/components/PersonAvatar";
-import { portraitColorFor } from "@/lib/portraitTone";
+import { canResendWelcome, canRequestWelcomeResend } from "@/lib/welcomeResend";
+import { canIssueCertificates } from "@/lib/recognitionDesk";
+import { canManageOnboardingSurvey } from "@/lib/onboardingSurvey";
+import { RegisterView } from "./RegisterView";
+import { JoinsView } from "./JoinsView";
+import { InvitesView } from "../invites/InvitesView";
+import { TerminationsView } from "../terminations/TerminationsView";
+import { WelcomeCardsView } from "../welcome-cards/WelcomeCardsView";
+import { OnboardingView } from "../onboarding/OnboardingView";
 
-import { fmt } from "@/i18n/fmt";
-import { employeeIdLabel } from "@/lib/employeeId";
-/** إدارة الأعضاء والهيكل التنظيمي — موضعٌ واحد للشخص وموقعه وقسمه.
+export const dynamic = "force-dynamic";
+
+const VIEWS = ["register", "invites", "joins", "terminations", "welcome", "onboarding"] as const;
+type View = (typeof VIEWS)[number];
+
+/** من يرى أيَّ تبويب — **الشروطُ نفسُها التي كانت على كل صفحةٍ وحدها**، وكلُّ تبويبٍ يفحص صلاحيته ثانيةً، والإجراءاتُ في الخادم */
+async function viewsFor(session: Session): Promise<View[]> {
+  const r = session.user.role;
+  const top = r === "super_admin" || r === "executive";
+  const welcome = (await canResendWelcome(session)) || (await canRequestWelcomeResend(session)) || canIssueCertificates(r);
+  const can: Record<View, boolean> = {
+    register: top,
+    invites: top,
+    joins: r !== "member",
+    terminations: top || r === "department_admin",
+    welcome,
+    onboarding: canManageOnboardingSurvey(r),
+  };
+  return VIEWS.filter((v) => can[v]);
+}
+
+/** **«الأعضاء» — إدارةُ الأشخاص في مكانٍ واحد** (طلبُ المؤسس، 24 نوفمبر 2026).
  *
- *  كانت «إدارة حسابات القيادة» و«سجلّ الأعضاء» صفحتين: الأولى للإجراء
- *  والثانية للقراءة، وكلتاهما تقرأ الأشخاص نفسهم بشكلٍ مختلف. فمن أراد
- *  أن يعرف حالَ شخصٍ ثم يُجري عليه إجراءً تنقّل بين شاشتين، ومن أراد
- *  إضافةَ شخصٍ لم يَدرِ من أيّ الشاشتين يبدأ — وذاك طريقُ أن يُدخَل
- *  مرتين. فصارتا واحدة: **الإجراءُ أولاً** (الحسابات القيادية، حسابات
- *  الأعضاء، التصنيف، المحو، المُنحّون، العالقون)، ثم **السجلّ** جدولاً
- *  مرجعياً لكلّ من مرّ بالمنصة. ولا بياناً فُقِد: كلُّ قسمٍ من الصفحتين
- *  باقٍ بإجرائه.
- *
- *  والهيكل التنظيمي مربوطٌ من هنا لا مُدخَلاً: يُحسَب من هذه البيانات
- *  نفسها، فمن أُضيف هنا ظهر فيه وحده ولا يُكتَب مرتين.
- */
-type Tab = "all" | "leaders" | "members" | "joining" | "attention" | "removed";
-// أسماءُ التبويبات من القاموس (`tabs`) — هنا معرّفاتُها وترتيبُها
-const TABS: { id: Tab }[] = [
-  { id: "all" },
-  { id: "leaders" },
-  { id: "members" },
-  { id: "joining" },
-  { id: "attention" },
-  { id: "removed" },
-];
-
-/** صفوفُ السجلّ في الصفحة الواحدة. كان السجلُّ كلُّه يُرسم دفعةً واحدة — وكلُّ صفٍّ مرّتين (جدولٌ
- *  وبطاقةُ جوّال) — فبلغت الصفحةُ 3 ميغابايت عند 300 عضو. والعدّادات والبحث على السجلّ كلّه. */
-const PAGE_SIZE = 50;
-
-export default async function PeoplePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ tab?: string; q?: string; dept?: string; p?: string }>;
-}) {
-  const locale = await getLocale();
-  const L = getDictionary(locale).rPeoplePage;
-  const sp = await searchParams;
-  const tab: Tab = TABS.find((x) => x.id === sp.tab)?.id ?? "all";
-  const q = (sp.q ?? "").trim().toLowerCase();
-  const deptFilter = sp.dept ?? "";
+ *  كانت سبعُ صفحاتٍ تعرض الأشخاص (الأعضاء، الدعوات، طلبات الانضمام، الإنهاء، الترحيب والتكريم، الاستبيان…)، فصارت تبويباتٍ
+ *  هنا. **ولا تتغيّر حوكمةٌ:** كلُّ تبويبٍ هو صفحتُه السابقة بعينها وحرسُها، ويظهر لمن كانت تظهر له وحده؛ والروابطُ القديمة
+ *  تُحوَّل إلى تبويبها (`/admin/invites` ← `?view=invites`…). وقائدُ القسم يجد أعضاءَ قسمه في لوحة قسمه (تبويبُ «أعضاء قسمي»). */
+export default async function PeopleHub({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const session = await auth();
   if (!session) redirect("/login");
-  if (session.user.role !== "super_admin" && session.user.role !== "executive") redirect("/admin");
+  const views = await viewsFor(session);
+  const L = getDictionary(await getLocale()).peopleHub;
+  const ownDept =
+    session.user.role === "department_admin" && session.user.departmentId
+      ? await prisma.department.findUnique({ where: { id: session.user.departmentId }, select: { slug: true } })
+      : null;
+  if (!views.length && !ownDept) redirect("/admin");
+  const sp = await searchParams;
+  const view: View | null = views.includes(sp.view as View) ? (sp.view as View) : views[0] ?? null;
+  if (!view && ownDept) redirect(`/admin/departments/${ownDept.slug}`);
 
-  const isSuperAdmin = session.user.role === "super_admin";
-  // حذفُ سجلّات الأعضاء والمرشّحين نهائياً: المؤسسُ والرئيسُ التنفيذي (24 نوفمبر 2026) — والحساباتُ القيادية للمؤسس وحده
-  const canPurgePeople = canPurgeMembers(session.user.role);
-  const t = getDictionary(locale);
-  const tm = t.membersPage;
-
-  scheduleDueSweeps({ candidate_expiry: () => sweepExpiredCandidateAccounts() });
-
-  const [me, accounts, allMembers, removedUsers, allDepartments] =
-    await Promise.all([
-    prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: {
-        id: true, fullName: true, email: true, role: true, jobTitle: true, gender: true,
-        createdAt: true, avatarVersion: true, totpEnabled: true, welcomeEmailSentAt: true, employeeNo: true,
-        department: { select: { id: true, name: true, colorHex: true } },
-      },
-    }),
-    prisma.user.findMany({
-      // الصورةُ تُطلب من مسارها المخزَّن — لا تُحمَّل مع كل صفّ
-      omit: { avatarData: true },
-      where: {
-        isActive: true,
-        role: isSuperAdmin
-          ? { in: ["executive", "operations_officer", "department_admin"] }
-          : { in: ["operations_officer", "department_admin"] },
-      },
-      include: { department: true },
-      orderBy: [{ role: "asc" }, { fullName: "asc" }],
-    }),
-    // قراءةٌ واحدة لكلّ سجلات العضوية ثم تُقسَّم في الذاكرة. كانت
-    // أربع قراءاتٍ على الجدول نفسه بمرشّحاتٍ متقاطعة، فيُمكن أن يختلف
-    // ما تراه الأقسام إن تغيّر صفٌّ بينها — والقِسمة في الذاكرة تُغني.
-    prisma.member.findMany({
-      // الصورةُ تُطلب من مسارها المخزَّن — لا تُحمَّل مع كل صفّ
-      omit: { avatarData: true },
-      include: { department: true, invite: true },
-      orderBy: { createdAt: "desc" },
-    }),
-    // الحسابات القيادية المُنحّاة — سجل فقط، لا تَقبل دخولاً
-    prisma.user.findMany({
-      // الصورةُ تُطلب من مسارها المخزَّن — لا تُحمَّل مع كل صفّ
-      omit: { avatarData: true },
-      where: { isActive: false },
-      include: { department: true },
-      orderBy: { removedAt: "desc" },
-      take: 20,
-    }),
-    // كلُّ الأقسام تُعرض للتصنيف — «الإدارة العليا» منها.
-    //
-    // كانت مُستثناةً بشرط `leadershipOnly: false`، فظهرت القائمة بثلاثة
-    // أقسام ولم يجد المؤسس القسمَ الذي أنشأه. والقسم الاستثنائي قسمٌ
-    // قائم في القاعدة وله لونُه وصفُّه في الهيكل، فحجبُه عن التصنيف
-    // يجعله قسماً لا يُدخَل إليه — وهذا ليس حكماً، بل نقصٌ في الواجهة.
-    prisma.department.findMany({
-      // اللجنةُ ليست وجهةً لشخصٍ ولا لدعوةٍ ولا لخطةٍ ولا لتذكرة — الأقسامُ الأصيلة وحدها
-      where: { ...OPEN_DEPARTMENT_WHERE, parentId: null },
-      select: { id: true, name: true, colorHex: true, leadershipOnly: true, parentId: true },
-      orderBy: [{ leadershipOnly: "desc" }, { name: "asc" }],
-    }),
-  ]);
-
-  // مَن وصلته بطاقتُه فعلاً — من السجل لا من الحقل وحده. قراءةٌ واحدة
-  // لكل الصفوف بدل استعلامٍ لكل بطاقة.
-  const welcomedEmails = new Set(
-    (
-      await prisma.emailLog.findMany({
-        where: { kind: "ترحيب", status: "أُرسلت" },
-        select: { recipient: true },
-        distinct: ["recipient"],
-      })
-    ).map((r) => r.recipient.toLowerCase())
-  );
-  // من أخفقت بطاقتُه ولم تصله بعدها — يُقال «فشل الإرسال» لا «لم تُرسل»
-  const failedWelcome = new Set(
-    (
-      await prisma.emailLog.findMany({
-        where: { kind: "ترحيب", status: "فشل الإرسال" },
-        select: { recipient: true },
-        distinct: ["recipient"],
-      })
-    )
-      .map((r) => r.recipient.toLowerCase())
-      .filter((e) => !welcomedEmails.has(e))
-  );
-  /** جملةُ الوصول — أو `null` لمن لم تصله بعد */
-  const welcomedLabel = (email: string, at: Date | null): string | null => {
-    if (at) return fmt(L.on, formatDate(at));
-    return welcomedEmails.has(email.toLowerCase()) ? L.earlierRecordedInThe : null;
-  };
-
-  // ── حالةُ الدخول: للمؤسس وحده. ولا تُجلَب أصلاً لغيره — لا تُجلَب
-  //    ثم تُخفى. وعددُ المحاولات الفاشلة وقفلُ الحساب يُقرأ منهما
-  //    محاولاتُ انتحالٍ على شخصٍ بعينه، فليست بياناتٍ تُعمَّم.
-  const seesLoginHealth = isSuperAdmin;
-  const health = seesLoginHealth
-    ? await loginHealthFor([
-        ...accounts.map((a) => ({
-          email: a.email,
-          mustChangePassword: a.mustChangePassword,
-          totpEnabled: a.totpEnabled,
-          neverSignedIn: a.passwordChangedAt === null && a.mustChangePassword,
-        })),
-        ...allMembers
-          .filter((m) => m.isActive)
-          .map((m) => ({
-            email: m.email,
-            mustChangePassword: m.mustChangePassword,
-            totpEnabled: false,
-            neverSignedIn: m.firstLoginAt === null,
-          })),
-      ])
-    : new Map();
-
-  const notesFor = (email: string): string[] | undefined => {
-    if (!seesLoginHealth) return undefined;
-    const h = health.get(email.toLowerCase());
-    if (!h || !loginHealthBlocked(h)) return undefined;
-    return loginHealthNotes(h, undefined, locale);
-  };
-
-
-  // بقيةُ حذفٍ سابق: سجلُّ ترشّح قائدٍ حُذف حسابُه الإداري (كان الحذفُ يمحو الحسابَ
-  // ويُبقي السجلّ). لا يظهر في أي قائمةٍ أخرى، فيُعرض هنا ليُمحى — وإلا بقي يحجز
-  // البريد بلا طريقٍ إليه. ومن أُعيدت دعوتُه ليس منها (انظر `leftoverLeaderIds`).
-  const erased = await leftoverLeaderIds();
-  const orphanLeaders = allMembers.filter((m) => erased.has(m.id));
-  // وقد يكون السجلُّ لقائدٍ قائمٍ غُيِّر بريدُ حسابه قبل أن يصير التغييرُ للسجلَّين
-  // (13 أكتوبر) — فبقي سجلُّه على البريد القديم. يُنبَّه المؤسسُ بالاسم قبل أن يمحوه.
-  const namesWithAccount = orphanLeaders.length
-    ? new Set(
-        (
-          await prisma.user.findMany({
-            where: { fullName: { in: orphanLeaders.map((m) => m.fullName) } },
-            select: { fullName: true },
-          })
-        ).map((u) => u.fullName)
-      )
-    : new Set<string>();
-
-  const members = allMembers
-    .filter(isRosterMember)
-    .sort(
-      (a, b) =>
-        (a.department?.name ?? "").localeCompare(b.department?.name ?? "", "ar") ||
-        a.fullName.localeCompare(b.fullName, "ar")
-    );
-
-  // كل من أُنشئ له حساب ولم يُعتمد: راسب، أو ساقط المهلة، أو لم يُسلّم بعد.
-  // هؤلاء هم من يحجزون المناصب والبُرُد دون أن يظهروا في أي قائمة عاملة.
-  // والساقطون بالمهلة لهم قسمُهم (بإعادة الإصدار) — فلا يُعرَضون هنا ثانيةً
-  const stuckRaw = allMembers
-    .filter(
-      (m) =>
-        m.approvalStatus !== "approved" &&
-        !(!m.isActive && m.exitReason === CANDIDATE_EXPIRY_REASON)
-    )
-    .slice(0, 50);
-
-  // الحسابات التي أسقطتها المهلة — تُعرض هنا وحدها لأن هذه هي النافذة
-  // الوحيدة التي تُعيد إصدارها، وإخفاؤها يعني ضياعها بلا طريق للعودة
-  const lapsed = allMembers
-    .filter((m) => !m.isActive && m.exitReason === CANDIDATE_EXPIRY_REASON)
-    .sort((a, b) => (b.terminatedAt?.getTime() ?? 0) - (a.terminatedAt?.getTime() ?? 0))
-    .slice(0, 30);
-
-  // الحسابات القيادية النشطة مفتاحاً للاسم والبريد: بها نُفسّر الاسم
-  // المكرّر في قائمة العالقين بدل أن يُخمّنه من يقرأ
-  const leaderEmails = new Set(accounts.map((a) => a.email.toLowerCase()));
-  const leaderNames = new Set(accounts.map((a) => a.fullName.trim()));
-
-  const stageOf = (m: (typeof allMembers)[number]) => {
-    if (!m.isActive) {
-      return m.exitReason === CANDIDATE_EXPIRY_REASON ? tm.stageLapsed : tm.stageStopped;
-    }
-    if (m.approvalStatus === "rejected") return tm.stageRejected;
-    if (m.approvalStatus === "approved") return tm.stageApproved;
-    if (m.testStatus === "passed") return tm.stageAwaitingApproval;
-    if (m.testStatus === "failed") return tm.stageFailed;
-    if (!m.firstLoginAt) return candidateWindowExpired(m) ? tm.stageLapsed : tm.stageNotLoggedIn;
-    return tm.stageTesting;
-  };
-
-  const stuck: StuckCandidate[] = stuckRaw.map((m) => ({
-    id: m.id,
-    fullName: m.fullName,
-    email: m.email,
-    scope: m.department?.name ?? accountRoleLabel(m.invite.targetRole, locale),
-    stage: stageOf(m),
-    testScore: m.testScore,
-    warningsCount: m.warningsCount,
-    reopenCount: m.testReopenCount,
-    // الاختبار يُعاد لمن سلّمه فرسب أو رُفض — لا لمن لم يبدأه بعد
-    // صفحةُ الأشخاص للمؤسس والرئيس التنفيذي — وهما يطّلعان ولا يحسمان (ق١): إعادةُ فتح الاختبار قرارُ اعتماد يملكه
-    // قائدُ القسم أو جهةُ الاعتماد المستقلة من صفحاتهما، والخادمُ يرفضها لهما (`mayDecideCandidate`)
-    canReopen: false,
-    canResendReopen: canResendReopenedTest(m),
-    // انتهى اختبارُه وينتظر قرارَ جهة اعتماده — حذفُه بإقرارٍ صريح (`acknowledgeUndecided`)
-    awaitingDecision: awaitingCandidateDecision(m),
-    twin: leaderEmails.has(m.email.toLowerCase())
-      ? ("email" as const)
-      : leaderNames.has(m.fullName.trim())
-        ? ("name" as const)
-        : null,
-  }));
-
-  // السجلّ: أقسامه الثلاثة كما كانت في «سجل الأعضاء» بلا نقص
-  const registerInactive = allMembers.filter(
-    (m) => !m.isActive || m.approvalStatus === "rejected"
-  );
-
-  const registerRows = (rows: typeof allMembers) =>
-    rows.map((m) => ({
-      id: m.id,
-      cells: {
-        name: m.fullName,
-        // ومن غادر رقمُه محفوظٌ له — يُقرأ هنا كما كان
-        email: (
-          <span className="break-all text-black/70">
-            {m.email}
-            <EmployeeIdLine eid={employeeIdLabel(m.employeeNo)} />
-          </span>
-        ),
-        dept: m.department ? (
-          <span className="inline-flex items-center gap-1.5 text-black/70">
-            <span
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ background: m.department.colorHex }}
-            />
-            {m.department.name}
-          </span>
-        ) : (
-          accountRoleLabel(m.invite.targetRole, locale)
-        ),
-        stage: <StageBadge label={stageOf(m)} />,
-        score: m.testScore === null ? "—" : `${m.testScore}%`,
-        created: formatDate(m.createdAt),
-        // المتوقفُ والمرفوضُ يُحذف نهائياً — للمؤسس وحده، والخادمُ يفرضها (`permanentlyDeleteAccount`)
-        ...(canPurgePeople ? { actions: <InactivePurgeButton member={{ id: m.id, fullName: m.fullName, email: m.email }} /> } : {}),
-      },
-    }));
-
-  const registerColumns = [
-    { key: "name", label: tm.colName, primary: true },
-    { key: "email", label: tm.colEmail },
-    { key: "dept", label: tm.colDept },
-    { key: "stage", label: tm.colStage },
-    { key: "score", label: tm.colScore },
-    { key: "created", label: tm.colCreated },
-    ...(canPurgePeople ? [{ key: "actions", label: tm.colActions }] : []),
-  ];
-
-  const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
-
-  // ── السجلّ الموحَّد: كلُّ شخصٍ صفٌّ واحد.
-  //
-  // **سببُ التكرار الذي ظهر عند التمرير:** كانت الصفحة ترسم العضو المعتمد
-  // ثلاث مرات — في «حسابات الأعضاء»، ثم في «إجراءات المؤسس»، ثم في جدول
-  // «السجل» أسفلها — والمرشّحَ مرّتين أو ثلاثاً. لم تكن البيانات مكرّرة،
-  // بل الرسم. فصار لكلّ شخصٍ صفٌّ واحد في تبويبه، وإجراءاتُه في ملفه.
-  type Row = {
-    kind: "user" | "member";
-    id: string;
-    name: string;
-    email: string;
-    /** الرقمُ الوظيفي (`TLAQI - 001`) — ومن لا رقم له بعد `null` */
-    eid: string | null;
-    role: string;
-    dept: { id: string; name: string; colorHex: string } | null;
-    since: Date;
-    avatar: string | null;
-    /** جنسُه المسجَّل — للهيئة الافتراضية الرسمية حين لا صورة */
-    gender: string | null;
-    status: { label: string; tone: "ok" | "warn" };
-    welcome: { label: string; tone: "ok" | "warn" | "bad" };
-    leader: boolean;
-    self: boolean;
-  };
-  const welcomeOf = (email: string, at: Date | null): Row["welcome"] => {
-    if (welcomedLabel(email, at)) return { label: L.accepted, tone: "ok" };
-    if (failedWelcome.has(email.toLowerCase())) return { label: L.sendingFailed, tone: "bad" };
-    return { label: L.notSent, tone: "warn" };
-  };
-  const statusOf = (email: string, totp: boolean | null): Row["status"] => {
-    if (notesFor(email)) return { label: L.loginTrouble, tone: "warn" };
-    if (totp === false) return { label: L.noTwoFactor, tone: "warn" };
-    return { label: L.active, tone: "ok" };
-  };
-
-  // المؤسس والتنفيذي ومسؤول التشغيل من الإدارة العليا بدورهم — `seniorAffiliation`
-  const seniorDept = allDepartments.find((d) => d.leadershipOnly && !d.parentId) ?? null;
-  const seniorRef = seniorDept ? { id: seniorDept.id, name: seniorDept.name, colorHex: seniorDept.colorHex } : null;
-  const leaderRows: Row[] = [
-    ...(me
-      ? [
-          {
-            kind: "user" as const,
-            id: me.id,
-            name: me.fullName,
-            email: me.email,
-            role: roleTitle(me.role, me.gender, me.department?.name, locale),
-            dept: affiliationFor(me.role, me.department, seniorRef),
-            eid: employeeIdLabel(me.employeeNo),
-            since: me.createdAt,
-            avatar: avatarUrl("user", me.id, me.avatarVersion),
-            gender: me.gender,
-            status: statusOf(me.email, me.totpEnabled),
-            welcome: welcomeOf(me.email, me.welcomeEmailSentAt),
-            leader: true,
-            self: true,
-          },
-        ]
-      : []),
-    ...accounts.map((a) => ({
-      kind: "user" as const,
-      id: a.id,
-      name: a.fullName,
-      email: a.email,
-      role: roleTitle(a.role, a.gender, a.department?.name, locale),
-      dept: affiliationFor(
-        a.role,
-        a.department ? { id: a.department.id, name: a.department.name, colorHex: a.department.colorHex } : null,
-        seniorRef
-      ),
-      eid: employeeIdLabel(a.employeeNo),
-      since: a.createdAt,
-      avatar: avatarUrl("user", a.id, a.avatarVersion),
-      gender: a.gender,
-      status: statusOf(a.email, a.totpEnabled),
-      welcome: welcomeOf(a.email, a.welcomeEmailSentAt),
-      leader: true,
-      self: false,
-    })),
-  ];
-  const memberRows: Row[] = members.map((m) => ({
-    kind: "member" as const,
-    id: m.id,
-    name: m.fullName,
-    email: m.email,
-    role: [roleTitle("member", m.gender, null, locale), m.jobTitle?.trim()].filter(Boolean).join(" · "),
-    dept: m.department ? { id: m.department.id, name: m.department.name, colorHex: m.department.colorHex } : null,
-    eid: employeeIdLabel(m.employeeNo),
-    since: m.orgJoinDate ?? m.decidedAt ?? m.joinDate,
-    avatar: avatarUrl("member", m.id, m.avatarVersion),
-    gender: m.gender,
-    status: statusOf(m.email, null),
-    welcome: welcomeOf(m.email, m.welcomeEmailSentAt),
-    leader: false,
-    self: false,
-  }));
-
-  const matches = (r: Row) =>
-    // والبحثُ بالرقم الوظيفي أيضاً («007» أو «TLAQI - 007»)
-    (!q || r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q) || !!r.eid?.toLowerCase().includes(q)) &&
-    (!deptFilter || r.dept?.id === deptFilter);
-  const everyone = [...leaderRows, ...memberRows];
-  const attention = everyone.filter((r) => r.status.tone !== "ok" || r.welcome.tone !== "ok");
-  const counts: Record<Tab, number> = {
-    all: everyone.length,
-    leaders: leaderRows.length,
-    members: memberRows.length,
-    joining: stuck.length + lapsed.length,
-    attention: attention.length,
-    removed: removedUsers.length + registerInactive.length + orphanLeaders.length,
-  };
-  const shown = (tab === "leaders" ? leaderRows : tab === "members" ? memberRows : tab === "attention" ? attention : everyone).filter(matches);
-  const rosterTab = tab === "all" || tab === "leaders" || tab === "members" || tab === "attention";
-  const { page, pages } = pageParam(sp.p, shown.length, PAGE_SIZE);
-  const pageRows = shown.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  /** رابطٌ بحالة القائمة. تغييرُ التبويب أو البحث أو القسم يعود إلى الصفحة الأولى؛
-   *  و`href({})` يحفظ الصفحة — فيعود «رجوع» من ملفّ الشخص إلى حيث كان. */
-  const href = (patch: Partial<{ tab: string; q: string; dept: string; p: number }>) => {
-    const p = new URLSearchParams();
-    const keepPage = !("tab" in patch || "q" in patch || "dept" in patch);
-    const next = { tab, q: sp.q ?? "", dept: deptFilter, p: keepPage ? page : 1, ...patch };
-    if (next.tab && next.tab !== "all") p.set("tab", next.tab);
-    if (next.q) p.set("q", next.q);
-    if (next.dept) p.set("dept", next.dept);
-    if (next.p > 1) p.set("p", String(next.p));
-    const s = p.toString();
-    return s ? `/admin/people?${s}` : "/admin/people";
-  };
-  const tone = {
-    ok: "bg-green-50 text-green-800 ring-green-200",
-    warn: "bg-amber-50 text-amber-900 ring-amber-200",
-    bad: "bg-red-50 text-red-800 ring-red-200",
-  } as const;
+  const pill = (active: boolean) =>
+    `inline-flex min-h-10 shrink-0 items-center rounded-full px-4 text-sm font-semibold transition ${
+      active ? "bg-[#341D2B] text-on-brand" : "bg-white text-black/70 ring-1 ring-black/10 hover:bg-black/[0.03]"
+    }`;
+  const params = searchParams as unknown as Promise<never>;
 
   return (
     <div className="min-h-screen bg-page">
-
-      <main className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6 sm:px-5 sm:py-8">
-        <PageHeader
-          title={L.members}
-          description={L.oneRegisterForEveryone}
-          actions={
-            <Link href="/admin/invites" className="btn-brand ticket-cta__btn">{L.inviteSomeone}</Link>
-          }
-        />
-
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">{t.seats.governance}</p>
-        <SeatConflicts canPurge={isSuperAdmin} />
-
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <nav className="roster-tabs" aria-label={L.registerTabs}>
-            {TABS.map((x) => (
-              <Link key={x.id} href={href({ tab: x.id })} aria-current={tab === x.id ? "page" : undefined} className="roster-tab">
-                {L.tabs[x.id]} <span className="roster-tab__n">{counts[x.id]}</span>
-              </Link>
-            ))}
-          </nav>
-          {rosterTab && (
-            <form action="/admin/people" className="flex flex-wrap gap-2" role="search">
-              {tab !== "all" && <input type="hidden" name="tab" value={tab} />}
-              <input
-                name="q"
-                defaultValue={sp.q ?? ""}
-                placeholder={L.searchByNameOr}
-                aria-label={L.searchByNameOr}
-                className="min-h-10 w-56 rounded-xl border border-black/10 bg-white px-3.5 text-sm outline-none focus:border-black/30"
-              />
-              <select
-                name="dept"
-                defaultValue={deptFilter}
-                aria-label={L.department}
-                className="min-h-10 rounded-xl border border-black/10 bg-white px-3 text-sm"
-              >
-                <option value="">{L.allDepartments}</option>
-                {allDepartments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-              <button type="submit" className="wizard-btn-2 !min-h-10">{L.filter}</button>
-            </form>
+      <div className="mx-auto max-w-6xl px-4 pt-5 sm:px-5 sm:pt-7">
+        {/* السجلُّ له عنوانُه «الأعضاء» — فلا يتكرّر العنوان فوقه */}
+        {view !== "register" && (
+          <>
+            <h1 className="text-xl font-bold">{L.title}</h1>
+            <p className="mt-1 text-xs text-black/50">{L.hint}</p>
+          </>
+        )}
+        <nav aria-label={L.title} className="-mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+          {ownDept && (
+            <Link href={`/admin/departments/${ownDept.slug}`} className={pill(false)}>
+              {L.myDept}
+            </Link>
           )}
-        </div>
-
-        {rosterTab && (
-          <DataTable
-            emptyLabel={q || deptFilter ? L.noOneMatchesThe : t.opsExtras.memberAccountsEmpty}
-            columns={[
-              { key: "name", label: L.name, primary: true },
-              { key: "role", label: L.role },
-              { key: "dept", label: L.department },
-              { key: "status", label: L.status },
-              { key: "since", label: L.tenure },
-              { key: "welcome", label: L.welcomeCard },
-              { key: "actions", label: "" },
-            ]}
-            rows={pageRows.map((r) => ({
-              id: `${r.kind}-${r.id}`,
-              cells: {
-                name: (
-                  <span className="flex items-center gap-2.5">
-                    <PersonAvatar
-                      src={r.avatar}
-                      gender={r.gender}
-                      name={r.name}
-                      color={portraitColorFor(null, r.dept)}
-                      className="h-9 w-9"
-                    />
-                    <span className="min-w-0">
-                      <span className="block font-bold">
-                        {r.name}
-                        {r.self && <span className="ms-1.5 text-[11px] font-semibold text-black/40">{L.you}</span>}
-                      </span>
-                      <span className="block break-all text-[11px] text-black/45">{r.email}</span>
-                      <EmployeeIdLine eid={r.eid} />
-                    </span>
-                  </span>
-                ),
-                role: <span className="text-sm text-black/70">{r.role}</span>,
-                dept: r.dept ? (
-                  <span className="inline-flex items-center gap-1.5 text-black/70">
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/10" style={{ background: r.dept.colorHex }} />
-                    {r.dept.name}
-                  </span>
-                ) : (
-                  "—"
-                ),
-                status: <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ring-1 ${tone[r.status.tone]}`}>{r.status.label}</span>,
-                since: <span className="text-xs text-black/50">{sinceLabel(r.since, undefined, locale)}</span>,
-                welcome: <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ring-1 ${tone[r.welcome.tone]}`}>{r.welcome.label}</span>,
-                actions: (
-                  <RosterRowActions
-                    kind={r.kind}
-                    id={r.id}
-                    name={r.name}
-                    profileHref={`/admin/people/${r.kind}/${r.id}?from=${encodeURIComponent(href({}))}`}
-                  />
-                ),
-              },
-            }))}
-          />
-        )}
-        {rosterTab && <Pager page={page} pages={pages} href={(n) => href({ p: n })} labels={t.common} />}
-
-        {rosterTab && (
-          <p className="text-[11px] leading-relaxed text-black/45">{L.acceptedMeansTheEmail}</p>
-        )}
-
-        {/* ── قيد الانضمام: العالقون، ثم الساقطون بالمهلة — كلٌّ في قسمه وحده */}
-        {tab === "joining" && (
-          <>
-            <section>
-              <h2 className="mb-1 text-lg font-bold">{t.stuck.sectionTitle}</h2>
-              <p className="mb-4 text-sm text-black/50">{t.stuck.sectionHint}</p>
-              {stuck.length === 0 ? (
-                <Card className="p-8 text-center text-sm text-black/40">{t.stuck.empty}</Card>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {stuck.map((c) => (
-                    <StuckCandidateRow key={c.id} candidate={c} canPurge={canPurgePeople} theme={theme} />
-                  ))}
-                </div>
-              )}
-            </section>
-            {lapsed.length > 0 && (
-              <section>
-                <h2 className="mb-1 text-lg font-bold">{t.candidateWindow.lapsedTitle}</h2>
-                <p className="mb-4 text-sm text-black/50">{t.candidateWindow.lapsedHint}</p>
-                <div className="flex flex-col gap-3">
-                  {lapsed.map((m) => (
-                    <MemberAccountRow
-                      key={m.id}
-                      theme={theme}
-                      lapsed
-                      canPurge={canPurgePeople}
-                      member={{ id: m.id, fullName: m.fullName, email: m.email, departmentName: m.department?.name ?? "—" }}
-                    />
-                  ))}
-                </div>
-              </section>
-            )}
-          </>
-        )}
-
-        {/* ── المنحّون والمنتهون: سجلٌّ يُقرأ، ولكلّ مُنحّى طريقُ تحريره */}
-        {tab === "removed" && (
-          <>
-            {orphanLeaders.length > 0 && (
-              <section>
-                <h2 className="mb-1 text-lg font-bold">{t.seats.orphanTitle} ({orphanLeaders.length})</h2>
-                <p className="mb-4 text-sm text-black/50">{t.seats.orphanHint}</p>
-                <div className="flex flex-col gap-3">
-                  {orphanLeaders.map((m) => (
-                    <div key={m.id}>
-                      <MemberAccountRow
-                        theme={theme}
-                        // لا «مشكلة دخول»: هذا السجلّ لا يُدخَل به أصلاً — يُمحى أو يُترك
-                        canReset={false}
-                        canPurge={isSuperAdmin}
-                        member={{ id: m.id, fullName: m.fullName, email: m.email, departmentName: m.department?.name ?? accountRoleLabel(m.invite.targetRole, locale) }}
-                      />
-                      {namesWithAccount.has(m.fullName) && (
-                        <p className="mt-1 px-1 text-xs font-semibold text-amber-800">{t.seats.orphanSameName}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-            <section>
-              <h2 className="mb-3 text-lg font-bold">{t.seats.removedTitle}</h2>
-              {removedUsers.length === 0 ? (
-                <Card className="p-8 text-center text-sm text-black/40">{L.noRemovedLeadershipAccounts}</Card>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {removedUsers.map((u) => (
-                    <RemovedAccountRow
-                      key={u.id}
-                      theme={theme}
-                      canPurge={isSuperAdmin}
-                      account={{
-                        id: u.id,
-                        fullName: u.fullName,
-                        email: u.email,
-                        departmentName: u.department?.name ?? null,
-                        removalReason: u.removalReason,
-                        employeeId: employeeIdLabel(u.employeeNo),
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-            <section>
-              <h2 className="text-lg font-bold">{tm.inactiveTitle} ({registerInactive.length})</h2>
-              <p className="mb-3 mt-1 text-xs text-black/40">{tm.inactiveHint}</p>
-              <DataTable emptyLabel={tm.inactiveEmpty} columns={registerColumns} rows={registerRows(registerInactive)} />
-            </section>
-          </>
-        )}
-      </main>
+          {views.map((v) => (
+            <Link key={v} href={v === views[0] ? "/admin/people" : `/admin/people?view=${v}`} aria-current={v === view ? "page" : undefined} className={pill(v === view)}>
+              {L[v]}
+            </Link>
+          ))}
+        </nav>
+      </div>
+      {view === "register" && <RegisterView searchParams={params} />}
+      {view === "invites" && <InvitesView />}
+      {view === "joins" && <JoinsView session={session} empty={L.joinsEmpty} />}
+      {view === "terminations" && <TerminationsView />}
+      {view === "welcome" && <WelcomeCardsView searchParams={params} />}
+      {view === "onboarding" && <OnboardingView searchParams={params} />}
     </div>
-  );
-}
-
-/** سطرُ الرقم الوظيفي تحت البريد — أرقامٌ لاتينيةٌ في سطرٍ عربيّ (`bdi`) فلا ينقلب ترتيبُها */
-function EmployeeIdLine({ eid }: { eid: string | null }) {
-  if (!eid) return null;
-  return (
-    <span className="block text-[11px] font-bold tracking-wide text-black/55">
-      <bdi dir="ltr">{eid}</bdi>
-    </span>
-  );
-}
-
-function StageBadge({ label }: { label: string }) {
-  return (
-    <span className="inline-block rounded-full bg-black/[0.05] px-2.5 py-1 text-xs font-semibold text-black/70">
-      {label}
-    </span>
   );
 }

@@ -124,10 +124,11 @@ export function navFor(v: NavViewer, L: NavLabels): NavItem[] {
     });
   }
 
-  // ── ١) الأعضاء: صفحة الأعضاء للمؤسس والتنفيذي (`/admin/people`)، وأعضاءُ
-  //       قسمه لقائد القسم في لوحة قسمه
-  if (top) items.push({ id: "members", label: L.members, href: "/admin/people", icon: "members", match: ["/admin/people"], group: "people" });
-  else if (ownDept) items.push({ id: "members", label: L.myDeptMembers, href: ownDept, icon: "members", match: [ownDept], group: "people" });
+  // ── ١) الأعضاء: **مكانٌ واحد لإدارة الأشخاص** (24 نوفمبر 2026) — السجلُّ والدعواتُ والانضمامُ والإنهاءُ والترحيبُ
+  //       والاستبيان تبويباتٌ في `/admin/people`، يظهر منها لكلٍّ ما يخصّه. وقائدُ القسم يجد فيه «أعضاء قسمي» (لوحةُ قسمه)
+  if (admin || v.canWelcomeCards) {
+    items.push({ id: "members", label: L.members, href: "/admin/people", icon: "members", match: ["/admin/people", "/admin/invites", "/admin/tests", "/admin/terminations", "/admin/welcome-cards", "/admin/onboarding"], group: "people" });
+  }
 
   // ── ٢) الاعتمادات — لكل إداري
   if (admin) items.push({ id: "approvals", label: L.approvals, href: "/admin/approvals", icon: "approvals", match: ["/admin/approvals"], group: "approvals" });
@@ -167,21 +168,9 @@ export function navFor(v: NavViewer, L: NavLabels): NavItem[] {
     match: ["/agreements"],
     group: "people",
   });
-  if (top) {
-    items.push({ id: "invites", label: L.invites, href: "/admin/invites", icon: "invites", match: ["/admin/invites", "/admin/tests"], group: "people" });
-  }
   // سجلُّ التنبيهات — لكلِّ أحد، وفيه تنبيهاتُه هو وحده
   items.push({ id: "messages", label: L.messages, href: "/notifications", icon: "messages", match: ["/notifications", "/admin/messages"], group: "meetings" });
-  if (top || r === "department_admin") {
-    items.push({ id: "terminations", label: L.terminations, href: "/admin/terminations", icon: "terminations", match: ["/admin/terminations"], group: "people" });
-  }
-  if (v.canWelcomeCards) {
-    items.push({ id: "welcomeCards", label: L.welcomeCards, href: "/admin/welcome-cards", icon: "award", match: ["/admin/welcome-cards"], group: "people" });
-  }
-  // استبيانُ الانضمام: لوحةُ المتابعة وتصديرُها — للمؤسس والرئيس التنفيذي ومسؤول التشغيل (`canManageOnboardingSurvey`)
-  if (top || r === "operations_officer") {
-    items.push({ id: "onboarding", label: L.onboarding, href: "/admin/onboarding", icon: "survey", match: ["/admin/onboarding"], group: "people" });
-  }
+  // الدعواتُ وطلباتُ الإنهاء والترحيبُ والتكريم واستبيانُ الانضمام: تبويباتٌ في «الأعضاء» (أعلاه) — لا عناصرَ مستقلّة
   if (top || v.canSign) {
     items.push({ id: "signature", label: L.signature, href: "/admin/signature", icon: "signature", match: ["/admin/signature"], group: "people" });
   }

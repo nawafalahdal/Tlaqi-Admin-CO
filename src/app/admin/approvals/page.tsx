@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/PageHeader";
 import { auth } from "@/auth";
@@ -14,8 +15,6 @@ import { ApprovalDecide } from "./ApprovalDecide";
 import { RequesterActions } from "./RequesterActions";
 import { RequestApproval } from "./RequestApproval";
 import { myTicketsWithoutApproval } from "./actions";
-import { CandidateApprovals } from "./CandidateApprovals";
-import { CandidateResults } from "./CandidateResults";
 import type { ApprovalKind, ApprovalState } from "@prisma/client";
 
 import { getLocale, getDictionary } from "@/i18n/server";
@@ -33,6 +32,7 @@ const OPEN_STATES: ApprovalState[] = ["draft", "awaiting", "reviewing", "returne
 export default async function ApprovalsPage() {
   const locale = await getLocale();
   const L = getDictionary(locale).rApprPage;
+  const hub = getDictionary(locale).peopleHub;
   const session = await auth();
   if (!session) redirect("/login");
 
@@ -60,15 +60,10 @@ export default async function ApprovalsPage() {
 
         {/* طلباتُ الانضمام: المؤسسُ والرئيسُ التنفيذيُّ يطّلعان على النتائج ولا يحسمان (ق١)؛ وغيرُهما يرى ما يحسمه
             وحده إن كان جهةَ اعتماد (`CandidateApprovals` تُرجع لا شيء لمن لا يحسم شيئاً) */}
-        {session.user.role === "super_admin" || session.user.role === "executive" ? (
-          <>
-            {/* والرئيسُ التنفيذيُّ قائدُ الإدارة العليا: يحسم أعضاءها (`senior_leader`) — يظهر طابورُه إن كان */}
-            {session.user.role === "executive" && <CandidateApprovals session={session} />}
-            <CandidateResults session={session} />
-          </>
-        ) : (
-          <CandidateApprovals session={session} />
-        )}
+        {/* طلباتُ الانضمام واعتمادُها انتقلت إلى «الأعضاء» ← «الانضمام والاعتماد» (24 نوفمبر 2026 — الأشخاصُ في مكانٍ واحد) */}
+        <Link href="/admin/people?view=joins" className="rounded-2xl bg-white p-4 text-sm font-semibold text-black/70 ring-1 ring-black/10 hover:bg-black/[0.02]">
+          {hub.movedJoins} ←
+        </Link>
 
         <section>
           <h2 className="mb-3 text-base font-bold">
