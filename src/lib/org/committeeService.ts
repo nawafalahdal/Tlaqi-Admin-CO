@@ -20,8 +20,7 @@ import {
   canWarnCommitteeLead,
   committeeRoleFor,
   type CommitteeRow,
-  type OrgActor,
-} from "./actor";
+  type OrgActor, parentLeadVacant } from "./actor";
 import { diffFields, fail, recordOrgEvent, type OrgResult } from "./audit";
 import { committeeGaps, GAP_LABELS } from "./completeness";
 import { committeeLeadState, ensureCommitteeSuccession, LEAD_REQUIRED, succeedCommitteesLedBy } from "./committeeLeadership";
@@ -185,7 +184,13 @@ async function loadCommittee(db: Db, id: string) {
     c = (await read())!;
     state = await committeeLeadState(db, c);
   }
-  return { ...c, leadActive: state.leadActive, actingLeadUserId: state.actingLeadUserId, actingLeadName: state.actingLeadName };
+  return {
+    ...c,
+    leadActive: state.leadActive,
+    actingLeadUserId: state.actingLeadUserId,
+    actingLeadName: state.actingLeadName,
+    parentLeadVacant: await parentLeadVacant(db, c.parentId!),
+  };
 }
 
 // ═════════════════════════════════════════════════════════════════════

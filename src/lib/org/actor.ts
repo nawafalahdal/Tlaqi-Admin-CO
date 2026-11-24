@@ -202,7 +202,16 @@ export type CommitteeRow = {
   committeeStatus?: string | null;
   leadActive?: boolean;
   actingLeadUserId?: string | null;
+  /** **قسمُها الأمّ بلا قائدٍ نشط** (لا الإدارة العليا — يقودها الرئيس) — يحسبه الخادم (`parentLeadVacant`) */
+  parentLeadVacant?: boolean;
 };
+
+/** هل خلا مقعدُ قائد هذا القسم الأصيل؟ — والإدارةُ العليا لا تخلو: يقودها الرئيسُ التنفيذي (وبغيابه المؤسس) */
+export async function parentLeadVacant(db: Pick<typeof prisma, "department" | "user">, departmentId: string): Promise<boolean> {
+  const d = await db.department.findUnique({ where: { id: departmentId }, select: { leadershipOnly: true } });
+  if (!d || d.leadershipOnly) return false;
+  return !(await db.user.findFirst({ where: { isActive: true, role: "department_admin", departmentId }, select: { id: true } }));
+}
 
 /** **إدارةُ لجنةٍ بعينها** (ملاحظةُ المؤسس الثانية في المرحلة الثالثة):
  *  - قائدُ قسمها ونائبُه المفوَّض: كما كانت.
@@ -228,6 +237,8 @@ export function canManageCommitteeMembers(a: OrgActor | null, c: CommitteeRow): 
   if (!a?.role || !c.parentId) return false;
   const status = c.committeeStatus ?? "";
   if (!["draft", "rejected", "awaiting_lead", "approved", "suspended"].includes(status)) return false;
+  // **وقسمٌ بلا قائد: يديرها المؤسس** حتى يُعيَّن قائدُه (قرار المؤسس، 24 نوفمبر 2026)
+  if (c.parentLeadVacant && a.role === "super_admin" && a.kind === "user") return true;
   return canProposeCommitteesOf(a, c.parentId);
 }
 

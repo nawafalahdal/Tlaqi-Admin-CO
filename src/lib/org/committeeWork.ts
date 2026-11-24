@@ -8,7 +8,7 @@ import type {
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isSafeHttpUrl } from "@/lib/calendar";
-import { committeeRoleFor, type CommitteeRole, type OrgActor } from "./actor";
+import { committeeRoleFor, parentLeadVacant, type CommitteeRole, type OrgActor } from "./actor";
 import { committeeLeadState } from "./committeeLeadership";
 import { fail, recordOrgEvent, type OrgResult } from "./audit";
 import { LIMITS } from "./committeeService";
@@ -52,7 +52,11 @@ export async function committeeContext(actor: OrgActor | null, committeeId: stri
           select: { active: true },
         })
       : null;
-  const role = committeeRoleFor(actor, { ...c, leadActive: lead.leadActive, actingLeadUserId: lead.actingLeadUserId }, !!membership?.active);
+  const role = committeeRoleFor(
+    actor,
+    { ...c, leadActive: lead.leadActive, actingLeadUserId: lead.actingLeadUserId, parentLeadVacant: await parentLeadVacant(prisma, c.parentId) },
+    !!membership?.active
+  );
   if (!role.view) return null;
   return {
     committee: { id: c.id, name: c.name, parentId: c.parentId, committeeStatus: c.committeeStatus, leadMemberId: c.leadMemberId },

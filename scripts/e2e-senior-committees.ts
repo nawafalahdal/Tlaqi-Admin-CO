@@ -148,6 +148,22 @@ const sess = (u: { id: string; role: string; fullName: string; departmentId?: st
     const byFounderMember = await addCommitteeMembers(aFounder, c1.id, [s3.id]);
     chk("والمؤسسُ لا يدير أعضاءها والرئيسُ قائمٌ بقيادة الإدارة العليا", !byFounderMember.ok);
 
+    // ٥ج — **قسمٌ بلا قائد: يدير المؤسسُ أعضاءَ لجانه** حتى يُعيَّن قائدُه (قرار المؤسس، 24 نوفمبر 2026)
+    const { uniqueTestColor } = await import("./testColors");
+    const vacant = await prisma.department.create({ data: { name: `قسم شاغر ${TAG}`, slug: `${TAG}-vac`, colorHex: await uniqueTestColor() } });
+    const [v1, v2, v3] = [await mkMember(vacant.id), await mkMember(vacant.id), await mkMember(vacant.id)];
+    const vc = await prisma.department.create({
+      data: { name: `لجنة القسم الشاغر ${TAG}`, slug: `${TAG}-vc`, colorHex: await uniqueTestColor(), parentId: vacant.id, committeeStatus: "approved", leadMemberId: v1.id } as never,
+    });
+    await prisma.committeeMembership.create({ data: { committeeId: vc.id, memberId: v1.id, addedByName: "فحص" } as never });
+    const fAdd = await addCommitteeMembers(aFounder, vc.id, [v2.id]);
+    chk("**قسمٌ بلا قائد: المؤسسُ يضيف إلى لجنته**", fAdd.ok, JSON.stringify(fAdd));
+    chk("والرئيسُ التنفيذي لا (المؤسسُ وحده)", !(await addCommitteeMembers(aCeo, vc.id, [v3.id])).ok);
+    const vLead = await orgActor({ user: { id: v1.id, role: "member", name: v1.fullName, email: v1.email } } as unknown as Session);
+    chk("ولا قائدُ اللجنة", !(await addCommitteeMembers(vLead, vc.id, [v3.id])).ok);
+    await mkUser("department_admin", vacant.id);
+    chk("**فإذا عُيِّن قائدُ القسم عادت إليه** ولم يعد المؤسسُ يديرها", !(await addCommitteeMembers(aFounder, vc.id, [v3.id])).ok);
+
     // ٦ — الخلافة: غياب القائد يُقيم قائماً بالقيادة
     await prisma.member.update({ where: { id: s1.id }, data: { isActive: false, terminatedAt: new Date(), exitReason: "فحص" } });
     await ensureCommitteeSuccession(c1.id, { reason: "فحص الخلافة", source: "automatic", byName: "فحص" });
