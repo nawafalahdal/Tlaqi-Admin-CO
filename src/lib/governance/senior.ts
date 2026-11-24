@@ -259,9 +259,33 @@ export async function createSeniorInvitation(
     }
     return { ok: true, id: row.id };
   } catch (e) {
-    if (String(e).includes("SENIOR_POSITION_DUPLICATE")) return fail("لهذا البريد دعوةٌ أو تكليفٌ قائمٌ في الإدارة العليا");
+    if (String(e).includes("SENIOR_POSITION_DUPLICATE")) return fail(await duplicateReason(inviteEmail));
     throw e;
   }
+}
+
+/** **لماذا يُرفض بريدٌ له دعوةٌ أو تكليفٌ حيّ** — بحال صاحبه، لا «دعوةٌ قائمة» مبهمة (طلبُ المؤسس، 24 نوفمبر 2026: من لم يجتز
+ *  الاختبار تُرفض دعوتُه الثانية بـ«لديه دعوةٌ قائمة»). **ومن لم يجتز لا يُدعى ثانيةً:** دعوتُه الأولى مقبولةٌ وترشّحُه قائمٌ على
+ *  سجلّه، فيُعاد فتحُ اختباره عليها (`reopenCandidateTest`) — بيد قائد الإدارة العليا من «الاعتمادات» — وإن اجتاز واعتُمد
+ *  فُعِّل تكليفُه (`settleSeniorPositionsOf`). */
+async function duplicateReason(email: string, exceptId?: string): Promise<string> {
+  const p = await prisma.seniorPosition.findFirst({
+    where: {
+      inviteEmail: { equals: email, mode: "insensitive" },
+      status: { in: ["pending", "active", "suspended"] },
+      inviteState: { notIn: ["expired", "cancelled"] },
+      ...(exceptId ? { id: { not: exceptId } } : {}),
+    },
+    select: { status: true, inviteState: true, titleAr: true, holderMember: { select: { approvalStatus: true, testStatus: true } } },
+  });
+  if (!p) return "لهذا البريد دعوةٌ أو تكليفٌ قائمٌ في الإدارة العليا";
+  if (p.status !== "pending") return `يشغل تكليفَ «${p.titleAr}» في الإدارة العليا الآن — لا يُدعى إلى تكليفٍ ثانٍ`;
+  const m = p.holderMember;
+  if (p.inviteState === "accepted" && m?.approvalStatus === "pending_review" && m.testStatus === "failed") {
+    return "لم يجتز اختبارَ الإدارة العليا، وترشّحُه قائمٌ على دعوته الأولى — فلا تُنشأ له دعوةٌ ثانية. أعِد فتحَ اختباره من «الاعتمادات» ← «لم يجتازوا الاختبار» بعد اجتماع الشرح، فيختبر على دعوته نفسِها.";
+  }
+  if (p.inviteState === "accepted") return "قبِل دعوتَه إلى الإدارة العليا وترشّحُه قائم — لا يحتاج دعوةً ثانية";
+  return "له دعوةٌ مرسلةٌ إلى الإدارة العليا لم يقبلها بعد — أعِد إرسالها أو ألغِها من قائمة الدعوات";
 }
 
 /** إرسالُ مسودّة، أو إعادةُ إرسال دعوةٍ (رمزٌ جديد يُبطل القديم ومهلةٌ جديدة) */
@@ -279,7 +303,10 @@ export async function sendSeniorInvitation(ctx: SeniorContext, positionId: strin
     });
     return { ok: true, delivered: s.delivered };
   } catch (e) {
-    if (String(e).includes("SENIOR_POSITION_DUPLICATE")) return fail("لهذا البريد دعوةٌ أو تكليفٌ قائمٌ آخر");
+    if (String(e).includes("SENIOR_POSITION_DUPLICATE")) {
+      const row = await prisma.seniorPosition.findUnique({ where: { id: positionId }, select: { inviteEmail: true } });
+      return fail(row ? await duplicateReason(row.inviteEmail, positionId) : "لهذا البريد دعوةٌ أو تكليفٌ قائمٌ آخر");
+    }
     throw e;
   }
 }

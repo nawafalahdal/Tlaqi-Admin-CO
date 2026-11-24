@@ -156,6 +156,28 @@ const sess = (u: { id: string; role: string; fullName: string; email: string; de
     chk("**وباعتماده يُفعَّل منصبُه**", pActive.status === "active" && !!pActive.startDate);
     chk("ويأخذ رقمَه الوظيفيّ عند الاعتماد", newM2.employeeNo != null);
 
+    // ══ ٦ب) لم يجتز: لا دعوةَ ثانية بـ«دعوةٌ قائمة» مبهمة — بل سببُه وطريقُ إعادة اختباره (24 نوفمبر 2026)
+    const failEmail = `${TAG}-fail@example.test`;
+    const pFail = await mkPosition("fail", failEmail);
+    const accF = await S.acceptSeniorInvitation(pFail.token, { session: null, password: "Abcdef12345" });
+    const failM = await prisma.member.findUniqueOrThrow({ where: { email: failEmail } });
+    await prisma.member.update({ where: { id: failM.id }, data: { profileCompletedAt: new Date() } });
+    const wrongAnswers = Object.fromEntries(Object.entries(answers).map(([k, v]) => [k, ((v as number) + 1) % 4]));
+    const subF = await W.submitTestAttempt({ memberId: failM.id, answers: wrongAnswers });
+    chk("مدعوٌّ إلى الإدارة العليا لا يجتاز", accF.ok && subF?.passed === false);
+    const cCtx = await S.seniorContext(cS);
+    const secondInvite = await S.createSeniorInvitation(cCtx, { titleAr: "منصب ثانٍ", capabilities: ["board_view"], inviteName: "مدعو fail", inviteEmail: failEmail });
+    chk(
+      "**دعوتُه الثانية تُرفض بسببها الصريح** (لم يجتز، وطريقُ إعادة الاختبار) لا «دعوةٌ قائمة»",
+      !secondInvite.ok && secondInvite.reason.includes("لم يجتز") && secondInvite.reason.includes("أعِد فتحَ اختباره"),
+      JSON.stringify(secondInvite)
+    );
+    chk("**ويعيد الرئيسُ قائدُ الإدارة العليا فتحَ اختباره** على دعوته نفسِها", await CD.mayDecideCandidate(cS, failM.id));
+    await W.reopenCandidateTest({ memberId: failM.id, meetingHeld: true, note: "اجتماع شرح", performedByName: ceo.fullName, notify: false, performedBy: { id: ceo.id, name: ceo.fullName, role: "executive" } });
+    const failM2 = await prisma.member.findUniqueOrThrow({ where: { id: failM.id } });
+    const pFail2 = await prisma.seniorPosition.findUniqueOrThrow({ where: { id: pFail.p.id } });
+    chk("فيُفتح اختبارُه، ودعوتُه الأولى باقيةٌ بانتظار الاعتماد", failM2.testStatus === "not_started" && pFail2.status === "pending" && pFail2.holderMemberId === failM.id);
+
     // ══ ٧) صاحبُ حسابٍ قائم يقبل منصباً: اختبارٌ على حسابه، وعضويتُه كما هي
     const exEmail = `${TAG}-existing@example.test`;
     const exInv = await prisma.invite.create({ data: { fullName: "عضو قائم", email: exEmail, targetRole: "member", departmentId: ledDept.id, testTrackId: track.id, invitedById: lead.id, status: "used" } });
