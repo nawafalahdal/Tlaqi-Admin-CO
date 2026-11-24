@@ -16,6 +16,7 @@ import {
   removeMemberAction,
   committeeResponsibilityAction,
   decideProposalAction,
+  proposeMembershipChangeAction,
   warnLeadAction,
   acknowledgeLeadWarningAction,
   replaceWarnedLeadAction,
@@ -278,7 +279,8 @@ export function MembersTab({ d, L, theme }: Ctx) {
   const active = d.memberships.filter((m) => m.active);
   const former = d.memberships.filter((m) => !m.active);
   const canEditResp = (d.role.manage || d.role.lead) && !isFrozen(d);
-  // الهيكلُ (تعيينُ القائد بعد انتهاء قيادته) لمن يدير اللجنة؛ و**الأعضاءُ لقائدها** (قرار المؤسس ٣.٣)
+  // الهيكلُ لمن يدير اللجنة؛ و**الأعضاءُ لقائد القسم** (24 نوفمبر 2026) — وقائدُ اللجنة يقترح عليه
+  const canPropose = d.role.lead && !d.role.members && c.committeeStatus === "approved";
   const canManage = d.role.manage && !isFrozen(d);
   const canMembers = d.role.members && !isFrozen(d);
   const pending = d.proposals.filter((p) => p.status === "pending");
@@ -403,6 +405,37 @@ export function MembersTab({ d, L, theme }: Ctx) {
         </div>
       )}
 
+      {canPropose && (
+        <Section title={M.proposeTitle}>
+          <p className="mb-3 text-xs leading-relaxed text-black/55">{M.proposeHint}</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {d.candidates.length > 0 && (
+              <ActionForm action={proposeMembershipChangeAction} submits={[{ label: M.proposeAdd }]} pendingLabel={L.overview.saving} theme={theme} compact className="flex flex-col gap-2">
+                <Hidden d={d} />
+                <input type="hidden" name="kind" value="add_member" />
+                <select name="memberId" required aria-label={M.proposeAdd} className={inputCls}>
+                  {d.candidates.map((m) => (
+                    <option key={m.id} value={m.id}>{m.fullName}</option>
+                  ))}
+                </select>
+                <input name="note" maxLength={200} placeholder={M.proposeNote} aria-label={M.proposeNote} className={inputCls} />
+              </ActionForm>
+            )}
+            {active.some((m) => m.memberId !== c.leadMemberId) && (
+              <ActionForm action={proposeMembershipChangeAction} submits={[{ label: M.proposeRemove, variant: "outline" }]} pendingLabel={L.overview.saving} theme={theme} compact className="flex flex-col gap-2">
+                <Hidden d={d} />
+                <input type="hidden" name="kind" value="remove_member" />
+                <select name="memberId" required aria-label={M.proposeRemove} className={inputCls}>
+                  {active.filter((m) => m.memberId !== c.leadMemberId).map((m) => (
+                    <option key={m.memberId} value={m.memberId}>{m.member.fullName}</option>
+                  ))}
+                </select>
+                <input name="note" maxLength={200} placeholder={M.proposeNote} aria-label={M.proposeNote} className={inputCls} />
+              </ActionForm>
+            )}
+          </div>
+        </Section>
+      )}
       {(pending.length > 0 || past.length > 0) && (
         <Section title={M.proposals}>
           <ul className="flex flex-col gap-2">

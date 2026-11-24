@@ -155,14 +155,14 @@ async function purge() {
   const lb = await appointCommitteeLead(LEAD, C1.id, B.id);
   chk("٤ · ولا قائدُ القسم نفسُه", !lb.ok && lb.reason.includes("قائدٌ نشطٌ معتمد"));
   chk("٤ · والقائدُ باقٍ كما هو", (await prisma.department.findUniqueOrThrow({ where: { id: C1.id } })).leadMemberId === A.id);
-  // تغييرُ توقّعٍ مقصود (قرار المؤسس ٣.٣، نوفمبر 2026): **أعضاءُ اللجنة العاملة لقائدها** — كان قائدُ القسم يديرهم
+  // تغييرُ توقّعٍ مقصود (قرار المؤسس، 24 نوفمبر 2026 — يحلّ محلَّ ٣.٣): **أعضاءُ اللجنة لقائد القسم**، وقائدُ اللجنة يقترح
   const leadAdd = await addCommitteeMembers(LEAD, C1.id, [RLM.id]);
-  const leadRemove = await removeCommitteeMember(LEAD, C1.id, B.id, "اختبار");
-  chk("٢ · وقائدُ القسم لا يضيف ولا يُخرج أعضاءَ لجنةٍ عاملة (٣.٣)", !leadAdd.ok && !leadRemove.ok, JSON.stringify([leadAdd, leadRemove]).slice(0, 160));
+  const leadRemove = await removeCommitteeMember(LEAD, C1.id, RLM.id, "اختبار");
+  chk("٢ · **قائدُ القسم يضيف ويُخرج أعضاءَ لجنةٍ عاملة**", leadAdd.ok && leadRemove.ok, JSON.stringify([leadAdd, leadRemove]).slice(0, 160));
   const AL = await orgActor(sess("member", A.id, A.fullName));
   const clAdd = await addCommitteeMembers(AL, C1.id, [RLM.id]);
-  const clRemove = await removeCommitteeMember(AL, C1.id, RLM.id, "اختبار");
-  chk("٢ · وقائدُ اللجنة يضيف ويُخرج (٣.٣)", clAdd.ok && clRemove.ok, JSON.stringify([clAdd, clRemove]).slice(0, 160));
+  const clRemove = await removeCommitteeMember(AL, C1.id, B.id, "اختبار");
+  chk("٢ · **وقائدُ اللجنة لا يضيف ولا يُخرج**", !clAdd.ok && !clRemove.ok, JSON.stringify([clAdd, clRemove]).slice(0, 160));
 
   // ═══ قيودُ القاعدة: قائدٌ واحد، ولا لجنةٌ عاملةٌ بلا قائد ═══
   let both = false, none = false;
@@ -198,12 +198,12 @@ async function purge() {
   for (const [who, a] of [["المؤسس", F], ["الرئيس", CEO]] as const) {
     chk(`٢ · بعد المغادرة: ${who} يدير`, committeeRoleFor(a, { ...after, leadActive: c1s.leadActive, actingLeadUserId: c1s.actingLeadUserId }, false).manage);
   }
-  // تغييرُ توقّعٍ مقصود (٣.٣ مع ٣.٤): بعد المغادرة يدير الأعضاءَ **القائمُ بالخلافة** وحده — قائدٌ فعّالٌ واحد
+  // بعد المغادرة يقود القائمُ بالخلافة عملَ اللجنة (٣.٤)، **وأعضاؤها باقون لقائد القسم** (24 نوفمبر 2026)
   const HEIR = heir?.id === founder.id ? F : CEO;
   const OTHER = heir?.id === founder.id ? CEO : F;
-  chk("٢ · القائمُ بالخلافة يضيف عضواً بعد المغادرة (٣.٤)", (await addCommitteeMembers(HEIR, C1.id, [RLM.id])).ok);
-  chk("٢ · والآخرُ لا يدير الأعضاء", !(await removeCommitteeMember(OTHER, C1.id, RLM.id, "اختبار")).ok);
-  chk("٢ · والقائمُ بالخلافة يُنهي عضوية عضوٍ فيها", (await removeCommitteeMember(HEIR, C1.id, RLM.id, "اختبار")).ok);
+  chk("٢ · القائمُ بالخلافة لا يدير الأعضاء بعد المغادرة", !(await addCommitteeMembers(HEIR, C1.id, [RLM.id])).ok);
+  chk("٢ · ولا الآخر", !(await addCommitteeMembers(OTHER, C1.id, [RLM.id])).ok);
+  chk("٢ · **بل قائدُ القسم يضيف ويُنهي عضويةً فيها**", (await addCommitteeMembers(LEAD, C1.id, [RLM.id])).ok && (await removeCommitteeMember(LEAD, C1.id, RLM.id, "اختبار")).ok);
   const sus = await changeCommitteeStatus(F, C1.id, "suspended", "اختبار تعليق");
   chk("٢ · ويعلّقها", sus.ok, sus.ok ? "" : sus.reason);
   chk("٢ · ولا يعيّن قائداً وقائدُ القسم قائم (التعيينُ لقائد القسم)", !(await appointCommitteeLead(F, C1.id, B.id)).ok);

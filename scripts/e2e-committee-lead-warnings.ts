@@ -57,11 +57,11 @@ const H = 3600_000;
     const aB = await orgActor(sess("member", B.id, B.fullName));
     const aDP = await orgActor(sess("member", DP.id, DP.fullName));
 
-    // ═══ الصلاحيات (٣.٢ و٣.٣) ═══
+    // ═══ الصلاحيات (٣.٢، والأعضاءُ لقائد القسم — 24 نوفمبر 2026، يحلّ محلَّ ٣.٣) ═══
     const row = { ...C1, leadActive: true, actingLeadUserId: null };
-    chk("قائدُ القسم: ينبّه ويغيّر، ولا يدير الأعضاء", committeeRoleFor(aL, row, false).warnLead && !committeeRoleFor(aL, row, false).members);
-    chk("قائدُ اللجنة: يدير الأعضاء، ولا ينبّه", committeeRoleFor(aA, row, true).members && !committeeRoleFor(aA, row, true).warnLead);
-    chk("نائبُ قائد القسم المفوَّض: لا ينبّه ولا يغيّر (ق٤)", !committeeRoleFor(aDP, row, false).warnLead && !committeeRoleFor(aDP, row, false).members);
+    chk("**قائدُ القسم: ينبّه ويغيّر، ويدير الأعضاء**", committeeRoleFor(aL, row, false).warnLead && committeeRoleFor(aL, row, false).members);
+    chk("**قائدُ اللجنة: لا يدير الأعضاء** ولا ينبّه — يقود عملها ويقترح", !committeeRoleFor(aA, row, true).members && !committeeRoleFor(aA, row, true).warnLead);
+    chk("نائبُ قائد القسم المفوَّض: لا ينبّه ولا يغيّر قائدَ اللجنة (ق٤) — ويدير أعضاءها بتفويضه", !committeeRoleFor(aDP, row, false).warnLead && committeeRoleFor(aDP, row, false).members);
     chk("المؤسس: لا ينبّه ولا يدير الأعضاء بصفته", !committeeRoleFor(aF, row, false).warnLead && !committeeRoleFor(aF, row, false).members);
 
     // ═══ إصدارُ التنبيه ═══
@@ -135,12 +135,12 @@ const H = 3600_000;
     const dL2 = await committeeDetail(aL, C1.id);
     chk("**فترةُ القائد الجديد تبدأ بلا تنبيهات** (لا يرث تنبيهاتِ سلفه)", dL2?.leadWarnings.length === 0 && !dL2.canReplaceLead && dL2.canWarnLead);
 
-    // ═══ الأعضاء بعد التغيير (٣.٣) ═══
+    // ═══ الأعضاء بعد التغيير — لقائد القسم (24 نوفمبر 2026) ═══
     const aNew = await orgActor(sess("member", newLeadId));
-    chk("قائدُ القسم لا يُخرج السابق", !(await C.removeCommitteeMember(aL, C1.id, A.id, "x")).ok);
-    chk("والسابقُ لم يعد يدير الأعضاء", !(await C.addCommitteeMembers(aA, C1.id, [DP.id])).ok);
-    const rmOld = await C.removeCommitteeMember(aNew, C1.id, A.id, "بعد تغيير القيادة");
-    chk("والقائدُ الجديد يُخرجه وفق صلاحيته إن شاء", rmOld.ok, why(rmOld));
+    chk("السابقُ لا يدير الأعضاء", !(await C.addCommitteeMembers(aA, C1.id, [DP.id])).ok);
+    chk("ولا القائدُ الجديد — يقترح على قائد القسم", !(await C.removeCommitteeMember(aNew, C1.id, A.id, "x")).ok);
+    const rmOld = await C.removeCommitteeMember(aL, C1.id, A.id, "بعد تغيير القيادة");
+    chk("**وقائدُ القسم يُخرج السابق إن شاء**", rmOld.ok, why(rmOld));
 
     // ═══ فترةُ القيادة: ما قبل التعيين لا يُحسب ═══
     const C2 = await mkCommittee("c2", Cm.id === newLeadId ? B.id : Cm.id, []);

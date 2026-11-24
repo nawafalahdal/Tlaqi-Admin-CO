@@ -715,7 +715,7 @@ export async function noteCommitteeLeadDeparture(memberId: string, reason: strin
 
 /** رسالةُ الرفض الموحَّدة لإدارة الأعضاء (قرار المؤسس ٣.٣) */
 const MEMBERS_DENIED =
-  "إدارةُ أعضاء اللجنة لقائدها (أو القائم بقيادتها بالخلافة) — وقبل الاعتماد لمقترحها. ولا يُخرج قائدُ القسم أعضاءها";
+  "إضافةُ أعضاء اللجنة وإخراجُهم لقائد قسمها (وفي الإدارة العليا لقائدها) — وقائدُ اللجنة يقترح التغييرَ عليه من «الأعضاء»";
 
 export async function addCommitteeMembers(
   actor: OrgActor | null,
@@ -1038,7 +1038,7 @@ export async function proposeMembershipChange(
   const c = await loadCommittee(prisma, committeeId);
   if (!c) return fail("اللجنة غير موجودة");
   if (!isCommitteeLead(actor, c)) return fail("الاقتراحُ لقائد اللجنة");
-  // **قرار المؤسس ٣.٣:** قائدُ اللجنة يدير أعضاءها مباشرةً — فلا اقتراحاتٍ جديدة تنتظر قائدَ القسم
+  // قائدُ اللجنة يقترح وقائدُ القسم يقرّر (24 نوفمبر 2026) — ومن يدير الأعضاءَ بنفسه (قائدُ لجنةٍ هو قائدُ قسمها) لا يقترح على نفسه
   if (canManageCommitteeMembers(actor, c)) return fail("أنت تدير أعضاءَ اللجنة مباشرةً — أضِف أو أخرِج من «الأعضاء»");
   if (c.committeeStatus !== "approved") return fail("اللجنةُ ليست نشطة");
   const active = await prisma.committeeMembership.findMany({ where: { committeeId, active: true }, select: { memberId: true } });
@@ -1091,7 +1091,7 @@ export async function decideProposal(
   if (!p) return fail("الاقتراح غير موجود");
   const c = await loadCommittee(prisma, p.committeeId);
   if (!c) return fail("اللجنة غير موجودة");
-  // الاقتراحاتُ المعلّقة من قبل القرار ٣.٣ يبتّ فيها من يدير الأعضاءَ الآن — قائدُ اللجنة
+  // يبتّ في اقتراحات قائد اللجنة من يدير أعضاءها — قائدُ القسم (24 نوفمبر 2026)
   if (!canManageCommitteeMembers(actor, c)) return fail(MEMBERS_DENIED);
   if (p.status !== "pending") return fail("قُرِّر هذا الاقتراحُ بالفعل");
   const why = text(note, LIMITS.short);

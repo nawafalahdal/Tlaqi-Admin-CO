@@ -187,7 +187,7 @@ export type CommitteeRole = {
   member: boolean;
   /** يطّلع: كلُّ من سبق، ومسؤولُ التشغيل، وقائدُ القسم ونائبُه بلا تفويض */
   view: boolean;
-  /** **يدير أعضاءها** إضافةً وإخراجاً (قرار المؤسس ٣.٣) — قائدُها الفعلي وحده (`canManageCommitteeMembers`) */
+  /** **يدير أعضاءها** إضافةً وإخراجاً — قائدُ قسمها الأمّ (قرار المؤسس، 24 نوفمبر 2026؛ `canManageCommitteeMembers`) */
   members: boolean;
   /** **ينبّه قائدَها ويغيّره بعد ثلاثة تنبيهات** (٣.٢ وق٤) — قائدُ قسمها الأصيل وحده (`canWarnCommitteeLead`) */
   warnLead: boolean;
@@ -218,19 +218,17 @@ export function canManageCommittee(a: OrgActor | null, c: CommitteeRow): boolean
   return !leadActive && ["approved", "suspended", "awaiting_lead", "archived"].includes(c.committeeStatus ?? "");
 }
 
-/** **إدارةُ أعضاء اللجنة — لقائدها** (قرار المؤسس ٣.٣): من يقودها فعلاً يضيف ويُخرج، وقائدُ القسم لا يُخرج أحداً.
- *  - **لجنةٌ عاملةٌ أو معلّقة:** قائدُها العضوُ النشط؛ فإن غادر فالقائمُ بقيادتها بالخلافة (٣.٤) — قائدٌ فعّالٌ واحد.
- *  - **مرحلةُ التكوين** (مسودّة، مردودة، «بانتظار تعيين قائد»): مقترحُها يكوّنها كما كان — لا قائدَ لها بعد.
- *  - وما سواها (بانتظار الاعتماد، مكتملة، مؤرشفة، مغلقة): لا يُعدَّل أعضاؤها.
- *  ولا يمنحها لقبٌ: لا قائدُ القسم ولا نائبُه ولا المؤسسُ ولا الرئيسُ بصفتهم. */
+/** **إدارةُ أعضاء اللجنة — لقائد قسمها** (قرار المؤسس، 24 نوفمبر 2026 — يحلّ محلَّ ٣.٣): قائدُ القسم الأمّ يعيّن قائدَ
+ *  اللجنة ويضيف أعضاءها ويُخرجهم في كل الأقسام — وفي لجان الإدارة العليا قائدُها (الرئيسُ التنفيذي) — ونائبُه المفوَّض
+ *  (`committees_manage`)، كمن يقترح اللجان (`canProposeCommitteesOf`). **وقائدُ اللجنة لا يدير أعضاءها:** يقود عملَها (المهام
+ *  والاجتماعات والقرارات والتقارير ومسؤوليات أعضائها)، ويقترح تغييرَ أعضائها على قائد القسم (`proposeMembershipChange`).
+ *  - يُعدَّل أعضاؤها في التكوين (مسودّة، مردودة، «بانتظار تعيين قائد») وفي العمل (عاملة أو معلّقة).
+ *  - وما سواها (بانتظار الاعتماد، مكتملة، مؤرشفة، مغلقة): لا يُعدَّل أعضاؤها. */
 export function canManageCommitteeMembers(a: OrgActor | null, c: CommitteeRow): boolean {
   if (!a?.role || !c.parentId) return false;
   const status = c.committeeStatus ?? "";
-  if (status === "draft" || status === "rejected" || status === "awaiting_lead") return canProposeCommitteesOf(a, c.parentId);
-  if (status !== "approved" && status !== "suspended") return false;
-  const leadActive = c.leadActive ?? true;
-  if (a.kind === "member") return leadActive && !!c.leadMemberId && c.leadMemberId === a.id;
-  return !leadActive && !!c.actingLeadUserId && c.actingLeadUserId === a.id;
+  if (!["draft", "rejected", "awaiting_lead", "approved", "suspended"].includes(status)) return false;
+  return canProposeCommitteesOf(a, c.parentId);
 }
 
 /** **تنبيهُ قائد اللجنة، وتغييرُه بعد ثلاثة** (قرار المؤسس ٣.٢ وق٤) — لقائد قسمها الأصيل وحده؛ ولجانُ الإدارة العليا

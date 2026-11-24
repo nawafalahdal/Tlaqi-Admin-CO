@@ -1,7 +1,7 @@
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { orgActor, canProposeCommitteesOf, committeeRoleFor } from "@/lib/org/actor";
-import { createCommittee } from "@/lib/org/committeeService";
+import { addCommitteeMembers, createCommittee } from "@/lib/org/committeeService";
 import { departmentsForCreation } from "@/lib/org/queries";
 import { decideCommittee } from "@/lib/committees";
 import { ensureCommitteeSuccession } from "@/lib/org/committeeLeadership";
@@ -132,6 +132,21 @@ const sess = (u: { id: string; role: string; fullName: string; departmentId?: st
     chk("قائد اللجنة: يقودها ولا يملك هيكلها", leadRole.lead && !leadRole.manage);
     chk("والعضو: عضوٌ لا قائد ولا مدير", memberRole.member && !memberRole.lead && !memberRole.manage);
     chk("والرئيس التنفيذي: يملك هيكلها كما يملك قائدُ القسم هيكل لجان قسمه", ceoRole.manage && ceoRole.view);
+
+    // ٥ب — **أعضاءُ لجنة الإدارة العليا لقائدها (الرئيس التنفيذي)، لا لقائد اللجنة** (قرار المؤسس، 24 نوفمبر 2026 — حالتُه نفسُها:
+    // أضاف الرئيسُ شخصاً إلى الإدارة العليا ولم يستطع ضمَّه إلى لجنتها)
+    chk("**الرئيسُ يدير أعضاءها، وقائدُ اللجنة لا**", ceoRole.members && !leadRole.members);
+    const newcomer = await mkMember(senior.id);
+    const byCommitteeLead = await addCommitteeMembers(leadActor, c1.id, [newcomer.id]);
+    chk("قائدُ اللجنة لا يضيف عضواً", !byCommitteeLead.ok);
+    const byCeo = await addCommitteeMembers(aCeo, c1.id, [newcomer.id]);
+    chk(
+      "**ويضمّ الرئيسُ عضواً جديداً في الإدارة العليا إلى لجنتها**",
+      byCeo.ok && (await prisma.committeeMembership.count({ where: { committeeId: c1.id, memberId: newcomer.id, active: true } })) === 1,
+      JSON.stringify(byCeo)
+    );
+    const byFounderMember = await addCommitteeMembers(aFounder, c1.id, [s3.id]);
+    chk("والمؤسسُ لا يدير أعضاءها والرئيسُ قائمٌ بقيادة الإدارة العليا", !byFounderMember.ok);
 
     // ٦ — الخلافة: غياب القائد يُقيم قائماً بالقيادة
     await prisma.member.update({ where: { id: s1.id }, data: { isActive: false, terminatedAt: new Date(), exitReason: "فحص" } });

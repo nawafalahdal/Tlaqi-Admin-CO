@@ -201,6 +201,13 @@ export async function proposeChangeAction(_p: FormState, fd: FormData): Promise<
   );
 }
 
+/** **اقتراحُ قائد اللجنة تغييرَ أعضائها** — وقائدُ القسم يقرّر (24 نوفمبر 2026) */
+export async function proposeMembershipChangeAction(_p: FormState, fd: FormData): Promise<FormState> {
+  const id = s(fd, "committeeId");
+  const kind = s(fd, "kind") === "remove_member" ? "remove_member" : "add_member";
+  return run(committeePaths(id), async () => proposeMembershipChange(await actor(), id, { kind, memberId: s(fd, "memberId"), note: opt(fd, "note") }));
+}
+
 export async function decideProposalAction(_p: FormState, fd: FormData): Promise<FormState> {
   const id = s(fd, "committeeId");
   return run(committeePaths(id), async () =>

@@ -239,14 +239,13 @@ function sess(role: string, departmentId: string | null, id: string, name = "ا�
   chk("٨ · ولا يصير قائدَ قسم", CL.leadsDepartmentId === null && !canManageCommitteesOf(CL, deptA.id));
   const clStatus = await changeCommitteeStatus(CL, cid, "suspended", "محاولة");
   chk("٨ · ولا يغيّر حالةَ لجنته", !clStatus.ok, why(clStatus));
-  // تغييرُ توقّعٍ مقصود (قرار المؤسس ٣.٣، نوفمبر 2026): **قائدُ اللجنة يدير أعضاءها** — وقائدُ القسم لا يُخرجهم.
-  // كان: «ولا يضيف أعضاءً بنفسه» ويقترح فيقرّر قائدُ القسم
-  const clAdd = await addCommitteeMembers(CL, cid, [a5.id]);
-  chk("٨ · ويضيف أعضاءً بنفسه (٣.٣)", clAdd.ok, why(clAdd));
-  const laAddWorking = await addCommitteeMembers(LA, cid, [a6.id]);
-  chk("٨ · وقائدُ القسم لا يضيف إلى لجنةٍ عاملة (٣.٣)", !laAddWorking.ok, why(laAddWorking));
-  const laRemove = await removeCommitteeMember(LA, cid, a5.id, "محاولة");
-  chk("٨ · ولا يُخرج أعضاءها (٣.٣)", !laRemove.ok && (await prisma.committeeMembership.count({ where: { committeeId: cid, memberId: a5.id, active: true } })) === 1, why(laRemove));
+  // تغييرُ توقّعٍ مقصود (قرار المؤسس، 24 نوفمبر 2026 — يحلّ محلَّ ٣.٣): **أعضاءُ اللجنة لقائد القسم**، وقائدُ اللجنة يقترح عليه
+  const clAdd = await addCommitteeMembers(CL, cid, [a6.id]);
+  chk("٨ · ولا يضيف قائدُ اللجنة أعضاءً بنفسه", !clAdd.ok, why(clAdd));
+  const laAddWorking = await addCommitteeMembers(LA, cid, [a5.id]);
+  chk("٨ · بل قائدُ القسم يضيف إلى لجنةٍ عاملة", laAddWorking.ok, why(laAddWorking));
+  const clRemove = await removeCommitteeMember(CL, cid, a5.id, "محاولة");
+  chk("٨ · ولا يُخرج قائدُ اللجنة أعضاءها", !clRemove.ok && (await prisma.committeeMembership.count({ where: { committeeId: cid, memberId: a5.id, active: true } })) === 1, why(clRemove));
   const clLead = await appointCommitteeLead(CL, cid, a2.id);
   chk("٨ · ولا يعيّن قائداً", !clLead.ok, why(clLead));
   const ctxL = await committeeContext(CL, cid);
@@ -276,19 +275,16 @@ function sess(role: string, departmentId: string | null, id: string, name = "ا�
   }
   const dec = await addCommitteeDecision(CL, cid, { kind: "decision", text: "قرارٌ أوّل", meetingId: meet.ok ? meet.id : null });
   chk("٨ · يوثّق القرارات", dec.ok, why(dec));
-  // تغييرُ توقّعٍ مقصود (٣.٣): لا اقتراحاتٍ جديدة تنتظر قائدَ القسم — يُدير القائدُ الأعضاءَ مباشرة.
-  // وما عُلّق من قبل القرار يبتّ فيه من يدير الأعضاء الآن (قائدُ اللجنة)، لا قائدُ القسم
+  // قائدُ اللجنة يقترح وقائدُ القسم يقرّر (24 نوفمبر 2026)
   const prop = await proposeMembershipChange(CL, cid, { kind: "remove_member", memberId: a5.id, note: "خبرة" });
-  chk("٨ · لا اقتراحَ ينتظر قائدَ القسم — الإدارةُ مباشرة (٣.٣)", !prop.ok, why(prop));
+  chk("٨ · يقترح قائدُ اللجنة إخراجَ عضو", prop.ok, why(prop));
   const propOut = await addCommitteeMembers(CL, cid, [b1.id]);
   chk("٨ · ولا يضيف من قسمٍ آخر", !propOut.ok, why(propOut));
-  const p1 = await prisma.committeeProposal.create({
-    data: { committeeId: cid, kind: "remove_member", memberId: a5.id, proposedByName: "اقتراحٌ قبل القرار ٣.٣" },
-  });
-  const leaderDecides = await decideProposal(LA, p1.id, true, "موافق");
-  chk("٨ · والاقتراحُ المعلّق من قبل لا يقرّره قائدُ القسم (٣.٣)", !leaderDecides.ok, why(leaderDecides));
+  const p1 = await prisma.committeeProposal.findFirstOrThrow({ where: { committeeId: cid, status: "pending", memberId: a5.id } });
   const clDecides = await decideProposal(CL, p1.id, true, "تطبيق");
-  chk("٨ · ويبتّ فيه قائدُ اللجنة فيُطبَّق بالدالة نفسها", clDecides.ok && (await prisma.committeeMembership.count({ where: { committeeId: cid, memberId: a5.id, active: true } })) === 0, why(clDecides));
+  chk("٨ · ولا يقرّر اقتراحَه بنفسه", !clDecides.ok, why(clDecides));
+  const leaderDecides = await decideProposal(LA, p1.id, true, "موافق");
+  chk("٨ · ويقرّره قائدُ القسم فيُطبَّق بالدالة نفسها", leaderDecides.ok && (await prisma.committeeMembership.count({ where: { committeeId: cid, memberId: a5.id, active: true } })) === 0, why(leaderDecides));
   const rep = await submitCommitteeReport(CL, cid, { periodLabel: "نوفمبر", summary: "ملخّص" });
   chk("٨ · يرفع تقريراً لقائد القسم", rep.ok, why(rep));
   const rp = await prisma.committeeReport.findFirstOrThrow({ where: { committeeId: cid } });
@@ -395,7 +391,7 @@ function sess(role: string, departmentId: string | null, id: string, name = "ا�
   // ═══ ١٣) سجلُّ التدقيق ═══
   const events = await prisma.orgAuditEvent.findMany({ where: { entityId: cid }, orderBy: { createdAt: "asc" } });
   const actions = new Set(events.map((e) => e.action));
-  // تغييرُ توقّعٍ مقصود (٣.٣): لا اقتراحاتٍ جديدة («committee.proposal»)؛ فالقائدُ يُخرج مباشرةً («committee.member_removed»)
+  // قائدُ اللجنة يقترح وقائدُ القسم يقرّر فيُطبَّق («committee.proposal_decided» ثم «committee.member_removed») — 24 نوفمبر 2026
   for (const a of ["committee.created", "committee.members_added", "committee.submitted", "committee.decided", "committee.handover", "committee.status", "committee.member_removed", "committee.proposal_decided", "task.created", "task.status", "meeting.scheduled", "meeting.recorded", "decision.added", "report.submitted", "report.reviewed", "committee.responsibility"]) {
     chk(`١٣ · السجلُّ يحفظ «${a}»`, actions.has(a));
   }
