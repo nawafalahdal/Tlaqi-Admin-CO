@@ -1131,6 +1131,7 @@ raiseRequestHint: "Address it to a department, an administrative account, or a s
     leadsCount: "Leads",
     questionsCount: "Member test questions",
     emptyTrack: "Question bank is empty \u2014 members cannot be invited yet",
+    committeeJoinNote: "Committees have no question bank: a member joins the parent department through its journey, then the department lead adds them to the committee.",
     requestTitle: "Request a new department",
     requestHint: "Your request goes to the founder. The department isn't built, shown in the chart or open to invitations until it's approved.",
     requestSubmit: "Send the request to the founder",

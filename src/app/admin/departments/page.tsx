@@ -305,7 +305,8 @@ export default async function DepartmentsIndexPage() {
                         <dd className="font-semibold text-black/75">{membersOf(d)}</dd>
                       </div>
                       {/* وللإدارة العليا بنكٌ يعدّه قائدُها (الرئيس التنفيذي) كسائر الأقسام */}
-                      {isOpen(d) && (
+                      {/* **واللجنةُ لا بنكَ لها:** يدخل العضوُ قسمَه الأصيل برحلته، ثم يضمّه قائدُ القسم إليها (طلبُ المؤسس، 24 نوفمبر 2026) */}
+                      {isOpen(d) && !isCommittee && (
                         <div className="flex gap-1">
                           <dt className="text-black/45">{td.questionsCount}:</dt>
                           <dd className="font-semibold text-black/75">{questionCount}</dd>
@@ -330,9 +331,10 @@ export default async function DepartmentsIndexPage() {
                     )}
                     {/* ما لم يُفتح بعد بلا بنكٍ — وذاك حالُه قبل الفتح لا
                         نقصٌ يُنذَر به */}
-                    {questionCount === 0 && isOpen(d) && (
+                    {questionCount === 0 && isOpen(d) && !isCommittee && (
                       <p className="mt-1 text-xs font-semibold text-[#9A2E1C]">{td.emptyTrack}</p>
                     )}
+                    {isCommittee && <p className="mt-1 text-xs text-black/45">{td.committeeJoinNote}</p>}
                   </div>
                 </div>
                 {(canCreate || deletable || leaderChange) && (
