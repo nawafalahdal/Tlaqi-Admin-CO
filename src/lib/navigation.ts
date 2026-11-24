@@ -127,11 +127,11 @@ export function navFor(v: NavViewer, L: NavLabels): NavItem[] {
   // ── ١) الأعضاء: **مكانٌ واحد لإدارة الأشخاص** (24 نوفمبر 2026) — السجلُّ والدعواتُ والانضمامُ والإنهاءُ والترحيبُ
   //       والاستبيان تبويباتٌ في `/admin/people`، يظهر منها لكلٍّ ما يخصّه. وقائدُ القسم يجد فيه «أعضاء قسمي» (لوحةُ قسمه)
   if (admin || v.canWelcomeCards) {
-    items.push({ id: "members", label: L.members, href: "/admin/people", icon: "members", match: ["/admin/people", "/admin/invites", "/admin/tests", "/admin/terminations", "/admin/welcome-cards", "/admin/onboarding"], group: "people" });
+    items.push({ id: "members", label: L.members, href: "/admin/people", icon: "members", match: ["/admin/people", "/admin/invites", "/admin/tests", "/admin/terminations", "/admin/welcome-cards", "/admin/onboarding", "/senior/assessments"], group: "people" });
   }
 
   // ── ٢) الاعتمادات — لكل إداري
-  if (admin) items.push({ id: "approvals", label: L.approvals, href: "/admin/approvals", icon: "approvals", match: ["/admin/approvals"], group: "approvals" });
+  // «الاعتمادات» تبويبٌ في «التذاكر» (بانتظار اعتمادي) — 24 نوفمبر 2026
 
   // ── ٣) الأقسام — من يرى كل الأقسام؛ وقائدُ القسم لا يدخل غير قسمه
   if (top || r === "operations_officer") {
@@ -152,13 +152,13 @@ export function navFor(v: NavViewer, L: NavLabels): NavItem[] {
 
   // ── ما بعد المشترك
   items.push({ id: "plans", label: L.plans, href: "/plans", icon: "plans", match: ["/plans"], group: "reports" });
-  if (admin) items.push({ id: "tickets", label: L.tickets, href: "/admin/tickets", icon: "tickets", match: ["/admin/tickets"], group: "tickets" });
+  if (admin) items.push({ id: "tickets", label: L.tickets, href: "/admin/tickets", icon: "tickets", match: ["/admin/tickets", "/admin/approvals"], group: "tickets" });
   items.push({ id: "structure", label: L.structure, href: "/structure", icon: "structure", match: ["/structure"], group: "org" });
   // اللجان لكل الأدوار: كلٌّ يرى منها ما يخصّه (والقائمةُ تقول ذلك حين تكون فارغة)
   items.push({ id: "committees", label: L.committees, href: "/committees", icon: "committee", match: ["/committees"], group: "org" });
   if (v.canSenior) items.push({ id: "senior", label: L.senior, href: "/senior", icon: "senior", match: ["/senior"], group: "org" });
   if (v.canGovernanceLog) items.push({ id: "governanceLog", label: L.governanceLog, href: "/senior/log", icon: "history", match: ["/senior/log"], group: "reports" });
-  if (v.canAssessments) items.push({ id: "assessments", label: L.assessments, href: "/senior/assessments", icon: "survey", match: ["/senior/assessments"], group: "org" });
+  // «اختبارات الأعضاء» تبويبٌ في «الأعضاء» — 24 نوفمبر 2026
   if (v.canMembershipDecide) items.push({ id: "membershipDecide", label: L.membershipDecide, href: "/senior/approvals", icon: "approvals", match: ["/senior/approvals"], group: "org" });
   items.push({
     id: "agreements",

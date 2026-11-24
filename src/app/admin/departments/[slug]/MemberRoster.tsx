@@ -189,7 +189,7 @@ function WarningBadge({ count }: { count: number }) {
   );
 }
 
-function WarningForm({
+export function WarningForm({
   memberId,
   theme,
   onDone,

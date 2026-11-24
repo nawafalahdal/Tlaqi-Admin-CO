@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { reopenCandidateTestAction as reopenCandidateTestAction__server, purgeCandidateAction as purgeCandidateAction__server } from "./actions";
 import { Button, Card } from "@/components/ui";
@@ -88,7 +89,10 @@ export function StuckCandidateRow({
     <Card className="p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-bold">{candidate.fullName}</p>
+          {/* الاسمُ يفتح صفحتَه — وفيها إجراءاتُه كلُّها (24 نوفمبر 2026) */}
+          <Link href={`/admin/people/member/${candidate.id}`} className="text-sm font-bold hover:underline">
+            {candidate.fullName}
+          </Link>
           <p className="mt-0.5 break-all text-xs text-black/45">{candidate.email}</p>
           <p className="mt-0.5 text-xs text-black/45">{candidate.scope}</p>
         </div>

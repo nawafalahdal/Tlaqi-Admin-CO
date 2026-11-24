@@ -7,7 +7,6 @@ import { Card } from "@/components/ui";
 import { SeatConflicts } from "@/components/SeatConflicts";
 import { RemovedAccountRow } from "./RemovedAccountRow";
 import { MemberAccountRow } from "./MemberAccountRow";
-import { InactivePurgeButton } from "./InactivePurgeButton";
 import { awaitingCandidateDecision, canPurgeMembers } from "@/lib/permissions";
 import { StuckCandidateRow, type StuckCandidate } from "./StuckCandidateRow";
 import { DataTable } from "@/components/DataTable";
@@ -294,7 +293,12 @@ export async function RegisterView({
     rows.map((m) => ({
       id: m.id,
       cells: {
-        name: m.fullName,
+        // الاسمُ يفتح صفحتَه — وفيها إجراءاتُه كلُّها، والحذفُ منها (24 نوفمبر 2026)
+        name: (
+          <Link href={`/admin/people/member/${m.id}`} className="font-semibold hover:underline">
+            {m.fullName}
+          </Link>
+        ),
         // ومن غادر رقمُه محفوظٌ له — يُقرأ هنا كما كان
         email: (
           <span className="break-all text-black/70">
@@ -317,7 +321,15 @@ export async function RegisterView({
         score: m.testScore === null ? "—" : `${m.testScore}%`,
         created: formatDate(m.createdAt),
         // المتوقفُ والمرفوضُ يُحذف نهائياً — للمؤسس وحده، والخادمُ يفرضها (`permanentlyDeleteAccount`)
-        ...(canPurgePeople ? { actions: <InactivePurgeButton member={{ id: m.id, fullName: m.fullName, email: m.email }} /> } : {}),
+        ...(canPurgePeople
+          ? {
+              actions: (
+                <Link href={`/admin/people/member/${m.id}#manage`} className="inline-flex min-h-9 items-center rounded-lg px-3 text-xs font-semibold text-black/75 ring-1 ring-black/10 hover:bg-black/[0.03]">
+                  {tm.manage}
+                </Link>
+              ),
+            }
+          : {}),
       },
     }));
 

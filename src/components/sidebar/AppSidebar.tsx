@@ -197,9 +197,19 @@ async function badgesFor(
         : Promise.resolve(0),
     ]);
     return {
-      tickets: late > 0 ? { text: s.badgeLate.replace("{n}", String(late)), tone: "action" } : undefined,
-      approvals: approvals + joins > 0 ? { text: s.badgeAwaiting.replace("{n}", String(approvals + joins)), tone: "action" } : undefined,
-      terminations: terminations > 0 ? { text: s.badgeNew.replace("{n}", String(terminations)), tone: "info" } : undefined,
+      // «بانتظار اعتمادي» داخل التذاكر أولى من المتأخّر — وطلباتُ الانضمام والإنهاء في «الأعضاء»
+      tickets:
+        approvals > 0
+          ? { text: s.badgeAwaiting.replace("{n}", String(approvals)), tone: "action" }
+          : late > 0
+            ? { text: s.badgeLate.replace("{n}", String(late)), tone: "action" }
+            : undefined,
+      members:
+        joins > 0
+          ? { text: s.badgeAwaiting.replace("{n}", String(joins)), tone: "action" }
+          : terminations > 0
+            ? { text: s.badgeNew.replace("{n}", String(terminations)), tone: "info" }
+            : undefined,
     };
   } catch (err) {
     // العدُّ زينةٌ لا شرط: إن تعذّر بقيت القائمة كما هي

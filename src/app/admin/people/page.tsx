@@ -7,6 +7,8 @@ import { getLocale, getDictionary } from "@/i18n/server";
 import { canResendWelcome, canRequestWelcomeResend } from "@/lib/welcomeResend";
 import { canIssueCertificates } from "@/lib/recognitionDesk";
 import { canManageOnboardingSurvey } from "@/lib/onboardingSurvey";
+import { canAssignAssessments } from "@/lib/assessments";
+import { AssessmentsView } from "@/app/senior/(board)/assessments/AssessmentsView";
 import { RegisterView } from "./RegisterView";
 import { JoinsView } from "./JoinsView";
 import { InvitesView } from "../invites/InvitesView";
@@ -16,7 +18,7 @@ import { OnboardingView } from "../onboarding/OnboardingView";
 
 export const dynamic = "force-dynamic";
 
-const VIEWS = ["register", "invites", "joins", "terminations", "welcome", "onboarding"] as const;
+const VIEWS = ["register", "invites", "joins", "assessments", "terminations", "welcome", "onboarding"] as const;
 type View = (typeof VIEWS)[number];
 
 /** من يرى أيَّ تبويب — **الشروطُ نفسُها التي كانت على كل صفحةٍ وحدها**، وكلُّ تبويبٍ يفحص صلاحيته ثانيةً، والإجراءاتُ في الخادم */
@@ -31,6 +33,8 @@ async function viewsFor(session: Session): Promise<View[]> {
     terminations: top || r === "department_admin",
     welcome,
     onboarding: canManageOnboardingSurvey(r),
+    // اختباراتُ الأعضاء (تقييمُ عضوٍ قائم) — كانت عنصراً مستقلّاً في القائمة
+    assessments: top || (await canAssignAssessments(session)),
   };
   return VIEWS.filter((v) => can[v]);
 }
@@ -63,14 +67,8 @@ export default async function PeopleHub({ searchParams }: { searchParams: Promis
   return (
     <div className="min-h-screen bg-page">
       <div className="mx-auto max-w-6xl px-4 pt-5 sm:px-5 sm:pt-7">
-        {/* السجلُّ له عنوانُه «الأعضاء» — فلا يتكرّر العنوان فوقه */}
-        {view !== "register" && (
-          <>
-            <h1 className="text-xl font-bold">{L.title}</h1>
-            <p className="mt-1 text-xs text-black/50">{L.hint}</p>
-          </>
-        )}
-        <nav aria-label={L.title} className="-mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+        {/* لا عنوانَ فوق التبويبات: لكل تبويبٍ عنوانُه، فلا يتكرّر «الأعضاء» ووصفُه فوق «الدعوات» ووصفِها */}
+        <nav aria-label={L.title} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
           {ownDept && (
             <Link href={`/admin/departments/${ownDept.slug}`} className={pill(false)}>
               {L.myDept}
@@ -89,6 +87,11 @@ export default async function PeopleHub({ searchParams }: { searchParams: Promis
       {view === "terminations" && <TerminationsView />}
       {view === "welcome" && <WelcomeCardsView searchParams={params} />}
       {view === "onboarding" && <OnboardingView searchParams={params} />}
+      {view === "assessments" && (
+        <main className="mx-auto max-w-6xl px-4 py-6 sm:px-5 sm:py-8">
+          <AssessmentsView />
+        </main>
+      )}
     </div>
   );
 }

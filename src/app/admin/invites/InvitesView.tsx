@@ -124,9 +124,7 @@ export async function InvitesView() {
       <main className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-6 sm:px-5 sm:py-8">
         <div>
           <h1 className="text-lg font-bold sm:text-xl">{t.title}</h1>
-          <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
-            {ts.governance}
-          </p>
+          {/* قاعدةُ «منصبٌ واحد لشخصٍ واحد» في «السجل» مرّةً واحدة — ويفرضها الخادمُ عند الإنشاء (`assertRoleSeatAvailable`) */}
           <p className="mt-1 text-sm text-black/50">
             {t.subtitle}
           </p>

@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ApprovalsView } from "../approvals/ApprovalsView";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/PageHeader";
 import { auth } from "@/auth";
@@ -18,7 +20,7 @@ const CLOSED_TAKE = 100;
 
 /** صفحة التذاكر الخاصة — كل التذاكر في مكان واحد بدل تفرّقها بين اللوحات.
  *  المفتوحة تُعرض ببطاقات قابلة للإجراء، والمغلقة بجدول مرجعي. */
-export default async function TicketsPage() {
+async function TicketsBoard() {
   const session = await auth();
   if (!session) redirect("/login");
   // قادة الأقسام مشمولون: التذاكر قناة العمل، وحجبها عنهم كان يقطع
@@ -161,5 +163,30 @@ function StatTile({
       </p>
       <p className="mt-1.5 text-xs leading-snug text-black/45">{label}</p>
     </Card>
+  );
+}
+
+/** **«التذاكر» بتبويبين** (قرار المؤسس، 24 نوفمبر 2026): التذاكرُ نفسُها، و«بانتظار اعتمادي» — اعتماداتُ الطلبات التي تحتاج
+ *  موافقةَ مسؤولٍ أعلى (كانت صفحةً مستقلّة: هي تذاكرُ أصلاً). وكلٌّ بحرسه كما كان. */
+export default async function TicketsPage({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
+  const sp = await searchParams;
+  const view = sp.view === "approvals" ? "approvals" : "tickets";
+  const L = getDictionary(await getLocale()).ticketsHub;
+  const pill = (active: boolean) =>
+    `inline-flex min-h-10 shrink-0 items-center rounded-full px-4 text-sm font-semibold transition ${
+      active ? "bg-[#341D2B] text-on-brand" : "bg-white text-black/70 ring-1 ring-black/10 hover:bg-black/[0.03]"
+    }`;
+  return (
+    <div className="min-h-screen bg-page">
+      <nav aria-label={L.tickets} className="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-4 pt-5 sm:px-5 sm:pt-7">
+        <Link href="/admin/tickets" aria-current={view === "tickets" ? "page" : undefined} className={pill(view === "tickets")}>
+          {L.tickets}
+        </Link>
+        <Link href="/admin/tickets?view=approvals" aria-current={view === "approvals" ? "page" : undefined} className={pill(view === "approvals")}>
+          {L.approvals}
+        </Link>
+      </nav>
+      {view === "approvals" ? <ApprovalsView /> : <TicketsBoard />}
+    </div>
   );
 }

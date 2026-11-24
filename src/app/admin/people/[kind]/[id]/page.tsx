@@ -16,6 +16,9 @@ import { AccountRow } from "../../AccountRow";
 import { MemberAccountRow } from "../../MemberAccountRow";
 import { MyAccountCard } from "../../MyAccountCard";
 import { FounderMemberControls } from "@/components/FounderMemberControls";
+import { MemberActionCenter } from "./MemberActionCenter";
+import { AUTHORITY_LABEL, authoritiesFor, mayDecideCandidate } from "@/lib/candidateDecision";
+import { mayIssueCertificateFor } from "@/lib/recognitionDesk";
 import { surveyStatus } from "@/lib/onboardingSurvey";
 import { StatusChip } from "../../../onboarding/StatusChip";
 
@@ -130,6 +133,19 @@ export default async function PersonPage({
       : Promise.resolve(undefined),
   ]);
 
+  // ── إجراءاتُ العضو (24 نوفمبر 2026): كلٌّ بصلاحيته — والخادمُ يفرضها ثانيةً عند كل إجراء
+  const candidate = !!member && member.approvalStatus === "pending_review" && member.isActive;
+  const canDecide = candidate && (await mayDecideCandidate(session, member!.id));
+  const decide = canDecide ? (member!.testStatus === "passed" ? "approve" : member!.testStatus === "failed" ? "failed" : null) : null;
+  const decidedBy =
+    candidate && !canDecide && (member!.testStatus === "passed" || member!.testStatus === "failed")
+      ? AUTHORITY_LABEL[(await authoritiesFor([member!])).get(member!.id)!]
+      : null;
+  const approvedMember = !!member && member.approvalStatus === "approved" && member.isActive;
+  // التنبيهُ كما في `issueWarningAction`: المؤسسُ والرئيسُ، وقائدُ قسمه
+  const canWarn = approvedMember && (top || (role === "department_admin" && member!.departmentId === session.user.departmentId));
+  const canCertify = approvedMember && mayIssueCertificateFor(role, "member");
+
   const TS = getDictionary(locale).onboarding;
   const survey =
     top && member
@@ -228,6 +244,17 @@ export default async function PersonPage({
             </Link>
           )}
         </Card>
+
+        {member && (
+          <MemberActionCenter
+            theme={theme}
+            member={{ id: member.id, fullName: member.fullName, email: member.email, testScore: member.testScore }}
+            decide={decide}
+            decidedBy={decidedBy}
+            canWarn={canWarn}
+            canCertify={canCertify}
+          />
+        )}
 
         <div className="grid gap-4 lg:grid-cols-3">
           <Card className="p-4 sm:p-5">
