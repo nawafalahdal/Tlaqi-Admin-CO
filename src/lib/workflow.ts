@@ -619,10 +619,13 @@ export async function completeLeadershipPromotion(memberId: string, performedByN
 }
 
 export async function rejectMember(memberId: string, decidedBy?: DecidedBy) {
-  const member = await prisma.member.update({
-    where: { id: memberId },
+  // لا يُرفض إلا مرشّحٌ ينتظر الحسم — لا عضوٌ معتمد ولا مرفوضٌ من قبل (الشرطُ في الكتابة نفسِها)
+  const w = await prisma.member.updateMany({
+    where: { id: memberId, approvalStatus: "pending_review" },
     data: { approvalStatus: "rejected", decidedAt: new Date(), ...decidedFields(decidedBy) },
   });
+  if (!w.count) throw new Error("لا يُرفض إلا مرشّحٌ ينتظر الحسم — حالتُه تغيّرت أو حُسم أمرُه");
+  const member = await prisma.member.findUniqueOrThrow({ where: { id: memberId } });
   if (decidedBy) await recordDecision(member, "rejected", decidedBy);
   {
     const { settleSeniorPositionsOf } = await import("@/lib/governance/senior");

@@ -178,6 +178,29 @@ const sess = (u: { id: string; role: string; fullName: string; email: string; de
     const pFail2 = await prisma.seniorPosition.findUniqueOrThrow({ where: { id: pFail.p.id } });
     chk("فيُفتح اختبارُه، ودعوتُه الأولى باقيةٌ بانتظار الاعتماد", failM2.testStatus === "not_started" && pFail2.status === "pending" && pFail2.holderMemberId === failM.id);
 
+    // ══ ٦ج) أو يرفضه الرئيسُ قائدُ الإدارة العليا: تنتهي دعوتُه، فيُدعى من جديد أو يُحذف نهائياً بلا إقرارٍ خاص
+    const rejEmail = `${TAG}-rej@example.test`;
+    const pRej = await mkPosition("rej", rejEmail);
+    await S.acceptSeniorInvitation(pRej.token, { session: null, password: "Abcdef12345" });
+    const rejM = await prisma.member.findUniqueOrThrow({ where: { email: rejEmail } });
+    await prisma.member.update({ where: { id: rejM.id }, data: { profileCompletedAt: new Date() } });
+    await W.submitTestAttempt({ memberId: rejM.id, answers: wrongAnswers });
+    await W.rejectMember(rejM.id, { id: ceo.id, name: ceo.fullName, role: "executive" });
+    const pRejAfter = await prisma.seniorPosition.findUniqueOrThrow({ where: { id: pRej.p.id } });
+    chk("**الرفضُ ينهي دعوتَه المنتظرة**", (await prisma.member.findUniqueOrThrow({ where: { id: rejM.id } })).approvalStatus === "rejected" && pRejAfter.status === "ended");
+    const reInvite = await S.createSeniorInvitation(cCtx, { titleAr: "منصب بعد الرفض", capabilities: ["board_view"], inviteName: "مدعو rej", inviteEmail: rejEmail });
+    chk("**فتُقبل دعوتُه من جديد** (لا «دعوةٌ قائمة»)", reInvite.ok, JSON.stringify(reInvite));
+    let twiceErr = "";
+    try {
+      await W.rejectMember(rejM.id, { id: ceo.id, name: ceo.fullName, role: "executive" });
+    } catch (e) {
+      twiceErr = String(e);
+    }
+    chk("ولا يُرفض مرّتين (ولا يُرفض معتمَد)", twiceErr.includes("لا يُرفض إلا مرشّحٌ ينتظر الحسم"), twiceErr.slice(0, 100));
+    const { permanentlyDeleteAccount: purge } = await import("@/lib/founderActions");
+    const gone = await purge({ kind: "member", id: rejM.id, confirmEmail: rejEmail, reason: "مرفوض — حذف", force: false, actorRole: "super_admin", actorId: founder.id, actorName: founder.fullName });
+    chk("**والمرفوضُ يُحذف نهائياً بلا إقرارٍ خاص**", gone.ok && !(await prisma.member.findUnique({ where: { id: rejM.id } })), JSON.stringify(gone));
+
     // ══ ٧) صاحبُ حسابٍ قائم يقبل منصباً: اختبارٌ على حسابه، وعضويتُه كما هي
     const exEmail = `${TAG}-existing@example.test`;
     const exInv = await prisma.invite.create({ data: { fullName: "عضو قائم", email: exEmail, targetRole: "member", departmentId: ledDept.id, testTrackId: track.id, invitedById: lead.id, status: "used" } });

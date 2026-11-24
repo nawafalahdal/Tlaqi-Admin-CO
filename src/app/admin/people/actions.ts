@@ -7,6 +7,7 @@ import {
   removeLeadershipUser,
   resetUserCredentials,
   reopenCandidateTest,
+  rejectMember,
   resendReopenedTest,
   purgeCandidate,
 } from "@/lib/workflow";
@@ -92,6 +93,26 @@ export async function removeLeadershipUserAction(
  *  **يملكها من يملك حسمَ المرشّح** (`mayDecideCandidate`): إعادةُ الفتح تُعيد حالةَ الاعتماد إلى «قيد المراجعة»، فهي
  *  قرارُ اعتماد — قائدُ قسمه، أو جهةُ الاعتماد المستقلة. **والمؤسسُ والرئيسُ التنفيذيُّ يطّلعان ولا يُعيدان** (ق١).
  *  **ولا رسالةَ تلقائية** (ق٣): `notify` اختيارٌ صريحٌ غيرُ محدَّدٍ افتراضياً. */
+/** **رفضُ مرشّحٍ لم يجتز** — بجانب «إعادة الاختبار» (طلبُ المؤسس، 24 نوفمبر 2026). يملكه من يحسم أمرَه وحده
+ *  (`mayDecideCandidate`)، وينتهي به ترشّحُه ومنصبُه المنتظر في الإدارة العليا إن كان (`settleSeniorPositionsOf`)، فيصير في
+ *  «المتوقفون والمرفوضون»: يُحذف نهائياً أو يُدعى من جديد. والخطأُ يعود في مكانه لا صفحةَ خطأ. */
+export async function rejectCandidateAction(memberId: string): Promise<{ error: string | null; done?: boolean }> {
+  const L = getDictionary(await getLocale()).rPeopleActions;
+  const session = await auth();
+  if (!session) return { error: L.youNeedToSign };
+  if (!(await mayDecideCandidate(session, memberId))) return { error: L.youAreNotAllowed };
+  try {
+    await rejectMember(memberId, { id: session.user.id, name: session.user.name ?? "—", role: session.user.role });
+    revalidatePath("/admin/people");
+    revalidatePath("/admin/approvals");
+    revalidatePath("/senior/approvals");
+    revalidatePath("/admin/departments", "layout");
+    return { error: null, done: true };
+  } catch (err) {
+    return { error: safeErrorMessage(err) };
+  }
+}
+
 export async function reopenCandidateTestAction(
   memberId: string,
   meetingHeld: boolean,

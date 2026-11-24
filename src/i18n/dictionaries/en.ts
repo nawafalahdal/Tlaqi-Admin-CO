@@ -377,6 +377,10 @@ requestsHint: "What the platform creates on its own: the welcome banner on appro
   needsMeetingRow: {
     score: "Score",
     reopenInvite: "Re-invite to the test",
+    reject: "Reject",
+    rejectTitle: "Reject {0}'s candidacy?",
+    rejectBody: "The candidacy ends (with any pending senior-administration position) and the decision is recorded under your name. They then move to “Stopped and rejected”, where they can be deleted permanently or invited again.",
+    rejectDone: "Candidacy rejected — now under “Stopped and rejected”, where they can be deleted permanently or invited again.",
   },
   memberInviteForm: {
     fullName: "Full name",

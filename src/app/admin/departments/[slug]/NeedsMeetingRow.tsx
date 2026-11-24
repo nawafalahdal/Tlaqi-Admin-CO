@@ -2,7 +2,9 @@
 
 import { brandInk } from "@/lib/brand";
 import { useState, useTransition } from "react";
-import { reopenCandidateTestAction as reopenCandidateTestAction__server } from "../../people/actions";
+import { reopenCandidateTestAction as reopenCandidateTestAction__server, rejectCandidateAction as rejectCandidateAction__server } from "../../people/actions";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { fmt } from "@/i18n/fmt";
 import { Card, Button } from "@/components/ui";
 import type { themeFromColor } from "@/lib/brand";
 import { useTranslations } from "@/i18n/LocaleProvider";
@@ -10,6 +12,7 @@ import { useTranslations } from "@/i18n/LocaleProvider";
 import { guardAction } from "@/lib/actionGuard";
 // فشلُ نقل الإجراء (نسخةٌ سابقة أو انقطاع) يُعاد خطأً في مكانه لا صفحةَ خطأ (`lib/actionGuard`)
 const reopenCandidateTestAction = guardAction(reopenCandidateTestAction__server);
+const rejectCandidateAction = guardAction(rejectCandidateAction__server);
 
 /** مرشّحٌ لم يجتز الاختبار، في لوحة قائد قسمه.
  *
@@ -33,21 +36,35 @@ export function NeedsMeetingRow({
   const [notify, setNotify] = useState(false);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [rejectError, setRejectError] = useState<string | null>(null);
+
+  function reject() {
+    setRejectError(null);
+    startTransition(async () => {
+      const res = await rejectCandidateAction(member.id);
+      if (res.error) setRejectError(res.error);
+      else {
+        setAsking(false);
+        setDone(t.rejectDone);
+      }
+    });
+  }
 
   function reopen() {
     setError(null);
     startTransition(async () => {
       const res = await reopenCandidateTestAction(member.id, meetingHeld, note, notify);
       if (res.error) setError(res.error);
-      else setDone(true);
+      else setDone(s.reopenDone);
     });
   }
 
   if (done) {
     return (
       <Card className="p-4">
-        <p className="text-sm font-semibold text-emerald-700">{s.reopenDone}</p>
+        <p className="text-sm font-semibold text-emerald-700">{done}</p>
         <p className="mt-1 text-xs text-black/45" dir="ltr">{member.email}</p>
       </Card>
     );
@@ -70,6 +87,19 @@ export function NeedsMeetingRow({
             <Button theme={theme} variant="outline" onClick={() => setOpen(true)}>
               {t.reopenInvite}
             </Button>
+          )}
+          {/* الرفضُ بجانب إعادة الاختبار — ينهي الترشّح فيُحذف أو يُدعى من جديد (24 نوفمبر 2026) */}
+          {!open && (
+            <button
+              type="button"
+              onClick={() => {
+                setRejectError(null);
+                setAsking(true);
+              }}
+              className="inline-flex min-h-11 items-center rounded-xl bg-red-50 px-4 text-sm font-semibold text-red-800 ring-1 ring-red-300 hover:bg-red-100"
+            >
+              {t.reject}
+            </button>
           )}
         </div>
       </div>
@@ -118,6 +148,16 @@ export function NeedsMeetingRow({
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={asking}
+        title={fmt(t.rejectTitle, member.fullName)}
+        body={t.rejectBody}
+        confirmLabel={t.reject}
+        pending={pending}
+        error={rejectError}
+        onConfirm={reject}
+        onCancel={() => setAsking(false)}
+      />
     </Card>
   );
 }
