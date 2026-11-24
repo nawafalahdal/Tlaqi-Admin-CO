@@ -8,6 +8,8 @@ import type { Session } from "next-auth";
 import { mayResendTo, resenderRoleFor, RESENDER_LABEL } from "@/lib/welcomeResend";
 import { retireMarketingProfile } from "@/lib/marketing/team";
 import { REDACTED_EMAIL, releaseSeniorPositions, eraseRefusal } from "@/lib/governance/seniorRelease";
+import { canPurgeMembers } from "@/lib/permissions";
+import { recordOrgEvent } from "@/lib/org/audit";
 
 /** تصرّفات المؤسس وحده — وتُحرَس في الخادم لا بإخفاء زرّ.
  *
@@ -223,6 +225,24 @@ const loadErasableMember = (where: { id: string } | { email: string }) =>
 
 type EraseActor = { id: string; name: string; role: string };
 
+/** **حذفُ مرشّحٍ قبل حسم أمره** — أثرُه في سجل التدقيق: من حذف وبأيّ دور، ونتيجةُ اختباره، والسبب */
+export async function recordUndecidedPurge(
+  member: { id: string; fullName: string; departmentId: string | null; testStatus: string; testScore: number | null },
+  actor: EraseActor,
+  reason: string
+) {
+  await recordOrgEvent(prisma, {
+    scope: "member",
+    entityId: member.id,
+    departmentId: member.departmentId ?? "—",
+    action: "candidate.purged_undecided",
+    actor: { kind: "user", id: actor.id, name: actor.name, role: actor.role },
+    before: { name: member.fullName, testStatus: member.testStatus, testScore: member.testScore },
+    after: null,
+    note: reason,
+  });
+}
+
 /** محوُ سجلّ عضويةٍ نهائياً — الطريقُ الواحد لكلا الحذفين.
  *
  *  الشاهدةُ في الشيت أولاً (بعد الحذف لا يبقى صفٌّ يُقرأ)، ثم يُفَكّ ما يخصّ أطرافاً أخرى (التذاكر والطلبات ومناصبُ الإدارة
@@ -306,6 +326,8 @@ export async function permanentlyDeleteAccount(opts: {
    *  أُنشئ خطأً وهو نشط، فإلزامُه بتنحيته أولاً خطوةٌ بلا معنى. فصار
    *  له حذفُه مباشرةً — بإقرارٍ ثانٍ لا بنقرةٍ واحدة. */
   force?: boolean;
+  /** **حذفُ مرشّحٍ ينتظر قرارَ جهة اعتماده** بإقرارٍ صريح — يُسجَّل في سجل التدقيق (`candidate.purged_undecided`) */
+  acknowledgeUndecided?: boolean;
   actorRole: string;
   actorId: string;
   actorName: string;
@@ -326,7 +348,9 @@ export async function permanentlyDeleteAccount(opts: {
     }
   | { ok: false; reason: string }
 > {
-  assertFounder(opts.actorRole);
+  // سجلُّ العضو أو المرشّح: للمؤسس والرئيس التنفيذي — والحسابُ القياديُّ للمؤسس وحده
+  if (opts.kind === "user" && opts.actorRole !== "super_admin") return { ok: false, reason: "حذفُ الحسابات القيادية للمؤسس وحده" };
+  if (!canPurgeMembers(opts.actorRole)) return { ok: false, reason: "الحذفُ النهائيُّ للمؤسس والرئيس التنفيذي وحدهما" };
   const reason = opts.reason.trim();
   if (reason.length < 5) return { ok: false, reason: "اكتب سبب الحذف" };
 
@@ -479,6 +503,7 @@ export async function permanentlyDeleteAccount(opts: {
   // الإداري — بحمايات ذلك الطريق كلها (المؤسس، والخَلَف، والإقرار) — فيُمحى
   // السجلّان معاً.
   const twin = await prisma.user.findUnique({ where: { email: member.email }, select: { id: true } });
+  if (twin && opts.actorRole !== "super_admin") return { ok: false, reason: "له حسابٌ قياديٌّ بالبريد نفسه — حذفُ الحسابات القيادية للمؤسس وحده" };
   if (twin) return permanentlyDeleteAccount({ ...opts, kind: "user", id: twin.id });
 
   if (member.isActive && member.approvalStatus === "approved" && !opts.force) {
@@ -487,12 +512,15 @@ export async function permanentlyDeleteAccount(opts: {
       reason: "هذا عضو معتمد نشط — أنهِ عضويته أولاً، أو أكّد الحذف المباشر",
     };
   }
-  // **ولا يتجاوزه `force`:** مرشّحٌ ينتظر قرارَ جهة الاعتماد — حذفُه ردٌّ بلا قرارها (ق١، البند ١١)
+  // مرشّحٌ ينتظر قرارَ جهة اعتماده: حذفُه إنهاءٌ لترشّحه بلا قرارها — فلا يقع إلا بإقرارٍ صريح، ويُسجَّل (طلبُ المؤسس،
+  // 24 نوفمبر 2026: كان ممنوعاً على الجميع برسالةٍ لا تقول ما العمل)
   const { awaitingCandidateDecision, AWAITING_DECISION_REFUSAL } = await import("@/lib/permissions");
-  if (awaitingCandidateDecision(member)) return { ok: false, reason: AWAITING_DECISION_REFUSAL };
+  const undecided = awaitingCandidateDecision(member);
+  if (undecided && !opts.acknowledgeUndecided) return { ok: false, reason: AWAITING_DECISION_REFUSAL };
 
   try {
-    await eraseMember(member, { tombstone, reason, stamp, event: "حذف نهائي من قاعدة البيانات", actor: eraseActor });
+    await eraseMember(member, { tombstone, reason, stamp, event: undecided ? "حذف نهائي لمرشّحٍ قبل حسم أمره" : "حذف نهائي من قاعدة البيانات", actor: eraseActor });
+    if (undecided) await recordUndecidedPurge(member, eraseActor, reason);
   } catch (err) {
     const refusal = eraseRefusal(err);
     if (refusal) return { ok: false, reason: refusal };

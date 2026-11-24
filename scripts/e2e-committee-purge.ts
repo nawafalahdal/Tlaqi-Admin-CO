@@ -136,8 +136,8 @@ const why = (r: { ok: boolean; reason?: string }) => (r.ok ? "" : r.reason ?? ""
     const stopped2 = await member(parent.id, { isActive: false, terminatedAt: new Date() });
     const rWrong = await del(stopped2.id, "other@example.test");
     chk("والبريدُ المكتوب خطأً لا يحذف شيئاً", !rWrong.ok && !!(await prisma.member.findUnique({ where: { id: stopped2.id } })), why(rWrong));
-    const rNotFounder = await permanentlyDeleteAccount({ kind: "member", id: stopped2.id, confirmEmail: stopped2.email, reason: "محاولة", force: false, actorRole: "executive", actorId: exec?.id ?? founder.id, actorName: "تنفيذي" }).catch((e: Error) => ({ ok: false as const, reason: e.message }));
-    chk("**وغيرُ المؤسس يُرفض**", !rNotFounder.ok && !!(await prisma.member.findUnique({ where: { id: stopped2.id } })), JSON.stringify(rNotFounder));
+    const rNotFounder = await permanentlyDeleteAccount({ kind: "member", id: stopped2.id, confirmEmail: stopped2.email, reason: "محاولة", force: false, actorRole: "department_admin", actorId: exec?.id ?? founder.id, actorName: "قائد قسم" }).catch((e: Error) => ({ ok: false as const, reason: e.message }));
+    chk("**وغيرُ المؤسس والرئيس التنفيذي يُرفض** (قائدُ قسم)", !rNotFounder.ok && !!(await prisma.member.findUnique({ where: { id: stopped2.id } })), JSON.stringify(rNotFounder));
   } catch (e) {
     chk("لم يقع استثناء", false, e instanceof Error ? e.stack?.split("\n").slice(0, 3).join(" ") ?? e.message : String(e));
   } finally {

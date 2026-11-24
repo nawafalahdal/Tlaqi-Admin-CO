@@ -26,6 +26,8 @@ export type StuckCandidate = {
   canResendReopen: boolean;
   /** هذا الصف يحمل اسم أو بريد حسابٍ قيادي نشط — أي أنه أثر دعوةٍ اكتملت */
   twin: "name" | "email" | null;
+  /** أنهى اختبارَه وينتظر قرارَ جهة اعتماده — حذفُه بإقرارٍ صريحٍ يُسجَّل */
+  awaitingDecision?: boolean;
 };
 
 /** بطاقة مرشّح عالق: تُظهر كل ما يُبنى عليه القرار قبل اتخاذه — نتيجته،
@@ -42,6 +44,7 @@ export function StuckCandidateRow({
   const dict = useTranslations();
   const t = dict.stuck;
   const [panel, setPanel] = useState<"none" | "reopen" | "purge">("none");
+  const [undecidedAck, setUndecidedAck] = useState(false);
   const [meetingHeld, setMeetingHeld] = useState(false);
   const [notify, setNotify] = useState(false);
   const [note, setNote] = useState("");
@@ -66,7 +69,7 @@ export function StuckCandidateRow({
   function runPurge() {
     setError(null);
     startTransition(async () => {
-      const res = await purgeCandidateAction(candidate.id, confirmEmail, reason);
+      const res = await purgeCandidateAction(candidate.id, confirmEmail, reason, undecidedAck);
       if (res.error) setError(res.error);
       else setDone(t.purgeDone);
     });
@@ -188,6 +191,15 @@ export function StuckCandidateRow({
           <p className="rounded-lg bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-800">
             {t.purgeWarning}
           </p>
+          {candidate.awaitingDecision && (
+            <div className="flex flex-col gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900 ring-1 ring-amber-200">
+              <p>{t.undecidedNote}</p>
+              <label className="flex items-center gap-2 font-semibold">
+                <input type="checkbox" checked={undecidedAck} onChange={(e) => setUndecidedAck(e.target.checked)} className="h-4 w-4" />
+                {t.undecidedAck}
+              </label>
+            </div>
+          )}
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -209,7 +221,7 @@ export function StuckCandidateRow({
             <button
               type="button"
               onClick={runPurge}
-              disabled={pending || confirmEmail.trim().toLowerCase() !== candidate.email.toLowerCase()}
+              disabled={pending || confirmEmail.trim().toLowerCase() !== candidate.email.toLowerCase() || (!!candidate.awaitingDecision && !undecidedAck)}
               className="min-h-11 rounded-xl bg-red-700 px-4 text-sm font-semibold text-on-brand disabled:opacity-40"
             >
               {pending ? t.working : t.purgeConfirm}

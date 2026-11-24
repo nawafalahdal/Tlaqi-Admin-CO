@@ -2,7 +2,8 @@
  *  - لا يحسمان مرشّحاً من أي نوع: عضوَ قسمٍ بقائد، أو بلا قائد، أو مرشّحاً قيادياً، أو للإدارة العليا.
  *  - ولا يعيدان فتحَ اختبار، ولا يُكملان ترقيةً قيادية (طريقُها `mayDecideCandidate` نفسُه).
  *  - ويطّلعان على الكل (`mayViewCandidate`).
- *  - **ولا ردَّ بطريقٍ آخر:** الحذفُ النهائيُّ لمرشّحٍ ينتظر قرارَ جهة الاعتماد ممنوعٌ — ولو بالإقرار المباشر (`force`).
+ *  - **ولا ردَّ بطريقٍ آخر خفيّ:** الحذفُ النهائيُّ لمرشّحٍ ينتظر قرارَ جهة الاعتماد لا يقع إلا بإقرارٍ صريحٍ خاصّ
+ *    (`acknowledgeUndecided`، 24 نوفمبر 2026) — لا يكفي `force` — ويُسجَّل في سجل التدقيق.
  *    ويبقى للحذف غرضُه الأصلي: مرشّحٌ عالقٌ لم يُكمل اختبارَه، أو مردودٌ حُسم أمرُه.
  *  تشغيل: DATABASE_URL=… npx tsx --tsconfig tsconfig.json scripts/e2e-founder-view-only.ts */
 import type { Session } from "next-auth";
@@ -73,7 +74,7 @@ const sess = (u: { id: string; role: string; fullName: string; email: string; de
     } catch (e) {
       purgeErr = e instanceof Error ? e.message : String(e);
     }
-    chk("**المؤسسُ لا يحذف مرشّحاً اجتاز وينتظر القرار** (حذفُ مرشّحٍ عالق)", purgeErr.includes("ينتظر قرارَ جهة الاعتماد") && !!(await prisma.member.findUnique({ where: { id: cMember.id } })), purgeErr);
+    chk("**المؤسسُ لا يحذف مرشّحاً اجتاز وينتظر القرار بلا إقرارٍ صريح** (حذفُ مرشّحٍ عالق)", purgeErr.includes("أحذفه قبل حسم أمره") && !!(await prisma.member.findUnique({ where: { id: cMember.id } })), purgeErr);
     const failed = await mk("failed", P.id, { testStatus: "failed", testScore: 40 });
     let purgeFailedErr = "";
     try {
@@ -81,9 +82,9 @@ const sess = (u: { id: string; role: string; fullName: string; email: string; de
     } catch (e) {
       purgeFailedErr = e instanceof Error ? e.message : String(e);
     }
-    chk("ولا من لم يجتز وينتظر قرارَ جهة الاعتماد (إعادةً أو رداً)", purgeFailedErr.includes("ينتظر قرارَ جهة الاعتماد") && !!(await prisma.member.findUnique({ where: { id: failed.id } })));
+    chk("ولا من لم يجتز وينتظر قرارَ جهة الاعتماد بلا إقرار (والرسالةُ تقول ما العمل)", purgeFailedErr.includes("أحذفه قبل حسم أمره") && !!(await prisma.member.findUnique({ where: { id: failed.id } })));
     const erase = await permanentlyDeleteAccount({ kind: "member", id: cVacant.id, confirmEmail: cVacant.email, reason: "اختبار", force: true, actorRole: "super_admin", actorName: founder.fullName } as never);
-    chk("**ولا بالحذف النهائي ولو بالإقرار المباشر (`force`)**", !erase.ok && JSON.stringify(erase).includes("ينتظر قرارَ جهة الاعتماد") && !!(await prisma.member.findUnique({ where: { id: cVacant.id } })), JSON.stringify(erase));
+    chk("**ولا بالحذف النهائي بالإقرار المباشر (`force`) وحده** — الإقرارُ الخاصّ وحده يحذف", !erase.ok && JSON.stringify(erase).includes("أحذفه قبل حسم أمره") && !!(await prisma.member.findUnique({ where: { id: cVacant.id } })), JSON.stringify(erase));
     // ويبقى للحذف غرضُه الأصلي
     const stuck = await mk("stuck", P.id, { testStatus: "not_started", testScore: null });
     await purgeCandidate({ memberId: stuck.id, confirmEmail: stuck.email, reason: "عالق لم يبدأ", performedByName: founder.fullName });

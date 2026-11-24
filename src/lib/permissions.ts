@@ -26,7 +26,13 @@ export function awaitingCandidateDecision(m: { approvalStatus: string; testStatu
   return m.approvalStatus === "pending_review" && (m.testStatus === "passed" || m.testStatus === "failed");
 }
 export const AWAITING_DECISION_REFUSAL =
-  "هذا مرشّحٌ انتهى اختبارُه وينتظر قرارَ جهة الاعتماد — الحذفُ ليس طريقَ الرد. يحسمه المخوَّل (قبولاً أو رفضاً) أولاً";
+  "هذا المرشّح أنهى اختبارَه وما زال ينتظر قرارَ جهة اعتماده (قبولاً أو رفضاً أو إعادةَ اختبار). لحذفه الآن علّم خانةَ «أحذفه قبل حسم أمره» في نموذج الحذف (الأعضاء ← الانضمام) — ويُسجَّل الحذفُ وسببُه في سجل التدقيق.";
+
+/** **الحذفُ النهائيُّ لسجلّات الأعضاء والمرشّحين** — للمؤسس والرئيس التنفيذي (طلبُ المؤسس، 24 نوفمبر 2026).
+ *  وحذفُ الحسابات القيادية باقٍ للمؤسس وحده (`permanentlyDeleteAccount`، النوع `user`). */
+export function canPurgeMembers(role: string | null | undefined): boolean {
+  return role === "super_admin" || role === "executive";
+}
 
 /** جهةُ الحسم لمرشّحٍ بعينه — من منصبه وحال قسمه (قائدُه النشط، وهل هو الإدارة العليا) */
 export function decisionAuthorityFor(

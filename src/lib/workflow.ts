@@ -1414,6 +1414,8 @@ export async function purgeCandidate(opts: {
   performedByName: string;
   /** من يحذف — يُكتب في سجل التدقيق مع إنهاء مناصبه في الإدارة العليا (`releaseSeniorPositions`) */
   actor?: { id: string; role: string };
+  /** إقرارٌ صريح بحذف مرشّحٍ ينتظر قرارَ جهة اعتماده — يُسجَّل في سجل التدقيق */
+  acknowledgeUndecided?: boolean;
 }) {
   const member = await prisma.member.findUniqueOrThrow({
     where: { id: opts.memberId },
@@ -1426,9 +1428,10 @@ export async function purgeCandidate(opts: {
   if (member.approvalStatus === "approved" && member.isActive) {
     throw new Error("هذا عضو معتمد نشط — أنهِ عضويته أولاً، فالحذف ليس طريق الاستبعاد");
   }
-  // مرشّحٌ ينتظر قرارَ جهة الاعتماد: حذفُه ردٌّ بلا قرارها (ق١) — يُحسم أولاً
+  // مرشّحٌ ينتظر قرارَ جهة اعتماده: حذفُه إنهاءٌ لترشّحه بلا قرارها — بإقرارٍ صريحٍ وحده، ويُسجَّل (24 نوفمبر 2026)
   const { awaitingCandidateDecision, AWAITING_DECISION_REFUSAL } = await import("@/lib/permissions");
-  if (awaitingCandidateDecision(member)) throw new Error(AWAITING_DECISION_REFUSAL);
+  const undecided = awaitingCandidateDecision(member);
+  if (undecided && !opts.acknowledgeUndecided) throw new Error(AWAITING_DECISION_REFUSAL);
 
   const scope = await memberScope(member);
 
@@ -1459,6 +1462,10 @@ export async function purgeCandidate(opts: {
     const refusal = eraseRefusal(err);
     if (refusal) throw new Error(refusal);
     throw err;
+  }
+  if (undecided) {
+    const { recordUndecidedPurge } = await import("@/lib/founderActions");
+    await recordUndecidedPurge(member, { id: opts.actor?.id ?? "system", name: opts.performedByName, role: opts.actor?.role ?? "super_admin" }, opts.reason);
   }
   // سطرُ الحذف في السجل الحي بعد وقوعه — لا «حُذف» لصفٍّ رفضت القاعدةُ محوَه
   await appendMemberEvent({

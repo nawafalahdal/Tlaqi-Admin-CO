@@ -8,6 +8,7 @@ import { SeatConflicts } from "@/components/SeatConflicts";
 import { RemovedAccountRow } from "./RemovedAccountRow";
 import { MemberAccountRow } from "./MemberAccountRow";
 import { InactivePurgeButton } from "./InactivePurgeButton";
+import { awaitingCandidateDecision, canPurgeMembers } from "@/lib/permissions";
 import { StuckCandidateRow, type StuckCandidate } from "./StuckCandidateRow";
 import { DataTable } from "@/components/DataTable";
 import { Pager, pageParam } from "@/components/Pager";
@@ -79,6 +80,8 @@ export default async function PeoplePage({
   if (session.user.role !== "super_admin" && session.user.role !== "executive") redirect("/admin");
 
   const isSuperAdmin = session.user.role === "super_admin";
+  // حذفُ سجلّات الأعضاء والمرشّحين نهائياً: المؤسسُ والرئيسُ التنفيذي (24 نوفمبر 2026) — والحساباتُ القيادية للمؤسس وحده
+  const canPurgePeople = canPurgeMembers(session.user.role);
   const t = getDictionary(locale);
   const tm = t.membersPage;
 
@@ -273,6 +276,8 @@ export default async function PeoplePage({
     // قائدُ القسم أو جهةُ الاعتماد المستقلة من صفحاتهما، والخادمُ يرفضها لهما (`mayDecideCandidate`)
     canReopen: false,
     canResendReopen: canResendReopenedTest(m),
+    // انتهى اختبارُه وينتظر قرارَ جهة اعتماده — حذفُه بإقرارٍ صريح (`acknowledgeUndecided`)
+    awaitingDecision: awaitingCandidateDecision(m),
     twin: leaderEmails.has(m.email.toLowerCase())
       ? ("email" as const)
       : leaderNames.has(m.fullName.trim())
@@ -312,7 +317,7 @@ export default async function PeoplePage({
         score: m.testScore === null ? "—" : `${m.testScore}%`,
         created: formatDate(m.createdAt),
         // المتوقفُ والمرفوضُ يُحذف نهائياً — للمؤسس وحده، والخادمُ يفرضها (`permanentlyDeleteAccount`)
-        ...(isSuperAdmin ? { actions: <InactivePurgeButton member={{ id: m.id, fullName: m.fullName, email: m.email }} /> } : {}),
+        ...(canPurgePeople ? { actions: <InactivePurgeButton member={{ id: m.id, fullName: m.fullName, email: m.email }} /> } : {}),
       },
     }));
 
@@ -323,7 +328,7 @@ export default async function PeoplePage({
     { key: "stage", label: tm.colStage },
     { key: "score", label: tm.colScore },
     { key: "created", label: tm.colCreated },
-    ...(isSuperAdmin ? [{ key: "actions", label: tm.colActions }] : []),
+    ...(canPurgePeople ? [{ key: "actions", label: tm.colActions }] : []),
   ];
 
   const theme = themeFromColor(SUPER_ADMIN_THEME.colorHex);
@@ -589,7 +594,7 @@ export default async function PeoplePage({
               ) : (
                 <div className="flex flex-col gap-3">
                   {stuck.map((c) => (
-                    <StuckCandidateRow key={c.id} candidate={c} canPurge={isSuperAdmin} theme={theme} />
+                    <StuckCandidateRow key={c.id} candidate={c} canPurge={canPurgePeople} theme={theme} />
                   ))}
                 </div>
               )}
@@ -604,7 +609,7 @@ export default async function PeoplePage({
                       key={m.id}
                       theme={theme}
                       lapsed
-                      canPurge={isSuperAdmin}
+                      canPurge={canPurgePeople}
                       member={{ id: m.id, fullName: m.fullName, email: m.email, departmentName: m.department?.name ?? "—" }}
                     />
                   ))}

@@ -363,7 +363,7 @@ export default async function PersonPage({
                 <>
                   <MemberAccountRow
                     theme={theme}
-                    canPurge={isFounder}
+                    canPurge={isFounder || role === "executive"}
                     canAward={canAward(role)}
                     assignableDepartments={departments}
                     member={{ id: member.id, fullName: member.fullName, email: member.email, departmentName: dept?.name ?? "—" }}

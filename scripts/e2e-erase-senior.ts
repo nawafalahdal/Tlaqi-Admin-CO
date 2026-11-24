@@ -123,6 +123,41 @@ const why = (r: { ok: boolean; reason?: string }) => (r.ok ? "" : (r as { reason
     await prisma.$executeRawUnsafe(`DROP TABLE "_e2e_hold"`);
     const r5 = await del("member", victim.id, victim.email);
     chk("وبعد زوال المانع يُحذف كاملاً", r5.ok && !(await prisma.member.findUnique({ where: { id: victim.id } })), why(r5));
+
+    // ═══ الرئيسُ التنفيذيُّ يحذف سجلّات الأعضاء والمرشّحين (24 نوفمبر 2026) — لا الحساباتِ القيادية ═══
+    const ceoDel = (kind: "member" | "user", id: string, email: string, extra: Record<string, unknown> = {}) =>
+      permanentlyDeleteAccount({ kind, id, confirmEmail: email, reason: "حذف بيد الرئيس", force: false, actorRole: "executive", actorId: founder.id, actorName: "الرئيس التنفيذي", ...extra });
+    const st2 = await member({ isActive: false, terminatedAt: new Date() });
+    const rc1 = await ceoDel("member", st2.id, st2.email);
+    chk("**الرئيسُ التنفيذيُّ يحذف متوقفاً نهائياً**", rc1.ok && !(await prisma.member.findUnique({ where: { id: st2.id } })), why(rc1));
+    const uEmail2 = `${TAG}-u2@example.test`;
+    const u2 = await prisma.user.create({ data: { fullName: "قائد سابق 2", email: uEmail2, passwordHash: "!", role: "department_admin", departmentId: dept.id, isActive: false } as never });
+    const rc2 = await ceoDel("user", u2.id, uEmail2);
+    chk("ولا يحذف حساباً قيادياً (للمؤسس وحده)", !rc2.ok && why(rc2).includes("للمؤسس وحده") && !!(await prisma.user.findUnique({ where: { id: u2.id } })), why(rc2));
+    const twinM = await member({ isActive: false, terminatedAt: new Date() });
+    await prisma.user.create({ data: { fullName: "توأم", email: twinM.email, passwordHash: "!", role: "department_admin", departmentId: dept.id, isActive: false } as never });
+    const rc3 = await ceoDel("member", twinM.id, twinM.email);
+    chk("ولا سجلَّ عضويةٍ له حسابٌ قياديٌّ بالبريد نفسه", !rc3.ok && why(rc3).includes("حسابٌ قياديٌّ") && !!(await prisma.member.findUnique({ where: { id: twinM.id } })), why(rc3));
+    const leadDel = await permanentlyDeleteAccount({ kind: "member", id: twinM.id, confirmEmail: twinM.email, reason: "محاولة قائد", force: false, actorRole: "department_admin", actorId: founder.id, actorName: "قائد" });
+    chk("وقائدُ القسم لا يحذف", !leadDel.ok && why(leadDel).includes("للمؤسس والرئيس التنفيذي"), why(leadDel));
+
+    // ═══ مرشّحٌ لم يجتز وينتظر الحسم: لا يُحذف إلا بإقرارٍ صريح، ويُسجَّل ═══
+    const und = await member({ approvalStatus: "pending_review", testStatus: "failed", testScore: 30 });
+    const noAck = await ceoDel("member", und.id, und.email);
+    chk("**بلا إقرار: رسالةٌ تقول ما العمل** (علّم «أحذفه قبل حسم أمره»)", !noAck.ok && why(noAck).includes("أحذفه قبل حسم أمره") && !!(await prisma.member.findUnique({ where: { id: und.id } })), why(noAck));
+    const withAck = await ceoDel("member", und.id, und.email, { acknowledgeUndecided: true });
+    chk("**وبالإقرار يُحذف**", withAck.ok && !(await prisma.member.findUnique({ where: { id: und.id } })), why(withAck));
+    chk("ويُسجَّل «حذفُ مرشّحٍ قبل حسم أمره» بالسبب والدور", (await prisma.orgAuditEvent.count({ where: { entityId: und.id, action: "candidate.purged_undecided", actorRole: "executive", note: "حذف بيد الرئيس" } })) === 1);
+    const und2 = await member({ approvalStatus: "pending_review", testStatus: "failed", testScore: 20 });
+    let pcErr = "";
+    try {
+      await purgeCandidate({ memberId: und2.id, confirmEmail: und2.email, reason: "عالق", performedByName: "الرئيس التنفيذي", actor: { id: founder.id, role: "executive" } });
+    } catch (e) {
+      pcErr = String(e);
+    }
+    chk("وطريقُ «المرشّحون العالقون» كذلك: بلا إقرار لا يحذف", pcErr.includes("أحذفه قبل حسم أمره") && !!(await prisma.member.findUnique({ where: { id: und2.id } })), pcErr.slice(0, 120));
+    await purgeCandidate({ memberId: und2.id, confirmEmail: und2.email, reason: "عالق", performedByName: "الرئيس التنفيذي", actor: { id: founder.id, role: "executive" }, acknowledgeUndecided: true });
+    chk("وبالإقرار يحذف ويُسجَّل", !(await prisma.member.findUnique({ where: { id: und2.id } })) && (await prisma.orgAuditEvent.count({ where: { entityId: und2.id, action: "candidate.purged_undecided" } })) === 1);
   } catch (e) {
     chk("لم يقع استثناء", false, e instanceof Error ? e.stack?.split("\n").slice(0, 3).join(" ") ?? e.message : String(e));
   } finally {

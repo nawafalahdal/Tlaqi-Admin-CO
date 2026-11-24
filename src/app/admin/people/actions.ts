@@ -13,6 +13,7 @@ import {
 import { reasonFor } from "@/lib/emailOutcome";
 import { fmt } from "@/i18n/fmt";
 import { permanentlyDeleteAccount, sendWelcomeToUser } from "@/lib/founderActions";
+import { canPurgeMembers } from "@/lib/permissions";
 import { sendAward } from "@/lib/awards";
 import { safeErrorMessage } from "@/lib/safeError";
 import { revalidatePath } from "next/cache";
@@ -152,12 +153,14 @@ export async function resendReopenedTestAction(memberId: string): Promise<{ erro
 export async function purgeCandidateAction(
   memberId: string,
   confirmEmail: string,
-  reason: string
+  reason: string,
+  acknowledgeUndecided = false
 ): Promise<{ error: string | null; done?: boolean; email?: string }> {
   const L = getDictionary(await getLocale()).rPeopleActions;
   const session = await auth();
   if (!session) return { error: L.youNeedToSign };
-  if (session.user.role !== "super_admin") {
+  // للمؤسس والرئيس التنفيذي (24 نوفمبر 2026) — والحسابُ القياديُّ لا يمرّ من هنا
+  if (!canPurgeMembers(session.user.role)) {
     return { error: L.permanentDeletionIsFor };
   }
   if (!reason.trim()) return { error: L.writeTheReasonFor2 };
@@ -169,6 +172,7 @@ export async function purgeCandidateAction(
       reason: reason.trim(),
       performedByName: session.user.name ?? "—",
       actor: { id: session.user.id, role: session.user.role },
+      acknowledgeUndecided: acknowledgeUndecided === true,
     });
     revalidatePath("/admin/people");
     revalidatePath("/admin");
